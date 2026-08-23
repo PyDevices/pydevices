@@ -445,10 +445,29 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         shell = args.shell
 
+    # Server probing & resolution
+    bin_dir = Path(__file__).resolve().parent
+    org_dir = bin_dir.parent.parent
+
+    # If script_path wasn't directly passed but target_name exists (e.g. -m module), locate it
+    if not script_path and target_name:
+        candidates = [
+            org_dir / "pydevices-examples" / "lib" / "examples" / f"{target_name}.py",
+            org_dir / "pydevices-examples" / "lib" / "examples" / target_name / f"{target_name}.py",
+            org_dir / "pydevices-examples" / "lib" / "examples" / target_name / "__init__.py",
+            org_dir / "pydevices-examples" / "lib" / "utils" / f"{target_name}.py",
+            org_dir / "pydevices" / "lib" / f"{target_name}.py",
+            Path.cwd() / f"{target_name}.py",
+        ]
+        for c in candidates:
+            if c.is_file():
+                script_path = c
+                break
+
     # Determine interpreter
     interpreter = "pyodide" if args.pyodide else "micropython"
 
-    # Header extraction if script path is provided
+    # Header extraction if script path is provided or discovered
     hdr_modules: List[str] = []
     hdr_deps: List[str] = []
     hdr_manifests: List[str] = []
@@ -458,10 +477,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     extra_modules = (args.modules.split(",") if args.modules else []) + hdr_modules
     extra_deps = (args.deps.split(",") if args.deps else []) + hdr_deps
     extra_manifests = (args.manifests.split(",") if args.manifests else []) + hdr_manifests
-
-    # Server probing & resolution
-    bin_dir = Path(__file__).resolve().parent
-    org_dir = bin_dir.parent.parent
 
     port = args.port
     host = args.bind
