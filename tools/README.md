@@ -21,8 +21,8 @@ python tools/test_timers.py
 micropython tools/test_timers.py
 circuitpython tools/test_timers.py
 
-python tools/ps_debug.py http://127.0.0.1:8000/pydevices-examples/gallery/harness.html?modules=bouncing_balls
-python tools/ps_shot.py http://127.0.0.1:8000/pydevices-examples/gallery/harness.html?modules=bouncing_balls 3
+python tools/ps_debug.py http://127.0.0.1:8000/pydevices-examples/pyscript/harness.html?modules=bouncing_balls
+python tools/ps_shot.py http://127.0.0.1:8000/pydevices-examples/pyscript/harness.html?modules=bouncing_balls 3
 
 ./tools/test_testpypi_standalone.sh
 ./tools/test_testpypi_standalone.sh --desktop

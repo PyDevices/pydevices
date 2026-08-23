@@ -17,7 +17,7 @@ import sys
 from . import AsyncTimer, _async_only_interpreter, _async_sleep_ms, _provider_pump
 
 _AUTO_BACKENDS = ("machine", "librt", "win32", "sdl2", "threading", "polling")
-_BACKENDS = _AUTO_BACKENDS + ("async", "wasm")
+_BACKENDS = _AUTO_BACKENDS + ("async",)
 _ENV_OVERRIDE = "MULTIMER_BACKEND"
 
 
@@ -48,8 +48,6 @@ def _load_backend(backend_name):
         from . import threading as provider
     elif backend_name == "polling":
         from . import polling as provider
-    elif backend_name == "wasm":
-        from . import wasm as provider
     elif backend_name == "async":
         provider = _AsyncProvider
     else:
@@ -102,13 +100,6 @@ def _select_backend():
     forced = _forced_backend()
     if forced is not None:
         return _load_backend(forced)
-        
-    try:
-        import _wasm_bridge  # noqa: F401
-        return _load_backend("wasm")
-    except Exception:
-        pass
-
     if _async_only_interpreter():
         return _AsyncProvider
 
