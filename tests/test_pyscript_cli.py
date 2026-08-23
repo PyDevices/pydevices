@@ -2,10 +2,10 @@
 """Unit tests for pydevices/bin/pyscript.py CLI parsing, URL generation, and server probing."""
 
 import importlib.util
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 _BIN_DIR = Path(__file__).resolve().parent.parent / "bin"
 _PYSCRIPT_PY = _BIN_DIR / "pyscript.py"
@@ -41,23 +41,15 @@ class TestPyScriptCli(unittest.TestCase):
         self.assertTrue(args.pyodide)
         self.assertFalse(args.micropython)
 
-    def test_build_pyscript_url_micropython_default(self):
-        url = pyscript_cli.build_pyscript_url(
-            target_name="bouncing_balls",
-            interpreter="micropython",
-            extra_deps=["palettes", "pygraphics"],
-            base_url="http://127.0.0.1:8000",
-        )
-        # palettes & pygraphics are frozen in MP WASM, so deps parameter is omitted
-        self.assertEqual(
-            url,
-            "http://127.0.0.1:8000/pydevices-examples/pyscript/micropython.html?modules=bouncing_balls",
-        )
+    def test_micropython_has_moved_to_wasm_cli(self):
+        with self.assertRaisesRegex(ValueError, "wasm.py"):
+            pyscript_cli.build_pyscript_url(
+                target_name="bouncing_balls", interpreter="micropython"
+            )
 
     def test_build_pyscript_url_pyodide_deps_expansion(self):
         url = pyscript_cli.build_pyscript_url(
             target_name="hello",
-            interpreter="pyodide",
             extra_deps=["palettes"],
             base_url="http://127.0.0.1:8000",
         )
@@ -67,21 +59,15 @@ class TestPyScriptCli(unittest.TestCase):
             "http://127.0.0.1:8000/pydevices-examples/pyscript/pyodide.html?modules=hello&deps=pydevices-palettes%2Cpydevices-pygraphics",
         )
 
-    def test_build_pyscript_url_autotest_harness(self):
-        url = pyscript_cli.build_pyscript_url(
-            target_name="calc_graphics",
-            autotest=True,
-            duration=5,
-            base_url="http://127.0.0.1:8000",
-        )
-        self.assertEqual(
-            url,
-            "http://127.0.0.1:8000/pydevices-examples/pyscript/harness.html?modules=calc_graphics&autotest=1&duration=5",
-        )
+    def test_playwright_options_are_not_part_of_launcher(self):
+        with self.assertRaisesRegex(TypeError, "autotest"):
+            pyscript_cli.build_pyscript_url("calc_graphics", autotest=True)
 
     def test_parse_script_headers(self):
         with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-            f.write("# modules: calc_lvgl, calc_engine\n# deps: lvgl\n# manifests: /test.json\nprint('hello')\n")
+            f.write(
+                "# modules: calc_lvgl, calc_engine\n# deps: lvgl\n# manifests: /test.json\nprint('hello')\n"
+            )
             temp_path = Path(f.name)
 
         try:

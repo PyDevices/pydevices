@@ -16,12 +16,13 @@ PyDevices hardware drivers and board configurations adhere to a standardized con
 - **Decoupled Application Lifecycle**: Board configuration exports neutral capability interfaces; event coordination and application flow remain strictly owned by the application.
 
 ### Cross-Interpreter Compatibility
-Write your display and hardware logic once and run across 5 supported Python environments:
+Write your display and hardware logic once and run across 6 supported Python environments:
 1. **MicroPython** — Microcontroller firmware with MIP package support.
 2. **CircuitPython** — Microcontroller firmware with stock driver compatibility.
 3. **CPython (Desktop)** — Native desktop development and testing (`pydevices-desktop`).
-4. **PyScript / Pyodide (Web)** — Web browser deployment without code changes.
-5. **Android (APK)** — Mobile package deployment via Buildozer (`android-template`).
+4. **Direct MicroPython WebAssembly (Web)** — First-party browser deployment through `_wasm_bridge`.
+5. **PyScript / Pyodide (Web)** — Retained browser alternative through `PSDisplay`.
+6. **Android (APK)** — Mobile package deployment via Buildozer (`android-template`).
 
 ---
 
@@ -48,6 +49,7 @@ landing page.
 - [Device Matrix](docs/device-matrix.md) — product board → `board_config` → peripheral roles
 - [Display Boards](docs/display-boards.md) — panel, touch, and bring-up notes per board
 - [Cross-Platform Architecture](docs/architecture.md)
+- [Direct MicroPython WebAssembly](docs/wasm.md)
 
 ## Installation
 

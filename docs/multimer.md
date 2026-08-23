@@ -36,6 +36,7 @@ from multimer import win32 as timer          # Windows APC timer
 from multimer import sdl2 as timer           # SDL timer/event pump
 from multimer import threading as timer      # worker + main-thread queue
 from multimer import polling as timer        # cooperative fallback
+from multimer import wasm as timer           # direct MicroPython WebAssembly
 ```
 
 Portable host applications can opt into automatic selection:
@@ -147,7 +148,7 @@ sets `timer.is_async = True`, and provides an awaitable `timer.sleep_ms`.
 `multimer.auto` preserves the established selection order:
 
 ```text
-machine → librt → win32 → sdl2 → threading → polling
+wasm → machine → librt → win32 → sdl2 → threading → polling
 ```
 
 Host-specific rules remain:
@@ -157,6 +158,7 @@ Host-specific rules remain:
   dual-SDL deadlock.
 - Android skips `sdl2`; its timer callback is not on the GLES thread.
 - PyScript and Jupyter select async.
+- Direct MicroPython WebAssembly selects `wasm` when `_wasm_bridge` imports.
 - A provider which is not installed/importable is skipped.
 - `polling` remains the final sync fallback.
 
@@ -166,7 +168,7 @@ Set `MULTIMER_BACKEND` before importing `multimer.auto` to force a provider:
 MULTIMER_BACKEND=threading python app.py
 ```
 
-Accepted values are `machine`, `librt`, `win32`, `sdl2`, `threading`,
+Accepted values are `wasm`, `machine`, `librt`, `win32`, `sdl2`, `threading`,
 `polling`, and `async`. An unknown or unavailable forced provider raises; it
 never silently falls back. Auto selects once at import and has no mutable
 `use_backend` API.
@@ -194,6 +196,7 @@ print(timer.name)
 | `micropython.exe` without `ffi` or usdl2 | `polling` | `False` | call `pump()` or `sleep_ms()` |
 | Android | `threading` | `False` | call `pump()` or `sleep_ms()` |
 | PyScript / Jupyter | `async` | `False` | await the host event loop |
+| Direct MicroPython WebAssembly | `wasm` | `True` | browser timers deliver on the VM thread |
 
 Provider selection is independent from display construction. A console app can
 have a working timer even when no GUI backend is installed.

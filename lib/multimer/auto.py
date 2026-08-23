@@ -16,7 +16,7 @@ import sys
 
 from . import AsyncTimer, _async_only_interpreter, _async_sleep_ms, _provider_pump
 
-_AUTO_BACKENDS = ("machine", "librt", "win32", "sdl2", "threading", "polling")
+_AUTO_BACKENDS = ("wasm", "machine", "librt", "win32", "sdl2", "threading", "polling")
 _BACKENDS = _AUTO_BACKENDS + ("async",)
 _ENV_OVERRIDE = "MULTIMER_BACKEND"
 
@@ -36,7 +36,11 @@ class _AsyncProvider:
 
 def _load_backend(backend_name):
     """Import one provider without fallback."""
-    if backend_name == "machine":
+    if backend_name == "wasm":
+        import _wasm_bridge  # noqa: F401
+
+        from . import wasm as provider
+    elif backend_name == "machine":
         from . import machine as provider
     elif backend_name == "librt":
         from . import librt as provider
@@ -100,10 +104,14 @@ def _select_backend():
     forced = _forced_backend()
     if forced is not None:
         return _load_backend(forced)
+    try:
+        return _load_backend("wasm")
+    except ImportError:
+        pass
     if _async_only_interpreter():
         return _AsyncProvider
 
-    tried = _auto_backends()
+    tried = [name for name in _auto_backends() if name != "wasm"]
     for backend_name in tried:
         try:
             return _load_backend(backend_name)

@@ -512,6 +512,10 @@ function abort(what) {
 
   ABORT = true;
 
+  if (what.search(/RuntimeError: [Uu]nreachable/) >= 0) {
+    what += '. "unreachable" may be due to ASYNCIFY_STACK_SIZE not being large enough (try increasing it)';
+  }
+
   // Use a wasm runtime error, because a JS error might be seen as a foreign
   // exception, which means we'd run destructors on it. We need the error to
   // simply make the program stop.
@@ -630,6 +634,10 @@ async function instantiateAsync(binary, binaryFile, imports) {
 }
 
 function getWasmImports() {
+  // instrumenting imports is used in asyncify in two ways: to add assertions
+  // that check for proper import use, and for JSPI we use them to set up
+  // the Promise API on the import side.
+  Asyncify.instrumentWasmImports(wasmImports);
   // prepare imports
   var imports = {
     'env': wasmImports,
@@ -647,6 +655,8 @@ async function createWasm() {
   /** @param {WebAssembly.Module=} module*/
   function receiveInstance(instance, module) {
     wasmExports = instance.exports;
+
+    wasmExports = Asyncify.instrumentWasmExports(wasmExports);
 
     assignWasmExports(wasmExports);
 
@@ -753,7 +763,35 @@ async function createWasm() {
   var addOnPreRun = (cb) => onPreRuns.push(cb);
 
 
-  
+  var dynCalls = {
+  };
+  var dynCallLegacy = (sig, ptr, args) => {
+      sig = sig.replace(/p/g, 'i')
+      assert(sig in dynCalls, `bad function pointer type - sig is not in dynCalls: '${sig}'`);
+      if (args?.length) {
+        // j (64-bit integer) is fine, and is implemented as a BigInt. Without
+        // legalization, the number of parameters should match (j is not expanded
+        // into two i's).
+        assert(args.length === sig.length - 1);
+      } else {
+        assert(sig.length == 1);
+      }
+      var f = dynCalls[sig];
+      return f(ptr, ...args);
+    };
+  var dynCall = (sig, ptr, args = [], promising = false) => {
+      assert(ptr, `null function pointer in dynCall`);
+      assert(!promising, 'async dynCall is not supported in this mode')
+      var rtn = dynCallLegacy(sig, ptr, args);
+
+      function convert(rtn) {
+        return rtn;
+      }
+
+      return convert(rtn);
+    };
+
+
     /**
    * @param {number} ptr
    * @param {string} type
@@ -782,7 +820,7 @@ async function createWasm() {
       return '0x' + ptr.toString(16).padStart(8, '0');
     }
 
-  
+
     /**
    * @param {number} ptr
    * @param {number} value
@@ -816,7 +854,7 @@ async function createWasm() {
       }
     };
 
-  
+
 
   var PATH = {
   isAbs:(path) => path.charAt(0) === '/',
@@ -972,9 +1010,9 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
    * @return {string}
    */
   var UTF8ArrayToString = (heapOrArray, idx = 0, maxBytesToRead, ignoreNul) => {
-  
+
       var endPtr = findStringEnd(heapOrArray, idx, maxBytesToRead, ignoreNul);
-  
+
       // When using conditional TextDecoder, skip it for short strings as the overhead of the native call is not worth it.
       if (endPtr - idx > 16 && heapOrArray.buffer && UTF8Decoder) {
         return UTF8Decoder.decode(heapOrArray.subarray(idx, endPtr));
@@ -996,7 +1034,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           if ((u0 & 0xF8) != 0xF0) warnOnce(`Invalid UTF-8 leading byte ${ptrToString(u0)} encountered when deserializing a UTF-8 string in wasm memory to a JS string!`);
           u0 = ((u0 & 7) << 18) | (u1 << 12) | (u2 << 6) | (heapOrArray[idx++] & 63);
         }
-  
+
         if (u0 < 0x10000) {
           str += String.fromCharCode(u0);
         } else {
@@ -1006,9 +1044,9 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       }
       return str;
     };
-  
+
   var FS_stdin_getChar_buffer = [];
-  
+
   var lengthBytesUTF8 = (str) => {
       var len = 0;
       for (var i = 0; i < str.length; ++i) {
@@ -1029,14 +1067,14 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       }
       return len;
     };
-  
+
   var stringToUTF8Array = (str, heap, outIdx, maxBytesToWrite) => {
       assert(typeof str === 'string', `stringToUTF8Array expects a string (got ${typeof str})`);
       // Parameter maxBytesToWrite is not optional. Negative values, 0, null,
       // undefined and false each don't write out any bytes.
       if (!(maxBytesToWrite > 0))
         return 0;
-  
+
       var startIdx = outIdx;
       var endIdx = outIdx + maxBytesToWrite - 1; // -1 for string null terminator.
       for (var i = 0; i < str.length; ++i) {
@@ -1088,7 +1126,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           var BUFSIZE = 256;
           var buf = Buffer.alloc(BUFSIZE);
           var bytesRead = 0;
-  
+
           // For some reason we must suppress a closure warning here, even though
           // fd definitely exists on process.stdin, and is even the proper way to
           // get the fd of stdin,
@@ -1097,7 +1135,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           // so it is related to the surrounding code in some unclear manner.
           /** @suppress {missingProperties} */
           var fd = process.stdin.fd;
-  
+
           try {
             bytesRead = fs.readSync(fd, buf, 0, BUFSIZE);
           } catch(e) {
@@ -1107,7 +1145,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
             if (e.toString().includes('EOF')) bytesRead = 0;
             else throw e;
           }
-  
+
           if (bytesRead > 0) {
             result = buf.slice(0, bytesRead).toString('utf-8');
           }
@@ -1268,8 +1306,8 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         },
   },
   };
-  
-  
+
+
   var mmapAlloc = (size) => {
       abort('internal error: mmapAlloc called but `emscripten_builtin_memalign` native symbol not exported');
     };
@@ -1496,11 +1534,11 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           if (buffer.buffer === HEAP8.buffer) {
             canOwn = false;
           }
-  
+
           if (!length) return 0;
           var node = stream.node;
           node.mtime = node.ctime = Date.now();
-  
+
           if (canOwn) {
             assert(position === 0, 'canOwn must imply no weird position inside the file');
             node.contents = buffer.subarray(offset, offset + length);
@@ -1570,7 +1608,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         },
   },
   };
-  
+
   var FS_modeStringToFlags = (str) => {
       if (typeof str != 'string') return str;
       var flagModes = {
@@ -1587,7 +1625,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       }
       return flags;
     };
-  
+
   var FS_fileDataToTypedArray = (data) => {
       if (typeof data == 'string') {
         data = intArrayFromString(data, true);
@@ -1597,17 +1635,17 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       }
       return data;
     };
-  
+
   var FS_getMode = (canRead, canWrite) => {
       var mode = 0;
       if (canRead) mode |= 292 | 73;
       if (canWrite) mode |= 146;
       return mode;
     };
-  
-  
-  
-  
+
+
+
+
     /**
    * Given a pointer 'ptr' to a null-terminated UTF8-encoded string in the
    * emscripten HEAP, returns a copy of that string as a Javascript String object.
@@ -1625,9 +1663,9 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       assert(typeof ptr == 'number', `UTF8ToString expects a number (got ${typeof ptr})`);
       return ptr ? UTF8ArrayToString(HEAPU8, ptr, maxBytesToRead, ignoreNul) : '';
     };
-  
+
   var strError = (errno) => UTF8ToString(_strerror(errno));
-  
+
   var ERRNO_CODES = {
       'EPERM': 63,
       'ENOENT': 44,
@@ -1751,16 +1789,16 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       'EOWNERDEAD': 62,
       'ESTRPIPE': 135,
     };
-  
+
   var asyncLoad = async (url) => {
       var arrayBuffer = await readAsync(url);
       assert(arrayBuffer, `Loading data file "${url}" failed (no arrayBuffer).`);
       return new Uint8Array(arrayBuffer);
     };
-  
-  
+
+
   var FS_createDataFile = (...args) => FS.createDataFile(...args);
-  
+
   var getUniqueRunDependency = (id) => {
       var orig = id;
       while (1) {
@@ -1768,21 +1806,21 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         id = orig + Math.random();
       }
     };
-  
+
   var runDependencies = 0;
-  
-  
+
+
   var dependenciesFulfilled = null;
-  
+
   var runDependencyTracking = {
   };
-  
+
   var runDependencyWatcher = null;
   var removeRunDependency = (id) => {
       runDependencies--;
-  
+
       Module['monitorRunDependencies']?.(runDependencies);
-  
+
       assert(id, 'removeRunDependency requires an ID');
       assert(runDependencyTracking[id]);
       delete runDependencyTracking[id];
@@ -1798,13 +1836,13 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         }
       }
     };
-  
-  
+
+
   var addRunDependency = (id) => {
       runDependencies++;
-  
+
       Module['monitorRunDependencies']?.(runDependencies);
-  
+
       assert(id, 'addRunDependency requires an ID')
       assert(!runDependencyTracking[id]);
       runDependencyTracking[id] = 1;
@@ -1833,13 +1871,13 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         runDependencyWatcher.unref?.()
       }
     };
-  
-  
+
+
   var preloadPlugins = [];
   var FS_handledByPreloadPlugin = async (byteArray, fullname) => {
       // Ensure plugins are ready.
       if (typeof Browser != 'undefined') Browser.init();
-  
+
       for (var plugin of preloadPlugins) {
         if (plugin['canHandle'](fullname)) {
           assert(plugin['handle'].constructor.name === 'AsyncFunction', 'Filesystem plugin handlers must be async functions (See #24914)')
@@ -1856,13 +1894,13 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       var fullname = name ? PATH_FS.resolve(PATH.join2(parent, name)) : parent;
       var dep = getUniqueRunDependency(`cp ${fullname}`); // might have several active requests for the same fullname
       addRunDependency(dep);
-  
+
       try {
         var byteArray = url;
         if (typeof url == 'string') {
           byteArray = await asyncLoad(url);
         }
-  
+
         byteArray = await FS_handledByPreloadPlugin(byteArray, fullname);
         preFinish?.();
         if (!dontCreateFile) {
@@ -1979,31 +2017,31 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           throw new FS.ErrnoError(44);
         }
         opts.follow_mount ??= true
-  
+
         if (!PATH.isAbs(path)) {
           path = FS.cwd() + '/' + path;
         }
-  
+
         // limit max consecutive symlinks to SYMLOOP_MAX.
         linkloop: for (var nlinks = 0; nlinks < 40; nlinks++) {
           // split the absolute path
           var parts = path.split('/').filter((p) => !!p);
-  
+
           // start at the root
           var current = FS.root;
           var current_path = '/';
-  
+
           for (var i = 0; i < parts.length; i++) {
             var islast = (i === parts.length-1);
             if (islast && opts.parent) {
               // stop resolving
               break;
             }
-  
+
             if (parts[i] === '.') {
               continue;
             }
-  
+
             if (parts[i] === '..') {
               current_path = PATH.dirname(current_path);
               if (FS.isRoot(current)) {
@@ -2017,7 +2055,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
               }
               continue;
             }
-  
+
             current_path = PATH.join2(current_path, parts[i]);
             try {
               current = FS.lookupNode(current, parts[i]);
@@ -2030,12 +2068,12 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
               }
               throw e;
             }
-  
+
             // jump to the mount's root node if this is a mountpoint
             if (FS.isMountpoint(current) && (!islast || opts.follow_mount)) {
               current = current.mounted.root;
             }
-  
+
             // by default, lookupPath will not follow a symlink if it is the final path component.
             // setting opts.follow = true will override this behavior.
             if (FS.isLink(current.mode) && (!islast || opts.follow)) {
@@ -2068,7 +2106,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       },
   hashName(parentid, name) {
         var hash = 0;
-  
+
         for (var i = 0; i < name.length; i++) {
           hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
         }
@@ -2112,9 +2150,9 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
   createNode(parent, name, mode, rdev) {
         assert(typeof parent == 'object')
         var node = new FS.FSNode(parent, name, mode, rdev);
-  
+
         FS.hashAddNode(node);
-  
+
         return node;
       },
   destroyNode(node) {
@@ -2253,7 +2291,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
   getStream:(fd) => FS.streams[fd],
   createStream(stream, fd = -1) {
         assert(fd >= -1);
-  
+
         // clone it, so we can return an instance of FSStream
         stream = Object.assign(new FS.FSStream(), stream);
         if (fd == -1) {
@@ -2307,15 +2345,15 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
   getMounts(mount) {
         var mounts = [];
         var check = [mount];
-  
+
         while (check.length) {
           var m = check.pop();
-  
+
           mounts.push(m);
-  
+
           check.push(...m.mounts);
         }
-  
+
         return mounts;
       },
   syncfs(populate, callback) {
@@ -2323,22 +2361,22 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           callback = populate;
           populate = false;
         }
-  
+
         FS.syncFSRequests++;
-  
+
         if (FS.syncFSRequests > 1) {
           err(`warning: ${FS.syncFSRequests} FS.syncfs operations in flight at once, probably just doing extra work`);
         }
-  
+
         var mounts = FS.getMounts(FS.root.mount);
         var completed = 0;
-  
+
         function doCallback(errCode) {
           assert(FS.syncFSRequests > 0);
           FS.syncFSRequests--;
           return callback(errCode);
         }
-  
+
         function done(errCode) {
           if (errCode) {
             if (!done.errored) {
@@ -2351,7 +2389,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
             doCallback(null);
           }
         };
-  
+
         // sync all mounts
         for (var mount of mounts) {
           if (mount.type.syncfs) {
@@ -2370,77 +2408,77 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         var root = mountpoint === '/';
         var pseudo = !mountpoint;
         var node;
-  
+
         if (root && FS.root) {
           throw new FS.ErrnoError(10);
         } else if (!root && !pseudo) {
           var lookup = FS.lookupPath(mountpoint, { follow_mount: false });
-  
+
           mountpoint = lookup.path;  // use the absolute path
           node = lookup.node;
-  
+
           if (FS.isMountpoint(node)) {
             throw new FS.ErrnoError(10);
           }
-  
+
           if (!FS.isDir(node.mode)) {
             throw new FS.ErrnoError(54);
           }
         }
-  
+
         var mount = {
           type,
           opts,
           mountpoint,
           mounts: []
         };
-  
+
         // create a root node for the fs
         var mountRoot = type.mount(mount);
         mountRoot.mount = mount;
         mount.root = mountRoot;
-  
+
         if (root) {
           FS.root = mountRoot;
         } else if (node) {
           // set as a mountpoint
           node.mounted = mount;
-  
+
           // add the new mount to the current mount's children
           if (node.mount) {
             node.mount.mounts.push(mount);
           }
         }
-  
+
         return mountRoot;
       },
   unmount(mountpoint) {
         var lookup = FS.lookupPath(mountpoint, { follow_mount: false });
-  
+
         if (!FS.isMountpoint(lookup.node)) {
           throw new FS.ErrnoError(28);
         }
-  
+
         // destroy the nodes for this mount, and all its child mounts
         var node = lookup.node;
         var mount = node.mounted;
         var mounts = FS.getMounts(mount);
-  
+
         for (var [hash, current] of Object.entries(FS.nameTable)) {
           while (current) {
             var next = current.name_next;
-  
+
             if (mounts.includes(current.mount)) {
               FS.destroyNode(current);
             }
-  
+
             current = next;
           }
         }
-  
+
         // no longer a mountpoint
         node.mounted = null;
-  
+
         // remove this mount from the child mounts
         var idx = node.mount.mounts.indexOf(mount);
         assert(idx !== -1);
@@ -2493,7 +2531,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           flags: 2,
           namelen: 255,
         };
-  
+
         if (node.node_ops.statfs) {
           Object.assign(rtn, node.node_ops.statfs(node.mount.opts.root));
         }
@@ -2557,13 +2595,13 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         var new_name = PATH.basename(new_path);
         // parents must exist
         var lookup, old_dir, new_dir;
-  
+
         // let the errors from non existent directories percolate up
         lookup = FS.lookupPath(old_path, { parent: true });
         old_dir = lookup.node;
         lookup = FS.lookupPath(new_path, { parent: true });
         new_dir = lookup.node;
-  
+
         if (!old_dir || !new_dir) throw new FS.ErrnoError(44);
         // need to be part of the same mount
         if (old_dir.mount !== new_dir.mount) {
@@ -2876,7 +2914,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         }
         // we've already handled these, don't pass down to the underlying vfs
         flags &= ~(128 | 512 | 131072);
-  
+
         // register the stream with the filesystem
         var stream = FS.createStream({
           node,
@@ -3143,7 +3181,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         // TODO deprecate the old functionality of a single
         // input / output callback and that utilizes FS.createDevice
         // and instead require a unique set of stream ops
-  
+
         // by default, we symlink the standard streams to the
         // default tty devices. however, if the standard streams
         // have been overwritten we create a unique device for
@@ -3163,7 +3201,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         } else {
           FS.symlink('/dev/tty1', '/dev/stderr');
         }
-  
+
         // open default streams for the stdin, stdout and stderr devices
         var stdin = FS.open('/dev/stdin', 0);
         var stdout = FS.open('/dev/stdout', 1);
@@ -3174,13 +3212,13 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       },
   staticInit() {
         FS.nameTable = new Array(4096);
-  
+
         FS.mount(MEMFS, {}, '/');
-  
+
         FS.createDefaultDirectories();
         FS.createDefaultDevices();
         FS.createSpecialDirectories();
-  
+
         FS.filesystems = {
           'MEMFS': MEMFS,
         };
@@ -3188,12 +3226,12 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
   init(input, output, error) {
         assert(!FS.initialized, 'FS.init was previously called. If you want to initialize later with custom parameters, remove any earlier calls (note that one is automatically added to the generated code)');
         FS.initialized = true;
-  
+
         // Allow Module.stdin etc. to provide defaults, if none explicitly passed to us here
         input ??= Module['stdin'];
         output ??= Module['stdout'];
         error ??= Module['stderr'];
-  
+
         FS.createStandardStreams(input, output, error);
       },
   quit() {
@@ -3374,27 +3412,27 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
             var header;
             var hasByteServing = (header = xhr.getResponseHeader("Accept-Ranges")) && header === "bytes";
             var usesGzip = (header = xhr.getResponseHeader("Content-Encoding")) && header === "gzip";
-  
+
             var chunkSize = 1024*1024; // Chunk size in bytes
-  
+
             if (!hasByteServing) chunkSize = datalength;
-  
+
             // Function to get a range from the remote URL.
             var doXHR = (from, to) => {
               if (from > to) abort(`invalid range (${from}, ${to}) or no bytes requested!`);
               if (to > datalength-1) abort(`only ${datalength} bytes available! programmer error!`);
-  
+
               // TODO: Use mozResponseArrayBuffer, responseStream, etc. if available.
               var xhr = new XMLHttpRequest();
               xhr.open('GET', url, false);
               if (datalength !== chunkSize) xhr.setRequestHeader("Range", "bytes=" + from + "-" + to);
-  
+
               // Some hints to the browser that we want binary data.
               xhr.responseType = 'arraybuffer';
               if (xhr.overrideMimeType) {
                 xhr.overrideMimeType('text/plain; charset=x-user-defined');
               }
-  
+
               xhr.send(null);
               if (!(xhr.status >= 200 && xhr.status < 300 || xhr.status === 304)) abort("Couldn't load " + url + ". Status: " + xhr.status);
               if (xhr.response !== undefined) {
@@ -3413,7 +3451,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
               if (typeof lazyArray.chunks[chunkNum] == 'undefined') abort('doXHR failed!');
               return lazyArray.chunks[chunkNum];
             });
-  
+
             if (usesGzip || !datalength) {
               // if the server uses gzip or doesn't supply the length, we have to download the whole file to get the (uncompressed) length
               chunkSize = datalength = 1; // this will force getter(0)/doXHR do download the whole file
@@ -3421,7 +3459,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
               chunkSize = datalength;
               out("LazyFiles on gzip forces download of the whole file when length is accessed");
             }
-  
+
             this._length = datalength;
             this._chunkSize = chunkSize;
             this.lengthKnown = true;
@@ -3439,7 +3477,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
             return this._chunkSize;
           }
         }
-  
+
         if (globalThis.XMLHttpRequest) {
           if (!ENVIRONMENT_IS_WORKER) abort('Cannot do synchronous binary XHRs outside webworkers in modern browsers. Use --embed-file or --preload-file in emcc');
           var lazyArray = new LazyUint8Array();
@@ -3447,7 +3485,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         } else {
           var properties = { isDevice: false, url: url };
         }
-  
+
         var node = FS.createFile(parent, name, properties, canRead, canWrite);
         // This is a total hack, but I want to get this lazy file code out of the
         // core of MEMFS. If we want to keep this lazy file concept I feel it should
@@ -3508,7 +3546,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         return node;
       },
   };
-  
+
   var SYSCALLS = {
   currentUmask:18,
   calculateAt(dirfd, path, allowEmpty) {
@@ -3588,7 +3626,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
   };
   function ___syscall_chdir(path) {
   try {
-  
+
       path = SYSCALLS.getStr(path);
       FS.chdir(path);
       return 0;
@@ -3597,7 +3635,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   var syscallGetVarargI = () => {
       assert(SYSCALLS.varargs != undefined);
@@ -3607,12 +3645,12 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       return ret;
     };
   var syscallGetVarargP = syscallGetVarargI;
-  
-  
+
+
   function ___syscall_fcntl64(fd, cmd, varargs) {
   SYSCALLS.varargs = varargs;
   try {
-  
+
       var stream = SYSCALLS.getStreamFromFD(fd);
       switch (cmd) {
         case 0: {
@@ -3659,27 +3697,27 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   function ___syscall_fstat64(fd, buf) {
   try {
-  
+
       return SYSCALLS.writeStat(buf, FS.fstat(fd));
     } catch (e) {
     if (typeof FS == 'undefined' || !(e.name === 'ErrnoError')) throw e;
     return -e.errno;
   }
   }
-  
 
-  
+
+
   var stringToUTF8 = (str, outPtr, maxBytesToWrite) => {
       assert(typeof maxBytesToWrite == 'number', 'stringToUTF8 requires a third parameter that specifies the length of the output buffer');
       return stringToUTF8Array(str, HEAPU8, outPtr, maxBytesToWrite);
     };
   function ___syscall_getcwd(buf, size) {
   try {
-  
+
       if (size === 0) return -28;
       var cwd = FS.cwd();
       var cwdLengthInBytes = lengthBytesUTF8(cwd) + 1;
@@ -3691,19 +3729,19 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
 
-  
+
+
   function ___syscall_getdents64(fd, dirp, count) {
   try {
-  
+
       var stream = SYSCALLS.getStreamFromFD(fd)
       stream.getdents ||= FS.readdir(stream.path);
-  
+
       var struct_size = 280;
       var pos = 0;
       var off = FS.llseek(stream, 0, 1);
-  
+
       var startIdx = Math.floor(off / struct_size);
       var endIdx = Math.min(stream.getdents.length, startIdx + Math.floor(count/struct_size))
       for (var idx = startIdx; idx < endIdx; idx++) {
@@ -3752,13 +3790,13 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
 
-  
+
+
   function ___syscall_ioctl(fd, op, varargs) {
   SYSCALLS.varargs = varargs;
   try {
-  
+
       var stream = SYSCALLS.getStreamFromFD(fd);
       switch (op) {
         case 21509: {
@@ -3850,11 +3888,11 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   function ___syscall_lstat64(path, buf) {
   try {
-  
+
       path = SYSCALLS.getStr(path);
       return SYSCALLS.writeStat(buf, FS.lstat(path));
     } catch (e) {
@@ -3862,11 +3900,11 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   function ___syscall_mkdirat(dirfd, path, mode) {
   try {
-  
+
       path = SYSCALLS.getStr(path);
       path = SYSCALLS.calculateAt(dirfd, path);
       mode &= ~SYSCALLS.currentUmask;
@@ -3877,11 +3915,11 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   function ___syscall_newfstatat(dirfd, path, buf, flags) {
   try {
-  
+
       path = SYSCALLS.getStr(path);
       var nofollow = flags & 256;
       var allowEmpty = flags & 4096;
@@ -3894,13 +3932,13 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
 
-  
+
+
   function ___syscall_openat(dirfd, path, flags, varargs) {
   SYSCALLS.varargs = varargs;
   try {
-  
+
       path = SYSCALLS.getStr(path);
       path = SYSCALLS.calculateAt(dirfd, path);
       var mode = varargs ? syscallGetVarargI() : 0;
@@ -3913,7 +3951,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   var doPoll = (fds, nfds, timeout, makeNotifyCallback) => {
       var count = 0;
@@ -3938,10 +3976,59 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       }
       return count;
     };
-  function ___syscall_poll(fds, nfds, timeout) {
+  var ___syscall_poll = function(fds, nfds, timeout) {
+    let innerFunc =  () => {
+
   try {
-  
-  
+
+      const isAsyncContext = true;
+      // Enable event handlers only when the poll call is proxied from a worker.
+      // TODO: Could use `Promise.withResolvers` here if we know its available.
+      var resolve;
+      var promise = new Promise((resolve_) => { resolve = resolve_; });
+      var cleanupFuncs = [];
+      var notifyDone = false;
+      function asyncPollComplete(count) {
+        if (notifyDone) {
+          return;
+        }
+        notifyDone = true;
+        cleanupFuncs.forEach(cb => cb());
+        resolve(count);
+      }
+      function makeNotifyCallback(stream, pollfd) {
+        var cb = (flags) => {
+          if (notifyDone) {
+            return;
+          }
+          var events = HEAP16[(((pollfd)+(4))>>1)];
+          flags &= events | 8 | 16;
+          assert(flags)
+          HEAP16[(((pollfd)+(6))>>1)] = flags;
+          asyncPollComplete(1);
+        }
+        cb.registerCleanupFunc = (f) => {
+          if (f) cleanupFuncs.push(f);
+        }
+        return cb;
+      }
+
+      if (isAsyncContext) {
+        if (timeout > 0) {
+          var t = setTimeout(() => {
+            asyncPollComplete(0);
+          }, timeout);
+          cleanupFuncs.push(() => clearTimeout(t));
+        }
+        // A zero timeout never registers notifications: the derivation alone
+        // answers, matching the non-blocking probe.
+        var count = doPoll(fds, nfds, timeout, makeNotifyCallback);
+        if (count || !timeout) {
+          asyncPollComplete(count);
+        }
+        return promise;
+      }
+
       var count = doPoll(fds, nfds, 0, undefined);
       if (!count && timeout != 0) warnOnce('non-zero poll() timeout not supported: ' + timeout)
       return count;
@@ -3949,23 +4036,27 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     if (typeof FS == 'undefined' || !(e.name === 'ErrnoError')) throw e;
     return -e.errno;
   }
+
+  };
+    return Asyncify.handleAsync(innerFunc);
   }
-  
+  ;
+  ___syscall_poll.isAsync = true;
 
   function ___syscall_poll_nonblocking(fds, nfds) {
   try {
-  
+
       return doPoll(fds, nfds, 0, undefined);
     } catch (e) {
     if (typeof FS == 'undefined' || !(e.name === 'ErrnoError')) throw e;
     return -e.errno;
   }
   }
-  
+
 
   function ___syscall_renameat(olddirfd, oldpath, newdirfd, newpath) {
   try {
-  
+
       oldpath = SYSCALLS.getStr(oldpath);
       newpath = SYSCALLS.getStr(newpath);
       oldpath = SYSCALLS.calculateAt(olddirfd, oldpath);
@@ -3977,11 +4068,11 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   function ___syscall_rmdir(path) {
   try {
-  
+
       path = SYSCALLS.getStr(path);
       FS.rmdir(path);
       return 0;
@@ -3990,11 +4081,11 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   function ___syscall_stat64(path, buf) {
   try {
-  
+
       path = SYSCALLS.getStr(path);
       return SYSCALLS.writeStat(buf, FS.stat(path));
     } catch (e) {
@@ -4002,11 +4093,11 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   function ___syscall_statfs64(path, size, buf) {
   try {
-  
+
       assert(size === 88);
       SYSCALLS.writeStatFs(buf, FS.statfs(SYSCALLS.getStr(path)));
       return 0;
@@ -4015,11 +4106,11 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   function ___syscall_unlinkat(dirfd, path, flags) {
   try {
-  
+
       path = SYSCALLS.getStr(path);
       path = SYSCALLS.calculateAt(dirfd, path);
       if (!flags) {
@@ -4035,7 +4126,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return -e.errno;
   }
   }
-  
+
 
   var __abort_js = () =>
       abort('native code called abort()');
@@ -4050,12 +4141,12 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       // for any code that deals with heap sizes, which would require special
       // casing all heap size related code to treat 0 specially.
       2147483648;
-  
+
   var alignMemory = (size, alignment) => {
       assert(alignment, 'alignment argument is required');
       return Math.ceil(size / alignment) * alignment;
     };
-  
+
   var growMemory = (size) => {
       var oldHeapSize = wasmMemory.buffer.byteLength;
       var pages = ((size - oldHeapSize + 65535) / 65536) | 0;
@@ -4077,7 +4168,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       // With multithreaded builds, races can happen (another thread might increase the size
       // in between), so return a failure, and let the caller retry.
       assert(requestedSize > oldSize);
-  
+
       // Memory resize rules:
       // 1.  Always increase heap size to at least the requested size, rounded up
       //     to next page multiple.
@@ -4094,7 +4185,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       //     over-eager decision to excessively reserve due to (3) above.
       //     Hence if an allocation fails, cut down on the amount of excess
       //     growth, in an attempt to succeed to perform a smaller allocation.
-  
+
       // A limit is set for how much we can grow. We should not exceed that
       // (the wasm binary specifies it, so if we tried, we'd fail anyhow).
       var maxHeapSize = getHeapMax();
@@ -4102,7 +4193,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         err(`Cannot enlarge memory, requested ${requestedSize} bytes, but the limit is ${maxHeapSize} bytes!`);
         return false;
       }
-  
+
       // Loop through potential heap size increases. If we attempt a too eager
       // reservation that fails, cut down on the attempted size and reserve a
       // smaller bump instead. (max 3 times, chosen somewhat arbitrarily)
@@ -4110,12 +4201,12 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         var overGrownHeapSize = oldSize * (1 + 0.2 / cutDown); // ensure geometric growth
         // but limit overreserving (default to capping at +96MB overgrowth at most)
         overGrownHeapSize = Math.min(overGrownHeapSize, requestedSize + 100663296 );
-  
+
         var newSize = Math.min(maxHeapSize, alignMemory(Math.max(requestedSize, overGrownHeapSize), 65536));
-  
+
         var replacement = growMemory(newSize);
         if (replacement) {
-  
+
           return true;
         }
       }
@@ -4125,7 +4216,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
 
   function _fd_close(fd) {
   try {
-  
+
       var stream = SYSCALLS.getStreamFromFD(fd);
       FS.close(stream);
       return 0;
@@ -4134,7 +4225,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return e.errno;
   }
   }
-  
+
 
   /** @param {number=} offset */
   var doReadv = (stream, iov, iovcnt, offset) => {
@@ -4153,10 +4244,10 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       }
       return ret;
     };
-  
+
   function _fd_read(fd, iov, iovcnt, pnum) {
   try {
-  
+
       var stream = SYSCALLS.getStreamFromFD(fd);
       var num = doReadv(stream, iov, iovcnt);
       HEAPU32[((pnum)>>2)] = num;
@@ -4166,19 +4257,19 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return e.errno;
   }
   }
-  
 
-  
+
+
   var INT53_MAX = 9007199254740992;
-  
+
   var INT53_MIN = -9007199254740992;
   var bigintToI53Checked = (num) => (num < INT53_MIN || num > INT53_MAX) ? NaN : Number(num);
   function _fd_seek(fd, offset, whence, newOffset) {
     offset = bigintToI53Checked(offset);
-  
-  
+
+
   try {
-  
+
       if (isNaN(offset)) return 22;
       var stream = SYSCALLS.getStreamFromFD(fd);
       FS.llseek(stream, offset, whence);
@@ -4192,18 +4283,31 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
   ;
   }
 
-  function _fd_sync(fd) {
+  var _fd_sync = function(fd) {
+    let innerFunc =  () => {
+
   try {
-  
+
       var stream = SYSCALLS.getStreamFromFD(fd);
       var rtn = stream.stream_ops?.fsync?.(stream);
-      return rtn;
+      return new Promise((resolve) => {
+        var mount = stream.node.mount;
+        if (mount?.type.syncfs) {
+          mount.type.syncfs(mount, false, (err) => resolve(err ? 29 : 0));
+        } else {
+          resolve(rtn);
+        }
+      });
     } catch (e) {
     if (typeof FS == 'undefined' || !(e.name === 'ErrnoError')) throw e;
     return e.errno;
   }
+
+  };
+    return Asyncify.handleAsync(innerFunc);
   }
-  
+  ;
+  _fd_sync.isAsync = true;
 
   /** @param {number=} offset */
   var doWritev = (stream, iov, iovcnt, offset) => {
@@ -4225,10 +4329,10 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       }
       return ret;
     };
-  
+
   function _fd_write(fd, iov, iovcnt, pnum) {
   try {
-  
+
       var stream = SYSCALLS.getStreamFromFD(fd);
       var num = doWritev(stream, iov, iovcnt);
       HEAPU32[((pnum)>>2)] = num;
@@ -4238,7 +4342,41 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
     return e.errno;
   }
   }
-  
+
+
+  var _mp_js_hook = () => {
+          if (ENVIRONMENT_IS_NODE) {
+              const mp_interrupt_char = Module.ccall(
+                  "mp_hal_get_interrupt_char",
+                  "number",
+                  [],
+                  [],
+              );
+              const fs = require("fs");
+
+              const buf = Buffer.alloc(1);
+              try {
+                  const n = fs.readSync(process.stdin.fd, buf, 0, 1);
+                  if (n > 0) {
+                      if (buf[0] === mp_interrupt_char) {
+                          Module.ccall(
+                              "mp_sched_keyboard_interrupt",
+                              "null",
+                              [],
+                              [],
+                          );
+                      } else {
+                          process.stdout.write(String.fromCharCode(buf[0]));
+                      }
+                  }
+              } catch (e) {
+                  if (e.code === "EAGAIN") {
+                  } else {
+                      throw e;
+                  }
+              }
+          }
+      };
 
   var _mp_js_random_u32 = () =>
           globalThis.crypto.getRandomValues(new Uint32Array(1))[0];
@@ -4247,9 +4385,696 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
 
   var _mp_js_time_ms = () => Date.now();
 
+  var pydevices_state = {
+  framebuffer:null,
+  canvas:null,
+  context:null,
+  image:null,
+  animation:0,
+  framesPainted:0,
+  events:[],
+  eventRing:null,
+  timers:new Map,
+  firedTimers:[],
+  timerFirings:[],
+  timerDeliveries:[],
+  audioContext:null,
+  audioEnabled:false,
+  microphoneEnabled:false,
+  audioEnd:0,
+  audioSources:new Set,
+  audioQueuedBytes:0,
+  inputFrames:[],
+  mediaStream:null,
+  mediaNode:null,
+  processor:null,
+  };
+  var _pydevices_audio_clear = (input) => { const s=pydevices_state; if(input)s.inputFrames.length=0; else { for(const x of s.audioSources)x.stop(); s.audioSources.clear(); s.audioQueuedBytes=0; s.audioEnd=s.audioContext?.currentTime||0; } };
+
+  var _pydevices_audio_queued = (input) => input ? pydevices_state.inputFrames.reduce((n,f)=>n+(f.channels[0].length-f.offset)*f.channels.length*4,0) : pydevices_state.audioQueuedBytes;
+
+
+  var pydevices_encode_sample = (view, p, value, bits, signed, bigEndian) => {
+          const little=!bigEndian, clamped=Math.max(-1,Math.min(1,value));
+          if(bits===8) signed?view.setInt8(p,Math.round(clamped*127)):view.setUint8(p,Math.round((clamped+1)*127.5));
+          else if(bits===16) signed?view.setInt16(p,Math.round(clamped*32767),little):view.setUint16(p,Math.round((clamped+1)*32767.5),little);
+          else signed?view.setInt32(p,Math.round(clamped*2147483647),little):view.setUint32(p,Math.round((clamped+1)*2147483647.5),little);
+      };
+  var _pydevices_audio_read = (ptr, len, rate, channels, bits, signed, bigEndian) => {
+          const state=pydevices_state; if(!state.microphoneEnabled) return -1;
+          const width=bits>>3, capacity=Math.floor(len/(width*channels)); let written=0;
+          const view=new DataView(HEAPU8.buffer,ptr,len);
+          while(written<capacity && state.inputFrames.length){
+              const frame=state.inputFrames[0];
+              while(written<capacity && frame.offset<frame.channels[0].length){
+                  const sourceIndex=Math.min(frame.channels[0].length-1,Math.floor(frame.offset));
+                  for(let c=0;c<channels;c++) pydevices_encode_sample(view,(written*channels+c)*width,frame.channels[Math.min(c,frame.channels.length-1)][sourceIndex],bits,signed,bigEndian);
+                  written++; frame.offset += frame.rate/rate;
+              }
+              if(frame.offset>=frame.channels[0].length) state.inputFrames.shift();
+          }
+          return written*channels*width;
+      };
+
+  var _pydevices_audio_state = (input) => input ? +pydevices_state.microphoneEnabled : +pydevices_state.audioEnabled;
+
+
+  var pydevices_decode_pcm = (bytes, frames, channels, bits, signed, bigEndian) => {
+          const result = Array.from({length:channels}, () => new Float32Array(frames));
+          const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+          const width = bits >> 3, little = !bigEndian;
+          for (let f=0; f<frames; f++) for (let c=0; c<channels; c++) {
+              const p=(f*channels+c)*width; let v;
+              if (bits===8) v=signed?view.getInt8(p):view.getUint8(p)-128;
+              else if (bits===16) v=signed?view.getInt16(p,little):view.getUint16(p,little)-32768;
+              else v=signed?view.getInt32(p,little):view.getUint32(p,little)-2147483648;
+              result[c][f] = v / (bits===8?128:bits===16?32768:2147483648);
+          }
+          return result;
+      };
+  var _pydevices_audio_write = (ptr, len, rate, channels, bits, signed, bigEndian) => {
+          const state=pydevices_state, ctx=state.audioContext;
+          if (!state.audioEnabled || !ctx) return -1;
+          const width=bits>>3, frames=Math.floor(len/(width*channels));
+          const decoded=pydevices_decode_pcm(HEAPU8.subarray(ptr, ptr+frames*width*channels),frames,channels,bits,signed,bigEndian);
+          const buffer=ctx.createBuffer(channels,frames,rate);
+          for(let c=0;c<channels;c++) buffer.copyToChannel(decoded[c],c);
+          const source=ctx.createBufferSource(); source.buffer=buffer; source.connect(ctx.destination);
+          const start=Math.max(ctx.currentTime,state.audioEnd); state.audioEnd=start+frames/rate;
+          const byteLength=frames*width*channels;
+          state.audioQueuedBytes += byteLength;
+          state.audioSources.add(source);
+          source.onended=()=>{
+              if(state.audioSources.delete(source)) state.audioQueuedBytes=Math.max(0,state.audioQueuedBytes-byteLength);
+          };
+          source.start(start);
+          return byteLength;
+      };
+
+
+
+
+  var pydevices_write_event = (ptr, event) => {
+          const types={pointerdown:1,pointermove:2,pointerup:3,pointercancel:4,wheel:5,keydown:6,keyup:7,focus:8,blur:9};
+          const pointerTypes={mouse:0,touch:1,pen:2};
+          const ints=new Int32Array(HEAPU8.buffer,ptr,18);
+          ints[0]=types[event.type]||0;
+          ints[1]=event.x||0; ints[2]=event.y||0;
+          ints[3]=event.movementX||0; ints[4]=event.movementY||0;
+          ints[5]=event.button||0; ints[6]=event.buttons||0;
+          ints[7]=Math.round((event.pressure||0)*1000); ints[8]=event.pointerId||0;
+          ints[9]=pointerTypes[event.pointerType]||0; ints[10]=+!!event.primary;
+          ints[11]=Math.round((event.deltaX||0)*1000); ints[12]=Math.round((event.deltaY||0)*1000);
+          ints[13]=Math.round((event.deltaZ||0)*1000); ints[14]=event.deltaMode||0;
+          ints[15]=event.location||0;
+          ints[16]=(+!!event.altKey)|(+!!event.ctrlKey<<1)|(+!!event.metaKey<<2)|(+!!event.shiftKey<<3);
+          ints[17]=+!!event.repeat;
+          stringToUTF8(event.key||'',ptr+72,64);
+          stringToUTF8(event.code||'',ptr+136,64);
+          return ints[0];
+      };
+  var pydevices_push_event = (event) => {
+          const ring=pydevices_state.eventRing;
+          if(ring && event.type!=='gamepad') {
+              const base=ring.ptr, head=HEAPU32[base>>2], tail=HEAPU32[(base>>2)+1];
+              if(event.type==='pointermove' && head!==tail) {
+                  const last=(head+ring.capacity-1)%ring.capacity;
+                  const lastPtr=base+8+last*ring.stride;
+                  if(HEAP32[lastPtr>>2]===2 && HEAP32[(lastPtr>>2)+8]===(event.pointerId||0)) {
+                      pydevices_write_event(lastPtr,event); return;
+                  }
+              }
+              const recordPtr=base+8+head*ring.stride;
+              if(pydevices_write_event(recordPtr,event)) {
+                  const next=(head+1)%ring.capacity;
+                  if(next===tail) HEAPU32[(base>>2)+1]=(tail+1)%ring.capacity;
+                  HEAPU32[base>>2]=next;
+                  return;
+              }
+          }
+          const queue = pydevices_state.events;
+          const coalesced = event.type === 'pointermove'
+              ? (candidate) => candidate.type === 'pointermove' && candidate.pointerId === event.pointerId
+              : event.type === 'gamepad'
+                  ? (candidate) => candidate.type === 'gamepad' && candidate.index === event.index
+                  : null;
+          if (coalesced) {
+              const index = queue.findLastIndex(coalesced);
+              if (index >= 0) { queue[index] = event; return; }
+          }
+          {
+              if (queue.length >= 256) queue.shift();
+              queue.push(event);
+          }
+      };
+
+  var pydevices_relative_point = (canvas, event) => {
+          const rect = canvas.getBoundingClientRect();
+          return {
+              x: Math.round((event.clientX - rect.left) * canvas.width / rect.width),
+              y: Math.round((event.clientY - rect.top) * canvas.height / rect.height),
+          };
+      };
+  var pydevices_install_input = (canvas) => {
+          if (canvas.__pydevicesInputInstalled) return;
+          canvas.__pydevicesInputInstalled = true;
+          canvas.tabIndex = canvas.tabIndex >= 0 ? canvas.tabIndex : 0;
+          const modifiers = (e) => ({altKey:e.altKey, ctrlKey:e.ctrlKey, metaKey:e.metaKey, shiftKey:e.shiftKey});
+          for (const name of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
+              canvas.addEventListener(name, (e) => {
+                  const p = pydevices_relative_point(canvas, e);
+                  pydevices_push_event(Object.assign({type:name, x:p.x, y:p.y, movementX:e.movementX||0, movementY:e.movementY||0, button:e.button, buttons:e.buttons, pressure:e.pressure, pointerId:e.pointerId, pointerType:e.pointerType, primary:e.isPrimary}, modifiers(e)));
+                  if (name === 'pointerdown') {
+                      canvas.focus();
+                      try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* Synthetic events have no active pointer. */ }
+                  }
+                  e.preventDefault();
+              });
+          }
+          canvas.addEventListener('wheel', (e) => {
+              const p = pydevices_relative_point(canvas, e);
+              pydevices_push_event(Object.assign({type:'wheel', x:p.x, y:p.y, deltaX:e.deltaX, deltaY:e.deltaY, deltaZ:e.deltaZ, deltaMode:e.deltaMode}, modifiers(e)));
+              e.preventDefault();
+          }, {passive:false});
+          for (const name of ['keydown', 'keyup']) {
+              canvas.addEventListener(name, (e) => {
+                  pydevices_push_event(Object.assign({type:name, key:e.key, code:e.code, repeat:e.repeat, location:e.location}, modifiers(e)));
+                  if (e.key === 'Backspace' || e.key === 'Escape' || e.key === 'BrowserBack') e.preventDefault();
+              });
+          }
+          canvas.addEventListener('focus', () => pydevices_push_event({type:'focus'}));
+          canvas.addEventListener('blur', () => pydevices_push_event({type:'blur'}));
+          canvas.focus();
+      };
+
+  var pydevices_paint = () => {
+          const state = pydevices_state;
+          const fb = state.framebuffer;
+          if (!fb || !state.context) { state.animation = 0; return; }
+          const src = HEAPU8.subarray(fb.ptr, fb.ptr + fb.width * fb.height * 2);
+          const dst = state.image.data;
+          for (let s = 0, d = 0; s < src.length; s += 2, d += 4) {
+              const value = src[s] | (src[s + 1] << 8);
+              dst[d] = ((value >> 11) & 31) * 255 / 31;
+              dst[d + 1] = ((value >> 5) & 63) * 255 / 63;
+              dst[d + 2] = (value & 31) * 255 / 31;
+              dst[d + 3] = 255;
+          }
+          state.context.putImageData(state.image, 0, 0);
+          state.framesPainted++;
+          if (navigator.getGamepads) {
+              for (const pad of navigator.getGamepads()) if (pad) {
+                  pydevices_push_event({type:'gamepad', index:pad.index, connected:pad.connected, buttons:pad.buttons.map(b => ({pressed:b.pressed, touched:b.touched, value:b.value})), axes:Array.from(pad.axes)});
+              }
+          }
+          state.animation = requestAnimationFrame(pydevices_paint);
+      };
+
+  var pydevices_export_host = () => {
+          if (Module.pydevicesBridge) return;
+          Module.pydevicesBridge = {
+              enableAudio: async (microphone=false) => {
+                  const state = pydevices_state;
+                  const AudioContext = globalThis.AudioContext || globalThis.webkitAudioContext;
+                  if (!AudioContext) throw new Error('Web Audio is unavailable');
+                  state.audioContext ||= new AudioContext();
+                  await state.audioContext.resume();
+                  state.audioEnabled = state.audioContext.state === 'running';
+                  if (microphone) {
+                      state.mediaStream = await navigator.mediaDevices.getUserMedia({audio:true});
+                      state.mediaNode = state.audioContext.createMediaStreamSource(state.mediaStream);
+                      state.processor = state.audioContext.createScriptProcessor(1024, 2, 2);
+                      state.processor.onaudioprocess = (event) => {
+                          const channels = [];
+                          for (let c = 0; c < event.inputBuffer.numberOfChannels; c++) channels.push(new Float32Array(event.inputBuffer.getChannelData(c)));
+                          state.inputFrames.push({channels, rate:event.inputBuffer.sampleRate, offset:0});
+                          if (state.inputFrames.length > 64) state.inputFrames.shift();
+                      };
+                      state.mediaNode.connect(state.processor);
+                      state.processor.connect(state.audioContext.destination);
+                      state.microphoneEnabled = true;
+                  }
+                  return {audio:state.audioEnabled, microphone:state.microphoneEnabled};
+              },
+              permissions: () => ({audio:pydevices_state.audioEnabled, microphone:pydevices_state.microphoneEnabled}),
+              stats: () => ({
+                  events:pydevices_state.events.length,
+                  timers:pydevices_state.timers.size,
+                  frames:pydevices_state.framesPainted,
+                  queuedAudioBytes:pydevices_state.audioQueuedBytes,
+                  queuedAudioMs:Math.max(0, (pydevices_state.audioEnd - (pydevices_state.audioContext?.currentTime || 0)) * 1000),
+                  timerFirings:pydevices_state.timerFirings.slice(),
+                  timerDeliveries:pydevices_state.timerDeliveries.slice(),
+              }),
+              resetTimerFirings: () => {
+                  pydevices_state.timerFirings.length = 0;
+                  pydevices_state.timerDeliveries.length = 0;
+              },
+              injectMicrophone: (channels, rate=48000) => {
+                  pydevices_state.microphoneEnabled = true;
+                  pydevices_state.inputFrames.push({channels:channels.map(x => Float32Array.from(x)), rate, offset:0});
+              },
+          };
+      };
+
+  var _pydevices_display_register = (ptr, len, width, height, canvasPtr) => {
+          if (typeof document === 'undefined') return 0;
+          const canvas = document.getElementById(UTF8ToString(canvasPtr));
+          if (!canvas) return 0;
+          canvas.width = width; canvas.height = height;
+          const context = canvas.getContext('2d', {alpha:false});
+          pydevices_state.framebuffer = {ptr, len, width, height};
+          pydevices_state.canvas = canvas;
+          pydevices_state.context = context;
+          pydevices_state.image = context.createImageData(width, height);
+          pydevices_state.framesPainted = 0;
+          pydevices_install_input(canvas);
+          pydevices_export_host();
+          if (!pydevices_state.animation) pydevices_state.animation = requestAnimationFrame(pydevices_paint);
+          return 1;
+      };
+
+  var _pydevices_display_unregister = () => { pydevices_state.framebuffer = null; };
+
+  var _pydevices_event_clear = () => {
+          pydevices_state.events.length = 0;
+          const ring=pydevices_state.eventRing;
+          if(ring) { HEAPU32[ring.ptr>>2]=0; HEAPU32[(ring.ptr>>2)+1]=0; }
+      };
+
+  var _pydevices_event_poll = (lenPtr) => {
+          if (!pydevices_state.events.length) return 0;
+          const text = JSON.stringify(pydevices_state.events.shift());
+          const len = lengthBytesUTF8(text);
+          const ptr = _malloc(len + 1);
+          stringToUTF8(text, ptr, len + 1);
+          HEAPU32[lenPtr >> 2] = len;
+          return ptr;
+      };
+
+  var _pydevices_event_set_buffer = (ptr, capacity, stride) => {
+          pydevices_state.eventRing=ptr ? {ptr,capacity,stride} : null;
+      };
+
+  var _pydevices_host_reset = () => {
+          const state = pydevices_state;
+          state.framebuffer = null;
+          state.eventRing = null;
+          state.events.length = 0;
+          state.firedTimers.length = 0;
+          for (const timer of state.timers.values()) {
+              timer.periodic ? clearInterval(timer.handle) : clearTimeout(timer.handle);
+          }
+          state.timers.clear();
+          for (const source of state.audioSources) source.stop();
+          state.audioSources.clear();
+          state.audioQueuedBytes = 0;
+          state.audioEnd = state.audioContext?.currentTime || 0;
+          state.inputFrames.length = 0;
+      };
+
+  var runAndAbortIfError = (func) => {
+      try {
+        return func();
+      } catch (e) {
+        abort(e);
+      }
+    };
+
+  var handleException = (e) => {
+      // Certain exception types we do not treat as errors since they are used for
+      // internal control flow.
+      // 1. ExitStatus, which is thrown by exit()
+      // 2. "unwind", which is thrown by emscripten_unwind_to_js_event_loop() and others
+      //    that wish to return to JS event loop.
+      if (e instanceof ExitStatus || e == 'unwind') {
+        return EXITSTATUS;
+      }
+      checkStackCookie();
+      if (e instanceof WebAssembly.RuntimeError) {
+        if (_emscripten_stack_get_current() <= 0) {
+          err('Stack overflow detected.  You can try increasing -sSTACK_SIZE (currently set to 65536)');
+        }
+      }
+      quit_(1, e);
+    };
+
+
+  var runtimeKeepaliveCounter = 0;
+  var keepRuntimeAlive = () => noExitRuntime || runtimeKeepaliveCounter > 0;
+  var _proc_exit = (code) => {
+      EXITSTATUS = code;
+      if (!keepRuntimeAlive()) {
+        Module['onExit']?.(code);
+        ABORT = true;
+      }
+      quit_(code, new ExitStatus(code));
+    };
+
+
+  /** @param {boolean|number=} implicit */
+  var exitJS = (status, implicit) => {
+      EXITSTATUS = status;
+
+      checkUnflushedContent();
+
+      // if exit() was called explicitly, warn the user if the runtime isn't actually being shut down
+      if (keepRuntimeAlive() && !implicit) {
+        var msg = `program exited (with status: ${status}), but keepRuntimeAlive() is set (counter=${runtimeKeepaliveCounter}) due to an async operation, so halting execution but not exiting the runtime or preventing further async execution (you can use emscripten_force_exit, if you want to force a true shutdown)`;
+        err(msg);
+      }
+
+      _proc_exit(status);
+    };
+  var _exit = exitJS;
+
+
+  var maybeExit = () => {
+      if (!keepRuntimeAlive()) {
+        try {
+          _exit(EXITSTATUS);
+        } catch (e) {
+          handleException(e);
+        }
+      }
+    };
+  var callUserCallback = (func) => {
+      if (ABORT) {
+        err('user callback triggered after runtime exited or application aborted.  Ignoring.');
+        return;
+      }
+      try {
+        return func();
+      } catch (e) {
+        handleException(e);
+      } finally {
+        maybeExit();
+      }
+    };
+
+  var createNamedFunction = (name, func) => Object.defineProperty(func, 'name', { value: name });
+
+  var runtimeKeepalivePush = () => {
+      runtimeKeepaliveCounter += 1;
+    };
+
+  var runtimeKeepalivePop = () => {
+      assert(runtimeKeepaliveCounter > 0);
+      runtimeKeepaliveCounter -= 1;
+    };
+
+
+  var Asyncify = {
+  instrumentWasmImports(imports) {
+        var importPattern = /^(pydevices_http_get|pydevices_sleep_ms|invoke_.*|__asyncjs__.*)$/;
+
+        for (let [x, original] of Object.entries(imports)) {
+          if (typeof original == 'function') {
+            let isAsyncifyImport = original.isAsync || importPattern.test(x);
+            imports[x] = (...args) => {
+              var originalAsyncifyState = Asyncify.state;
+              try {
+                return original(...args);
+              } finally {
+                // Only asyncify-declared imports are allowed to change the
+                // state.
+                // Changing the state from normal to disabled is allowed (in any
+                // function) as that is what shutdown does (and we don't have an
+                // explicit list of shutdown imports).
+                var changedToDisabled =
+                      originalAsyncifyState === Asyncify.State.Normal &&
+                      Asyncify.state        === Asyncify.State.Disabled;
+                // invoke_* functions are allowed to change the state if we do
+                // not ignore indirect calls.
+                var ignoredInvoke = x.startsWith('invoke_') &&
+                                    true;
+                if (Asyncify.state !== originalAsyncifyState &&
+                    !isAsyncifyImport &&
+                    !changedToDisabled &&
+                    !ignoredInvoke) {
+                  abort(`import ${x} was not in ASYNCIFY_IMPORTS, but changed the state`);
+                }
+              }
+            };
+          }
+        }
+      },
+  instrumentFunction(original) {
+        var wrapper = (...args) => {
+          Asyncify.exportCallStack.push(original);
+          try {
+            return original(...args);
+          } finally {
+            if (!ABORT) {
+              var top = Asyncify.exportCallStack.pop();
+              assert(top === original);
+              Asyncify.maybeStopUnwind();
+            }
+          }
+        };
+        Asyncify.funcWrappers.set(original, wrapper);
+        wrapper = createNamedFunction(`__asyncify_wrapper_${original.name}`, wrapper);
+        return wrapper;
+      },
+  instrumentWasmExports(exports) {
+        var ret = {};
+        for (let [x, original] of Object.entries(exports)) {
+          if (typeof original == 'function') {
+            var wrapper = Asyncify.instrumentFunction(original);
+            ret[x] = wrapper;
+          } else {
+            ret[x] = original;
+          }
+        }
+        return ret;
+      },
+  State:{
+  Normal:0,
+  Unwinding:1,
+  Rewinding:2,
+  Disabled:3,
+  },
+  state:0,
+  StackSize:131072,
+  currData:null,
+  handleSleepReturnValue:0,
+  exportCallStack:[],
+  callstackFuncToId:new Map,
+  callStackIdToFunc:new Map,
+  funcWrappers:new Map,
+  callStackId:0,
+  asyncPromiseHandlers:null,
+  sleepCallbacks:[],
+  getCallStackId(func) {
+        assert(func);
+        if (!Asyncify.callstackFuncToId.has(func)) {
+          var id = Asyncify.callStackId++;
+          Asyncify.callstackFuncToId.set(func, id);
+          Asyncify.callStackIdToFunc.set(id, func);
+        }
+        return Asyncify.callstackFuncToId.get(func);
+      },
+  maybeStopUnwind() {
+        if (Asyncify.currData &&
+            Asyncify.state === Asyncify.State.Unwinding &&
+            Asyncify.exportCallStack.length === 0) {
+          // We just finished unwinding.
+          // Be sure to set the state before calling any other functions to avoid
+          // possible infinite recursion here (For example in debug pthread builds
+          // the dbg() function itself can call back into WebAssembly to get the
+          // current pthread_self() pointer).
+          Asyncify.state = Asyncify.State.Normal;
+
+          // Keep the runtime alive so that a re-wind can be done later.
+          runAndAbortIfError(_asyncify_stop_unwind);
+          if (typeof Fibers != 'undefined') {
+            Fibers.trampoline();
+          }
+        }
+      },
+  whenDone() {
+        assert(Asyncify.currData, 'tried to wait for an async operation when none is in progress');
+        assert(!Asyncify.asyncPromiseHandlers, 'cannot have multiple async operations in flight at once');
+        return new Promise((resolve, reject) => {
+          Asyncify.asyncPromiseHandlers = { resolve, reject };
+        });
+      },
+  allocateData() {
+        // An asyncify data structure has three fields:
+        //  0  current stack pos
+        //  4  max stack pos
+        //  8  id of function at bottom of the call stack (callStackIdToFunc[id] == wasm func)
+        //
+        // The Asyncify ABI only interprets the first two fields, the rest is for the runtime.
+        // We also embed a stack in the same memory region here, right next to the structure.
+        // This struct is also defined as asyncify_data_t in emscripten/fiber.h
+        var ptr = _malloc(12 + Asyncify.StackSize);
+        Asyncify.setDataHeader(ptr, ptr + 12, Asyncify.StackSize);
+        Asyncify.setDataRewindFunc(ptr);
+        return ptr;
+      },
+  setDataHeader(ptr, stack, stackSize) {
+        HEAPU32[((ptr)>>2)] = stack;
+        HEAPU32[(((ptr)+(4))>>2)] = stack + stackSize;
+      },
+  setDataRewindFunc(ptr) {
+        var bottomOfCallStack = Asyncify.exportCallStack[0];
+        assert(bottomOfCallStack, 'exportCallStack is empty');
+        var rewindId = Asyncify.getCallStackId(bottomOfCallStack);
+        HEAP32[(((ptr)+(8))>>2)] = rewindId;
+      },
+  getDataRewindFunc(ptr) {
+        var id = HEAP32[(((ptr)+(8))>>2)];
+        var func = Asyncify.callStackIdToFunc.get(id);
+        assert(func, `id ${id} not found in callStackIdToFunc`);
+        return func;
+      },
+  doRewind(ptr) {
+        var original = Asyncify.getDataRewindFunc(ptr);
+        var func = Asyncify.funcWrappers.get(original);
+        assert(original);
+        assert(func);
+        // Once we have rewound and the stack we no longer need to artificially
+        // keep the runtime alive.
+
+        return callUserCallback(func);
+      },
+  handleSleep(startAsync) {
+        assert(Asyncify.state !== Asyncify.State.Disabled, 'handleSleep called after Asyncify was shut down');
+        if (ABORT) return;
+        if (Asyncify.state === Asyncify.State.Normal) {
+          // Prepare to sleep. Call startAsync, and see what happens:
+          // if the code decided to call our callback synchronously,
+          // then no async operation was in fact begun, and we don't
+          // need to do anything.
+          var reachedCallback = false;
+          var reachedAfterCallback = false;
+          startAsync((handleSleepReturnValue = 0) => {
+            // old emterpretify API supported other stuff
+            assert(['undefined', 'number', 'boolean', 'bigint'].includes(typeof handleSleepReturnValue), `invalid type for handleSleepReturnValue: '${typeof handleSleepReturnValue}'`);
+            if (ABORT) return;
+            Asyncify.handleSleepReturnValue = handleSleepReturnValue;
+            reachedCallback = true;
+            if (!reachedAfterCallback) {
+              // We are happening synchronously, so no need for async.
+              return;
+            }
+            // This async operation did not happen synchronously, so we did
+            // unwind. In that case there can be no compiled code on the stack,
+            // as it might break later operations (we can rewind ok now, but if
+            // we unwind again, we would unwind through the extra compiled code
+            // too).
+            assert(!Asyncify.exportCallStack.length, 'waking up (starting to rewind) must be done from JS, without compiled code on the stack');
+            Asyncify.state = Asyncify.State.Rewinding;
+            runAndAbortIfError(() => _asyncify_start_rewind(Asyncify.currData));
+            if (typeof MainLoop != 'undefined' && MainLoop.func) {
+              MainLoop.resume();
+            }
+            var asyncWasmReturnValue, isError = false;
+            try {
+              asyncWasmReturnValue = Asyncify.doRewind(Asyncify.currData);
+            } catch (err) {
+              asyncWasmReturnValue = err;
+              isError = true;
+            }
+            // Track whether the return value was handled by any promise handlers.
+            var handled = false;
+            if (!Asyncify.currData) {
+              // All asynchronous execution has finished.
+              // `asyncWasmReturnValue` now contains the final
+              // return value of the exported async WASM function.
+              //
+              // Note: `asyncWasmReturnValue` is distinct from
+              // `Asyncify.handleSleepReturnValue`.
+              // `Asyncify.handleSleepReturnValue` contains the return
+              // value of the last C function to have executed
+              // `Asyncify.handleSleep()`, whereas `asyncWasmReturnValue`
+              // contains the return value of the exported WASM function
+              // that may have called C functions that
+              // call `Asyncify.handleSleep()`.
+              var asyncPromiseHandlers = Asyncify.asyncPromiseHandlers;
+              if (asyncPromiseHandlers) {
+                Asyncify.asyncPromiseHandlers = null;
+                (isError ? asyncPromiseHandlers.reject : asyncPromiseHandlers.resolve)(asyncWasmReturnValue);
+                handled = true;
+              }
+            }
+            if (isError && !handled) {
+              // If there was an error and it was not handled by now, we have no choice but to
+              // rethrow that error into the global scope where it can be caught only by
+              // `onerror` or `onunhandledpromiserejection`.
+              throw asyncWasmReturnValue;
+            }
+          });
+          reachedAfterCallback = true;
+          if (!reachedCallback) {
+            // A true async operation was begun; start a sleep.
+            Asyncify.state = Asyncify.State.Unwinding;
+            // TODO: reuse, don't alloc/free every sleep
+            Asyncify.currData = Asyncify.allocateData();
+            if (typeof MainLoop != 'undefined' && MainLoop.func) {
+              MainLoop.pause();
+            }
+            runAndAbortIfError(() => _asyncify_start_unwind(Asyncify.currData));
+          }
+        } else if (Asyncify.state === Asyncify.State.Rewinding) {
+          // Stop a resume.
+          Asyncify.state = Asyncify.State.Normal;
+          runAndAbortIfError(_asyncify_stop_rewind);
+          _free(Asyncify.currData);
+          Asyncify.currData = null;
+          // Call all sleep callbacks now that the sleep-resume is all done.
+          Asyncify.sleepCallbacks.forEach(callUserCallback);
+        } else {
+          abort(`invalid state: ${Asyncify.state}`);
+        }
+        return Asyncify.handleSleepReturnValue;
+      },
+  handleAsync:(startAsync) => Asyncify.handleSleep(async (wakeUp) => {
+        // TODO: add error handling as a second param when handleSleep implements it.
+        wakeUp(await startAsync());
+      }),
+  };
+
+  var _pydevices_http_get = (urlPtr, statusPtr, lenPtr, finalUrlPtr) => Asyncify.handleSleep(async (wakeUp) => {
+          try {
+              const response=await fetch(UTF8ToString(urlPtr)); const bytes=new Uint8Array(await response.arrayBuffer());
+              const ptr=_malloc(bytes.length || 1); HEAPU8.set(bytes,ptr);
+              const urlLen=lengthBytesUTF8(response.url), outUrl=_malloc(urlLen+1); stringToUTF8(response.url,outUrl,urlLen+1);
+              HEAP32[statusPtr>>2]=response.status; HEAPU32[lenPtr>>2]=bytes.length; HEAPU32[finalUrlPtr>>2]=outUrl; wakeUp(ptr);
+          } catch(error) {
+              console.error('PyDevices Fetch failed',error); HEAP32[statusPtr>>2]=0; HEAPU32[lenPtr>>2]=0; HEAPU32[finalUrlPtr>>2]=0; wakeUp(0);
+          }
+      });
+
+  var _pydevices_sleep_ms = (ms) => Asyncify.handleSleep((wakeUp) => setTimeout(wakeUp, Math.max(0, ms)));
+
+  var _pydevices_timer_cancel = (id) => { const t=pydevices_state.timers.get(id); if (t) { t.periodic ? clearInterval(t.handle) : clearTimeout(t.handle); pydevices_state.timers.delete(id); } };
+
+  var _pydevices_timer_poll = () => pydevices_state.firedTimers.length ? pydevices_state.firedTimers.shift() : -1;
+
+  var _pydevices_timer_start = (id, delay, periodic) => {
+          const state = pydevices_state;
+          const old = state.timers.get(id); if (old) clearTimeout(old.handle);
+          const fire = () => {
+              state.timerFirings.push({id, at:performance.now()});
+              if (state.timerFirings.length > 512) state.timerFirings.shift();
+              if((typeof Asyncify==='undefined' || !Asyncify.currData) && Module._pydevices_timer_dispatch) {
+                  Module._pydevices_timer_dispatch(id);
+                  state.timerDeliveries.push({id, at:performance.now()});
+                  if (state.timerDeliveries.length > 512) state.timerDeliveries.shift();
+              } else if (state.firedTimers.length < 256) {
+                  state.firedTimers.push(id);
+              }
+              if (!periodic) state.timers.delete(id);
+          };
+          const handle = periodic ? setInterval(fire, delay) : setTimeout(fire, delay);
+          state.timers.set(id, {handle, periodic});
+      };
+
   var wasmTableMirror = [];
-  
-  
+
+
   var getWasmTableEntry = (funcPtr) => {
       var func = wasmTableMirror[funcPtr];
       if (!func) {
@@ -4261,19 +5086,20 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       return func;
     };
 
+
   var getCFunc = (ident) => {
       var func = Module['_' + ident]; // closure exported function
       assert(func, `Cannot call unknown function ${ident}, make sure it is exported`);
       return func;
     };
-  
+
   var writeArrayToMemory = (array, buffer) => {
       assert(array.length >= 0, 'writeArrayToMemory array must have a length (should be an array or typed array)')
       HEAP8.set(array, buffer);
     };
-  
-  
-  
+
+
+
   var stackAlloc = (sz) => __emscripten_stack_alloc(sz);
   var stringToUTF8OnStack = (str) => {
       var size = lengthBytesUTF8(str) + 1;
@@ -4281,11 +5107,13 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
       stringToUTF8(str, ret, size);
       return ret;
     };
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
     /**
    * @param {string|null=} returnType
    * @param {Array=} argTypes
@@ -4308,7 +5136,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           return ret;
         }
       };
-  
+
       function convertReturnValue(ret) {
         if (returnType === 'string') {
           return UTF8ToString(ret);
@@ -4316,7 +5144,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
         if (returnType === 'boolean') return Boolean(ret);
         return ret;
       }
-  
+
       var func = getCFunc(ident);
       var cArgs = [];
       var stack = 0;
@@ -4332,17 +5160,42 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           }
         }
       }
+      // Data for a previous async operation that was in flight before us.
+      var previousAsync = Asyncify.currData;
       var ret = func(...cArgs);
       function onDone(ret) {
+        runtimeKeepalivePop();
         if (stack !== 0) stackRestore(stack);
         return convertReturnValue(ret);
       }
-  
+    var asyncMode = opts?.async;
+
+      // Keep the runtime alive through all calls. Note that this call might not be
+      // async, but for simplicity we push and pop in all calls.
+      runtimeKeepalivePush();
+      if (Asyncify.currData != previousAsync) {
+        // A change in async operation happened. If there was already an async
+        // operation in flight before us, that is an error: we should not start
+        // another async operation while one is active, and we should not stop one
+        // either. The only valid combination is to have no change in the async
+        // data (so we either had one in flight and left it alone, or we didn't have
+        // one), or to have nothing in flight and to start one.
+        assert(!(previousAsync && Asyncify.currData), 'We cannot start an async operation when one is already in flight');
+        assert(!(previousAsync && !Asyncify.currData), 'We cannot stop an async operation in flight');
+        // This is a new async operation. The wasm is paused and has unwound its stack.
+        // We need to return a Promise that resolves the return value
+        // once the stack is rewound and execution finishes.
+        assert(asyncMode, `The call to ${ident} is running asynchronously. If this was intended, add the async option to the ccall/cwrap call.`);
+        return Asyncify.whenDone().then(onDone);
+      }
+
       ret = onDone(ret);
+      // If this is an async ccall, ensure we return a promise
+      if (asyncMode) return Promise.resolve(ret);
       return ret;
     };
 
-  
+
     /**
    * @param {string=} returnType
    * @param {Array=} argTypes
@@ -4435,9 +5288,7 @@ if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
   'convertU32PairToI53',
   'getTempRet0',
   'setTempRet0',
-  'createNamedFunction',
   'zeroMemory',
-  'exitJS',
   'withStackSave',
   'inetPton4',
   'inetNtop4',
@@ -4450,13 +5301,6 @@ if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
   'getExecutableName',
   'autoResumeAudioContext',
   'getDynCaller',
-  'dynCall',
-  'handleException',
-  'keepRuntimeAlive',
-  'runtimeKeepalivePush',
-  'runtimeKeepalivePop',
-  'callUserCallback',
-  'maybeExit',
   'asmjsMangle',
   'HandleAllocator',
   'addOnInit',
@@ -4576,7 +5420,6 @@ if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
   '__glGetActiveAttribOrUniform',
   'writeGLArray',
   'registerWebGlEventCallback',
-  'runAndAbortIfError',
   'ALLOC_NORMAL',
   'ALLOC_STACK',
   'allocate',
@@ -4615,7 +5458,9 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'stackSave',
   'stackRestore',
   'stackAlloc',
+  'createNamedFunction',
   'ptrToString',
+  'exitJS',
   'getHeapMax',
   'growMemory',
   'ENV',
@@ -4627,6 +5472,14 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'timers',
   'warnOnce',
   'readEmAsmArgsArray',
+  'dynCallLegacy',
+  'dynCall',
+  'handleException',
+  'keepRuntimeAlive',
+  'runtimeKeepalivePush',
+  'runtimeKeepalivePop',
+  'callUserCallback',
+  'maybeExit',
   'asyncLoad',
   'alignMemory',
   'mmapAlloc',
@@ -4807,11 +5660,23 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'EGL',
   'GLEW',
   'IDBStore',
+  'runAndAbortIfError',
+  'Asyncify',
+  'Fibers',
   'SDL',
   'SDL_gfx',
   'print',
   'printErr',
   'jstoi_s',
+  'pydevices_state',
+  'pydevices_write_event',
+  'pydevices_push_event',
+  'pydevices_relative_point',
+  'pydevices_install_input',
+  'pydevices_paint',
+  'pydevices_export_host',
+  'pydevices_decode_pcm',
+  'pydevices_encode_sample',
 ];
 unexportedSymbols.forEach(unexportedRuntimeSymbol);
 
@@ -4861,8 +5726,10 @@ function create_promise(out_set,out_promise) { const out_set_js = proxy_convert_
 // Imports from the Wasm binary.
 var _free = Module['_free'] = makeInvalidEarlyAccess('_free');
 var _malloc = Module['_malloc'] = makeInvalidEarlyAccess('_malloc');
+var _pydevices_timer_dispatch = Module['_pydevices_timer_dispatch'] = makeInvalidEarlyAccess('_pydevices_timer_dispatch');
 var _mp_sched_keyboard_interrupt = Module['_mp_sched_keyboard_interrupt'] = makeInvalidEarlyAccess('_mp_sched_keyboard_interrupt');
 var _mp_js_init = Module['_mp_js_init'] = makeInvalidEarlyAccess('_mp_js_init');
+var _mp_js_deinit = Module['_mp_js_deinit'] = makeInvalidEarlyAccess('_mp_js_deinit');
 var _mp_js_register_js_module = Module['_mp_js_register_js_module'] = makeInvalidEarlyAccess('_mp_js_register_js_module');
 var _mp_js_do_import = Module['_mp_js_do_import'] = makeInvalidEarlyAccess('_mp_js_do_import');
 var _proxy_convert_mp_to_js_obj_cside = Module['_proxy_convert_mp_to_js_obj_cside'] = makeInvalidEarlyAccess('_proxy_convert_mp_to_js_obj_cside');
@@ -4895,6 +5762,38 @@ var _emscripten_stack_get_free = makeInvalidEarlyAccess('_emscripten_stack_get_f
 var __emscripten_stack_restore = makeInvalidEarlyAccess('__emscripten_stack_restore');
 var __emscripten_stack_alloc = makeInvalidEarlyAccess('__emscripten_stack_alloc');
 var _emscripten_stack_get_current = makeInvalidEarlyAccess('_emscripten_stack_get_current');
+var dynCall_iiii = makeInvalidEarlyAccess('dynCall_iiii');
+var dynCall_vi = makeInvalidEarlyAccess('dynCall_vi');
+var dynCall_iiiii = makeInvalidEarlyAccess('dynCall_iiiii');
+var dynCall_iii = makeInvalidEarlyAccess('dynCall_iii');
+var dynCall_vii = makeInvalidEarlyAccess('dynCall_vii');
+var dynCall_iiiiii = makeInvalidEarlyAccess('dynCall_iiiiii');
+var dynCall_viiii = makeInvalidEarlyAccess('dynCall_viiii');
+var dynCall_ii = makeInvalidEarlyAccess('dynCall_ii');
+var dynCall_viii = makeInvalidEarlyAccess('dynCall_viii');
+var dynCall_i = makeInvalidEarlyAccess('dynCall_i');
+var dynCall_iiiiiii = makeInvalidEarlyAccess('dynCall_iiiiiii');
+var dynCall_v = makeInvalidEarlyAccess('dynCall_v');
+var dynCall_jji = makeInvalidEarlyAccess('dynCall_jji');
+var dynCall_viiiii = makeInvalidEarlyAccess('dynCall_viiiii');
+var dynCall_viiiiiii = makeInvalidEarlyAccess('dynCall_viiiiiii');
+var dynCall_viiiffiii = makeInvalidEarlyAccess('dynCall_viiiffiii');
+var dynCall_viiiiiiii = makeInvalidEarlyAccess('dynCall_viiiiiiii');
+var dynCall_viiiiiiiii = makeInvalidEarlyAccess('dynCall_viiiiiiiii');
+var dynCall_viiiiii = makeInvalidEarlyAccess('dynCall_viiiiii');
+var dynCall_viiif = makeInvalidEarlyAccess('dynCall_viiif');
+var dynCall_vif = makeInvalidEarlyAccess('dynCall_vif');
+var dynCall_viff = makeInvalidEarlyAccess('dynCall_viff');
+var dynCall_fi = makeInvalidEarlyAccess('dynCall_fi');
+var dynCall_iiiiiiii = makeInvalidEarlyAccess('dynCall_iiiiiiii');
+var dynCall_dd = makeInvalidEarlyAccess('dynCall_dd');
+var dynCall_ddd = makeInvalidEarlyAccess('dynCall_ddd');
+var dynCall_jiji = makeInvalidEarlyAccess('dynCall_jiji');
+var dynCall_iidiiiii = makeInvalidEarlyAccess('dynCall_iidiiiii');
+var _asyncify_start_unwind = makeInvalidEarlyAccess('_asyncify_start_unwind');
+var _asyncify_stop_unwind = makeInvalidEarlyAccess('_asyncify_stop_unwind');
+var _asyncify_start_rewind = makeInvalidEarlyAccess('_asyncify_start_rewind');
+var _asyncify_stop_rewind = makeInvalidEarlyAccess('_asyncify_stop_rewind');
 var memory = makeInvalidEarlyAccess('memory');
 var __indirect_function_table = makeInvalidEarlyAccess('__indirect_function_table');
 var wasmMemory = makeInvalidEarlyAccess('wasmMemory');
@@ -4903,8 +5802,10 @@ var wasmTable = makeInvalidEarlyAccess('wasmTable');
 function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['free'] != 'undefined', 'missing Wasm export: free');
   assert(typeof wasmExports['malloc'] != 'undefined', 'missing Wasm export: malloc');
+  assert(typeof wasmExports['pydevices_timer_dispatch'] != 'undefined', 'missing Wasm export: pydevices_timer_dispatch');
   assert(typeof wasmExports['mp_sched_keyboard_interrupt'] != 'undefined', 'missing Wasm export: mp_sched_keyboard_interrupt');
   assert(typeof wasmExports['mp_js_init'] != 'undefined', 'missing Wasm export: mp_js_init');
+  assert(typeof wasmExports['mp_js_deinit'] != 'undefined', 'missing Wasm export: mp_js_deinit');
   assert(typeof wasmExports['mp_js_register_js_module'] != 'undefined', 'missing Wasm export: mp_js_register_js_module');
   assert(typeof wasmExports['mp_js_do_import'] != 'undefined', 'missing Wasm export: mp_js_do_import');
   assert(typeof wasmExports['proxy_convert_mp_to_js_obj_cside'] != 'undefined', 'missing Wasm export: proxy_convert_mp_to_js_obj_cside');
@@ -4937,12 +5838,46 @@ function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['_emscripten_stack_restore'] != 'undefined', 'missing Wasm export: _emscripten_stack_restore');
   assert(typeof wasmExports['_emscripten_stack_alloc'] != 'undefined', 'missing Wasm export: _emscripten_stack_alloc');
   assert(typeof wasmExports['emscripten_stack_get_current'] != 'undefined', 'missing Wasm export: emscripten_stack_get_current');
+  assert(typeof wasmExports['dynCall_iiii'] != 'undefined', 'missing Wasm export: dynCall_iiii');
+  assert(typeof wasmExports['dynCall_vi'] != 'undefined', 'missing Wasm export: dynCall_vi');
+  assert(typeof wasmExports['dynCall_iiiii'] != 'undefined', 'missing Wasm export: dynCall_iiiii');
+  assert(typeof wasmExports['dynCall_iii'] != 'undefined', 'missing Wasm export: dynCall_iii');
+  assert(typeof wasmExports['dynCall_vii'] != 'undefined', 'missing Wasm export: dynCall_vii');
+  assert(typeof wasmExports['dynCall_iiiiii'] != 'undefined', 'missing Wasm export: dynCall_iiiiii');
+  assert(typeof wasmExports['dynCall_viiii'] != 'undefined', 'missing Wasm export: dynCall_viiii');
+  assert(typeof wasmExports['dynCall_ii'] != 'undefined', 'missing Wasm export: dynCall_ii');
+  assert(typeof wasmExports['dynCall_viii'] != 'undefined', 'missing Wasm export: dynCall_viii');
+  assert(typeof wasmExports['dynCall_i'] != 'undefined', 'missing Wasm export: dynCall_i');
+  assert(typeof wasmExports['dynCall_iiiiiii'] != 'undefined', 'missing Wasm export: dynCall_iiiiiii');
+  assert(typeof wasmExports['dynCall_v'] != 'undefined', 'missing Wasm export: dynCall_v');
+  assert(typeof wasmExports['dynCall_jji'] != 'undefined', 'missing Wasm export: dynCall_jji');
+  assert(typeof wasmExports['dynCall_viiiii'] != 'undefined', 'missing Wasm export: dynCall_viiiii');
+  assert(typeof wasmExports['dynCall_viiiiiii'] != 'undefined', 'missing Wasm export: dynCall_viiiiiii');
+  assert(typeof wasmExports['dynCall_viiiffiii'] != 'undefined', 'missing Wasm export: dynCall_viiiffiii');
+  assert(typeof wasmExports['dynCall_viiiiiiii'] != 'undefined', 'missing Wasm export: dynCall_viiiiiiii');
+  assert(typeof wasmExports['dynCall_viiiiiiiii'] != 'undefined', 'missing Wasm export: dynCall_viiiiiiiii');
+  assert(typeof wasmExports['dynCall_viiiiii'] != 'undefined', 'missing Wasm export: dynCall_viiiiii');
+  assert(typeof wasmExports['dynCall_viiif'] != 'undefined', 'missing Wasm export: dynCall_viiif');
+  assert(typeof wasmExports['dynCall_vif'] != 'undefined', 'missing Wasm export: dynCall_vif');
+  assert(typeof wasmExports['dynCall_viff'] != 'undefined', 'missing Wasm export: dynCall_viff');
+  assert(typeof wasmExports['dynCall_fi'] != 'undefined', 'missing Wasm export: dynCall_fi');
+  assert(typeof wasmExports['dynCall_iiiiiiii'] != 'undefined', 'missing Wasm export: dynCall_iiiiiiii');
+  assert(typeof wasmExports['dynCall_dd'] != 'undefined', 'missing Wasm export: dynCall_dd');
+  assert(typeof wasmExports['dynCall_ddd'] != 'undefined', 'missing Wasm export: dynCall_ddd');
+  assert(typeof wasmExports['dynCall_jiji'] != 'undefined', 'missing Wasm export: dynCall_jiji');
+  assert(typeof wasmExports['dynCall_iidiiiii'] != 'undefined', 'missing Wasm export: dynCall_iidiiiii');
+  assert(typeof wasmExports['asyncify_start_unwind'] != 'undefined', 'missing Wasm export: asyncify_start_unwind');
+  assert(typeof wasmExports['asyncify_stop_unwind'] != 'undefined', 'missing Wasm export: asyncify_stop_unwind');
+  assert(typeof wasmExports['asyncify_start_rewind'] != 'undefined', 'missing Wasm export: asyncify_start_rewind');
+  assert(typeof wasmExports['asyncify_stop_rewind'] != 'undefined', 'missing Wasm export: asyncify_stop_rewind');
   assert(typeof wasmExports['memory'] != 'undefined', 'missing Wasm export: memory');
   assert(typeof wasmExports['__indirect_function_table'] != 'undefined', 'missing Wasm export: __indirect_function_table');
   _free = Module['_free'] = createExportWrapper('free', 1);
   _malloc = Module['_malloc'] = createExportWrapper('malloc', 1);
+  _pydevices_timer_dispatch = Module['_pydevices_timer_dispatch'] = createExportWrapper('pydevices_timer_dispatch', 1);
   _mp_sched_keyboard_interrupt = Module['_mp_sched_keyboard_interrupt'] = createExportWrapper('mp_sched_keyboard_interrupt', 0);
   _mp_js_init = Module['_mp_js_init'] = createExportWrapper('mp_js_init', 2);
+  _mp_js_deinit = Module['_mp_js_deinit'] = createExportWrapper('mp_js_deinit', 0);
   _mp_js_register_js_module = Module['_mp_js_register_js_module'] = createExportWrapper('mp_js_register_js_module', 2);
   _mp_js_do_import = Module['_mp_js_do_import'] = createExportWrapper('mp_js_do_import', 2);
   _proxy_convert_mp_to_js_obj_cside = Module['_proxy_convert_mp_to_js_obj_cside'] = createExportWrapper('proxy_convert_mp_to_js_obj_cside', 2);
@@ -4975,6 +5910,38 @@ function assignWasmExports(wasmExports) {
   __emscripten_stack_restore = wasmExports['_emscripten_stack_restore'];
   __emscripten_stack_alloc = wasmExports['_emscripten_stack_alloc'];
   _emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'];
+  dynCall_iiii = dynCalls['iiii'] = createExportWrapper('dynCall_iiii', 4);
+  dynCall_vi = dynCalls['vi'] = createExportWrapper('dynCall_vi', 2);
+  dynCall_iiiii = dynCalls['iiiii'] = createExportWrapper('dynCall_iiiii', 5);
+  dynCall_iii = dynCalls['iii'] = createExportWrapper('dynCall_iii', 3);
+  dynCall_vii = dynCalls['vii'] = createExportWrapper('dynCall_vii', 3);
+  dynCall_iiiiii = dynCalls['iiiiii'] = createExportWrapper('dynCall_iiiiii', 6);
+  dynCall_viiii = dynCalls['viiii'] = createExportWrapper('dynCall_viiii', 5);
+  dynCall_ii = dynCalls['ii'] = createExportWrapper('dynCall_ii', 2);
+  dynCall_viii = dynCalls['viii'] = createExportWrapper('dynCall_viii', 4);
+  dynCall_i = dynCalls['i'] = createExportWrapper('dynCall_i', 1);
+  dynCall_iiiiiii = dynCalls['iiiiiii'] = createExportWrapper('dynCall_iiiiiii', 7);
+  dynCall_v = dynCalls['v'] = createExportWrapper('dynCall_v', 1);
+  dynCall_jji = dynCalls['jji'] = createExportWrapper('dynCall_jji', 3);
+  dynCall_viiiii = dynCalls['viiiii'] = createExportWrapper('dynCall_viiiii', 6);
+  dynCall_viiiiiii = dynCalls['viiiiiii'] = createExportWrapper('dynCall_viiiiiii', 8);
+  dynCall_viiiffiii = dynCalls['viiiffiii'] = createExportWrapper('dynCall_viiiffiii', 9);
+  dynCall_viiiiiiii = dynCalls['viiiiiiii'] = createExportWrapper('dynCall_viiiiiiii', 9);
+  dynCall_viiiiiiiii = dynCalls['viiiiiiiii'] = createExportWrapper('dynCall_viiiiiiiii', 10);
+  dynCall_viiiiii = dynCalls['viiiiii'] = createExportWrapper('dynCall_viiiiii', 7);
+  dynCall_viiif = dynCalls['viiif'] = createExportWrapper('dynCall_viiif', 5);
+  dynCall_vif = dynCalls['vif'] = createExportWrapper('dynCall_vif', 3);
+  dynCall_viff = dynCalls['viff'] = createExportWrapper('dynCall_viff', 4);
+  dynCall_fi = dynCalls['fi'] = createExportWrapper('dynCall_fi', 2);
+  dynCall_iiiiiiii = dynCalls['iiiiiiii'] = createExportWrapper('dynCall_iiiiiiii', 8);
+  dynCall_dd = dynCalls['dd'] = createExportWrapper('dynCall_dd', 2);
+  dynCall_ddd = dynCalls['ddd'] = createExportWrapper('dynCall_ddd', 3);
+  dynCall_jiji = dynCalls['jiji'] = createExportWrapper('dynCall_jiji', 4);
+  dynCall_iidiiiii = dynCalls['iidiiiii'] = createExportWrapper('dynCall_iidiiiii', 8);
+  _asyncify_start_unwind = createExportWrapper('asyncify_start_unwind', 1);
+  _asyncify_stop_unwind = createExportWrapper('asyncify_stop_unwind', 0);
+  _asyncify_start_rewind = createExportWrapper('asyncify_start_rewind', 1);
+  _asyncify_stop_rewind = createExportWrapper('asyncify_stop_rewind', 0);
   memory = wasmMemory = wasmExports['memory'];
   __indirect_function_table = wasmTable = wasmExports['__indirect_function_table'];
 }
@@ -5093,6 +6060,8 @@ var wasmImports = {
   /** @export */
   lookup_attr,
   /** @export */
+  mp_js_hook: _mp_js_hook,
+  /** @export */
   mp_js_random_u32: _mp_js_random_u32,
   /** @export */
   mp_js_ticks_ms: _mp_js_ticks_ms,
@@ -5105,35 +6074,45 @@ var wasmImports = {
   /** @export */
   proxy_js_free_obj,
   /** @export */
+  pydevices_audio_clear: _pydevices_audio_clear,
+  /** @export */
+  pydevices_audio_queued: _pydevices_audio_queued,
+  /** @export */
+  pydevices_audio_read: _pydevices_audio_read,
+  /** @export */
+  pydevices_audio_state: _pydevices_audio_state,
+  /** @export */
+  pydevices_audio_write: _pydevices_audio_write,
+  /** @export */
+  pydevices_display_register: _pydevices_display_register,
+  /** @export */
+  pydevices_display_unregister: _pydevices_display_unregister,
+  /** @export */
+  pydevices_event_clear: _pydevices_event_clear,
+  /** @export */
+  pydevices_event_poll: _pydevices_event_poll,
+  /** @export */
+  pydevices_event_set_buffer: _pydevices_event_set_buffer,
+  /** @export */
+  pydevices_host_reset: _pydevices_host_reset,
+  /** @export */
+  pydevices_http_get: _pydevices_http_get,
+  /** @export */
+  pydevices_sleep_ms: _pydevices_sleep_ms,
+  /** @export */
+  pydevices_timer_cancel: _pydevices_timer_cancel,
+  /** @export */
+  pydevices_timer_poll: _pydevices_timer_poll,
+  /** @export */
+  pydevices_timer_start: _pydevices_timer_start,
+  /** @export */
   store_attr
 };
-
-function invoke_ii(index,a1) {
-  var sp = stackSave();
-  try {
-    return getWasmTableEntry(index)(a1);
-  } catch(e) {
-    stackRestore(sp);
-    if (!(e instanceof EmscriptenEH)) throw e;
-    _setThrew(1, 0);
-  }
-}
-
-function invoke_iiii(index,a1,a2,a3) {
-  var sp = stackSave();
-  try {
-    return getWasmTableEntry(index)(a1,a2,a3);
-  } catch(e) {
-    stackRestore(sp);
-    if (!(e instanceof EmscriptenEH)) throw e;
-    _setThrew(1, 0);
-  }
-}
 
 function invoke_v(index) {
   var sp = stackSave();
   try {
-    getWasmTableEntry(index)();
+    dynCall_v(index);
   } catch(e) {
     stackRestore(sp);
     if (!(e instanceof EmscriptenEH)) throw e;
@@ -5141,43 +6120,10 @@ function invoke_v(index) {
   }
 }
 
-function invoke_viii(index,a1,a2,a3) {
+function invoke_ii(index,a1) {
   var sp = stackSave();
   try {
-    getWasmTableEntry(index)(a1,a2,a3);
-  } catch(e) {
-    stackRestore(sp);
-    if (!(e instanceof EmscriptenEH)) throw e;
-    _setThrew(1, 0);
-  }
-}
-
-function invoke_iiiii(index,a1,a2,a3,a4) {
-  var sp = stackSave();
-  try {
-    return getWasmTableEntry(index)(a1,a2,a3,a4);
-  } catch(e) {
-    stackRestore(sp);
-    if (!(e instanceof EmscriptenEH)) throw e;
-    _setThrew(1, 0);
-  }
-}
-
-function invoke_iii(index,a1,a2) {
-  var sp = stackSave();
-  try {
-    return getWasmTableEntry(index)(a1,a2);
-  } catch(e) {
-    stackRestore(sp);
-    if (!(e instanceof EmscriptenEH)) throw e;
-    _setThrew(1, 0);
-  }
-}
-
-function invoke_vi(index,a1) {
-  var sp = stackSave();
-  try {
-    getWasmTableEntry(index)(a1);
+    return dynCall_ii(index,a1);
   } catch(e) {
     stackRestore(sp);
     if (!(e instanceof EmscriptenEH)) throw e;
@@ -5188,7 +6134,62 @@ function invoke_vi(index,a1) {
 function invoke_vii(index,a1,a2) {
   var sp = stackSave();
   try {
-    getWasmTableEntry(index)(a1,a2);
+    dynCall_vii(index,a1,a2);
+  } catch(e) {
+    stackRestore(sp);
+    if (!(e instanceof EmscriptenEH)) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiii(index,a1,a2,a3) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiii(index,a1,a2,a3);
+  } catch(e) {
+    stackRestore(sp);
+    if (!(e instanceof EmscriptenEH)) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viii(index,a1,a2,a3) {
+  var sp = stackSave();
+  try {
+    dynCall_viii(index,a1,a2,a3);
+  } catch(e) {
+    stackRestore(sp);
+    if (!(e instanceof EmscriptenEH)) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiii(index,a1,a2,a3,a4) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiii(index,a1,a2,a3,a4);
+  } catch(e) {
+    stackRestore(sp);
+    if (!(e instanceof EmscriptenEH)) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iii(index,a1,a2) {
+  var sp = stackSave();
+  try {
+    return dynCall_iii(index,a1,a2);
+  } catch(e) {
+    stackRestore(sp);
+    if (!(e instanceof EmscriptenEH)) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_vi(index,a1) {
+  var sp = stackSave();
+  try {
+    dynCall_vi(index,a1);
   } catch(e) {
     stackRestore(sp);
     if (!(e instanceof EmscriptenEH)) throw e;
@@ -5199,7 +6200,7 @@ function invoke_vii(index,a1,a2) {
 function invoke_i(index) {
   var sp = stackSave();
   try {
-    return getWasmTableEntry(index)();
+    return dynCall_i(index);
   } catch(e) {
     stackRestore(sp);
     if (!(e instanceof EmscriptenEH)) throw e;
@@ -5210,7 +6211,7 @@ function invoke_i(index) {
 function invoke_viiii(index,a1,a2,a3,a4) {
   var sp = stackSave();
   try {
-    getWasmTableEntry(index)(a1,a2,a3,a4);
+    dynCall_viiii(index,a1,a2,a3,a4);
   } catch(e) {
     stackRestore(sp);
     if (!(e instanceof EmscriptenEH)) throw e;
@@ -5221,7 +6222,7 @@ function invoke_viiii(index,a1,a2,a3,a4) {
 function invoke_iiiiii(index,a1,a2,a3,a4,a5) {
   var sp = stackSave();
   try {
-    return getWasmTableEntry(index)(a1,a2,a3,a4,a5);
+    return dynCall_iiiiii(index,a1,a2,a3,a4,a5);
   } catch(e) {
     stackRestore(sp);
     if (!(e instanceof EmscriptenEH)) throw e;
@@ -5490,6 +6491,18 @@ export async function loadMicroPython(options) {
             );
             Module._free(value);
         },
+        softReset() {
+            Module.ccall("mp_js_deinit", "null", [], []);
+            proxy_js_init();
+            Module.ccall(
+                "mp_js_init",
+                "null",
+                ["number", "number"],
+                [pystack, heapsize],
+            );
+            Module.ccall("proxy_c_init", "null", [], []);
+            this.globals.__dict__ = pyimport("__main__").__dict__;
+        },
         pyimport: pyimport,
         runPython(code) {
             const len = Module.lengthBytesUTF8(code);
@@ -5505,16 +6518,17 @@ export async function loadMicroPython(options) {
             Module._free(buf);
             return proxy_convert_mp_to_js_obj_jsside_with_free(value);
         },
-        runPythonAsync(code) {
+        async runPythonAsync(code) {
             const len = Module.lengthBytesUTF8(code);
             const buf = Module._malloc(len + 1);
             Module.stringToUTF8(code, buf, len + 1);
             const value = Module._malloc(3 * 4);
-            Module.ccall(
+            await Module.ccall(
                 "mp_js_do_exec_async",
                 "number",
                 ["pointer", "number", "pointer"],
                 [buf, len, value],
+                { async: true },
             );
             Module._free(buf);
             const ret = proxy_convert_mp_to_js_obj_jsside_with_free(value);

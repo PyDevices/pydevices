@@ -40,6 +40,7 @@ _PROVIDER_MODULES = (
     "polling",
     "sdl2",
     "threading",
+    "wasm",
     "win32",
 )
 

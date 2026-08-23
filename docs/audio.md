@@ -28,6 +28,12 @@ async contract as hardware devices.
 `audiodev.web_audio` provides PyScript / browser playback (`AudioContext`) and
 capture (`getUserMedia`).
 
+`audiodev.wasm_audio` is the direct MicroPython WebAssembly backend. The
+compiled bridge owns Web Audio and permission state, while Python sees only
+neutral PCM buffers and queue operations. It supports mono/stereo 8-, 16-, and
+32-bit signed or unsigned samples in either byte order at caller-selected
+rates. A host page must explicitly enable audio or microphone access first.
+
 Desktop `board_peripherals` may use `audiodev.auto` for host probe. Fixed host boards
 import a concrete backend. `audiodev` itself does not import `displaydev`.
 

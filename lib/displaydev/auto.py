@@ -19,7 +19,13 @@ __all__ = ["AutoDisplay", "host_kind"]
 
 
 def host_kind():
-    """Return ``"android"``, ``"pyscript"``, ``"jupyter"``, or ``"desktop"``."""
+    """Return ``"wasm"``, ``"android"``, ``"pyscript"``, ``"jupyter"``, or ``"desktop"``."""
+    try:
+        import _wasm_bridge  # noqa: F401
+
+        return "wasm"
+    except ImportError:
+        pass
     if sys.platform == "android":
         return "android"
     try:
@@ -59,6 +65,11 @@ def AutoDisplay(
         board_config wiring.
     """
     host = host_kind()
+
+    if host == "wasm":
+        from displaydev.wasmdisplay import WasmDisplay
+
+        return WasmDisplay(width, height, canvas_id, quiet=quiet)
 
     if host == "pyscript":
         from displaydev.psdisplay import PSDisplay

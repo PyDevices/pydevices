@@ -30,7 +30,8 @@
 ## Platforms
 
 - [pydevices-desktop.md](pydevices-desktop.md) — the desktop bundle
-- [pyscript.md](pyscript.md) — `PSDisplay`, `bin/pyscript.py`, server probing, and browser execution
+- [wasm.md](wasm.md) — direct MicroPython, `_wasm_bridge`, and `bin/wasm.py`
+- [pyscript.md](pyscript.md) — retained Pyodide tooling and `PSDisplay`
 - [android.md](android.md) — the APK, `bin/android.py`, orientation, timers, audio
 - [jupyter.md](jupyter.md) — `JNDisplay`, `bin/jupyter.py`, the async execution model
 - [wokwi.md](wokwi.md) — simulator notes
