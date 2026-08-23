@@ -17,9 +17,9 @@ organization. Edit the database, not the block below.
 
 Standard hardware driver engine and companion reference code.
 
-- [`pydevices`](https://github.com/PyDevices/pydevices) — Unified pure-Python hardware abstraction layer and core device contract for MicroPython, CircuitPython, CPython, Pyodide WASM, and Android.
+- [`pydevices`](https://github.com/PyDevices/pydevices) — Unified pure-Python hardware abstraction layer and core device contract for MicroPython, CircuitPython, CPython, direct WebAssembly, Pyodide, and Android.
 - [`displayif`](https://github.com/PyDevices/displayif) — High-performance C hardware bus engines (SPI, I2C, Intel 8080, RGB/DPI, MIPI DSI) and native usermod display drivers for MicroPython and CircuitPython.
-- [`pydevices-examples`](https://github.com/PyDevices/pydevices-examples) — Comprehensive example code, interactive PyScript browser demos, board configurations, and multi-interpreter showcase benchmarks.
+- [`pydevices-examples`](https://github.com/PyDevices/pydevices-examples) — Comprehensive example code, direct MicroPython WebAssembly demos, board configurations, and multi-interpreter showcase benchmarks.
 
 ### Tier 2: Python Framebuffers & GUI Toolkits
 
