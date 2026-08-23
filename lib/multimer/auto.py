@@ -17,7 +17,7 @@ import sys
 from . import AsyncTimer, _async_only_interpreter, _async_sleep_ms, _provider_pump
 
 _AUTO_BACKENDS = ("machine", "librt", "win32", "sdl2", "threading", "polling")
-_BACKENDS = _AUTO_BACKENDS + ("async",)
+_BACKENDS = _AUTO_BACKENDS + ("async", "wasm")
 _ENV_OVERRIDE = "MULTIMER_BACKEND"
 
 

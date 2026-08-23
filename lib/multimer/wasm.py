@@ -32,7 +32,6 @@ __all__ = ["Timer", "is_async", "name", "pump", "sleep_ms", "uses_interrupts"]
 class Timer(_TimerCore):
     def __init__(self, id=-1, **kwargs):
         self._timer_id = None
-        self._scheduled_deliver = self._run_deliver
         super().__init__(id, **kwargs)
 
     def _arm(self):
@@ -49,10 +48,8 @@ class Timer(_TimerCore):
             self._timer_id = None
 
     def _on_tick(self):
-        # We bounce through the soft scheduler so we don't execute app code
-        # from directly inside the JS event callback, preventing reentrancy
-        # issues or locking up the browser thread.
-        schedule(self._scheduled_deliver, self)
-
-    def _run_deliver(self, _arg):
+        # In WASM, the JS event callback is the only entry point that gives CPU
+        # time to the MicroPython VM. We must execute the payload directly,
+        # otherwise the scheduled work will never be pumped.
         self._deliver()
+        _provider_pump()
