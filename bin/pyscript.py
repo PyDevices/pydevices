@@ -303,8 +303,9 @@ def start_embedded_server(host: str, port: int, org_dir: Path) -> threading.Thre
             self.send_header("Cache-Control", "no-store, must-revalidate")
             self.send_header("X-PyDevices-Server", "portal")
             self.send_header("Cross-Origin-Opener-Policy", "same-origin")
-            self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+            self.send_header("Cross-Origin-Embedder-Policy", "credentialless")
             self.send_header("Cross-Origin-Resource-Policy", "cross-origin")
+            self.send_header("Access-Control-Allow-Origin", "*")
             super().end_headers()
 
         def translate_path(self, path: str) -> str:
