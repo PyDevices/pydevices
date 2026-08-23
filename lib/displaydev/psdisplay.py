@@ -10,7 +10,10 @@ from js import console, document
 try:
     from pyscript.ffi import create_proxy
 except ImportError:
-    from pyodide.ffi import create_proxy
+    try:
+        from pyodide.ffi import create_proxy
+    except ImportError:
+        create_proxy = lambda x: x
 
 from displaydev import color_rgb
 from displaydev._desktop import DesktopDisplay
