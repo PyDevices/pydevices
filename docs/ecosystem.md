@@ -38,7 +38,7 @@ Single-source LVGL C header binding generator and native interpreter modules.
 - [`lvgl-python`](https://github.com/PyDevices/lvgl-python) — Pre-built CPython extension wheels and Pyodide WASM packages bringing LVGL v9 to desktop Linux, macOS, Windows, and web browsers.
 - [`lvgl-circuitpython`](https://github.com/PyDevices/lvgl-circuitpython) — CircuitPython native C module providing LVGL v9 bindings and displayif integration for Adafruit Feather and SAMD51 / RP2040 boards.
 
-### Tier 4: Target App Hosts & PWA Templates
+### Tier 4: App Hosts & Mobile
 
 Deploy PyDevices apps directly to desktop browsers or mobile APKs.
 

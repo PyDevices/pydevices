@@ -20,7 +20,7 @@ Write your display and hardware logic once and run across 5 supported Python env
 1. **MicroPython** — Microcontroller firmware with MIP package support.
 2. **CircuitPython** — Microcontroller firmware with stock driver compatibility.
 3. **CPython (Desktop)** — Native desktop development and testing (`pydevices-desktop`).
-4. **PyScript / Pyodide (Web PWA)** — Web browser deployment without code changes.
+4. **PyScript / Pyodide (Web)** — Web browser deployment without code changes.
 5. **Android (APK)** — Mobile package deployment via Buildozer (`android-template`).
 
 ---
