@@ -6,6 +6,7 @@ import _wasm_bridge
 import events
 import keys
 
+from displaydev._desktop import DesktopDisplay
 from displaydev._domkeys import enrich_mod, key_to_keycode, mod_mask
 from displaydev.fbdisplay import FBDisplay
 
@@ -226,11 +227,28 @@ class WasmDevices:
         return output
 
 
-class WasmDisplay(FBDisplay):
-    """One Python-owned RGB565 framebuffer scanned by browser animation frames."""
+class WasmDisplay(DesktopDisplay, FBDisplay):
+    """A Python-owned RGB565 back buffer composited to a browser-scanned front buffer.
 
-    needs_refresh = False
-    requires_async_timer = False
+    Apps draw into ``_framebuffer`` (the logical, unscrolled surface) through
+    the inherited :class:`FBDisplay` primitives. ``_displayed`` is the buffer
+    actually registered with the browser and scanned every animation frame;
+    :meth:`_composite` copies from the former to the latter, applying the
+    vertical-scroll row shift the same way :class:`PSDisplay` does with
+    ``drawImage`` — a plain byte-slice copy here since both buffers are RGB565.
+
+    Attributes:
+        needs_refresh (bool): True — ``appdev.App`` drives periodic ``show()``,
+            so draws that never call ``show()`` explicitly (e.g. a scroll
+            timer) still reach the composited front buffer.
+        requires_async_timer (bool): True — single-threaded cooperative browser
+            WASM, like :class:`PSDisplay`/:class:`JNDisplay`: without the
+            async-driven host loop, ``app.every()`` timers (and the
+            ``needs_refresh`` timer above) never fire.
+    """
+
+    needs_refresh = True
+    requires_async_timer = True
     quit_chord = (keys.K_AC_BACK, 0)
 
     def __init__(
@@ -238,18 +256,53 @@ class WasmDisplay(FBDisplay):
     ):
         self._canvas_id = canvas_id
         self._framebuffer = bytearray(int(width) * int(height) * 2)
+        self._displayed = bytearray(int(width) * int(height) * 2)
         self._devices = WasmDevices()
         super().__init__(self._framebuffer, int(width), int(height), quiet=quiet)
         self.get_events = self._devices.read
 
     def init(self):
+        # Straight to DisplayDriver, matching PSDisplay/SDLDisplay/PGDisplay:
+        # a full-height scroll region so vscsad() works before any explicit
+        # set_vscroll/vscrdef, without firing _scroll_changed mid-init.
+        self._reset_vscroll()
         if not _wasm_bridge.register_framebuffer(
-            self._framebuffer, self.width, self.height, self._canvas_id
+            self._displayed, self.width, self.height, self._canvas_id
         ):
             raise RuntimeError(f"WASM canvas {self._canvas_id!r} was not found")
+        self._composite()
+
+    def _scroll_changed(self):
+        """Repaint immediately; this backend has no deferred-render tick."""
+        self._composite()
 
     def show(self, _timer=None):
-        """No-op: the browser continuously scans the registered framebuffer."""
+        self._composite()
+
+    def _composite(self):
+        """Copy the back buffer to the front buffer, applying vscroll."""
+        row_bytes = self.width * 2
+        src = self._framebuffer
+        dst = self._displayed
+        y_start = self.vscsad()
+        if not y_start:
+            dst[:] = src
+            return
+        tfa, vsa, bfa = self._tfa, self._vsa, self._bfa
+        if tfa:
+            n = tfa * row_bytes
+            dst[0:n] = src[0:n]
+        top_h = vsa + tfa - y_start
+        a, b = y_start * row_bytes, (y_start + top_h) * row_bytes
+        da, db = tfa * row_bytes, (tfa + top_h) * row_bytes
+        dst[da:db] = src[a:b]
+        btm_h = vsa - top_h
+        if btm_h:
+            a2, b2 = tfa * row_bytes, (tfa + btm_h) * row_bytes
+            dst[db : db + (b2 - a2)] = src[a2:b2]
+        if bfa:
+            n = bfa * row_bytes
+            dst[len(dst) - n :] = src[len(src) - n :]
 
     def _deinit(self):
         self._devices.clear()

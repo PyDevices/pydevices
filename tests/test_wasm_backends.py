@@ -98,9 +98,13 @@ class WasmBackendTests(unittest.TestCase):
         display = WasmDisplay(4, 3, "canvas", quiet=True)
         self.assertEqual(len(display.framebuffers()[0]), 24)
         self.assertEqual(self.bridge.registered[1:], (4, 3, "canvas"))
+        # fill_rect writes the back buffer; the registered front buffer is
+        # only synced on show() (needs_refresh=True: appdev.App drives this
+        # on a timer so scroll-only updates reach the screen too).
         display.fill_rect(0, 0, 4, 3, 0xF800)
-        self.assertEqual(bytes(self.bridge.registered[0]), b"\x00\xf8" * 12)
+        self.assertEqual(bytes(self.bridge.registered[0]), b"\x00\x00" * 12)
         display.show()
+        self.assertEqual(bytes(self.bridge.registered[0]), b"\x00\xf8" * 12)
         display.deinit()
         self.assertIsNone(self.bridge.registered)
 

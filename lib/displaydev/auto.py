@@ -47,7 +47,7 @@ def AutoDisplay(
     rotation=0,
     scale=1.0,
     title="displaydev",
-    canvas_id="display_canvas",
+    canvas_id=None,
     *,
     quiet=False,
 ):
@@ -64,6 +64,10 @@ def AutoDisplay(
         ``SDLDisplay`` with ``get_events`` and ``requires_async_timer`` set for
         board_config wiring.
     """
+    from displaydev import env_get
+    if canvas_id is None:
+        canvas_id = env_get("PYDEVICES_CANVAS_ID", "display_canvas")
+
     host = host_kind()
 
     if host == "wasm":
