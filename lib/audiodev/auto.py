@@ -5,8 +5,12 @@ import sys
 
 def host_kind():
     try:
+        import _wasm_bridge  # noqa: F401
+        return "wasm"
+    except Exception:
+        pass
+    try:
         import pyscript  # noqa: F401
-
         return "pyscript"
     except Exception:
         pass
@@ -38,8 +42,10 @@ def _uwin32_available():
 
 
 def select_backend():
-    """Return ``web_audio``, ``win_audio``, ``pygame_audio``, or ``sdl2_audio``."""
+    """Return ``wasm_audio``, ``web_audio``, ``win_audio``, ``pygame_audio``, or ``sdl2_audio``."""
     kind = host_kind()
+    if kind == "wasm":
+        return "wasm_audio"
     if kind == "pyscript":
         return "web_audio"
     if kind == "jupyter":
@@ -52,7 +58,9 @@ def select_backend():
 
 
 def _impl(name, direction):
-    if name == "web_audio":
+    if name == "wasm_audio":
+        from audiodev import wasm_audio as mod
+    elif name == "web_audio":
         from audiodev import web_audio as mod
     elif name == "win_audio":
         from audiodev import win_audio as mod
