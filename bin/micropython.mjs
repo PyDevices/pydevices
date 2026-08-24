@@ -4386,14 +4386,8 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
   var _mp_js_time_ms = () => Date.now();
 
   var pydevices_state = {
-  framebuffer:null,
-  canvas:null,
-  context:null,
-  image:null,
+  displays:new Map,
   animation:0,
-  framesPainted:0,
-  events:[],
-  eventRing:null,
   timers:new Map,
   firedTimers:[],
   timerFirings:[],
@@ -4471,6 +4465,14 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           return byteLength;
       };
 
+  var pydevices_get_display = (canvasId) => {
+          let display = pydevices_state.displays.get(canvasId);
+          if (!display) {
+              display = {framebuffer:null, canvas:null, context:null, image:null, framesPainted:0, eventRing:null, events:[]};
+              pydevices_state.displays.set(canvasId, display);
+          }
+          return display;
+      };
 
 
 
@@ -4493,8 +4495,9 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           stringToUTF8(event.code||'',ptr+136,64);
           return ints[0];
       };
-  var pydevices_push_event = (event) => {
-          const ring=pydevices_state.eventRing;
+  var pydevices_push_event = (canvasId, event) => {
+          const display = pydevices_get_display(canvasId);
+          const ring = display.eventRing;
           if(ring && event.type!=='gamepad') {
               const base=ring.ptr, head=HEAPU32[base>>2], tail=HEAPU32[(base>>2)+1];
               if(event.type==='pointermove' && head!==tail) {
@@ -4512,7 +4515,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
                   return;
               }
           }
-          const queue = pydevices_state.events;
+          const queue = display.events;
           const coalesced = event.type === 'pointermove'
               ? (candidate) => candidate.type === 'pointermove' && candidate.pointerId === event.pointerId
               : event.type === 'gamepad'
@@ -4535,7 +4538,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
               y: Math.round((event.clientY - rect.top) * canvas.height / rect.height),
           };
       };
-  var pydevices_install_input = (canvas) => {
+  var pydevices_install_input = (canvas, canvasId) => {
           if (canvas.__pydevicesInputInstalled) return;
           canvas.__pydevicesInputInstalled = true;
           canvas.tabIndex = canvas.tabIndex >= 0 ? canvas.tabIndex : 0;
@@ -4543,7 +4546,7 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           for (const name of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
               canvas.addEventListener(name, (e) => {
                   const p = pydevices_relative_point(canvas, e);
-                  pydevices_push_event(Object.assign({type:name, x:p.x, y:p.y, movementX:e.movementX||0, movementY:e.movementY||0, button:e.button, buttons:e.buttons, pressure:e.pressure, pointerId:e.pointerId, pointerType:e.pointerType, primary:e.isPrimary}, modifiers(e)));
+                  pydevices_push_event(canvasId, Object.assign({type:name, x:p.x, y:p.y, movementX:e.movementX||0, movementY:e.movementY||0, button:e.button, buttons:e.buttons, pressure:e.pressure, pointerId:e.pointerId, pointerType:e.pointerType, primary:e.isPrimary}, modifiers(e)));
                   if (name === 'pointerdown') {
                       canvas.focus();
                       try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* Synthetic events have no active pointer. */ }
@@ -4553,38 +4556,47 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           }
           canvas.addEventListener('wheel', (e) => {
               const p = pydevices_relative_point(canvas, e);
-              pydevices_push_event(Object.assign({type:'wheel', x:p.x, y:p.y, deltaX:e.deltaX, deltaY:e.deltaY, deltaZ:e.deltaZ, deltaMode:e.deltaMode}, modifiers(e)));
+              pydevices_push_event(canvasId, Object.assign({type:'wheel', x:p.x, y:p.y, deltaX:e.deltaX, deltaY:e.deltaY, deltaZ:e.deltaZ, deltaMode:e.deltaMode}, modifiers(e)));
               e.preventDefault();
           }, {passive:false});
           for (const name of ['keydown', 'keyup']) {
               canvas.addEventListener(name, (e) => {
-                  pydevices_push_event(Object.assign({type:name, key:e.key, code:e.code, repeat:e.repeat, location:e.location}, modifiers(e)));
+                  pydevices_push_event(canvasId, Object.assign({type:name, key:e.key, code:e.code, repeat:e.repeat, location:e.location}, modifiers(e)));
                   if (e.key === 'Backspace' || e.key === 'Escape' || e.key === 'BrowserBack') e.preventDefault();
               });
           }
-          canvas.addEventListener('focus', () => pydevices_push_event({type:'focus'}));
-          canvas.addEventListener('blur', () => pydevices_push_event({type:'blur'}));
+          canvas.addEventListener('focus', () => pydevices_push_event(canvasId, {type:'focus'}));
+          canvas.addEventListener('blur', () => pydevices_push_event(canvasId, {type:'blur'}));
           canvas.focus();
       };
 
+
   var pydevices_paint = () => {
           const state = pydevices_state;
-          const fb = state.framebuffer;
-          if (!fb || !state.context) { state.animation = 0; return; }
-          const src = HEAPU8.subarray(fb.ptr, fb.ptr + fb.width * fb.height * 2);
-          const dst = state.image.data;
-          for (let s = 0, d = 0; s < src.length; s += 2, d += 4) {
-              const value = src[s] | (src[s + 1] << 8);
-              dst[d] = ((value >> 11) & 31) * 255 / 31;
-              dst[d + 1] = ((value >> 5) & 63) * 255 / 63;
-              dst[d + 2] = (value & 31) * 255 / 31;
-              dst[d + 3] = 255;
+          let active = false;
+          for (const display of state.displays.values()) {
+              const fb = display.framebuffer;
+              if (!fb || !display.context) continue;
+              active = true;
+              const src = HEAPU8.subarray(fb.ptr, fb.ptr + fb.width * fb.height * 2);
+              const dst = display.image.data;
+              for (let s = 0, d = 0; s < src.length; s += 2, d += 4) {
+                  const value = src[s] | (src[s + 1] << 8);
+                  dst[d] = ((value >> 11) & 31) * 255 / 31;
+                  dst[d + 1] = ((value >> 5) & 63) * 255 / 63;
+                  dst[d + 2] = (value & 31) * 255 / 31;
+                  dst[d + 3] = 255;
+              }
+              display.context.putImageData(display.image, 0, 0);
+              display.framesPainted++;
           }
-          state.context.putImageData(state.image, 0, 0);
-          state.framesPainted++;
+          if (!active) { state.animation = 0; return; }
           if (navigator.getGamepads) {
               for (const pad of navigator.getGamepads()) if (pad) {
-                  pydevices_push_event({type:'gamepad', index:pad.index, connected:pad.connected, buttons:pad.buttons.map(b => ({pressed:b.pressed, touched:b.touched, value:b.value})), axes:Array.from(pad.axes)});
+                  for (const canvasId of state.displays.keys()) {
+                      pydevices_push_event(canvasId, {type:'gamepad', index:pad.index, connected:pad.connected, buttons:pad.buttons.map(b => ({pressed:b.pressed, touched:b.touched, value:b.value})), axes:Array.from(pad.axes)});
+                  }
+                  break;
               }
           }
           state.animation = requestAnimationFrame(pydevices_paint);
@@ -4618,9 +4630,9 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
               },
               permissions: () => ({audio:pydevices_state.audioEnabled, microphone:pydevices_state.microphoneEnabled}),
               stats: () => ({
-                  events:pydevices_state.events.length,
+                  events:Array.from(pydevices_state.displays.values()).reduce((n,d)=>n+d.events.length,0),
                   timers:pydevices_state.timers.size,
-                  frames:pydevices_state.framesPainted,
+                  frames:Array.from(pydevices_state.displays.values()).reduce((n,d)=>n+d.framesPainted,0),
                   queuedAudioBytes:pydevices_state.audioQueuedBytes,
                   queuedAudioMs:Math.max(0, (pydevices_state.audioEnd - (pydevices_state.audioContext?.currentTime || 0)) * 1000),
                   timerFirings:pydevices_state.timerFirings.slice(),
@@ -4639,32 +4651,41 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
 
   var _pydevices_display_register = (ptr, len, width, height, canvasPtr) => {
           if (typeof document === 'undefined') return 0;
-          const canvas = document.getElementById(UTF8ToString(canvasPtr));
+          const canvasId = UTF8ToString(canvasPtr);
+          const canvas = document.getElementById(canvasId);
           if (!canvas) return 0;
           canvas.width = width; canvas.height = height;
           const context = canvas.getContext('2d', {alpha:false});
-          pydevices_state.framebuffer = {ptr, len, width, height};
-          pydevices_state.canvas = canvas;
-          pydevices_state.context = context;
-          pydevices_state.image = context.createImageData(width, height);
-          pydevices_state.framesPainted = 0;
-          pydevices_install_input(canvas);
+          const display = pydevices_get_display(canvasId);
+          display.framebuffer = {ptr, len, width, height};
+          display.canvas = canvas;
+          display.context = context;
+          display.image = context.createImageData(width, height);
+          display.framesPainted = 0;
+          pydevices_install_input(canvas, canvasId);
           pydevices_export_host();
           if (!pydevices_state.animation) pydevices_state.animation = requestAnimationFrame(pydevices_paint);
           return 1;
       };
 
-  var _pydevices_display_unregister = () => { pydevices_state.framebuffer = null; };
 
-  var _pydevices_event_clear = () => {
-          pydevices_state.events.length = 0;
-          const ring=pydevices_state.eventRing;
+  var _pydevices_display_unregister = (canvasPtr) => {
+          pydevices_state.displays.delete(UTF8ToString(canvasPtr));
+      };
+
+
+  var _pydevices_event_clear = (canvasPtr) => {
+          const display = pydevices_get_display(UTF8ToString(canvasPtr));
+          display.events.length = 0;
+          const ring = display.eventRing;
           if(ring) { HEAPU32[ring.ptr>>2]=0; HEAPU32[(ring.ptr>>2)+1]=0; }
       };
 
-  var _pydevices_event_poll = (lenPtr) => {
-          if (!pydevices_state.events.length) return 0;
-          const text = JSON.stringify(pydevices_state.events.shift());
+
+  var _pydevices_event_poll = (canvasPtr, lenPtr) => {
+          const display = pydevices_get_display(UTF8ToString(canvasPtr));
+          if (!display.events.length) return 0;
+          const text = JSON.stringify(display.events.shift());
           const len = lengthBytesUTF8(text);
           const ptr = _malloc(len + 1);
           stringToUTF8(text, ptr, len + 1);
@@ -4672,15 +4693,14 @@ var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
           return ptr;
       };
 
-  var _pydevices_event_set_buffer = (ptr, capacity, stride) => {
-          pydevices_state.eventRing=ptr ? {ptr,capacity,stride} : null;
+
+  var _pydevices_event_set_buffer = (canvasPtr, ptr, capacity, stride) => {
+          pydevices_get_display(UTF8ToString(canvasPtr)).eventRing = ptr ? {ptr,capacity,stride} : null;
       };
 
   var _pydevices_host_reset = () => {
           const state = pydevices_state;
-          state.framebuffer = null;
-          state.eventRing = null;
-          state.events.length = 0;
+          state.displays.clear();
           state.firedTimers.length = 0;
           for (const timer of state.timers.values()) {
               timer.periodic ? clearInterval(timer.handle) : clearTimeout(timer.handle);
@@ -5670,6 +5690,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'jstoi_s',
   'pydevices_state',
   'pydevices_write_event',
+  'pydevices_get_display',
   'pydevices_push_event',
   'pydevices_relative_point',
   'pydevices_install_input',

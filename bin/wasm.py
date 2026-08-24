@@ -72,12 +72,17 @@ def _split(value: str | None) -> list[str]:
 
 
 def _find_script(workspace: Path, target: str) -> Path | None:
+    # Current directory first, matching the canonical MICROPYPATH order
+    # (``.:.frozen:lib:utils``) and real ``micropython -m`` behavior, where
+    # cwd (the empty sys.path entry) is searched before installed libraries.
     candidates = (
+        Path.cwd() / f"{target}.py",
+        Path.cwd() / target / f"{target}.py",
+        Path.cwd() / target / "__init__.py",
         workspace / "pydevices-examples" / "lib" / "examples" / f"{target}.py",
         workspace / "pydevices-examples" / "lib" / "examples" / target / f"{target}.py",
         workspace / "pydevices-examples" / "lib" / "examples" / target / "__init__.py",
         workspace / "pydevices-examples" / "lib" / "utils" / f"{target}.py",
-        Path.cwd() / f"{target}.py",
     )
     return next((path for path in candidates if path.is_file()), None)
 
@@ -106,7 +111,10 @@ def main(argv: list[str] | None = None) -> int:
     port = args.port
     in_use, ours = probe_server(args.bind, port)
     server_thread = None
-    staged_files = {target: script} if args.script and script is not None else {}
+    # Stage whenever a script was resolved, not just for the positional form:
+    # `-m foo` finding foo.py via _find_script() needs its content served the
+    # same way, or the browser's stagePython() 404s trying to fetch it.
+    staged_files = {target: script} if script is not None else {}
     if staged_files or not in_use or not ours:
         if in_use:
             port = free_port(args.bind, port + 1)

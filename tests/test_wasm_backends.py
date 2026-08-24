@@ -29,7 +29,7 @@ class FakeBridge(types.ModuleType):
         self.registered = (buffer, width, height, canvas)
         return True
 
-    def unregister_framebuffer(self):
+    def unregister_framebuffer(self, canvas=None):
         self.registered = None
 
     def poll_event(self, *_contract):
@@ -40,7 +40,7 @@ class FakeBridge(types.ModuleType):
         self.events.clear()
         return (queued or None, len(queued))
 
-    def clear_events(self):
+    def clear_events(self, canvas=None):
         self.events.clear()
 
     def timer_start(self, timer_id, delay, periodic, callback=None):
@@ -148,7 +148,7 @@ class WasmBackendTests(unittest.TestCase):
                 },
             ]
         )
-        output = WasmDevices().read()
+        output = WasmDevices("display_canvas").read()
         self.assertEqual(
             [item.type for item in output],
             [

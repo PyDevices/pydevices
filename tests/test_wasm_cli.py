@@ -2,7 +2,9 @@
 """Direct-WASM CLI and shared browser URL policy tests."""
 
 import importlib.util
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -40,6 +42,28 @@ class TestWasmCli(unittest.TestCase):
         self.assertEqual(
             resolve_dependencies(["palettes", "custom"], "wasm"), ["custom"]
         )
+
+    def test_find_script_prefers_cwd_over_workspace_examples(self):
+        # `wasm.py -m foo` should behave like real `micropython -m foo`,
+        # where cwd (the empty sys.path entry) is searched before installed
+        # libraries — not after, which would let a same-named gallery demo
+        # silently shadow the user's own local script.
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as cwd_dir:
+            workspace = Path(workspace_dir)
+            cwd = Path(cwd_dir)
+            local_script = cwd / "hello_cwd.py"
+            local_script.write_text("print('local')\n")
+            shadow = workspace / "pydevices-examples" / "lib" / "examples" / "hello_cwd.py"
+            shadow.parent.mkdir(parents=True)
+            shadow.write_text("print('shadowed')\n")
+
+            previous_cwd = Path.cwd()
+            os.chdir(cwd)
+            try:
+                found = wasm_cli._find_script(workspace, "hello_cwd")
+            finally:
+                os.chdir(previous_cwd)
+            self.assertEqual(found, local_script)
 
     def test_local_script_is_declared_for_vfs_staging(self):
         self.assertEqual(

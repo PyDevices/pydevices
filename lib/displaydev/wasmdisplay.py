@@ -20,7 +20,8 @@ def _buttons_tuple(buttons):
 class WasmDevices:
     """Translate neutral bridge records into the project-wide ``events`` contract."""
 
-    def __init__(self):
+    def __init__(self, canvas_id):
+        self._canvas_id = canvas_id
         self._pressed = set()
         self._pointer_pos = {}
         self._gamepad_axes = {}
@@ -28,7 +29,7 @@ class WasmDevices:
 
     def read(self):
         result = []
-        batch, raw_count = _wasm_bridge.poll_events(_POINTER_EVENT_TYPES)
+        batch, raw_count = _wasm_bridge.poll_events(self._canvas_id, _POINTER_EVENT_TYPES)
         if batch is None:
             return None
         if not raw_count:
@@ -111,7 +112,7 @@ class WasmDevices:
         return None
 
     def clear(self):
-        _wasm_bridge.clear_events()
+        _wasm_bridge.clear_events(self._canvas_id)
         self._pressed.clear()
         self._pointer_pos.clear()
 
@@ -257,8 +258,14 @@ class WasmDisplay(DesktopDisplay, FBDisplay):
         self._canvas_id = canvas_id
         self._framebuffer = bytearray(int(width) * int(height) * 2)
         self._displayed = bytearray(int(width) * int(height) * 2)
-        self._devices = WasmDevices()
-        super().__init__(self._framebuffer, int(width), int(height), quiet=quiet)
+        self._devices = WasmDevices(canvas_id)
+        # Not super(): MicroPython's super() doesn't do full C3-linearized
+        # dispatch across multiple bases — with DesktopDisplay first and no
+        # __init__ override of its own, super().__init__() binds straight to
+        # DisplayDriver.__init__ (self, *, quiet=False) instead of continuing
+        # the MRO to FBDisplay.__init__, dropping the buffer/width/height it
+        # needs. Call it explicitly instead.
+        FBDisplay.__init__(self, self._framebuffer, int(width), int(height), quiet=quiet)
         self.get_events = self._devices.read
 
     def init(self):
@@ -306,4 +313,4 @@ class WasmDisplay(DesktopDisplay, FBDisplay):
 
     def _deinit(self):
         self._devices.clear()
-        _wasm_bridge.unregister_framebuffer()
+        _wasm_bridge.unregister_framebuffer(self._canvas_id)
