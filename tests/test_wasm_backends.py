@@ -98,15 +98,39 @@ class WasmBackendTests(unittest.TestCase):
         display = WasmDisplay(4, 3, "canvas", quiet=True)
         self.assertEqual(len(display.framebuffers()[0]), 24)
         self.assertEqual(self.bridge.registered[1:], (4, 3, "canvas"))
-        # fill_rect writes the back buffer; the registered front buffer is
-        # only synced on show() (needs_refresh=True: appdev.App drives this
-        # on a timer so scroll-only updates reach the screen too).
+        # Single-buffered by default (no scroll ever engaged): the registered
+        # buffer *is* _framebuffer, so the browser's own requestAnimationFrame
+        # scan already sees every draw live, with no copy and no show() wait.
+        self.assertIs(self.bridge.registered[0], display._framebuffer)
+        self.assertFalse(display._double_buffered)
         display.fill_rect(0, 0, 4, 3, 0xF800)
-        self.assertEqual(bytes(self.bridge.registered[0]), b"\x00\x00" * 12)
-        display.show()
+        self.assertEqual(bytes(self.bridge.registered[0]), b"\x00\xf8" * 12)
+        display.show()  # a no-op here -- nothing to composite
         self.assertEqual(bytes(self.bridge.registered[0]), b"\x00\xf8" * 12)
         display.deinit()
         self.assertIsNone(self.bridge.registered)
+
+    def test_display_promotes_to_double_buffer_on_first_scroll(self):
+        """LVGL never touches vscrdef/vscsad -- it scrolls at the widget
+        level -- so it stays single-buffered forever. Raw apps emulating a
+        hardware panel's scan address (PSDisplay-style) still get a real
+        second buffer, allocated lazily on first use, with show() gating
+        visibility exactly like before this optimization existed.
+        """
+        from displaydev.wasmdisplay import WasmDisplay
+
+        display = WasmDisplay(2, 4, "canvas", quiet=True)
+        self.assertFalse(display._double_buffered)
+
+        display.set_vscroll(tfa=1, bfa=1)
+        self.assertTrue(display._double_buffered)
+        registered_buf = self.bridge.registered[0]
+        self.assertIsNot(registered_buf, display._framebuffer)
+
+        display.fill_rect(0, 0, 2, 4, 0xF800)
+        self.assertEqual(bytes(registered_buf), b"\x00\x00" * 8)
+        display.show()
+        self.assertEqual(bytes(registered_buf), b"\x00\xf8" * 8)
 
     def test_input_maps_pointer_touch_wheel_keyboard_and_gamepad(self):
         import events

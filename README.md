@@ -63,7 +63,7 @@ pip install -i https://test.pypi.org/simple/ \
 # A MicroPython board — install its board_config directly
 import mip
 mip.install(
-    "github:PyDevices/pydevices/board_configs/busdisplay/i80/t-display-s3",
+    "github:PyDevices/pydevices/board_configs/fbdisplay/esp32-p4-wifi6-touch-lcd-4b",
     index="https://PyDevices.github.io/mip",
 )
 ```

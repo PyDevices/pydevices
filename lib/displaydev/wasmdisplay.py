@@ -229,19 +229,29 @@ class WasmDevices:
 
 
 class WasmDisplay(DesktopDisplay, FBDisplay):
-    """A Python-owned RGB565 back buffer composited to a browser-scanned front buffer.
+    """A Python-owned RGB565 framebuffer scanned live by the browser.
 
-    Apps draw into ``_framebuffer`` (the logical, unscrolled surface) through
-    the inherited :class:`FBDisplay` primitives. ``_displayed`` is the buffer
-    actually registered with the browser and scanned every animation frame;
-    :meth:`_composite` copies from the former to the latter, applying the
-    vertical-scroll row shift the same way :class:`PSDisplay` does with
-    ``drawImage`` — a plain byte-slice copy here since both buffers are RGB565.
+    Apps draw into ``_framebuffer`` through the inherited :class:`FBDisplay`
+    primitives. ``_displayed`` starts out *as* ``_framebuffer`` (the same
+    object) -- the browser's ``requestAnimationFrame`` loop reads straight
+    off WASM linear memory at the registered pointer every frame regardless
+    of whether Python ever calls :meth:`show`, so a single shared buffer is
+    already correct and ``show()`` needs to do nothing.
+
+    A second, real ``_displayed`` buffer is only allocated the first time an
+    app actually engages the classic hardware vertical-scroll registers
+    (``vscrdef``/``vscsad``/``vscroll`` -- emulating a real SPI panel's scan
+    address, the way :class:`PSDisplay` does with ``drawImage``). LVGL apps
+    never touch that API; they scroll entirely at the widget level, so they
+    stay single-buffered and never pay for a full-frame copy on every flush.
+    :meth:`_composite` is where that promotion happens, and where the row-
+    shifted copy runs once it has.
 
     Attributes:
         needs_refresh (bool): True — ``appdev.App`` drives periodic ``show()``,
             so draws that never call ``show()`` explicitly (e.g. a scroll
-            timer) still reach the composited front buffer.
+            timer) still reach the composited front buffer once double-
+            buffered.
         requires_async_timer (bool): True — single-threaded cooperative browser
             WASM, like :class:`PSDisplay`/:class:`JNDisplay`: without the
             async-driven host loop, ``app.every()`` timers (and the
@@ -257,7 +267,8 @@ class WasmDisplay(DesktopDisplay, FBDisplay):
     ):
         self._canvas_id = canvas_id
         self._framebuffer = bytearray(int(width) * int(height) * 2)
-        self._displayed = bytearray(int(width) * int(height) * 2)
+        self._displayed = self._framebuffer  # single-buffered until real scroll use
+        self._double_buffered = False
         self._devices = WasmDevices(canvas_id)
         # Not super(): MicroPython's super() doesn't do full C3-linearized
         # dispatch across multiple bases — with DesktopDisplay first and no
@@ -287,11 +298,27 @@ class WasmDisplay(DesktopDisplay, FBDisplay):
         self._composite()
 
     def _composite(self):
-        """Copy the back buffer to the front buffer, applying vscroll."""
+        """Copy the back buffer to the front buffer, applying vscroll.
+
+        No-op while single-buffered and unscrolled (``_displayed`` already
+        *is* ``_framebuffer``, so the browser already sees every draw). The
+        first genuine scroll offset promotes to a real second buffer and
+        re-registers it with the bridge; from then on this always keeps
+        ``_displayed`` in sync, same as before that promotion existed.
+        """
+        y_start = self.vscsad()
+        if not self._double_buffered:
+            if not y_start:
+                return
+            self._displayed = bytearray(self._framebuffer)
+            self._double_buffered = True
+            if not _wasm_bridge.register_framebuffer(
+                self._displayed, self.width, self.height, self._canvas_id
+            ):
+                raise RuntimeError(f"WASM canvas {self._canvas_id!r} was not found")
         row_bytes = self.width * 2
         src = self._framebuffer
         dst = self._displayed
-        y_start = self.vscsad()
         if not y_start:
             dst[:] = src
             return
