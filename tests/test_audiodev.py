@@ -453,6 +453,67 @@ class AudioOutTests(unittest.TestCase):
                 self.assertLess(abs(written - expected), 600,
                                 "pump wrote %d bytes, expected ~%d" % (written, expected))
 
+    def test_backpressure_skips_pull_and_drains_backlog(self):
+        # A transport backlog (priming, stall catch-up) must drain back to
+        # the lookahead level instead of riding ahead of every note forever:
+        # when queued_size() exceeds lookahead+1 chunks, the pump skips the
+        # pull (marking the schedule consumed, so resuming is per-tick, not
+        # a catch-up burst that would re-flood the queue).
+        class BackloggedTransport(FakePCMOutput):
+            def __init__(self, fmt):
+                super().__init__(fmt)
+                self.backlog = 0
+
+            def queued_size(self):
+                return self.backlog
+
+        transport = BackloggedTransport(self.fmt)
+        sample = FakeSample([bytes(200) for _ in range(200)])
+        out = self.sample_out.AudioOut(transport, chunk_ms=40, lookahead_chunks=2)
+        out.play(sample)
+        written_at_play = len(transport.data)
+
+        # cap = (2+1) chunks * 40ms * 16 B/ms = 5760 bytes; report more
+        transport.backlog = 8000
+        for _ in range(5):
+            self.clock.advance(40)
+            out.service()
+        self.assertEqual(len(transport.data), written_at_play,
+                         "pump pulled against a saturated transport")
+        self.assertTrue(out.playing)
+
+        # backlog cleared: per-tick pulls resume, without a catch-up burst
+        transport.backlog = 0
+        self.clock.advance(40)
+        out.service()
+        resumed = len(transport.data) - written_at_play
+        self.assertGreater(resumed, 0)
+        self.assertLessEqual(resumed, 3 * 40 * 16,
+                             "resume pulled a catch-up burst, not per-tick chunks")
+
+    def test_backpressure_cap_clears_the_priming_threshold(self):
+        # A transport with a prebuffer above the lookahead cap must still be
+        # fed: a freshly primed device stays paused (consuming nothing) until
+        # _prebuffer_bytes are queued, so a cap below that deadlocks in
+        # silence -- pump waiting on drain, device waiting on bytes.
+        class PrimingTransport(FakePCMOutput):
+            _prebuffer_bytes = 4000  # > (2+1) chunks * 40ms * 16B/ms = 1920
+
+            def queued_size(self):
+                # everything written and nothing consumed: still priming
+                return len(self.data)
+
+        transport = PrimingTransport(self.fmt)
+        sample = FakeSample([bytes(200) for _ in range(200)])
+        out = self.sample_out.AudioOut(transport, chunk_ms=40, lookahead_chunks=2)
+        out.play(sample)
+        for _ in range(10):
+            self.clock.advance(40)
+            out.service()
+        self.assertGreater(
+            len(transport.data), transport._prebuffer_bytes,
+            "pump stopped feeding a still-priming transport (deadlock)")
+
     def test_attach_callback_tolerates_timer_arg(self):
         # appdev.App._dispatch_tick always calls a subscribed callback with
         # one positional arg (the timer object) -- attach() must adapt

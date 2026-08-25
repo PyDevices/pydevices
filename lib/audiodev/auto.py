@@ -78,10 +78,22 @@ def audio_in(format=None, **kwargs):
 
 def sample_audio_out(format=None, **kwargs):
     """Construct an :class:`~audiodev.sample_out.AudioOut` sample player via
-    :func:`select_backend`. This is what a board's ``audio_out`` role returns."""
+    :func:`select_backend`. This is what a board's ``audio_out`` role returns.
+
+    ``chunk_ms``/``lookahead_chunks``/``max_catchup_chunks`` go to the
+    :class:`AudioOut` pump; everything else goes to the transport factory.
+    ``latency="low"`` also shrinks the pump's chunk to 20ms (a 40ms schedule
+    with the default 2-chunk lookahead) -- the transport profile alone cannot
+    lower note-to-sound latency below what the pump keeps rendered ahead."""
     from audiodev.sample_out import AudioOut
 
-    return AudioOut(audio_out(format, **kwargs))
+    pump_kwargs = {}
+    for key in ("chunk_ms", "lookahead_chunks", "max_catchup_chunks"):
+        if key in kwargs:
+            pump_kwargs[key] = kwargs.pop(key)
+    if kwargs.get("latency") == "low":
+        pump_kwargs.setdefault("chunk_ms", 10)
+    return AudioOut(audio_out(format, **kwargs), **pump_kwargs)
 
 
 def AutoAudio(format=None, **kwargs):

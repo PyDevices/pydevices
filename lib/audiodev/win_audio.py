@@ -23,10 +23,12 @@ DEFAULT_PLAY_QUEUE_MS = 2000
 DEFAULT_COALESCE_MS = 100
 PREBUFFER_MS = 100
 
+# Fourth field: prebuffer_ms (see sdl2_audio._PLAY_PROFILES for why a small
+# prime matters for note-to-sound latency). None falls back to PREBUFFER_MS.
 _PLAY_PROFILES = {
-    None: (DEFAULT_PLAY_SAMPLES, DEFAULT_PLAY_QUEUE_MS, DEFAULT_COALESCE_MS),
-    "buffered": (DEFAULT_PLAY_SAMPLES, DEFAULT_PLAY_QUEUE_MS, DEFAULT_COALESCE_MS),
-    "low": (512, 250, 20),
+    None: (DEFAULT_PLAY_SAMPLES, DEFAULT_PLAY_QUEUE_MS, DEFAULT_COALESCE_MS, None),
+    "buffered": (DEFAULT_PLAY_SAMPLES, DEFAULT_PLAY_QUEUE_MS, DEFAULT_COALESCE_MS, None),
+    "low": (256, 250, 5, 25),
 }
 
 _CAPTURE_PROFILES = {
@@ -63,6 +65,7 @@ class WinPCMOutput(PCMOutput):
         queue_ms=DEFAULT_PLAY_QUEUE_MS,
         poll_ms=2,
         coalesce_ms=DEFAULT_COALESCE_MS,
+        prebuffer_ms=None,
         session=None,
     ):
         super().__init__(fmt, session=session)
@@ -77,9 +80,10 @@ class WinPCMOutput(PCMOutput):
             fmt.frame_size,
             self._bytes_per_second * self.coalesce_ms // 1000,
         )
+        _prebuffer_ms = PREBUFFER_MS if prebuffer_ms is None else int(prebuffer_ms)
         self._prebuffer_bytes = min(
             self._queue_limit // 4,
-            max(fmt.frame_size, self._bytes_per_second * PREBUFFER_MS // 1000),
+            max(fmt.frame_size, self._bytes_per_second * _prebuffer_ms // 1000),
         )
         self._max_pending = 4 * self._queue_limit
         self._coalesce = bytearray()
@@ -329,18 +333,20 @@ def audio_out(
     samples=None,
     queue_ms=None,
     coalesce_ms=None,
+    prebuffer_ms=None,
     poll_ms=2,
 ):
     """Create a WASAPI-backed :class:`PCMOutput`."""
     check_latency(latency)
-    default_samples, default_queue_ms, default_coalesce_ms = _PLAY_PROFILES[latency]
+    p_samples, p_queue_ms, p_coalesce_ms, p_prebuffer_ms = _PLAY_PROFILES[latency]
     fmt = format or AudioFormat(16000, 2, 16)
     return WinPCMOutput(
         fmt,
         device=device,
-        samples=default_samples if samples is None else samples,
-        queue_ms=default_queue_ms if queue_ms is None else queue_ms,
-        coalesce_ms=default_coalesce_ms if coalesce_ms is None else coalesce_ms,
+        samples=p_samples if samples is None else samples,
+        queue_ms=p_queue_ms if queue_ms is None else queue_ms,
+        coalesce_ms=p_coalesce_ms if coalesce_ms is None else coalesce_ms,
+        prebuffer_ms=p_prebuffer_ms if prebuffer_ms is None else prebuffer_ms,
         poll_ms=poll_ms,
     )
 

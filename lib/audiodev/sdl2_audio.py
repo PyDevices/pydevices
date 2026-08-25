@@ -90,23 +90,31 @@ DEFAULT_COALESCE_MS = 100
 # Playback settings per ``audiodev`` latency profile. Only the values a caller
 # left unset are taken from here.
 #
-# "low" is what this backend defaulted to before queued playback grew stall
-# recovery, and it is chosen for note-to-sound delay rather than throughput:
+# "low" is chosen for note-to-sound delay rather than throughput:
 #
-# * a 512-sample period is ~21ms at 24kHz instead of ~170ms, so playback starts
+# * a 256-sample period is ~11ms at 24kHz instead of ~170ms, so playback starts
 #   and stops on a musical timescale;
-# * queue_ms also shrinks the prebuffer, since ``_prebuffer_bytes`` is capped at
-#   a quarter of the queue -- 250ms of queue means ~62ms of priming, not 500ms;
-# * a 20ms coalesce window is under one 40ms synth chunk, so each chunk reaches
-#   SDL as it is rendered.
+# * a 5ms coalesce window is under one 10ms pump chunk (see
+#   ``auto.sample_audio_out``), so each chunk reaches SDL as it is rendered;
+# * a 25ms prebuffer (~2 periods) primes the device without seeding a
+#   permanent latency floor.
 #
-# Measured end to end with a realtime writer: ~59ms of latency against ~416ms
-# for the buffered profile. The tradeoff is real -- a short queue leaves less
-# room to recover from a host sink stall -- so it is opt-in, not the default.
+# Measured with the AudioOut pump (backpressure-aware) on WSLg: ~16-32ms of
+# queue ahead of a pressed note, zero underruns. The tradeoff is real -- a
+# short queue leaves less room to recover from a host sink stall -- so it is
+# opt-in, not the default.
+# The fourth field is the prebuffer (ms of PCM the device queue must hold
+# before a freshly primed device unpauses). It is part of note-to-sound
+# latency in a way the others are not: a realtime pump produces exactly what
+# the device consumes, so whatever piled up behind the paused device while
+# priming can never drain on its own -- it rides ahead of every note for the
+# life of the stream (AudioOut's backpressure skip trims it, but a smaller
+# prime is latency that never exists in the first place). "low" primes ~2
+# periods instead of PREBUFFER_MS.
 _PLAY_PROFILES = {
-    None: (DEFAULT_PLAY_SAMPLES, DEFAULT_PLAY_QUEUE_MS, DEFAULT_COALESCE_MS),
-    "buffered": (DEFAULT_PLAY_SAMPLES, DEFAULT_PLAY_QUEUE_MS, DEFAULT_COALESCE_MS),
-    "low": (512, 250, 20),
+    None: (DEFAULT_PLAY_SAMPLES, DEFAULT_PLAY_QUEUE_MS, DEFAULT_COALESCE_MS, None),
+    "buffered": (DEFAULT_PLAY_SAMPLES, DEFAULT_PLAY_QUEUE_MS, DEFAULT_COALESCE_MS, None),
+    "low": (256, 250, 5, 25),
 }
 
 # Capture profiles. Recording has no prebuffer or coalescing, so only the period
@@ -252,6 +260,7 @@ class SDLPCMOutput(PCMOutput):
         queue_ms=250,
         poll_ms=2,
         coalesce_ms=DEFAULT_COALESCE_MS,
+        prebuffer_ms=None,
         session=None,
     ):
         super().__init__(fmt, session=session)
@@ -274,9 +283,10 @@ class SDLPCMOutput(PCMOutput):
         )
         # Kept under the caller's fill watermark so a pump that stops writing at
         # the watermark cannot leave us paused forever.
+        _prebuffer_ms = PREBUFFER_MS if prebuffer_ms is None else int(prebuffer_ms)
         self._prebuffer_bytes = min(
             self._queue_limit // 4,
-            max(fmt.frame_size, self._bytes_per_second * PREBUFFER_MS // 1000),
+            max(fmt.frame_size, self._bytes_per_second * _prebuffer_ms // 1000),
         )
         period_ms = 1000 * self.samples // max(1, fmt.rate)
         # Long enough that period quantization cannot look like a slow sink: a
@@ -782,23 +792,26 @@ def audio_out(
     samples=None,
     queue_ms=None,
     coalesce_ms=None,
+    prebuffer_ms=None,
     poll_ms=2,
 ):
     """Create an SDL-backed :class:`PCMOutput`.
 
     ``latency`` picks a profile (see :data:`audiodev.LATENCIES`); pass
     ``"low"`` for interactive callers such as a synth. Any of ``samples``,
-    ``queue_ms`` and ``coalesce_ms`` given explicitly override the profile.
+    ``queue_ms``, ``coalesce_ms`` and ``prebuffer_ms`` given explicitly
+    override the profile.
     """
     check_latency(latency)
-    default_samples, default_queue_ms, default_coalesce_ms = _PLAY_PROFILES[latency]
+    p_samples, p_queue_ms, p_coalesce_ms, p_prebuffer_ms = _PLAY_PROFILES[latency]
     fmt = format or AudioFormat(16000, 2, 16)
     return SDLPCMOutput(
         fmt,
         device=device,
-        samples=default_samples if samples is None else samples,
-        queue_ms=default_queue_ms if queue_ms is None else queue_ms,
-        coalesce_ms=default_coalesce_ms if coalesce_ms is None else coalesce_ms,
+        samples=p_samples if samples is None else samples,
+        queue_ms=p_queue_ms if queue_ms is None else queue_ms,
+        coalesce_ms=p_coalesce_ms if coalesce_ms is None else coalesce_ms,
+        prebuffer_ms=p_prebuffer_ms if prebuffer_ms is None else prebuffer_ms,
         poll_ms=poll_ms,
         session=_android_session(),
     )

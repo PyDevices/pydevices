@@ -217,6 +217,35 @@ class AudioOut:
             self.transport.service()
             return
 
+        # Backpressure: when the transport already holds more than the
+        # lookahead target plus one chunk of slack, pulling more only deepens
+        # note-to-sound latency -- every queued byte plays before anything
+        # pressed *now*. Without this, any backlog becomes permanent: the
+        # steady-state pump produces exactly realtime, so it can never drain
+        # what priming or stall catch-up piled up (measured: a small-chunk
+        # profile carried the transport's whole prebuffer as extra latency for
+        # the life of the stream). The schedule is marked consumed rather than
+        # left to accumulate, so resuming pulls per-tick chunks instead of a
+        # catch-up burst that would re-flood the queue. Transports without a
+        # real queue report queued_size() == 0 (the PCMOutput default) and are
+        # never skipped.
+        #
+        # The cap must clear the transport's priming threshold, or the two
+        # mechanisms deadlock in silence: a freshly primed device stays paused
+        # (consuming nothing) until _prebuffer_bytes are queued, while a cap
+        # below that told the pump the queue was already "full enough" --
+        # each side waiting on the other, measured as exactly that.
+        chunk_bytes = chunk_frames * frame_size
+        cap = (self._lookahead_chunks + 1) * chunk_bytes
+        prebuffer = getattr(self.transport, "_prebuffer_bytes", 0)
+        if prebuffer and prebuffer + chunk_bytes > cap:
+            cap = prebuffer + chunk_bytes
+        queued = self.transport.queued_size()
+        if queued > cap:
+            self._played_frames = target_frames
+            self.transport.service()
+            return
+
         bytes_needed = frames_needed * frame_size
         pulled = 0
         scale = self._buf_len_scale
