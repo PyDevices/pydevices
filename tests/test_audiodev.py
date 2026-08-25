@@ -414,6 +414,45 @@ class AudioOutTests(unittest.TestCase):
         self.assertFalse(out.playing)
         self.assertEqual(self.transport.close_count, 1)
 
+    def test_typed_memoryview_chunks_do_not_double_production(self):
+        # The real audioif usermod's get_buffer() once returned typed ('h')
+        # memoryviews whose len() is the SAMPLE count, not bytes; trusting
+        # len(buf) made the pump under-count 16-bit PCM by 2x and produce at
+        # twice realtime, saturating the transport (500ms blocking writes,
+        # stall recycles -- the desktop "intermittent/laggy piano"). The pump
+        # now calibrates bytes-per-len-unit from the first chunk; a synth-like
+        # endless source in each unit must pace at ~realtime either way.
+        for kind in ("typed", "bytes"):
+
+            class EndlessSample:
+                bits_per_sample = 16
+                channel_count = 1
+
+                def reset(self_inner):
+                    pass
+
+                def next_chunk(self_inner):
+                    raw = bytes(256)
+                    if kind == "typed":
+                        return memoryview(raw).cast("h")  # len() == 128 samples
+                    return raw  # len() == 256 bytes
+
+            sample = EndlessSample()
+            sample._pos = 0
+            sample._chunks = [None, None]  # keep FakeAudiocore reporting MORE_DATA
+            with self.subTest(kind=kind):
+                transport = FakePCMOutput(self.fmt)
+                out = self.sample_out.AudioOut(transport, chunk_ms=40, lookahead_chunks=2)
+                out.play(sample)
+                for _ in range(25):
+                    self.clock.advance(40)
+                    out.service()
+                # 1000ms elapsed + 80ms lookahead at 8kHz mono 16-bit
+                expected = (1000 + 80) * 16
+                written = len(transport.data)
+                self.assertLess(abs(written - expected), 600,
+                                "pump wrote %d bytes, expected ~%d" % (written, expected))
+
     def test_attach_callback_tolerates_timer_arg(self):
         # appdev.App._dispatch_tick always calls a subscribed callback with
         # one positional arg (the timer object) -- attach() must adapt

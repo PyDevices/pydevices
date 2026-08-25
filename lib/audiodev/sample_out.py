@@ -75,6 +75,9 @@ class AudioOut:
         self._played_frames = 0
         self._pumping = False
         self._tick_sub = None
+        # bytes-per-len(buf) unit for the current sample's get_buffer()
+        # results; calibrated on the first pull (see _pump_locked).
+        self._buf_len_scale = None
 
     # --- lifecycle -------------------------------------------------------
 
@@ -134,6 +137,7 @@ class AudioOut:
         self._paused = False
         self._sched_start_ms = None
         self._played_frames = 0
+        self._buf_len_scale = None  # recalibrate per sample source
         self._pump()  # kick an immediate chunk: lowest note-to-sound latency,
         #                same reason AudioEngine.note_on() does this
 
@@ -215,12 +219,24 @@ class AudioOut:
 
         bytes_needed = frames_needed * frame_size
         pulled = 0
+        scale = self._buf_len_scale
         while pulled < bytes_needed:
             result, buf = audiocore.get_buffer(sample)
             if buf:
+                if scale is None:
+                    # len(buf) must be counted in BYTES. Current audioif
+                    # returns byte views, but older frozen firmware returned
+                    # typed ('h') memoryviews whose len() is the SAMPLE
+                    # count -- trusting it made this pump under-count 16-bit
+                    # audio 2x and overproduce PCM at twice realtime,
+                    # saturating every non-blocking transport. One bytes()
+                    # copy on the first pull per play() calibrates the unit.
+                    scale = len(bytes(buf)) // len(buf)
+                    self._buf_len_scale = scale
+                nbytes = len(buf) * scale
                 self.transport.write(buf)
-                pulled += len(buf)
-                self._played_frames += len(buf) // frame_size
+                pulled += nbytes
+                self._played_frames += nbytes // frame_size
             elif result == _GET_BUFFER_MORE_DATA:
                 # No bytes and no terminal result: defensive stop rather than
                 # spin forever -- mirrors PCMOutput.write()'s own "made no
