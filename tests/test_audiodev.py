@@ -414,6 +414,38 @@ class AudioOutTests(unittest.TestCase):
         self.assertFalse(out.playing)
         self.assertEqual(self.transport.close_count, 1)
 
+    def test_attach_callback_tolerates_timer_arg(self):
+        # appdev.App._dispatch_tick always calls a subscribed callback with
+        # one positional arg (the timer object) -- attach() must adapt
+        # service() (a plain zero-arg method, like every sibling
+        # PCMOutput.service()) to that convention, not assume the app never
+        # passes one.
+        sample = FakeSample([bytes(200) for _ in range(50)])
+        out = self.sample_out.AudioOut(self.transport, chunk_ms=40)
+        out.play(sample)
+        app = FakeApp()
+        out.attach(app)
+        app.fire(object())  # simulates _dispatch_tick(timer_obj)
+
+
+class FakeApp:
+    """Minimal app.every()-shaped double, matching appdev.App's contract."""
+
+    def __init__(self):
+        self._callback = None
+
+    def every(self, _ms, callback):
+        self._callback = callback
+        return _FakeTimerSubscription()
+
+    def fire(self, timer_obj):
+        self._callback(timer_obj)
+
+
+class _FakeTimerSubscription:
+    def cancel(self):
+        pass
+
 
 class ToneTests(unittest.TestCase):
     def test_tone_and_async_stop(self):

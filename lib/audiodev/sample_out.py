@@ -240,11 +240,16 @@ class AudioOut:
     def attach(self, app, period_ms=None):
         """Subscribe :meth:`service` to *app*'s shared timer; returns self."""
         ms = self.chunk_ms if period_ms is None else int(period_ms)
+        # App timer callbacks are always invoked with one positional arg
+        # (the timer/tick object, see appdev.App._dispatch_tick) -- service()
+        # itself stays a plain zero-arg method, matching every sibling
+        # PCMOutput.service() elsewhere in audiodev, so adapt here instead.
+        _tick = lambda _timer=None: self.service()  # noqa: E731
         if hasattr(app, "every"):
-            self._tick_sub = app.every(ms, self.service)
+            self._tick_sub = app.every(ms, _tick)
         else:
             async_ = getattr(app, "timer_async", False)
-            self._tick_sub = app.on_tick(self.service, period=ms, async_=async_)
+            self._tick_sub = app.on_tick(_tick, period=ms, async_=async_)
         return self
 
     def detach(self):
