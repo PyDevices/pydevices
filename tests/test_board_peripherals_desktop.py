@@ -25,25 +25,34 @@ class BoardPeripheralsSelectTests(unittest.TestCase):
         board_peripherals._BACKEND = None
         return board_peripherals
 
-    def test_pygame_probe_selects_pygame_audio(self):
-        bd = self._load()
-        with mock.patch("audiodev.auto.select_backend", return_value="pygame_audio"):
-            self.assertEqual(bd._select_backend(), "pygame_audio")
-
-    def test_desktop_without_pygame_selects_sdl2_audio(self):
+    def test_selects_sdl2_audio(self):
         bd = self._load()
         with mock.patch("audiodev.auto.select_backend", return_value="sdl2_audio"):
             self.assertEqual(bd._select_backend(), "sdl2_audio")
 
-    def test_pyscript_selects_web_audio(self):
+    def test_selects_win_audio(self):
         bd = self._load()
-        with mock.patch("audiodev.auto.select_backend", return_value="web_audio"):
-            self.assertEqual(bd._select_backend(), "web_audio")
+        with mock.patch("audiodev.auto.select_backend", return_value="win_audio"):
+            self.assertEqual(bd._select_backend(), "win_audio")
 
-    def test_jupyter_selects_sdl2_audio(self):
+    def test_selection_is_cached(self):
+        # pygame_audio and web_audio are no longer offered by select_backend()
+        # at all (neither can back an AudioOut -- see docs/audio.md), so the
+        # only thing left for _select_backend() to do is cache the first
+        # answer; this is what used to also gate the pygame-on-Windows
+        # DirectSound workaround, which moved to pgdisplay's own board.
+        bd = self._load()
+        with mock.patch("audiodev.auto.select_backend", return_value="sdl2_audio") as probe:
+            self.assertEqual(bd._select_backend(), "sdl2_audio")
+            self.assertEqual(bd._select_backend(), "sdl2_audio")
+            self.assertEqual(probe.call_count, 1)
+
+    def test_audio_out_returns_an_audio_out(self):
+        from audiodev.sample_out import AudioOut
+
         bd = self._load()
         with mock.patch("audiodev.auto.select_backend", return_value="sdl2_audio"):
-            self.assertEqual(bd._select_backend(), "sdl2_audio")
+            self.assertIsInstance(bd.audio_out(), AudioOut)
 
     def test_devices_roles(self):
         bd = self._load()

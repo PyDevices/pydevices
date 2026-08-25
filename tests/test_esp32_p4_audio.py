@@ -141,14 +141,14 @@ class ESP32P4AudioTests(unittest.TestCase):
         for latency in (None, "buffered"):
             device = self.board.audio_out(latency=latency)
             device.open()
-            self.assertEqual(20000, device.i2s.options["ibuf"])
+            self.assertEqual(20000, device.transport.i2s.options["ibuf"])
             device.close()
 
     def test_low_latency_shortens_the_i2s_ring_buffer(self):
         device = self.board.audio_out(latency="low")
         device.open()
         # 100ms at 24kHz mono 16-bit.
-        self.assertEqual(4800, device.i2s.options["ibuf"])
+        self.assertEqual(4800, device.transport.i2s.options["ibuf"])
         device.close()
 
         capture = self.board.audio_in(latency="low")
@@ -159,12 +159,12 @@ class ESP32P4AudioTests(unittest.TestCase):
     def test_explicit_queue_ms_wins_but_cannot_starve_the_dma(self):
         device = self.board.audio_out(queue_ms=200)
         device.open()
-        self.assertEqual(9600, device.i2s.options["ibuf"])
+        self.assertEqual(9600, device.transport.i2s.options["ibuf"])
         device.close()
 
         device = self.board.audio_out(queue_ms=1)
         device.open()
-        self.assertEqual(self.board._MIN_IBUF, device.i2s.options["ibuf"])
+        self.assertEqual(self.board._MIN_IBUF, device.transport.i2s.options["ibuf"])
         device.close()
 
     def test_unusable_keywords_raise_instead_of_being_ignored(self):

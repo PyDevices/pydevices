@@ -17,24 +17,6 @@ def _select_backend():
     from audiodev.auto import select_backend
 
     _BACKEND = select_backend()
-    if _BACKEND == "pygame_audio" and sys.platform == "win32":
-        # See board_config.py for the full rationale: SDL2's default Windows
-        # WASAPI backend glitches with pygame's small-chunk playback, and
-        # DirectSound does not. Duplicated here because an app can init
-        # board_peripherals without ever importing board_config (e.g.
-        # examples/audio_out_test.py), and must land before the first SDL audio
-        # init either way.
-        #
-        # Only pygame_audio. sdl2_audio queues whole buffers with
-        # SDL_QueueAudio and never hit the glitch, and DirectSound keeps a
-        # deeper buffer: measured on micropython.exe at latency="low", it holds
-        # 185ms against WASAPI's 55ms, which is the difference between playable
-        # and not for an interactive caller.
-        from displaydev import env_get, env_set
-
-        # Only when unset, so an explicit user choice still wins.
-        if env_get("SDL_AUDIODRIVER") is None:
-            env_set("SDL_AUDIODRIVER", "directsound")
     return _BACKEND
 
 
@@ -54,14 +36,18 @@ def load_peripherals(ns):
 def audio_out(**kwargs):
     """Build the playback device. ``board_config.audio_out`` passes nothing.
 
-    Keyword arguments go straight to the selected backend, which is why the
-    three of them agree on names (``latency``, ``samples``, ``queue_ms``,
-    ``coalesce_ms``, ``poll_ms``). An interactive caller asks for
-    ``latency="low"``; the default stays buffered for throughput.
+    Returns an :class:`audiodev.sample_out.AudioOut`: ``play(sample,
+    loop=)``/``stop()``/``pause()``/``resume()``/``playing`` over any
+    audiosample (``synthio.Synthesizer``, ``audiomixer.Mixer``,
+    ``audiocore.RawSample``/``WaveFile``, effects). Keyword arguments go
+    straight to the selected transport, which is why sdl2/win agree on names
+    (``latency``, ``samples``, ``queue_ms``, ``coalesce_ms``, ``poll_ms``).
+    An interactive caller asks for ``latency="low"``; the default stays
+    buffered for throughput.
     """
     fmt = _audio_format()
     _select_backend()
-    from audiodev.auto import audio_out as _audio_out
+    from audiodev.auto import sample_audio_out as _audio_out
 
     return _audio_out(fmt, **kwargs)
 

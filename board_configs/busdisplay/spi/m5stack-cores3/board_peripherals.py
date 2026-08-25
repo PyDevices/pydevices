@@ -87,12 +87,16 @@ def audio_in():
 
 
 def audio_out():
-    """AW88298 amp + I2S TX (AW9523 speaker enable)."""
+    """AW88298 amp + I2S TX (AW9523 speaker enable). Returns an AudioOut
+    sample player: ``play(sample, loop=)``/``stop()``/``pause()``/
+    ``resume()``/``playing`` over any audiosample."""
     from machine import I2S, Pin
 
     from aw88298 import AW88298
 
     import board_config as bc
+
+    from audiodev.sample_out import AudioOut
 
     codec = AW88298(bc.i2c, sample_rate=_RATE, enable_aw9523=True)
 
@@ -109,10 +113,10 @@ def audio_out():
         ibuf=20000,
         )
 
-    return I2SPCMOutput(
+    return AudioOut(I2SPCMOutput(
         stream, _FORMAT, session=_SESSION, codec=codec,
         set_hardware_mute=codec.mute, power=codec.enable_output,
-    )
+    ))
 
 
 def sdcard():

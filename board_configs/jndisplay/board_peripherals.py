@@ -18,15 +18,18 @@ def _format():
 
 
 def audio_out(**kwargs):
-    """Build the playback device; keywords go straight to the backend.
+    """Build the AudioOut sample player; keywords go straight to the sdl2
+    transport.
 
-    A notebook cell drives the pump from its own loop, so the queue is kept
-    short by default rather than at the backend's buffered depth.
+    A notebook cell drives ``service()`` from its own loop (or calls
+    ``.transport.write()`` directly for raw PCM), so the queue is kept short
+    by default rather than at the backend's buffered depth.
     """
-    from audiodev.sdl2_audio import audio_out as _audio_out
+    from audiodev.sample_out import sample_out
+    from audiodev import sdl2_audio
 
     kwargs.setdefault("queue_ms", 150)
-    return _audio_out(_format(), **kwargs)
+    return sample_out(sdl2_audio, _format(), **kwargs)
 
 
 def audio_in(**kwargs):

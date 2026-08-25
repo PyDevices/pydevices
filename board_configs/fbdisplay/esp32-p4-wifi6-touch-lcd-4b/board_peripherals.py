@@ -140,15 +140,20 @@ def _output_power(enable):
 
 
 def audio_out(*, latency=None, queue_ms=None):
-    """Portable ES8311 PCM playback device with hardware volume and mute.
+    """ES8311 sample player: ``play(sample, loop=)``/``stop()``/``pause()``/
+    ``resume()``/``playing`` over any audiosample (``synthio.Synthesizer``,
+    ``audiomixer.Mixer``, ``audiocore.RawSample``/``WaveFile``, effects),
+    with hardware volume and mute.
 
     ``latency`` / ``queue_ms`` size the I2S ring buffer. Only these two of the
     shared audio keywords mean anything here: there is no software coalescing
     stage and no host device to name, so the rest raise rather than being
     accepted and ignored.
     """
+    from audiodev.sample_out import AudioOut
+
     ibuf = queue_bytes(_FORMAT, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
-    out = I2SPCMOutput(
+    transport = I2SPCMOutput(
         lambda: _output_stream(ibuf),
         _FORMAT,
         session=_SESSION,
@@ -156,8 +161,8 @@ def audio_out(*, latency=None, queue_ms=None):
         set_hardware_mute=lambda value: _codec_call("dac_mute", value),
         power=_output_power,
     )
-    out.set_volume(_DEFAULT_VOLUME)
-    return out
+    transport.set_volume(_DEFAULT_VOLUME)
+    return AudioOut(transport)
 
 
 def _input_power(enable):

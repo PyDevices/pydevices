@@ -5,25 +5,39 @@ board configs. The `audiodev` package owns the portable bases; each backend is a
 standalone submodule that subclasses them. `audiodev.auto` is an optional
 selector only — backends never import it.
 
+`board_config.audio_out` is a **sample player**
+(`audiodev.sample_out.AudioOut`, see below), not a raw PCM transport: it
+speaks CircuitPython's `play(sample, loop=)`/`stop()`/`pause()`/`resume()`/
+`playing`. The transports in this table are what it pumps into, and are
+still directly usable for raw `write()`/`readinto()`.
+
 | Module | Host | Role |
 |--------|------|------|
 | `audiodev` | all | `AudioFormat`, `PCMOutput` / `PCMInput` / `ToneOutput` bases, latency helpers |
-| `audiodev.sdl2_audio` | desktop MicroPython, CircuitPython, CPython, Jupyter | SDL2 queued PCM through `usdl2` |
-| `audiodev.pygame_audio` | CPython desktop with pygame-ce installed | Queued PCM on pygame-ce's bundled SDL |
-| `audiodev.win_audio` | Windows CPython | WASAPI shared-mode queued PCM through `uwin32` |
-| `audiodev.web_audio` | PyScript / browser | Web Audio playback, `getUserMedia` capture |
-| `audiodev.i2s_audio` | MCU | `machine.I2S` adapter |
-| `audiodev.pwm_tone` | MCU | PWM / buzzer adapter |
-| `audiodev.emulated_audio` | CI / no hardware | WAV, generator, loopback, discard |
+| `audiodev.sample_out` | MicroPython (needs the `audioif` usermod) | `AudioOut` — pulls `audiocore.get_buffer` on a lookahead schedule, pushes into a transport |
+| `audiodev.sdl2_audio` | desktop MicroPython, CircuitPython, CPython, Jupyter | SDL2 queued PCM transport through `usdl2` |
+| `audiodev.pygame_audio` | CPython desktop with pygame-ce installed | Queued PCM transport on pygame-ce's bundled SDL — raw only, cannot back `AudioOut` |
+| `audiodev.win_audio` | Windows | WASAPI shared-mode queued PCM transport through `uwin32` |
+| `audiodev.web_audio` | PyScript / browser | Web Audio playback, `getUserMedia` capture — raw only, cannot back `AudioOut` |
+| `audiodev.i2s_audio` | MCU | `machine.I2S` transport adapter |
+| `audiodev.pwm_tone` | MCU | PWM / buzzer adapter (`ToneOutput`, unrelated to `AudioOut`) |
+| `audiodev.emulated_audio` | CI / no hardware | WAV, generator, loopback, discard transports |
 | `audiodev.android_audio` | Android | Media focus + foreground service |
-| `audiodev.auto` | host convenience | Probe-based `audio_out` / `audio_in` |
+| `audiodev.auto` | host convenience | Probe-based transport (`audio_out`/`audio_in`) or sample player (`sample_audio_out`) |
 
-Apps typically use `board_config.audio_out`. Board configs may import a concrete
-backend or `audiodev.auto`. Desktop `board_peripherals` uses auto (DirectSound env
-only when the selected backend is `pygame_audio`). `audiodev.auto` prefers
-`win_audio` on Windows CPython when `uwin32` imports, before pygame/SDL.
+Apps typically use `board_config.audio_out` (an `AudioOut`) directly. Board
+configs construct one by wrapping a concrete transport or
+`audiodev.auto.sample_audio_out()` in `audiodev.sample_out.AudioOut`.
+`audiodev.auto.select_backend()` is MicroPython/CircuitPython-only now:
+`win_audio` on Windows when `uwin32` imports, else `sdl2_audio` — neither
+`pygame_audio` nor `web_audio` can ever back an `AudioOut` (see
+"`sample_out.py` — `AudioOut`" below), so they are no longer offered there.
+`pgdisplay`/`psdisplay` still import them directly for raw PCM.
 
-This package does not import `displaydev`, `multimer`, or `appdev`.
+This package does not import `displaydev`, `multimer`, or `appdev`
+(`sample_out.py` imports `multimer.ticks_ms`/`ticks_diff` with a CPython
+fallback — the one exception, needed for the lookahead schedule; see its
+module docstring).
 
 Family invariants (template for later displaydev / multimer):
 
@@ -152,6 +166,45 @@ Portable bases, no host dependencies:
 
 WAV / generator / loopback live in `audiodev.emulated_audio`, not here.
 
+## `sample_out.py` — `AudioOut`
+
+The public playback contract: `AudioOut(transport)` wraps any
+`PCMOutput`-shaped transport (the modules below) and adds
+`play(sample, loop=False)`/`stop()`/`pause()`/`resume()`/`playing`, pulling
+PCM from `sample` (a `synthio.Synthesizer`, `audiomixer.Mixer`,
+`audiocore.RawSample`/`WaveFile`, or an effect) via
+`audiocore.get_buffer()`/`reset_buffer()` and pushing it into
+`transport.write()`.
+
+Why this shape and not a native callback-driven `AudioOut`: every real
+backend's bottom layer here is push+queued (`SDL_QueueAudio`, WASAPI's
+`GetBuffer`/`ReleaseBuffer`, the wasm bridge, `machine.I2S.write`), and — per
+"How playback works" below — none of them may call back into Python from an
+audio thread. That restriction turns out to hold in C too: pulling a
+`synthio` block graph allocates on the GC heap, so a hardware ISR or a
+foreign audio thread can never safely drive it either. The only sound
+architecture is *pull the graph, push the bytes, both on the interpreter
+thread* — which is exactly what `AudioOut._pump()` does, on the same
+time-based look-ahead schedule `pydevices-examples/lib/utils/audio.py`'s
+`AudioEngine.tick()` already proved out (lookahead chunks, a catch-up cap,
+re-entrancy guard).
+
+Consequences worth knowing:
+
+- **`service()` is required**, same as every queued transport below — a
+  stopped tick means playback stops with data unpulled, not a bug.
+- **No resampling.** `transport.format` is fixed; a sample recorded at a
+  different rate plays at the wrong pitch, never raises. `bits_per_sample`/
+  `channel_count` mismatches *do* raise (`_check_format`), because those
+  corrupt every byte a software queue reads, unlike a rate mismatch.
+- **`pygame_audio`/`web_audio` cannot back one at all** — neither interpreter
+  can load the `audioif` usermod, so there is no `audiocore` to
+  pull from. Both remain usable directly for raw PCM (`write()`/`readinto()`).
+- `sample_out.sample_out(transport_module, format, **kwargs)` is the one-line
+  helper most `board_peripherals.audio_out()` factories use:
+  `AudioOut(transport_module.audio_out(format, **kwargs))`.
+  `auto.sample_audio_out()` is the same thing over `auto.select_backend()`.
+
 ## `sdl2_audio.py`
 
 SDL2 backend built on `usdl2` (pure Python ctypes/FFI bindings — no C
@@ -269,7 +322,7 @@ unless `uwin32` loads.
 
 Playback and capture are queued/pull (`GetBuffer` / `ReleaseBuffer`) with
 `AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM`. There is no Python audio-thread callback.
-`audiodev.auto` selects this before pygame when `uwin32` is importable.
+`audiodev.auto` selects this on Windows whenever `uwin32` is importable.
 
 Keyword arguments are the shared set in [Buffering options](#buffering-options).
 
@@ -310,13 +363,16 @@ work around is in the host's audio sink, not in either library.
 
 ### Windows: only this backend wants DirectSound
 
-`board_peripherals` forces `SDL_AUDIODRIVER=directsound` on Windows for
-`pygame_audio` alone. SDL2's default WASAPI backend glitches with pygame's
-small-chunk playback, but `sdl2_audio` queues whole buffers and never hit that,
-and DirectSound keeps a deeper buffer: measured on `micropython.exe` at
-`latency="low"`, DirectSound sits at 185 ms against WASAPI's 55 ms. Forcing it
-for every backend spent that on callers who gained nothing. An explicit
-`SDL_AUDIODRIVER` in the environment still wins in either case.
+`pgdisplay`'s own `board_peripherals`/`board_config` still force
+`SDL_AUDIODRIVER=directsound` on Windows, but only for `pygame_audio` — the
+desktop board's own DirectSound workaround was removed along with
+`select_backend()` ever returning `"pygame_audio"` there (it now picks
+`win_audio` on Windows, which doesn't have this failure mode). SDL2's default
+WASAPI backend glitches with pygame's small-chunk playback, but `sdl2_audio`
+queues whole buffers and never hit that, and DirectSound keeps a deeper
+buffer: measured on `micropython.exe` at `latency="low"`, DirectSound sits at
+185 ms against WASAPI's 55 ms. An explicit `SDL_AUDIODRIVER` in the
+environment still wins.
 
 ## `web_audio.py`
 
@@ -372,11 +428,17 @@ the import is a no-op.
 
 ## Tests
 
-`tests/test_audiodev.py`, `tests/test_sdl2_audio.py`, `tests/test_pygame_audio.py`,
-`tests/test_win_audio.py`, `tests/test_emulated_audio.py` and `tests/test_auto.py`
-cover these modules
+`tests/test_audiodev.py` (base contracts, and `AudioOut` against a fake
+transport + a fake audiosample), `tests/test_sdl2_audio.py`,
+`tests/test_pygame_audio.py`, `tests/test_win_audio.py`,
+`tests/test_emulated_audio.py` and `tests/test_auto.py` cover these modules
 against SDL's `dummy` driver, and `tests/test_audiodev_latency.py` covers the
-profile vocabulary on its own:
+profile vocabulary on its own. `tests/test_audio_playback_golden.py` runs a
+real `synthio`/`audiomixer` script through `AudioOut` over
+`emulated_audio.WavPCMOutput` and hash-compares the WAV output — the one test
+here that needs a `micropython`/`circuitpython` binary with the
+`audioif` usermod built in (skipped, not failed, when none is
+found; see its module docstring for how it locates one):
 
 ```bash
 python -m unittest discover -s tests -q

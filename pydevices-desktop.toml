@@ -13,6 +13,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/i2s_audio.py" = "/lib/audiodev/i2s_audio.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/pwm_tone.py" = "/lib/audiodev/pwm_tone.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/pygame_audio.py" = "/lib/audiodev/pygame_audio.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/sample_out.py" = "/lib/audiodev/sample_out.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/sdl2_audio.py" = "/lib/audiodev/sdl2_audio.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/wasm_audio.py" = "/lib/audiodev/wasm_audio.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/web_audio.py" = "/lib/audiodev/web_audio.py"

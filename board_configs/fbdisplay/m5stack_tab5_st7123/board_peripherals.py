@@ -74,7 +74,9 @@ def audio_in(*, latency=None, queue_ms=None):
 
 
 def audio_out(*, latency=None, queue_ms=None):
-    """ES8388 DAC + I2S TX (+ PI4IOE amp enable).
+    """ES8388 DAC + I2S TX (+ PI4IOE amp enable). Returns an AudioOut sample
+    player: ``play(sample, loop=)``/``stop()``/``pause()``/``resume()``/
+    ``playing`` over any audiosample.
 
     ``latency`` / ``queue_ms`` size the I2S ring buffer. Only these two of the
     shared audio keywords mean anything here: there is no software coalescing
@@ -87,6 +89,8 @@ def audio_out(*, latency=None, queue_ms=None):
     from pi4ioe5v import tab5_set_amp
 
     import board_config as bc
+
+    from audiodev.sample_out import AudioOut
 
     codec = ES8388(bc.i2c)
     ibuf = queue_bytes(_FORMAT, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
@@ -109,11 +113,11 @@ def audio_out(*, latency=None, queue_ms=None):
         codec.enable_output(enable)
         tab5_set_amp(bc.i2c, enable)
 
-    return I2SPCMOutput(
+    return AudioOut(I2SPCMOutput(
         stream, _FORMAT, session=_SESSION, codec=codec,
         set_hardware_volume=codec.set_dac_volume,
         set_hardware_mute=codec.dac_mute, power=power,
-    )
+    ))
 
 
 def sdcard():

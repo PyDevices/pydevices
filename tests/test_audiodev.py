@@ -240,6 +240,181 @@ class I2SAdapterTests(unittest.TestCase):
         self.assertTrue(capture.closed)
 
 
+class FakeSample:
+    """Minimal audiosample-shaped fake: a fixed list of PCM chunks, replayable
+    via reset(). Stands in for a synthio.Synthesizer/audiomixer.Mixer/
+    audiocore.RawSample for AudioOut's own logic tests -- see
+    tests/test_audio_playback_golden.py for the real-usermod version."""
+
+    def __init__(self, chunks, *, bits_per_sample=16, channel_count=1):
+        self.bits_per_sample = bits_per_sample
+        self.channel_count = channel_count
+        self._chunks = [bytes(c) for c in chunks]
+        self._pos = 0
+
+    def reset(self):
+        self._pos = 0
+
+    def next_chunk(self):
+        if self._pos >= len(self._chunks):
+            return None
+        chunk = self._chunks[self._pos]
+        self._pos += 1
+        return chunk
+
+
+class FakeAudiocore:
+    """Stands in for the ``audiocore`` usermod. Injected as ``sys.modules
+    ["audiocore"]`` so AudioOut's ``import audiocore`` (deferred to
+    play()/service(), per its module docstring) finds this instead of
+    needing the real usermod."""
+
+    GET_BUFFER_DONE = 0
+    GET_BUFFER_MORE_DATA = 1
+    GET_BUFFER_ERROR = 2
+
+    def __init__(self):
+        self.reset_calls = 0
+
+    def get_buffer(self, sample):
+        chunk = sample.next_chunk()
+        if chunk is None:
+            return (self.GET_BUFFER_DONE, b"")
+        more = sample._pos < len(sample._chunks)
+        return (self.GET_BUFFER_MORE_DATA if more else self.GET_BUFFER_DONE, chunk)
+
+    def reset_buffer(self, sample):
+        sample.reset()
+        self.reset_calls += 1
+
+
+class _FakeClock:
+    """Manually-advanced ticks_ms()/ticks_diff(), so tests control AudioOut's
+    lookahead schedule instead of depending on real wall-clock timing."""
+
+    def __init__(self):
+        self.now = 0
+
+    def ms(self):
+        return self.now
+
+    def diff(self, a, b):
+        return a - b
+
+    def advance(self, ms):
+        self.now += ms
+
+
+class AudioOutTests(unittest.TestCase):
+    def setUp(self):
+        from audiodev import sample_out
+
+        self.sample_out = sample_out
+        self.fake_audiocore = FakeAudiocore()
+        self._orig_audiocore = sys.modules.get("audiocore")
+        sys.modules["audiocore"] = self.fake_audiocore
+        self.clock = _FakeClock()
+        self._orig_ticks_ms = sample_out.ticks_ms
+        self._orig_ticks_diff = sample_out.ticks_diff
+        sample_out.ticks_ms = self.clock.ms
+        sample_out.ticks_diff = self.clock.diff
+        self.fmt = AudioFormat(8000, 1, 16)
+        self.transport = FakePCMOutput(self.fmt)
+
+    def tearDown(self):
+        if self._orig_audiocore is None:
+            sys.modules.pop("audiocore", None)
+        else:
+            sys.modules["audiocore"] = self._orig_audiocore
+        self.sample_out.ticks_ms = self._orig_ticks_ms
+        self.sample_out.ticks_diff = self._orig_ticks_diff
+
+    def test_play_pulls_immediately(self):
+        # chunk_ms=40, lookahead_chunks=2 @ 8kHz -> 640 frames = 1280 bytes
+        # wanted on the very first play(); each fake chunk is 200 bytes, so
+        # several are needed and the sample isn't drained by one call.
+        chunks = [bytes(200) for _ in range(20)]
+        sample = FakeSample(chunks)
+        out = self.sample_out.AudioOut(self.transport, chunk_ms=40, lookahead_chunks=2)
+        out.play(sample)
+        self.assertEqual(self.fake_audiocore.reset_calls, 1)
+        self.assertGreater(len(self.transport.data), 0)
+        self.assertTrue(out.playing)
+
+    def test_stop_halts_playback(self):
+        sample = FakeSample([bytes(200) for _ in range(50)])
+        out = self.sample_out.AudioOut(self.transport, chunk_ms=40)
+        out.play(sample)
+        out.stop()
+        self.assertFalse(out.playing)
+        written_before = len(self.transport.data)
+        self.clock.advance(1000)
+        out.service()
+        self.assertEqual(len(self.transport.data), written_before)
+
+    def test_pause_resume(self):
+        sample = FakeSample([bytes(200) for _ in range(50)])
+        out = self.sample_out.AudioOut(self.transport, chunk_ms=40)
+        out.play(sample)
+        written_at_play = len(self.transport.data)
+        out.pause()
+        self.assertTrue(out.paused)
+        self.clock.advance(1000)
+        out.service()
+        self.assertEqual(len(self.transport.data), written_at_play)  # no growth while paused
+        out.resume()
+        self.assertFalse(out.paused)
+        self.clock.advance(200)
+        out.service()
+        self.assertGreater(len(self.transport.data), written_at_play)
+
+    def test_loop_reaches_completion_and_resets(self):
+        # A short sample fully drains inside the first play()'s lookahead
+        # pull; looping means it keeps going rather than stopping.
+        sample = FakeSample([bytes(64), bytes(64)])
+        out = self.sample_out.AudioOut(self.transport, chunk_ms=40)
+        out.play(sample, loop=True)
+        self.assertGreater(self.fake_audiocore.reset_calls, 1)
+        self.assertTrue(out.playing)
+
+    def test_no_loop_stops_at_completion(self):
+        sample = FakeSample([bytes(64), bytes(64)])
+        out = self.sample_out.AudioOut(self.transport, chunk_ms=40)
+        out.play(sample, loop=False)
+        self.assertFalse(out.playing)
+
+    def test_format_mismatch_raises(self):
+        sample = FakeSample([bytes(64)], bits_per_sample=8, channel_count=2)
+        out = self.sample_out.AudioOut(self.transport, chunk_ms=40)
+        with self.assertRaises(ValueError):
+            out.play(sample)
+
+    def test_sample_rate_mismatch_does_not_raise(self):
+        # No resampling: bits/channels must match, but a different
+        # sample_rate on the source object (not consulted by AudioOut at
+        # all) is not an error -- see sample_out.py's module docstring.
+        sample = FakeSample([bytes(64)])  # bits/channels match self.fmt
+        out = self.sample_out.AudioOut(self.transport, chunk_ms=40)
+        out.play(sample)  # must not raise
+        self.assertTrue(True)
+
+    def test_volume_and_codec_forward_to_transport(self):
+        out = self.sample_out.AudioOut(self.transport)
+        out.set_volume(42)
+        self.assertEqual(out.volume, 42)
+        self.assertEqual(out.volume, self.transport.volume)
+        out.mute(True)
+        self.assertTrue(out.muted)
+
+    def test_close_stops_and_closes_transport(self):
+        sample = FakeSample([bytes(200) for _ in range(50)])
+        out = self.sample_out.AudioOut(self.transport, chunk_ms=40)
+        out.play(sample)
+        out.close()
+        self.assertFalse(out.playing)
+        self.assertEqual(self.transport.close_count, 1)
+
+
 class ToneTests(unittest.TestCase):
     def test_tone_and_async_stop(self):
         async def run():

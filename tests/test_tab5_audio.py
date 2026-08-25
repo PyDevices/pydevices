@@ -114,9 +114,13 @@ class Tab5AudioTests(unittest.TestCase):
                         sys.modules[key] = value
 
     def ibuf(self, device):
+        # audio_out() now returns an AudioOut wrapping the I2SPCMOutput
+        # transport, whose raw i2s stream lives on .transport; audio_in()
+        # still returns the raw I2SPCMInput directly (capture is unchanged).
         device.open()
         try:
-            return device.i2s.options["ibuf"]
+            transport = getattr(device, "transport", device)
+            return transport.i2s.options["ibuf"]
         finally:
             device.close()
 

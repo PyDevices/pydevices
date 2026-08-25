@@ -46,12 +46,17 @@ Omit the name entirely when the hardware is absent. Canonical symbols:
 | RF co-processor | `radio` | AirLift/C6/etc.; may coexist with `wlan`/`ble` |
 | Runtime USB device | `usb_device` | Non-tooling `machine.USBDevice`; omit tooling CDC bridge |
 
-`audio_out` returns `PCMOutput` for sample playback or `ToneOutput` for
-PWM/buzzer hardware. `audio_in` returns `PCMInput`. PCM devices expose their
-`format`, `capabilities`, normalized volume/gain and mute controls, synchronous
-I/O, and portable asynchronous I/O. When a codec provides hardware controls,
-the device delegates to them and exposes the codec as `device.codec`; otherwise
-volume or gain is applied to PCM samples in software.
+`audio_out` returns an `audiodev.sample_out.AudioOut` sample player
+(`play(sample, loop=)`/`stop()`/`pause()`/`resume()`/`playing`, over any
+CircuitPython-shaped audiosample -- `synthio`, `audiomixer`, `audiocore`,
+effects) or a `ToneOutput` for PWM/buzzer-only hardware. `audio_in` returns a
+`PCMInput`. Every device exposes its `format`, `capabilities`, normalized
+volume/gain and mute controls, synchronous I/O, and portable asynchronous
+I/O. When a codec provides hardware controls, the device delegates to them
+and exposes the codec as `device.codec`; otherwise volume or gain is applied
+to PCM samples in software. CircuitPython boards (`board_configs/cp/`) have
+no `audio_out` role at all -- the same audiosample protocol is satisfied
+natively by `audiobusio.I2SOut`/`audioio.AudioOut`.
 See [Portable audio](audio.md) for backend, async, and board details.
 
 Out of contract as `board_config` symbols: high-level `wifi` / `bluetooth` modules

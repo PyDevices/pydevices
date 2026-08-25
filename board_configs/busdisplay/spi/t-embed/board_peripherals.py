@@ -43,8 +43,12 @@ def pixels():
 
 
 def audio_out():
-    """MAX98357A I2S amplifier (no codec chip)."""
+    """MAX98357A I2S amplifier (no codec chip). Returns an AudioOut sample
+    player: ``play(sample, loop=)``/``stop()``/``pause()``/``resume()``/
+    ``playing`` over any audiosample."""
     from machine import I2S, Pin
+
+    from audiodev.sample_out import AudioOut
 
     def stream():
         return I2S(
@@ -59,7 +63,7 @@ def audio_out():
         ibuf=20000,
         )
 
-    return I2SPCMOutput(stream, _FORMAT)
+    return AudioOut(I2SPCMOutput(stream, _FORMAT))
 
 
 def audio_in():

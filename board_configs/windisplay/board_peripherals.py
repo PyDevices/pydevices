@@ -18,10 +18,12 @@ def _format():
 
 
 def audio_out(**kwargs):
-    """Build the playback device; keywords go straight to the backend."""
-    from audiodev.win_audio import audio_out as _audio_out
+    """Build the AudioOut sample player; keywords go straight to the win_audio
+    transport."""
+    from audiodev.sample_out import sample_out
+    from audiodev import win_audio
 
-    return _audio_out(_format(), **kwargs)
+    return sample_out(win_audio, _format(), **kwargs)
 
 
 def audio_in(**kwargs):

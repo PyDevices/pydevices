@@ -69,11 +69,21 @@ Display host selection is `displaydev.auto.AutoDisplay` (convenience; boards may
 - Windows CPython: `WinDisplay` first, then `PGDisplay`, then `SDLDisplay`
 - Other desktop: `PGDisplay` first, then `SDLDisplay`
 
-Audio (in `board_peripherals` via `audiodev.auto`) follows the same host probe:
-- PyScript: `web_audio`
+Audio (in `board_peripherals` via `audiodev.auto`) returns an `AudioOut`
+sample player (`play(sample, loop=)`/`stop()`/`pause()`/`resume()`/`playing`
+over any audiosample), backed by a host transport selected by the same host
+probe:
 - Jupyter: `sdl2_audio` (kernel host)
-- Windows CPython with `uwin32`: `win_audio`
-- else `import pygame` → `pygame_audio`, else `sdl2_audio`
+- Windows with `uwin32`: `win_audio`
+- else: `sdl2_audio`
+
+`web_audio`/`pygame_audio` are no longer auto-selected here: neither can run
+the `audioif` usermod that supplies the audiosample protocol
+(`synthio`, `audiomixer`, effects), so neither can back an `AudioOut`. This
+board is MicroPython/CircuitPython-only for audio; a CPython-only host
+without `uwin32` gets `sdl2_audio` too (raw `write()` still works there, but
+`AudioOut.play()` will fail without `audiocore`). `psdisplay`/`pgdisplay`
+still use `web_audio`/`pygame_audio` directly as raw PCM transports.
 
 Terminal-only apps (no display) can `import board_peripherals` and call
 `audio_out()` / `audio_in()` without opening a window.

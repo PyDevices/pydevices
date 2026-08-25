@@ -137,8 +137,9 @@ See [multimer](multimer.md).
 
 ## Audio
 
-`board_config.audio_out` stays lazy. On first `open()` / `write()`,
-`audiodev.sdl2_audio` attaches an Android-only `PCMOutput(session=…)` that
+`board_config.audio_out` stays lazy. On first `open()` (from `play()`,
+`AudioOut.open()`, or a raw transport `write()`), `audiodev.sdl2_audio`
+attaches an Android-only `PCMOutput(session=…)` that
 requests audio focus and starts the APK's `mediaplayback` foreground service
 (`foregroundServiceType=mediaPlayback`). The last `close()` abandons focus and
 stops the service. Non-Android consumers still get `session=None` — no API change.
