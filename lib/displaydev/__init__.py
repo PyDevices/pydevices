@@ -211,7 +211,7 @@ def capabilities():
                 "auto_refresh": True,
                 "default_period_ms": _DEFAULT_AUTO_REFRESH_PERIOD,
                 "async_default": False,
-                "touch_scale": "window scale",
+                "touch_scale": "1.0 (wndproc maps to panel coords)",
                 "scroll_emulation": True,
             },
             "psdisplay": {

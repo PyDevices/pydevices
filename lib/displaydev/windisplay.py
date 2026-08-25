@@ -288,7 +288,12 @@ class WinDisplay(DesktopDisplay):
         self.color_depth = color_depth
         self._title = title
         self._scale = scale
-        self.touch_scale = scale
+        # _wndproc already maps mouse coords into panel space (_map_coords),
+        # so the appdev pointer pipeline must not divide again: touch_scale
+        # stays 1.0, same contract as SDLDisplay's logical renderer size.
+        # (Both divisions active at once was a progressive touch offset --
+        # correct at the origin, ~4 keys off at the far end of a piano.)
+        self.touch_scale = 1.0
         self._requires_byteswap = False
         self._hwnd = None
         self._window_id = None
@@ -309,7 +314,6 @@ class WinDisplay(DesktopDisplay):
         ux, uy, desktop_w, desktop_h = desktop_work_area()
         self._work_area = (ux, uy, desktop_w, desktop_h)
         self._scale = self._fit_scale(desktop_w, desktop_h, quiet)
-        self.touch_scale = self._scale
         # Present only the changed rows when every band edge lands on a whole
         # device row. GDI resamples each band against its own rectangle, so at
         # a fractional scale a banded repaint disagrees with a full one by a
@@ -319,7 +323,7 @@ class WinDisplay(DesktopDisplay):
         self._place_x = x
         self._place_y = y
         super().__init__(quiet=quiet)
-        self.touch_scale = self._scale
+        self.touch_scale = 1.0  # see __init__ note: wndproc maps, devices must not
         self.get_events = get_events
         if self not in _displays:
             _displays.append(self)
