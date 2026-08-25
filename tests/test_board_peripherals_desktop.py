@@ -51,7 +51,9 @@ class BoardPeripheralsSelectTests(unittest.TestCase):
         from audiodev.sample_out import AudioOut
 
         bd = self._load()
-        with mock.patch("audiodev.auto.select_backend", return_value="sdl2_audio"):
+        with mock.patch.dict(sys.modules, {"audiocore": mock.Mock()}), mock.patch(
+            "audiodev.auto.select_backend", return_value="sdl2_audio"
+        ):
             self.assertIsInstance(bd.audio_out(), AudioOut)
 
     def test_devices_roles(self):

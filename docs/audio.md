@@ -11,7 +11,16 @@ satisfying CircuitPython's audiosample pull protocol — a
 `synthio.Synthesizer`, an `audiomixer.Mixer`, an `audiocore.RawSample` /
 `WaveFile`, or any effect chained on top of one (`audiofilters`,
 `audiodelays`, `audiofreeverb`, `audiospeed`), all provided by the
-`audioif` usermod (`import synthio`, `import audiomixer`, ...).
+`audioif` usermod on MicroPython or the separately installed
+`pydevices-audioif` CPython distribution (`import synthio`,
+`import audiomixer`, ...). CPython users install it from TestPyPI with:
+
+```sh
+python -m pip install --index-url https://test.pypi.org/simple/ pydevices-audioif
+```
+
+Neither `pydevices` distribution depends on it; importing `audiodev` and
+using raw PCM transports therefore remain available without synthesis support.
 This is the same object shape CircuitPython code already expects from
 `audiobusio.I2SOut`/`audioio.AudioOut` — a synth built for a CircuitPython
 tutorial runs unchanged against this port's `AudioOut`.
@@ -78,22 +87,19 @@ rates. A host page must explicitly enable audio or microphone access first.
 `audiodev.i2s_audio` adapts `machine.I2S` for MCU boards; boards construct it
 directly with board-specific pins/codec wiring, then wrap it in `AudioOut`.
 
-Desktop `board_peripherals` may use `audiodev.auto` for host probe (now
-MicroPython/CircuitPython-only — see below). Fixed host boards import a
+Desktop `board_peripherals` may use `audiodev.auto` for host probing. Fixed host boards import a
 concrete backend. `audiodev` itself does not import `displaydev`.
 
-### CPython (pygame_audio, web_audio): raw PCM only, no AudioOut
+### CPython and Pyodide sample playback
 
 `audiodev.pygame_audio` (CPython + pygame-ce, via `SDL_QueueAudio` on
 pygame's bundled SDL) and `audiodev.web_audio` (PyScript/Pyodide, via
 `AudioContext`/`getUserMedia`) still exist and still work as raw
-`PCMOutput`/`PCMInput` transports — `pgdisplay` and `psdisplay` use them
-directly for `audio_out`/`audio_in`. Neither can back an `AudioOut`: both run
-an interpreter that cannot load the `audioif` usermod (a
-MicroPython C extension), so there is no `audiocore.get_buffer` for the pump
-to pull from. `audiodev.auto.select_backend()` no longer offers either —
-CPython sample playback is deferred until a CPython build of the usermod
-exists (tracked for the eventual `pdaudio` spin-off), not abandoned.
+`PCMOutput`/`PCMInput` transports and can back `AudioOut` when
+`pydevices-audioif` is installed. Automatic selection uses MicroPython wasm,
+Pyodide Web Audio, Windows `uwin32`, `usdl2`, then pygame-ce, in that order.
+Constructing `AudioOut` without `audiocore` fails immediately with the install
+command above; direct raw `write()`/`readinto()` remains independent.
 
 ## Emulated devices (CI / no hardware)
 

@@ -11,6 +11,7 @@ same convention.
 """
 
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import sys
@@ -27,9 +28,51 @@ ROOT = _env.ROOT
 INTERPRETERS = ("micropython", "micropython.exe", "circuitpython")
 
 
+def _cpython_oracle_candidate():
+    """Return the workspace audioif source tree when its extension is built.
+
+    ``pydevices`` deliberately does not depend on ``pydevices-audioif``.  In
+    the multi-repository workspace, though, include CPython in this integration
+    parity test whenever the sibling checkout has an in-place extension for
+    the running interpreter.
+    """
+    audioif = ROOT.parent / "audioif"
+    tag = "cpython-{}{}-".format(sys.version_info.major, sys.version_info.minor)
+    if audioif.is_dir() and any(tag in path.name for path in audioif.glob("_audioif*.so")):
+        return audioif
+    return None
+
+
+def _windows_temp_wav():
+    """Return (Windows path, WSL path) for a new WAV under ``%TEMP%``."""
+    command = (
+        "[System.IO.Path]::Combine($env:TEMP, "
+        "[System.Guid]::NewGuid().ToString() + '.wav')"
+    )
+    windows_path = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", command],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    wsl_path = subprocess.run(
+        ["wslpath", "-u", windows_path],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    return windows_path, Path(wsl_path)
+
+
 class AudioPlaybackGoldenTests(unittest.TestCase):
     def test_render_matches_across_interpreters(self):
-        found = [name for name in INTERPRETERS if shutil.which(name)]
+        found = [(name, [name], None) for name in INTERPRETERS if shutil.which(name)]
+        audioif = _cpython_oracle_candidate()
+        if audioif is not None:
+            env = dict(os.environ)
+            old_path = env.get("PYTHONPATH")
+            env["PYTHONPATH"] = str(audioif) + (os.pathsep + old_path if old_path else "")
+            found.append(("cpython", [sys.executable], env))
         if not found:
             self.skipTest(
                 "no MicroPython or CircuitPython interpreter with the "
@@ -38,24 +81,33 @@ class AudioPlaybackGoldenTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             renders = {}
-            for name in found:
-                out_path = str(Path(tmpdir) / (name.replace(".", "_") + ".wav"))
+            for name, command, env in found:
+                if name.lower().endswith(".exe"):
+                    out_path, read_path = _windows_temp_wav()
+                else:
+                    read_path = Path(tmpdir) / (name.replace(".", "_") + ".wav")
+                    out_path = str(read_path)
                 with self.subTest(interpreter=name):
-                    proc = subprocess.run(
-                        [name, "tests/audio_playback_golden_probe.py", out_path],
-                        cwd=str(ROOT),
-                        capture_output=True,
-                        text=True,
-                        timeout=60,
-                    )
-                    detail = "{} exited {}\n--- stdout ---\n{}\n--- stderr ---\n{}".format(
-                        name, proc.returncode, proc.stdout, proc.stderr
-                    )
-                    self.assertEqual(0, proc.returncode, detail)
-                    self.assertIn("GOLDEN OK", proc.stdout, detail)
-                    wav_bytes = Path(out_path).read_bytes()
-                    self.assertGreater(len(wav_bytes), 44, detail)  # more than a bare header
-                    renders[name] = wav_bytes
+                    try:
+                        proc = subprocess.run(
+                            command + ["tests/audio_playback_golden_probe.py", out_path],
+                            cwd=str(ROOT),
+                            capture_output=True,
+                            text=True,
+                            timeout=60,
+                            env=env,
+                        )
+                        detail = "{} exited {}\n--- stdout ---\n{}\n--- stderr ---\n{}".format(
+                            name, proc.returncode, proc.stdout, proc.stderr
+                        )
+                        self.assertEqual(0, proc.returncode, detail)
+                        self.assertIn("GOLDEN OK", proc.stdout, detail)
+                        wav_bytes = read_path.read_bytes()
+                        self.assertGreater(len(wav_bytes), 44, detail)  # more than a bare header
+                        renders[name] = wav_bytes
+                    finally:
+                        if name.lower().endswith(".exe"):
+                            read_path.unlink(missing_ok=True)
 
             if len(renders) < 2:
                 return  # only one interpreter available; nothing to diff

@@ -1,7 +1,9 @@
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 import unittest
+from unittest import mock
 
 _TESTS = Path(__file__).resolve().parent
 if str(_TESTS) not in sys.path:
@@ -340,6 +342,43 @@ class AudioOutTests(unittest.TestCase):
         self.assertEqual(self.fake_audiocore.reset_calls, 1)
         self.assertGreater(len(self.transport.data), 0)
         self.assertTrue(out.playing)
+
+    def test_constructor_retains_audiocore(self):
+        out = self.sample_out.AudioOut(self.transport)
+        self.assertIs(out._audiocore, self.fake_audiocore)
+
+    def test_cpython_missing_package_error_has_exact_install_command(self):
+        from audiodev import sample_out
+
+        real_import = __import__
+
+        def import_without_audiocore(name, *args, **kwargs):
+            if name == "audiocore":
+                raise ImportError("missing")
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=import_without_audiocore):
+            with self.assertRaisesRegex(
+                ImportError,
+                r"python -m pip install --index-url https://test\.pypi\.org/simple/ pydevices-audioif",
+            ):
+                sample_out.AudioOut(FakePCMOutput(AudioFormat(8000, 1, 16)))
+
+    def test_micropython_missing_module_error_names_audioif_usermod(self):
+        from audiodev import sample_out
+
+        real_import = __import__
+
+        def import_without_audiocore(name, *args, **kwargs):
+            if name == "audiocore":
+                raise ImportError("missing")
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=import_without_audiocore), mock.patch.object(
+            sys, "implementation", SimpleNamespace(name="micropython")
+        ):
+            with self.assertRaisesRegex(ImportError, "audioif MicroPython usermod"):
+                sample_out.AudioOut(FakePCMOutput(AudioFormat(8000, 1, 16)))
 
     def test_stop_halts_playback(self):
         sample = FakeSample([bytes(200) for _ in range(50)])

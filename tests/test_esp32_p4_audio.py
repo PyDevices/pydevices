@@ -86,8 +86,9 @@ class ESP32P4AudioTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.saved_modules = {
-            name: sys.modules.get(name) for name in ("board_config", "boarddev", "machine")
+            name: sys.modules.get(name) for name in ("audiocore", "board_config", "boarddev", "machine")
         }
+        sys.modules["audiocore"] = types.SimpleNamespace()
         cls.i2c = FakeI2C()
         sys.modules["board_config"] = types.SimpleNamespace(i2c=cls.i2c)
         sys.modules["boarddev"] = types.SimpleNamespace(bind_lazy=lambda *args: None)

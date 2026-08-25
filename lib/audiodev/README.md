@@ -14,11 +14,11 @@ still directly usable for raw `write()`/`readinto()`.
 | Module | Host | Role |
 |--------|------|------|
 | `audiodev` | all | `AudioFormat`, `PCMOutput` / `PCMInput` / `ToneOutput` bases, latency helpers |
-| `audiodev.sample_out` | MicroPython (needs the `audioif` usermod) | `AudioOut` — pulls `audiocore.get_buffer` on a lookahead schedule, pushes into a transport |
+| `audiodev.sample_out` | MicroPython (`audioif` usermod) and CPython (`pydevices-audioif`) | `AudioOut` — pulls `audiocore.get_buffer` on a lookahead schedule, pushes into a transport |
 | `audiodev.sdl2_audio` | desktop MicroPython, CircuitPython, CPython, Jupyter | SDL2 queued PCM transport through `usdl2` |
-| `audiodev.pygame_audio` | CPython desktop with pygame-ce installed | Queued PCM transport on pygame-ce's bundled SDL — raw only, cannot back `AudioOut` |
+| `audiodev.pygame_audio` | CPython desktop with pygame-ce installed | Queued PCM transport on pygame-ce's bundled SDL |
 | `audiodev.win_audio` | Windows | WASAPI shared-mode queued PCM transport through `uwin32` |
-| `audiodev.web_audio` | PyScript / browser | Web Audio playback, `getUserMedia` capture — raw only, cannot back `AudioOut` |
+| `audiodev.web_audio` | PyScript / browser | Web Audio playback and `getUserMedia` capture |
 | `audiodev.i2s_audio` | MCU | `machine.I2S` transport adapter |
 | `audiodev.pwm_tone` | MCU | PWM / buzzer adapter (`ToneOutput`, unrelated to `AudioOut`) |
 | `audiodev.emulated_audio` | CI / no hardware | WAV, generator, loopback, discard transports |
@@ -28,11 +28,10 @@ still directly usable for raw `write()`/`readinto()`.
 Apps typically use `board_config.audio_out` (an `AudioOut`) directly. Board
 configs construct one by wrapping a concrete transport or
 `audiodev.auto.sample_audio_out()` in `audiodev.sample_out.AudioOut`.
-`audiodev.auto.select_backend()` is MicroPython/CircuitPython-only now:
-`win_audio` on Windows when `uwin32` imports, else `sdl2_audio` — neither
-`pygame_audio` nor `web_audio` can ever back an `AudioOut` (see
-"`sample_out.py` — `AudioOut`" below), so they are no longer offered there.
-`pgdisplay`/`psdisplay` still import them directly for raw PCM.
+`audiodev.auto.select_backend()` probes MicroPython wasm, CPython/Pyodide Web
+Audio, Windows `uwin32`, `usdl2`, then pygame-ce. It raises an actionable
+transport error if none are available. `pgdisplay`/`psdisplay` may still
+import concrete transports directly.
 
 This package does not import `displaydev`, `multimer`, or `appdev`
 (`sample_out.py` imports `multimer.ticks_ms`/`ticks_diff` with a CPython
@@ -197,9 +196,9 @@ Consequences worth knowing:
   different rate plays at the wrong pitch, never raises. `bits_per_sample`/
   `channel_count` mismatches *do* raise (`_check_format`), because those
   corrupt every byte a software queue reads, unlike a rate mismatch.
-- **`pygame_audio`/`web_audio` cannot back one at all** — neither interpreter
-  can load the `audioif` usermod, so there is no `audiocore` to
-  pull from. Both remain usable directly for raw PCM (`write()`/`readinto()`).
+- **CPython needs a separate package.** Install `pydevices-audioif` from
+  TestPyPI before constructing `AudioOut`; raw PCM (`write()`/`readinto()`)
+  remains usable without it.
 - `sample_out.sample_out(transport_module, format, **kwargs)` is the one-line
   helper most `board_peripherals.audio_out()` factories use:
   `AudioOut(transport_module.audio_out(format, **kwargs))`.

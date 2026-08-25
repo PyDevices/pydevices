@@ -75,11 +75,12 @@ class FakeI2S:
 
 
 def load_board(name):
-    saved = {key: sys.modules.get(key) for key in ("board_config", "boarddev", "machine")}
+    saved = {key: sys.modules.get(key) for key in ("audiocore", "board_config", "boarddev", "machine")}
     i2c = FakeI2C()
     sys.modules["board_config"] = types.SimpleNamespace(i2c=i2c)
     sys.modules["boarddev"] = types.SimpleNamespace(bind_lazy=lambda *args: None)
     sys.modules["machine"] = types.SimpleNamespace(I2S=FakeI2S, Pin=FakePin, I2C=FakeI2C_Type)
+    sys.modules["audiocore"] = types.SimpleNamespace()
     try:
         path = ROOT / "board_configs" / "fbdisplay" / name / "board_peripherals.py"
         spec = importlib.util.spec_from_file_location("tab5_%s" % name, path)
@@ -99,9 +100,10 @@ class Tab5AudioTests(unittest.TestCase):
         """Yield each variant, with ``machine`` faked for the duration."""
         for name in BOARDS:
             module, i2c = load_board(name)
-            saved = {key: sys.modules.get(key) for key in ("board_config", "machine")}
+            saved = {key: sys.modules.get(key) for key in ("audiocore", "board_config", "machine")}
             sys.modules["board_config"] = types.SimpleNamespace(i2c=i2c)
             sys.modules["machine"] = types.SimpleNamespace(I2S=FakeI2S, Pin=FakePin, I2C=FakeI2C_Type)
+            sys.modules["audiocore"] = types.SimpleNamespace()
             try:
                 module._SESSION._owners[:] = []
                 yield name, module

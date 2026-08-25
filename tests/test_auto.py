@@ -16,32 +16,48 @@ from audiodev import auto  # noqa: E402
 
 class AutoSelectTests(unittest.TestCase):
     def test_desktop_is_sdl2_without_uwin32(self):
-        # pygame_audio is never offered here any more: it cannot back an
-        # AudioOut (no audioif usermod under CPython), so
-        # select_backend() no longer even probes for it -- see auto.py's
-        # module docstring.
-        with mock.patch.object(auto, "host_kind", return_value="desktop"):
-            with mock.patch.object(auto, "_uwin32_available", return_value=False):
+        with mock.patch.object(auto, "_is_micropython", return_value=False):
+            with mock.patch.object(auto, "_uwin32_available", return_value=False), mock.patch.object(
+                auto, "_module_available", side_effect=lambda name: name == "usdl2"
+            ):
                 self.assertEqual(auto.select_backend(), "sdl2_audio")
 
     def test_win_audio_when_uwin32_available(self):
-        with mock.patch.object(auto, "host_kind", return_value="desktop"):
+        with mock.patch.object(auto, "_is_micropython", return_value=False):
             with mock.patch.object(auto, "_uwin32_available", return_value=True):
                 self.assertEqual(auto.select_backend(), "win_audio")
 
-    def test_wasm_and_jupyter(self):
-        with mock.patch.object(auto, "host_kind", return_value="wasm"):
+    def test_micropython_wasm(self):
+        with mock.patch.object(auto, "_is_micropython", return_value=True), mock.patch.object(
+            auto, "_module_available", return_value=True
+        ):
             self.assertEqual(auto.select_backend(), "wasm_audio")
-        with mock.patch.object(auto, "host_kind", return_value="jupyter"):
-            self.assertEqual(auto.select_backend(), "sdl2_audio")
+
+    def test_pyodide_web_audio(self):
+        with mock.patch.object(auto, "_is_micropython", return_value=False), mock.patch.object(
+            auto.sys, "platform", "emscripten"
+        ):
+            self.assertEqual(auto.select_backend(), "web_audio")
+
+    def test_pygame_fallback_and_actionable_error(self):
+        with mock.patch.object(auto, "_is_micropython", return_value=False), mock.patch.object(
+            auto, "_uwin32_available", return_value=False
+        ), mock.patch.object(auto, "_module_available", side_effect=lambda name: name == "pygame"):
+            self.assertEqual(auto.select_backend(), "pygame_audio")
+        with mock.patch.object(auto, "_is_micropython", return_value=False), mock.patch.object(
+            auto, "_uwin32_available", return_value=False
+        ), mock.patch.object(auto, "_module_available", return_value=False):
+            with self.assertRaisesRegex(ImportError, "install pygame-ce"):
+                auto.select_backend()
 
     def test_sample_audio_out_wraps_the_selected_transport(self):
         from audiodev.sample_out import AudioOut
 
-        with mock.patch.object(auto, "host_kind", return_value="jupyter"):
-            device = auto.sample_audio_out()
-            self.assertIsInstance(device, AudioOut)
-            # AutoAudio() is a plain alias for sample_audio_out()
+        fake_core = mock.Mock()
+        with mock.patch.dict(sys.modules, {"audiocore": fake_core}), mock.patch.object(
+            auto, "audio_out", return_value=mock.Mock()
+        ):
+            self.assertIsInstance(auto.sample_audio_out(), AudioOut)
             self.assertIsInstance(auto.AutoAudio(), AudioOut)
 
     def test_backends_do_not_import_auto(self):

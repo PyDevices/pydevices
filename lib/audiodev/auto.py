@@ -1,15 +1,4 @@
-"""Optional host backend selection. Backends never import this module.
-
-``pygame_audio`` and ``web_audio`` (PyScript/Pyodide) are no longer offered
-here: both run an interpreter that cannot load the ``audioif``
-usermod, so neither can ever back an :class:`~audiodev.sample_out.AudioOut`
--- see docs/audio.md. Both modules still exist and still work as raw PCM
-transports (``write()``/``readinto()``, no sample playback); the boards that
-want them (``pgdisplay``, ``psdisplay``) import them directly rather than
-through :func:`select_backend`. Auto-selected desktop backends are now
-MicroPython/CircuitPython-only: ``win_audio`` on Windows (via ``uwin32``),
-``sdl2_audio`` everywhere else (via ``usdl2``).
-"""
+"""Optional host backend selection. Backends never import this module."""
 
 import sys
 
@@ -39,16 +28,34 @@ def _uwin32_available():
         return False
 
 
+def _module_available(name):
+    try:
+        __import__(name)
+        return True
+    except Exception:
+        return False
+
+
+def _is_micropython():
+    return getattr(getattr(sys, "implementation", None), "name", "") == "micropython"
+
+
 def select_backend():
-    """Return ``wasm_audio``, ``win_audio``, or ``sdl2_audio``."""
-    kind = host_kind()
-    if kind == "wasm":
+    """Return the first usable output backend in the documented probe order."""
+    if _is_micropython() and _module_available("_wasm_bridge"):
         return "wasm_audio"
-    if kind == "jupyter":
-        return "sdl2_audio"
+    if not _is_micropython() and sys.platform == "emscripten":
+        return "web_audio"
     if _uwin32_available():
         return "win_audio"
-    return "sdl2_audio"
+    if _module_available("usdl2"):
+        return "sdl2_audio"
+    if not _is_micropython() and _module_available("pygame"):
+        return "pygame_audio"
+    raise ImportError(
+        "no usable audio transport: install pygame-ce, install/provide usdl2, "
+        "or explicitly wrap an SDL, WASAPI, Web Audio, I2S, wasm, or emulated transport"
+    )
 
 
 def _impl(name, direction):
@@ -56,8 +63,14 @@ def _impl(name, direction):
         from audiodev import wasm_audio as mod
     elif name == "win_audio":
         from audiodev import win_audio as mod
-    else:
+    elif name == "sdl2_audio":
         from audiodev import sdl2_audio as mod
+    elif name == "web_audio":
+        from audiodev import web_audio as mod
+    elif name == "pygame_audio":
+        from audiodev import pygame_audio as mod
+    else:
+        raise ValueError("unknown audiodev backend: %s" % name)
     return getattr(mod, direction)
 
 

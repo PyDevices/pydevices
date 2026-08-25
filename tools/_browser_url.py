@@ -12,6 +12,7 @@ RUNTIMES = ("wasm", "pyodide")
 _DIRECT_BUILTINS = frozenset(
     {
         "appdev",
+        "audioif",
         "board_config",
         "display_driver",
         "displaydev",
@@ -34,6 +35,7 @@ _MIP_REWRITE = {
 }
 _WHEEL_REWRITE = {
     "appdev": "pydevices",
+    "audioif": "pydevices-audioif",
     "display-driver": "pydevices-lvgl",
     "displaydev": "pydevices",
     "lvgl": "pydevices-lvgl",

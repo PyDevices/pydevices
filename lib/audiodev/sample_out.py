@@ -20,11 +20,8 @@ sample via ``audiocore.get_buffer``/``reset_buffer`` on a lookahead schedule
 ``AudioEngine.tick()`` uses) and pushes it into the wrapped transport's
 ``write()``.
 
-Requires the ``audioif`` usermod (``audiocore``); the import is
-deferred to :meth:`AudioOut.play`, not module load, so ``audiodev`` itself
-never depends on it (family invariant, see lib/audiodev/README.md) and boards
-without the usermod can still import this module (e.g. to construct one that
-will simply fail loudly the first time something is played).
+Requires ``audiocore`` when :class:`AudioOut` is constructed.  Importing
+``audiodev`` and using a raw PCM transport remain independent of audioif.
 
 No resampling: ``transport.format`` is the fixed playback rate/bit-depth/
 channel-count (whatever the backend/device was opened with). A sample whose
@@ -48,6 +45,29 @@ except ImportError:  # pragma: no cover - CPython fallback, no multimer
         return a - b
 
 
+def _load_audiocore():
+    try:
+        import audiocore
+
+        return audiocore
+    except ImportError as exc:
+        import sys
+
+        implementation = getattr(getattr(sys, "implementation", None), "name", "")
+        if implementation == "micropython":
+            message = (
+                "AudioOut requires the audiocore module; rebuild the firmware "
+                "with the audioif MicroPython usermod included"
+            )
+        else:
+            message = (
+                "AudioOut requires pydevices-audioif; install it with: "
+                "python -m pip install --index-url https://test.pypi.org/simple/ "
+                "pydevices-audioif"
+            )
+        raise ImportError(message) from exc
+
+
 # audiocore.get_buffer()'s result codes (src/audiocore/__init__.h:
 # GET_BUFFER_DONE, GET_BUFFER_MORE_DATA, GET_BUFFER_ERROR, in that order).
 _GET_BUFFER_DONE = 0
@@ -64,6 +84,7 @@ class AudioOut:
     """
 
     def __init__(self, transport, *, chunk_ms=40, lookahead_chunks=2, max_catchup_chunks=5):
+        self._audiocore = _load_audiocore()
         self.transport = transport
         self.chunk_ms = int(chunk_ms)
         self._lookahead_chunks = int(lookahead_chunks)
@@ -127,11 +148,9 @@ class AudioOut:
 
     def play(self, sample, *, loop=False):
         """Start playing ``sample``. Replaces whatever was already playing."""
-        import audiocore
-
         self.open()
         self._check_format(sample)
-        audiocore.reset_buffer(sample)
+        self._audiocore.reset_buffer(sample)
         self._sample = sample
         self._loop = bool(loop)
         self._paused = False
@@ -193,8 +212,6 @@ class AudioOut:
             self._pumping = False
 
     def _pump_locked(self):
-        import audiocore
-
         sample = self._sample
         fmt = self.transport.format
         frame_size = fmt.frame_size
@@ -250,7 +267,7 @@ class AudioOut:
         pulled = 0
         scale = self._buf_len_scale
         while pulled < bytes_needed:
-            result, buf = audiocore.get_buffer(sample)
+            result, buf = self._audiocore.get_buffer(sample)
             if buf:
                 if scale is None:
                     # len(buf) must be counted in BYTES. Current audioif
@@ -274,7 +291,7 @@ class AudioOut:
                 break
             if result != _GET_BUFFER_MORE_DATA:
                 if self._loop and result == _GET_BUFFER_DONE:
-                    audiocore.reset_buffer(sample)
+                    self._audiocore.reset_buffer(sample)
                     continue
                 self._sample = None
                 break

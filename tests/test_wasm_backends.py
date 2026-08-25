@@ -260,7 +260,9 @@ class WasmBackendTests(unittest.TestCase):
         import multimer.auto
 
         self.assertEqual(importlib.reload(displaydev.auto).host_kind(), "wasm")
-        self.assertEqual(importlib.reload(audiodev.auto).select_backend(), "wasm_audio")
+        audio_auto = importlib.reload(audiodev.auto)
+        with mock.patch.object(audio_auto, "_is_micropython", return_value=True):
+            self.assertEqual(audio_auto.select_backend(), "wasm_audio")
         self.assertEqual(importlib.reload(multimer.auto).name, "wasm")
 
     def test_python_backends_do_not_import_browser_proxies(self):
