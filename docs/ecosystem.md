@@ -19,7 +19,7 @@ Standard hardware driver engine and companion reference code.
 
 - [`pydevices`](https://github.com/PyDevices/pydevices) — Unified pure-Python hardware abstraction layer and core device contract for MicroPython, CircuitPython, CPython, direct WebAssembly, Pyodide, and Android.
 - [`displayif`](https://github.com/PyDevices/displayif) — High-performance C hardware bus engines (SPI, I2C, Intel 8080, RGB/DPI, MIPI DSI) and native usermod display drivers for MicroPython and CircuitPython.
-- [`audioif`](https://github.com/PyDevices/audioif) — An audio synthesis stack with CircuitPython import names and play/stop/pause/resume semantics. MicroPython firmware includes audiomp3; pydevices-audioif 0.0.1 provides audiocore, synthio, the mixer, and effects for CPython, Android, and Pyodide.
+- [`audioif`](https://github.com/PyDevices/audioif) — CircuitPython's audio system (audiocore, synthio, audiomixer, effects, audiomp3) ported to MicroPython and CPython, extending CircuitPython along the way: 53 classic instruments (audioinstruments), 43 effects (audioeffects), dynamics, routing, convolution, and offline rendering. Ships as pydevices-audioif with pydevices-audioinstruments and pydevices-audioeffects.
 - [`pydevices-examples`](https://github.com/PyDevices/pydevices-examples) — Comprehensive example code, direct MicroPython WebAssembly demos, board configurations, and multi-interpreter showcase benchmarks.
 
 ### Tier 2: Python Framebuffers & GUI Toolkits
@@ -53,6 +53,7 @@ MIP package indexing, multi-usermod builds, and serial/FTP IDE extensions.
 - [`mpftp`](https://github.com/PyDevices/mpftp) — Connect MicroPython and CircuitPython boards from VS Code, Cursor, or the CLI: dual-pane file transfer, in-editor REPL, firmware flash, mip/circup, plus RPC, MCP, and an optional browser PWA.
 - [`mip`](https://github.com/PyDevices/mip) — Single source of truth (SoT) for precompiled MicroPython .mpy bytecode packages and pure-Python library distributions across the PyDevices ecosystem.
 - [`cmods`](https://github.com/PyDevices/cmods) — Out-of-tree C build workspace for compiling MicroPython and CircuitPython firmware binaries with displayif drivers and LVGL bindings.
+- [`micropython-pydevices`](https://github.com/PyDevices/micropython-pydevices) — The PyDevices patch queue for MicroPython, kept like a distribution keeps one: an ordered, provenance-tracked patch series over a pinned upstream release, with profiles for Windows networking/FFI, desktop, and WebAssembly, plus the wasm bridge usermod and variant.
 
 **Deliberately absent from this map:**
 
