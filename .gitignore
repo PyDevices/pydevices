@@ -27,3 +27,10 @@ _site/
 .pydevices-desktop-build/
 .pydevices-bundle-build/
 python/
+
+# Interpreter binaries are release assets (fetch_interpreters.sh), not git content
+bin/micropython
+bin/micropython.exe
+bin/circuitpython
+bin/micropython.mjs
+bin/micropython.wasm
