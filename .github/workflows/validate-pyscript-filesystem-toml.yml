@@ -18,7 +18,7 @@ on:
 
 jobs:
   validate:
-    uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v5
+    uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v6
     with:
       config-path: pydevices-desktop.toml
       source-mappings: |
