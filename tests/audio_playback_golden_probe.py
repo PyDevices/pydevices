@@ -75,13 +75,22 @@ sample_out.ticks_diff = _clock.diff
 
 mixer = audiomixer.Mixer(sample_rate=RATE, channel_count=1, buffer_size=1024)
 synth = synthio.Synthesizer(sample_rate=RATE, channel_count=1)
-mixer.voice[0].play(synth)
-mixer.voice[0].level = 0.6
 
 transport = _wav_audio_out(_FORMAT, path=OUT_PATH)
 audio_out = AudioOut(transport, chunk_ms=40)
 
+# Order matters: prime the output BEFORE starting the voice. AudioOut.play()
+# resets the mixer, and stock CircuitPython's Mixer.reset_buffer *stops* its
+# voices instead of rewinding them, silencing any voice started earlier
+# permanently. audioif fixed that on MicroPython/CPython, but the fix is
+# deliberately not applied to the CircuitPython oracle (see
+# audioif/docs/upstream-diff.md, "Resetting a Mixer silenced it,
+# permanently"), so voice-then-output ordering diverges across interpreters
+# by design and cannot be byte-compared. Output-then-voice is identical
+# everywhere and is also the ordering audioif's own docs recommend on CP.
 audio_out.play(mixer)
+mixer.voice[0].play(synth)
+mixer.voice[0].level = 0.6
 for midi in (60, 64, 67, 72):  # C major arpeggio, one octave
     note = synthio.Note(synthio.midi_to_hz(midi))
     synth.press(note)
