@@ -106,6 +106,13 @@ def sample_audio_out(format=None, **kwargs):
             pump_kwargs[key] = kwargs.pop(key)
     if kwargs.get("latency") == "low":
         pump_kwargs.setdefault("chunk_ms", 10)
+        if sys.platform == "win32":
+            # WASAPI shared mode plus soft timers can stall the pump for
+            # tens of ms; a 2-chunk (20ms) cushion starved audibly (a click
+            # at nearly every note - measured 68 buffer-empty events in 12s
+            # of the drum machine). Six chunks (60ms) measured 2, at a
+            # note-to-sound cost that stays acceptable for live pads.
+            pump_kwargs.setdefault("lookahead_chunks", 6)
     return AudioOut(audio_out(format, **kwargs), **pump_kwargs)
 
 
