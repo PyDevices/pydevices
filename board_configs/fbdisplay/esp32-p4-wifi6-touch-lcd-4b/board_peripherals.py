@@ -152,7 +152,13 @@ def audio_out(*, latency=None, queue_ms=None):
     """
     from audiodev.sample_out import AudioOut
 
-    ibuf = queue_bytes(_FORMAT, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
+    # The ring is a physical ceiling, not the latency governor: I2SPCMOutput
+    # now reports queued_size() (a byte-clock over the DMA's exactly-realtime
+    # drain), so the pump's lookahead governs note-to-sound latency and a
+    # full-size ring simply guarantees writes never block. Shrinking the ring
+    # for latency="low" only made every service call block against the DMA
+    # (measured 88-160ms per call on this board - the interaction stutter).
+    ibuf = queue_bytes(_FORMAT, None, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
     transport = I2SPCMOutput(
         lambda: _output_stream(ibuf),
         _FORMAT,
@@ -162,7 +168,15 @@ def audio_out(*, latency=None, queue_ms=None):
         power=_output_power,
     )
     transport.set_volume(_DEFAULT_VOLUME)
-    return AudioOut(transport)
+    pump_kwargs = {}
+    if latency == "low":
+        # 10ms chunks, 4-chunk lookahead: a ~50ms schedule. The measured
+        # worst pump gap under heavy interaction is 28ms (the ~33ms frame
+        # render showing through), so 50ms keeps real margin while staying
+        # tight enough for live pad response.
+        pump_kwargs["chunk_ms"] = 10
+        pump_kwargs["lookahead_chunks"] = 4
+    return AudioOut(transport, **pump_kwargs)
 
 
 def _input_power(enable):
