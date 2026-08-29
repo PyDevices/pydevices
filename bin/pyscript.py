@@ -15,6 +15,7 @@ from _browser_host import (
     free_port,
     open_browser,
     probe_server,
+    require_workspace_siblings,
     start_server,
 )
 from _browser_url import browser_url, parse_headers
@@ -106,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     workspace = _ROOT.parent
+    require_workspace_siblings(workspace)
     target = args.module or (Path(args.script).stem if args.script else "")
     script = (
         Path(args.script).resolve() if args.script else _find_script(workspace, target)

@@ -34,3 +34,4 @@ bin/micropython.exe
 bin/circuitpython
 bin/micropython.mjs
 bin/micropython.wasm
+bin/interpreters.json

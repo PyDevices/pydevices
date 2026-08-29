@@ -83,6 +83,27 @@ def free_port(host: str, start: int, attempts: int = 50) -> int:
     )
 
 
+REQUIRED_SIBLINGS = ("PyDevices.github.io", "pydevices-examples", "mip")
+
+
+def require_workspace_siblings(workspace: Path) -> None:
+    """Fail early and clearly if the sibling checkouts this host serves are missing.
+
+    ``start_server`` resolves ``PyDevices.github.io``, ``pydevices-examples``,
+    and ``mip`` as siblings of this repository checkout. Nothing enforces that
+    layout on its own, so a missing sibling otherwise surfaces as a confusing
+    404 deep inside the browser instead of a clear error up front.
+    """
+    missing = [name for name in REQUIRED_SIBLINGS if not (workspace / name).is_dir()]
+    if missing:
+        expected = "\n".join(f"  {workspace / name}" for name in REQUIRED_SIBLINGS)
+        raise SystemExit(
+            "missing sibling checkout(s): "
+            + ", ".join(missing)
+            + f"\nexpected layout (siblings of {workspace / 'pydevices'}):\n{expected}"
+        )
+
+
 def start_server(
     host: str,
     port: int,

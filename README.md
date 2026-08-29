@@ -5,6 +5,12 @@ The core display engine, hardware driver suite, and board configuration standard
 `pydevices` is the canonical source and publisher for cross-interpreter hardware drivers, board configurations, and pure-Python core packages:
 `displaydev`, `audiodev`, `appdev`, `multimer`, `events`, and `keys`.
 
+> **Alpha quality.** The organization is being prepared for its first external
+> users, so names and APIs may still evolve.
+
+**Status:** Alpha. Questions or problems? Open a
+[GitHub issue](https://github.com/PyDevices/pydevices/issues).
+
 ---
 
 ## Key Concepts
@@ -30,6 +36,7 @@ Write your display and hardware logic once and run across 6 supported Python env
 
 | Path | Contents |
 |------|----------|
+| `bin/` | Scripts, plus fetched interpreter binaries (`./bin/fetch_interpreters.sh`) |
 | `board_configs/` | MicroPython boards (top level); CircuitPython under `board_configs/cp/` |
 | `drivers/` | Display, touch, bus, joystick, IO expander, input helpers |
 | `lib/displaydev/` | Display backends (`BusDisplay`, `SDLDisplay`, …); `auto.py` is convenience only |
@@ -72,6 +79,15 @@ mip.install(
 system prerequisites, the MicroPython desktop workspace and its `MICROPYPATH` /
 `PYTHONPATH` setup, `mpremote` for boards without network access, Linux KMS,
 headless CI, and verification steps for each channel.
+
+## Quickstart
+
+With `pydevices-desktop` installed (above), draw a filled rectangle to a
+desktop window:
+
+```bash
+python -c "from board_config import display_drv; display_drv.fill_rect(50, 50, 100, 100, 0xF800); display_drv.show()"
+```
 
 ## Companion Showcases & Demos
 

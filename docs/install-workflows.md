@@ -83,8 +83,11 @@ firmware is expected to provide the hardware interface.
 
 ## Desktop with MicroPython MIP
 
-Download `micropython` (or `micropython.exe`), then create a ready-to-use
-workspace in the default user library location:
+Get the `micropython` (or `micropython.exe`) interpreter binary, either by
+running `./bin/fetch_interpreters.sh` from a `pydevices` checkout (downloads
+the latest release's assets into `bin/`) or by downloading it directly from
+the [pydevices releases page](https://github.com/PyDevices/pydevices/releases).
+Then create a ready-to-use workspace in the default user library location:
 
 ```bash
 # Linux / macOS
