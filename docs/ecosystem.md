@@ -54,6 +54,8 @@ MIP package indexing, multi-usermod builds, and serial/FTP IDE extensions.
 - [`mip`](https://github.com/PyDevices/mip) — Single source of truth (SoT) for precompiled MicroPython .mpy bytecode packages and pure-Python library distributions across the PyDevices ecosystem.
 - [`cmods`](https://github.com/PyDevices/cmods) — Out-of-tree C build workspace for compiling MicroPython and CircuitPython firmware binaries with displayif drivers and LVGL bindings.
 - [`micropython-pydevices`](https://github.com/PyDevices/micropython-pydevices) — The PyDevices patch queue for MicroPython, kept like a distribution keeps one: an ordered, provenance-tracked patch series over a pinned upstream release, with profiles for Windows networking/FFI, desktop, and WebAssembly, plus the wasm bridge usermod and variant.
+- [`workbench`](https://github.com/PyDevices/workbench) — A ViperIDE fork with a built-in WebAssembly MicroPython simulator: edit, run, and debug PyDevices code against a simulated board entirely in the browser, no hardware required.
+- [`micropython-vst3`](https://github.com/PyDevices/micropython-vst3) — A hardware-accurate MicroPython audio engine -- core, effects, and instruments -- packaged as a VST3 sidecar plug-in for building and auditioning racks inside a DAW.
 
 **Deliberately absent from this map:**
 
