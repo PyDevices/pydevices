@@ -4,7 +4,7 @@ PyDevices runs in JupyterLab, Jupyter Notebook, and VS Code / Cursor notebooks
 through the **`JNDisplay`** backend. `displaydev.auto.AutoDisplay` detects the
 notebook (`get_ipython()`) and selects it with `timer_async=True`.
 
-Board config: `board_configs/jndisplay/board_config.py`. It exports the Jupyter
+Board config: [`board_configs/jndisplay/board_config.py`](../board_configs/jndisplay/board_config.py). It exports the Jupyter
 display and host reader; `appdev.App(board_config)`
 registers the corresponding host device.
 
@@ -20,7 +20,7 @@ python3 -m venv .venv
 |---|---|
 | [Pillow](https://pillow.readthedocs.io/) | Image buffers for `JNDisplay` |
 | [ipywidgets](https://ipywidgets.readthedocs.io/) | The interactive display widget |
-| [ipyevents](https://github.com/mwasserman/ipyevents) | Mouse / keyboard on that widget |
+| [ipyevents](https://github.com/mwcraig/ipyevents) | Mouse / keyboard on that widget |
 | JupyterLab or Jupyter Notebook | Notebook UI |
 
 [`bin/jupyter.py`](../bin/jupyter.py) is a CLI runner that generates a demo

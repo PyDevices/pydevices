@@ -84,7 +84,7 @@ firmware is expected to provide the hardware interface.
 ## Desktop with MicroPython MIP
 
 Get the `micropython` (or `micropython.exe`) interpreter binary, either by
-running `./bin/fetch_interpreters.sh` from a `pydevices` checkout (downloads
+running [`./bin/fetch_interpreters.sh`](../bin/fetch_interpreters.sh) from a `pydevices` checkout (downloads
 the latest release's assets into `bin/`) or by downloading it directly from
 the [pydevices releases page](https://github.com/PyDevices/pydevices/releases).
 Then create a ready-to-use workspace in the default user library location:
@@ -147,5 +147,5 @@ This mirrors the default search order on hosted interpreters and on hardware MCU
 where `.frozen`, the user's `~/.micropython/lib`, and the system
 `/usr/lib/micropython` are searched by default — while appending `.`, `lib/`,
 and `utils/` so a workspace runs from any directory. It is also why installing
-the CPython `micropython.py` compatibility module is harmless on MicroPython:
+the CPython [`micropython.py`](../utils/micropython.py) compatibility module is harmless on MicroPython:
 `.frozen` resolves first.

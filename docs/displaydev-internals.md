@@ -56,9 +56,9 @@ RGB888 unpack (used by `PixelFramebuffer` and `pygraphics.RGB888`) treats the in
 as `0xRRGGBB`. Passing `0xFFFF` (565 white) through that path yields cyan
 (R=0, G=255, B=255), not white.
 
-The shared expand helper is **`color_rgb()`** in `displaydev/__init__.py`: 565
+The shared expand helper is **`color_rgb()`** in [`displaydev/__init__.py`](../lib/displaydev/__init__.py): 565
 int or 2-byte little-endian slice → `(r, g, b)` with 5/6/5 bit expansion. Tests
-live in `tests/test_color.py`.
+live in [`tests/test_color.py`](../tests/test_color.py).
 
 ## Two-stage architecture: logical GRAM + present
 
@@ -139,7 +139,7 @@ coordinates — see [Displays — Browser / notebook](displaydev.md#browser--not
 | **PixelDisplay** | MCU / CP | NeoPixel / DotStar grids via `displaydev.pixeldisplay` |
 
 CircuitPython Unix **SDLDisplay** forces **software rendering** when accelerated
-GL cannot attach rotated render targets (see comment in `sdldisplay.py`).
+GL cannot attach rotated render targets (see comment in [`sdldisplay.py`](../lib/displaydev/sdldisplay.py)).
 MicroPython SDL **`show()`** may defer present on `MemoryError` when the heap is
 locked during scroll rendering.
 
@@ -246,4 +246,4 @@ Internal buffer format may remain 565 (SDL), RGB (JN), RGBA (PS), or RGB888
 - [Displays](displaydev.md) — pick a driver, input, scroll overview
 - [`pydevices_demo.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/pydevices_demo.py) — scroll bands and redraw rules
 - [Architecture](architecture.md) — how `board_config` wires drivers
-- `tests/test_color.py` — `color_rgb` / `color565` contract tests
+- [`tests/test_color.py`](../tests/test_color.py) — `color_rgb` / `color565` contract tests

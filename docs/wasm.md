@@ -19,7 +19,7 @@ these providers only when `_wasm_bridge` imports successfully. The display
 owns one RGB565 `bytearray`; the browser scans it each animation frame, so
 there is no explicit present or double-buffer protocol.
 
-`bin/wasm.py` (and `bin/pyscript.py`) require `PyDevices.github.io`,
+[`bin/wasm.py`](../bin/wasm.py) (and [`bin/pyscript.py`](../bin/pyscript.py)) require `PyDevices.github.io`,
 `pydevices-examples`, and `mip` checked out as siblings of this repository —
 the host serves gallery content and MIP packages straight out of those
 directories.

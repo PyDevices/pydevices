@@ -33,7 +33,7 @@ For microcontrollers on **MicroPython and CircuitPython**.
 
 SDL2 desktop backend (CPython, MicroPython Unix, CircuitPython Unix). Uses an SDL texture as GRAM. It is the default on MicroPython Unix and available on CPython via `board_configs/sdldisplay/`.
 
-SDL2 bindings for **`SDLDisplay`**: `import usdl2` from [`pydevices-desktop`](pydevices-desktop.md) (TestPyPI) or the MIP desktop board package in [pydevices](https://github.com/PyDevices/pydevices) (`utils/usdl2.py`). A native `usdl2` module is used when already present in the firmware or environment. See [pydevices-desktop](pydevices-desktop.md).
+SDL2 bindings for **`SDLDisplay`**: `import usdl2` from [`pydevices-desktop`](pydevices-desktop.md) (TestPyPI) or the MIP desktop board package in [pydevices](https://github.com/PyDevices/pydevices) ([`utils/usdl2.py`](../utils/usdl2.py)). A native `usdl2` module is used when already present in the firmware or environment. See [pydevices-desktop](pydevices-desktop.md).
 
 ### WinDisplay
 

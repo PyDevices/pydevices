@@ -28,7 +28,7 @@ tutorial runs unchanged against this port's `AudioOut`.
 **On CircuitPython boards** (`board_configs/cp/`) the contract is satisfied
 *natively*: there is no `audio_out` role or `AudioOut` wrapper at all — CP
 apps construct `audiobusio.I2SOut(...)`/`audioio.AudioOut(...)` directly (see
-`docs/board-peripherals.md`: CP boards have no `board_peripherals.py`). Same
+[`docs/board-peripherals.md`](board-peripherals.md): CP boards have no `board_peripherals.py`). Same
 protocol shape, zero adapter, because CircuitPython's own output devices
 already speak it.
 
@@ -40,7 +40,7 @@ not a stopgap: every real backend's bottom layer is a push+queued transport
 (`SDL_QueueAudio`, WASAPI, the wasm bridge, `machine.I2S.write`), and an
 audio-thread callback into Python is unsafe even in C once it would need to
 pull a synth's block graph, which allocates on the GC heap (documented in
-`sdl2_audio.py`). So playback flows only while something calls
+[`sdl2_audio.py`](../lib/audiodev/sdl2_audio.py)). So playback flows only while something calls
 `AudioOut.service()` — the app tick, an `asyncio` pump, or `attach(app)` —
 same requirement every queued transport already has. **No resampling**: a
 sample's own `sample_rate` is not renegotiated against the transport; a
@@ -121,7 +121,7 @@ mic = audio_in(path="/sd/prompt.wav")
 `WavPCMOutput` doubles as the deterministic golden-file target for testing
 the whole `AudioOut` chain — synthio/Mixer rendered through `AudioOut` over
 `emulated_audio.audio_out(path=...)`, hash-compared, no audio hardware
-needed. See `tests/test_audiodev.py`.
+needed. See [`tests/test_audiodev.py`](../tests/test_audiodev.py).
 
 ## ESP32-P4 status
 

@@ -138,7 +138,7 @@ variant (`C6_WIFI`).
   stuck.
 - **Interesting:** Solid fills looked fine, but `BusDisplay.fill_rect` using
   ST7789 `RAMCONT` (`0x3C`) with CS dropping between strips produced dots /
-  garbage. Fixed in `lib/displaydev/busdisplay.py`: per-strip window +
+  garbage. Fixed in [`lib/displaydev/busdisplay.py`](../lib/displaydev/busdisplay.py): per-strip window +
   `RAMWR` (`0x2C`) only. Verified with an L geometry under MADCTL `0xC8`.
 
 ### LILYGO T-HMI (I80 ST7789)
@@ -155,7 +155,7 @@ variant (`C6_WIFI`).
   — both must be high); backlight GPIO38
 - **Touch:** XPT2046 on dedicated SPI1 (LilyGO `pins.h`): SCK=1, MOSI=3,
   MISO=4, CS=2, IRQ=9 (active-low, pull-up). Baud 2 MHz, MODE0. Driver
-  framing matches LilyGO `transfer16` (`drivers/touch/xpt2046.py`). Press =
+  framing matches LilyGO `transfer16` ([`drivers/touch/xpt2046.py`](../drivers/touch/xpt2046.py)). Press =
   IRQ low or `|z| ≥ 25`. Cal defaults from LilyGO `touch.ino`
   (`xmin=1788, xmax=285, ymin=1877, ymax=311`); pass
   `width=height_disp, height=width_disp` into `calibrate(orientation=0)` so
@@ -191,7 +191,7 @@ variant (`C6_WIFI`).
   `LCD_DC` / `LCD_CS` / `LCD_RST` @ 10 MHz. Official CP board build
   (`waveshare_rp2040_touch_lcd_1_28`) exposes `LCD_*` / `IMU_*` aliases —
   **no** `board.SPI()` / `board.I2C()`.
-- **Panel init:** Waveshare full GC9A01A sequence in `drivers/display/gc9a01.py`
+- **Panel init:** Waveshare full GC9A01A sequence in [`drivers/display/gc9a01.py`](../drivers/display/gc9a01.py)
   with **MADCTL `0x98`** and **COLMOD `0x05`**. Short Adafruit-style init +
   BusDisplay’s post-init COLMOD **`0x55`** → backlight on, **no pixels**.
   Reinforce `0x36`/`0x3A` after construct.
@@ -199,17 +199,17 @@ variant (`C6_WIFI`).
   looks like a blank panel.
 - **Touch:** CST816 family @ `0x15` on I2C1 **SDA=6 / SCL=7** (CP:
   `IMU_SDA`/`IMU_SCL`); RST=GP22, IRQ=GP21 (polled). MP: `cst8xx.CST8XX`;
-  CP: `drivers/touch/circuitpython/cst816.py`.
+  CP: [`drivers/touch/circuitpython/cst816.py`](../drivers/touch/circuitpython/cst816.py).
 - **Flash / USB:** RP2040 ROM UF2 bootloader (`RPI-RP2`). Example unit serial
   `E462A052C73E4A29`. MicroPython `RPI_PICO` → CDC `VID_2E8A`/`PID_0005`;
   CircuitPython board UF2 → `PID_1057` + **CIRCUITPY**. Adafruit TinyUF2
   does **not** ship RP2040 builds (ROM UF2 only).
 - **displayif notes:** native `spibus` `SPI.init` must **not** re-pass
   sck/mosi/miso on **rp2** (`extra keyword arguments given`); pin kwargs are
-  ESP-only. Same guard in Python `drivers/bus/spibus.py`.
+  ESP-only. Same guard in Python [`drivers/bus/spibus.py`](../drivers/bus/spibus.py).
 - **Demos:** LVGL/`lv_test_timer` is too RAM-heavy on this board. Prefer
-  `src/examples/simon.py` (MP graphics + appdev) or
-  `src/examples/circuitpython/simon_waveshare_rp2040_touch_lcd_1_28.py`
+  [`lib/examples/simon.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/simon.py) (MP graphics + appdev) or
+  [`lib/examples/circuitpython/simon_waveshare_rp2040_touch_lcd_1_28.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/circuitpython/simon_waveshare_rp2040_touch_lcd_1_28.py)
   (standalone CP). Soft-reset / USB attach after heavy SPI init can wedge
   CDC — prefer cold boot / power cycle for recovery; keep `boot.py`
   USB-settle + try/except if auto-launching Simon.
@@ -283,8 +283,8 @@ variant (`C6_WIFI`).
 - **Firmware:** custom `NUCLEO_H743ZI2` with **displayif** (stm32 port: spibus
   + notimpl stubs), **graphics**, **lvgl** (`lvgl-micropython`). Flash via
   ST-Link MSD (`NOD_H743ZI2` / `firmware.bin`).
-- **Demos verified:** RGB stripes; `simon.py` (graphics + appdev); headless
-  `lvgl-bindings/tools/test_lvgl_smoke.py`; `lvgl_test.py` (tap-count button on real
+- **Demos verified:** RGB stripes; [`simon.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/simon.py) (graphics + appdev); headless
+  [`lvgl-bindings/tools/test_lvgl_smoke.py`](https://github.com/PyDevices/lvgl-bindings/blob/main/tools/test_lvgl_smoke.py); `lvgl_test.py` (tap-count button on real
   panel via `display_driver`). **`main.py`** boots `lvgl_test.py`.
 - **Setup:** `mpftp put` board_config + `displaydev/{__init__,busdisplay}.py` +
   `appdev` + `multimer` + `display_driver.py` + `ili9341`/`ft6x36` + examples

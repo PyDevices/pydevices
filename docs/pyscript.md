@@ -5,7 +5,7 @@ Pyodide's DOM proxies to connect the neutral PyDevices display and event
 contracts to a canvas. It remains a supported backend; it is not the backend
 used by direct MicroPython WebAssembly.
 
-`bin/pyscript.py` is intentionally Pyodide-only:
+[`bin/pyscript.py`](../bin/pyscript.py) is intentionally Pyodide-only:
 
 ```bash
 bin/pyscript.py -m bouncing_balls

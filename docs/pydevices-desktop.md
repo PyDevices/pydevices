@@ -15,7 +15,7 @@ It depends on the full `pydevices` meta-package, which includes `appdev`.
 Source of truth:
 - Fixed library modules come from `board_configs/desktop/` and `drivers/`.
 - Every non-debris library module under `utils/` is discovered automatically.
-- `pydevices-desktop.toml` lists the same complete payload for PyScript.
+- [`pydevices-desktop.toml`](../pydevices-desktop.toml) lists the same complete payload for PyScript.
 
 This package is intended to provide a single pip-installable desktop config
 bundle while core PyDevices libraries continue to come from PyDevices packages.

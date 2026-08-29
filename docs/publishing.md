@@ -17,7 +17,7 @@ same version.
 
 Exactly two TestPyPI distributions build from this repository, both assembled
 by
-[`dotgithub/scripts/build_pydevices_python_distributions.py`](https://github.com/PyDevices/dotgithub/blob/main/scripts/build_pydevices_python_distributions.py):
+[`dotgithub/scripts/build_pydevices_python_distributions.py`](https://github.com/PyDevices/.github/blob/main/scripts/build_pydevices_python_distributions.py):
 
 - `pydevices` copies in every non-debris top-level module or package
   discovered under `lib/` (today `audiodev`, `displaydev`, `events`,
@@ -63,7 +63,7 @@ installer discovered under `board_configs/`.
 
 ## PyScript filesystem
 
-`pydevices-desktop.toml` is a generated, committed filesystem mapping that
+[`pydevices-desktop.toml`](../pydevices-desktop.toml) is a generated, committed filesystem mapping that
 tracks `main`. It contains the complete Python payload of the desktop package
 with explicit `/lib/...` destinations. CI fails if any discovered `lib/` or
 `utils/` source, or one of the fixed desktop board files, is missing or stale.

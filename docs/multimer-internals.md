@@ -37,7 +37,7 @@ Hosted desktop and simulation targets often use SDL2 for window management, fram
 
 ### 1. Pure-Python FFI Bridge (`usdl2.py`)
 When running on **CPython** (Linux/Windows) or **MicroPython Unix** (Linux), the interpreter has access to dynamic foreign function interfaces (`ctypes` or `ffi`):
-* `usdl2.py` dynamically loads the system `libSDL2.so` or `SDL2.dll` at app.
+* [`usdl2.py`](../utils/usdl2.py) dynamically loads the system `libSDL2.so` or `SDL2.dll` at app.
 * No C compilation or custom binary build is needed.
 * Timer ticks and window pump hooks can be called directly from Python code.
 
@@ -80,7 +80,7 @@ whole and also governs `sleep_ms` and `pump` behavior.
 
 ### `micropython.exe` (Windows)
 The PyDevices Windows build includes `ffi` and `uctypes`, allowing the shared
-`uwin32.py` module to call Win32 directly. `multimer.auto` therefore selects
+[`uwin32.py`](../utils/uwin32.py) module to call Win32 directly. `multimer.auto` therefore selects
 the `win32` provider and uses alertable waitable-timer APCs, matching
 `python.exe`. A custom build without `ffi` cannot import that provider and
 falls through to `sdl2` (when its compiled `usdl2` module is present) or

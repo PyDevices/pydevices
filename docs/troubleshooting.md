@@ -50,7 +50,7 @@ Wi-Fi on the board for OTA installs.
 
 CircuitPython has no MicroPython-compatible `framebuf`. Install the shim from
 [pygraphics](https://github.com/PyDevices/pygraphics)
-(`lib/pygraphics/framebuf.py`; MIP package `pygraphics`, TestPyPI
+([`lib/pygraphics/framebuf.py`](https://github.com/PyDevices/pygraphics/blob/main/lib/pygraphics/framebuf.py); MIP package `pygraphics`, TestPyPI
 `pydevices-pygraphics`).
 
 ## Display issues

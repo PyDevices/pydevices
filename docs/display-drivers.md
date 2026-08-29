@@ -30,4 +30,4 @@ GitHub file; they are not separate PyDevices MIP-index packages.
 
 ## CircuitPython
 
-On CircuitPython, prefer Adafruit's display drivers and the PyDevices `BusDisplay` wrapper — see [CircuitPython platform guide](https://github.com/PyDevices/pydevices-examples/blob/main/docs/platforms/circuitpython.md).
+On CircuitPython, prefer Adafruit's display drivers and the PyDevices `BusDisplay` wrapper. (pydevices-examples' standalone CircuitPython platform guide was retired; its content was folded into the docs of the repos that own it.)

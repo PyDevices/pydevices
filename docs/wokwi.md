@@ -1,13 +1,13 @@
 # Wokwi hardware reference
 
 Technical reference for the in-repo Wokwi project. Simulator assets live in
-[pydevices-examples/web/wokwi](https://github.com/PyDevices/pydevices-examples/tree/main/web/wokwi).
+[pydevices-examples/.site/wokwi](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi).
 
 ## Project layout
 
 | Path | Role |
 |------|------|
-| [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/web/wokwi) | `main.py`, `diagram.json` — core packages + `testris` |
+| [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi) | `main.py`, `diagram.json` — core packages + `testris` |
 
 ---
 
@@ -44,7 +44,7 @@ Display part id in `diagram.json`: **`lcd1`** (`board-ili9341-cap-touch`).
 
 ## FT6206 (Wokwi) vs FT6X36 (PyDevices driver)
 
-Wokwi’s cap-touch board simulates an **FT6206** I2C controller. The PyDevices board config uses the **FT6X36** driver (`ft6x36.py`) — same FT6xx family and register-style protocol. No board_config change is expected; if touch behaves oddly, compare with real hardware and file an issue.
+Wokwi’s cap-touch board simulates an **FT6206** I2C controller. The PyDevices board config uses the **FT6X36** driver ([`ft6x36.py`](../drivers/touch/ft6x36.py)) — same FT6xx family and register-style protocol. No board_config change is expected; if touch behaves oddly, compare with real hardware and file an issue.
 
 ---
 
@@ -58,7 +58,7 @@ If you need a specific MicroPython build, copy the current `env` value from the 
 
 ## MIP install pattern
 
-mip.install pattern in [`wokwi/main.py`](https://github.com/PyDevices/pydevices-examples/blob/main/web/wokwi/main.py):
+mip.install pattern in [`wokwi/main.py`](https://github.com/PyDevices/pydevices-examples/blob/main/.site/wokwi/main.py):
 
 ```python
 import mip
@@ -101,6 +101,6 @@ Use a display-only `diagram.json` (no touch I2C wires) with that config.
 |-------|-------|
 | Blank LCD, no traceback | Usually missing `LED`/`RST`→3V3 on `board-ili9341-cap-touch`, or SPI on GPIO 35/36/37 @ 60 MHz — use the pin table above |
 | `TouchKeypad` IndexError on last row | Wokwi simulator quirk; may not reproduce on hardware |
-| Old hosted wokwi.com project IDs | May be stale; use in-repo [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/web/wokwi) |
+| Old hosted wokwi.com project IDs | May be stale; use in-repo [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi) |
 
 See also the application [troubleshooting guide](troubleshooting.md).
