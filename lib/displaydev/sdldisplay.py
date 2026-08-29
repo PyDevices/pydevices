@@ -6,6 +6,7 @@
 displaydev.sdldisplay — SDL2 desktop display driver.
 """
 
+import os
 import struct
 import sys
 
@@ -163,6 +164,13 @@ def _handle_window_event(e):
     """Handle SDL_WINDOWEVENT; may return an events event or ``None``."""
     wev = e.window.event
     if wev != _SDL_WINDOWEVENT_CLOSE:
+        return None
+    # The dummy video driver has no real window a user could close, yet it
+    # can surface a spurious WINDOWEVENT_CLOSE right after creation --
+    # observed quitting apps ~0.1s in under SDL_VIDEODRIVER=dummy (and,
+    # inverted, hanging forever on older lvgl wheels). Headless runs decide
+    # their own lifetime; ignore synthetic close events there.
+    if os.environ.get("SDL_VIDEODRIVER", "").lower() in ("dummy", "offscreen"):
         return None
     wid = int(e.window.windowID)
     display = _display_for_window_id(wid)
