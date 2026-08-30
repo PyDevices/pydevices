@@ -45,10 +45,10 @@ import events
 # Registration is idempotent: ``events.register_event`` raises on a duplicate,
 # and this module may legitimately be imported twice under different names
 # (``usbif`` and ``pydevices.lib.usbif``) in the same process.
-for _name, _fields in (("USBATTACH", "type device"), ("USBDETACH", "type device")):
+for _name in ("USBATTACH", "USBDETACH"):
     if not hasattr(events, _name):
-        events.register_event(_name, fields=_fields)
-del _name, _fields
+        events.register_event(_name, fields="type device")
+del _name
 
 # --- Device classes --------------------------------------------------------
 #
@@ -93,9 +93,17 @@ def check_class(name):
 # on Windows, an enumeration handle on an MCU. It is the handle every per-class
 # call takes. It is stable while the device stays attached and is never reused
 # for a different device within a session.
-DeviceInfo = namedtuple(  # noqa: PYI024
-    "DeviceInfo", "id vid pid product serial classes speed"
-)
+# Field names are spelled out as a constant as well as passed to namedtuple:
+# MicroPython's namedtuple has no ``_fields``, so a portable test (or any
+# caller wanting to check the shape) has nothing to read otherwise. This is
+# the canonical description of the record either way.
+DEVICE_FIELDS = ("id", "vid", "pid", "product", "serial", "classes", "speed")
+
+DeviceInfo = namedtuple("DeviceInfo", " ".join(DEVICE_FIELDS))  # noqa: PYI024
+
+# Same reasoning for the event payloads, which carry the event type and the
+# device it concerns.
+EVENT_FIELDS = ("type", "device")
 
 
 def describe(info):
@@ -244,6 +252,8 @@ class NullHost(Host):
 __all__ = (
     "CDC",
     "CLASSES",
+    "DEVICE_FIELDS",
+    "EVENT_FIELDS",
     "FULL",
     "HID",
     "HIGH",

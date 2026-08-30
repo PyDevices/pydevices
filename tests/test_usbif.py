@@ -63,7 +63,12 @@ class UsbifContractTests:
     def test_devices_returns_deviceinfo_records(self):
         for info in self.make_host().start().devices():
             self.assertIsInstance(info, usbif.DeviceInfo)
-            self.assertEqual(info._fields, usbif.DeviceInfo._fields)
+            # Checked against the constant, not ``_fields``: MicroPython's
+            # namedtuple has no ``_fields``, and a harness that cannot run on
+            # the target it exists to compare against is not a parity harness.
+            self.assertEqual(len(info), len(usbif.DEVICE_FIELDS))
+            for index, field in enumerate(usbif.DEVICE_FIELDS):
+                self.assertIs(getattr(info, field), info[index])
             self.assertIsInstance(info.classes, frozenset)
             self.assertIn(info.speed, (None, usbif.LOW, usbif.FULL, usbif.HIGH))
 
@@ -178,8 +183,11 @@ class TestEventRegistration(unittest.TestCase):
     def test_usb_event_types_and_classes_exist(self):
         self.assertIsInstance(events.USBATTACH, int)
         self.assertIsInstance(events.USBDETACH, int)
-        self.assertEqual(events.Usbattach._fields, ("type", "device"))
-        self.assertEqual(events.Usbdetach._fields, ("type", "device"))
+        for factory in (events.Usbattach, events.Usbdetach):
+            payload = factory(1, "device-placeholder")
+            self.assertEqual(len(payload), len(usbif.EVENT_FIELDS))
+            self.assertEqual(payload.type, 1)
+            self.assertEqual(payload.device, "device-placeholder")
 
     def test_importing_twice_does_not_re_register(self):
         # The module is importable under more than one name in one process and
