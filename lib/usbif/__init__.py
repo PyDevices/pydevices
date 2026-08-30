@@ -70,6 +70,36 @@ CLASSES = (HID, MSC, CDC, MIDI, UAC, UVC)
 LOW, FULL, HIGH = "low", "full", "high"
 
 
+# Interface class/subclass -> usbif class name. This mapping is the one place
+# the USB wire encoding is interpreted, shared by every backend: Linux reads
+# the bytes from sysfs, Windows from a compatible-ID string, and the native
+# module from the descriptor itself, but what the bytes *mean* is decided once
+# here. Duplicating it per backend is how two implementations of "one API"
+# quietly stop agreeing.
+_INTERFACE_CLASSES = {
+    0x02: CDC,   # Communications
+    0x03: HID,
+    0x08: MSC,
+    0x0A: CDC,   # CDC-Data
+    0x0E: UVC,
+    0x10: UAC,   # Audio/Video Function
+}
+_AUDIO_CLASS = 0x01
+_MIDISTREAMING_SUBCLASS = 0x03
+
+
+def class_from_interface(interface_class, interface_subclass=None):
+    """usbif class name for a bInterfaceClass/bInterfaceSubClass pair, or None.
+
+    Audio is the one case where the class byte alone gives the wrong answer:
+    MIDI is a subclass of audio rather than a class of its own, which is the
+    single most common way a USB device gets mislabelled.
+    """
+    if interface_class == _AUDIO_CLASS:
+        return MIDI if interface_subclass == _MIDISTREAMING_SUBCLASS else UAC
+    return _INTERFACE_CLASSES.get(interface_class)
+
+
 def check_class(name):
     """Validate a USB class name, returning it unchanged.
 
@@ -253,6 +283,7 @@ __all__ = (
     "CDC",
     "CLASSES",
     "DEVICE_FIELDS",
+    "class_from_interface",
     "EVENT_FIELDS",
     "FULL",
     "HID",

@@ -162,6 +162,29 @@ KMOD_RGUI = 0x0800
 SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
 
+# cfgmgr32 device enumeration (see the backend implementation below).
+#
+# PRESENT matters: without it the list is every device ever enumerated on this
+# machine, which for USB is years of history rather than what is plugged in
+# now. Non-present nodes also cannot be located, so their properties read back
+# as None -- the symptom that surfaces the mistake.
+CM_GETIDLIST_FILTER_ENUMERATOR = 0x00000001
+CM_GETIDLIST_FILTER_PRESENT = 0x00000100
+CM_GETIDLIST_FILTER_PRESENT_ENUMERATOR = (
+    CM_GETIDLIST_FILTER_ENUMERATOR | CM_GETIDLIST_FILTER_PRESENT
+)
+CM_DRP_DEVICEDESC = 0x01
+CM_DRP_COMPATIBLEIDS = 0x03
+CM_DRP_SERVICE = 0x05
+CM_DRP_FRIENDLYNAME = 0x0D
+MAX_DEVICE_ID_LEN = 200
+
+
+def _split_multi_sz(text):
+    """Split a REG_MULTI_SZ payload into its non-empty strings."""
+    return [part for part in text.split("\x00") if part]
+
+
 _IS_64 = sys.maxsize > 2**32
 _PTR_SIZE = 8 if _IS_64 else 4
 
@@ -234,12 +257,81 @@ if _use_ffi:
     _raw_CoCreateInstance = ole32.func("i", "CoCreateInstance", "pPIpp")
     _raw_CoTaskMemFree = ole32.func("v", "CoTaskMemFree", "P")
 
+    # --- cfgmgr32: device enumeration.
+    #
+    # CfgMgr32 rather than SetupAPI: enumerating by the "USB" enumerator is a
+    # single call returning a multi-sz of device instance IDs, where SetupAPI
+    # needs a device-info-set handle, an index loop and explicit cleanup. Both
+    # reach the same registry data; this one is a quarter of the code and has
+    # no handle to leak.
+    cfgmgr32 = ffi.open("cfgmgr32.dll")
+    _raw_CM_Get_Device_ID_List_SizeW = cfgmgr32.func(
+        "I", "CM_Get_Device_ID_List_SizeW", "pPI")
+    _raw_CM_Get_Device_ID_ListW = cfgmgr32.func(
+        "I", "CM_Get_Device_ID_ListW", "PpII")
+    _raw_CM_Locate_DevNodeW = cfgmgr32.func("I", "CM_Locate_DevNodeW", "pPI")
+    _raw_CM_Get_DevNode_Registry_PropertyW = cfgmgr32.func(
+        "I", "CM_Get_DevNode_Registry_PropertyW", "IIpppI")
+    _raw_CM_Get_Parent = cfgmgr32.func("I", "CM_Get_Parent", "pII")
+    _raw_CM_Get_Device_IDW = cfgmgr32.func("I", "CM_Get_Device_IDW", "IpII")
+
+    def _cm_parent_id(instance_id):
+        devinst = bytearray(4)
+        if _raw_CM_Locate_DevNodeW(devinst, _wstr(instance_id), 0):
+            return None
+        parent = bytearray(4)
+        if _raw_CM_Get_Parent(parent, int.from_bytes(devinst, "little"), 0):
+            return None
+        buf = bytearray(MAX_DEVICE_ID_LEN * 2)
+        if _raw_CM_Get_Device_IDW(
+                int.from_bytes(parent, "little"), buf, MAX_DEVICE_ID_LEN, 0):
+            return None
+        text = _wstr_decode_keep_nuls(buf, MAX_DEVICE_ID_LEN)
+        return text.split("\x00", 1)[0] or None
+
+    def _cm_device_ids(enumerator):
+        size = bytearray(4)
+        flt = _wstr(enumerator)
+        if _raw_CM_Get_Device_ID_List_SizeW(size, flt, CM_GETIDLIST_FILTER_PRESENT_ENUMERATOR):
+            return []
+        count = int.from_bytes(size, "little")
+        if not count:
+            return []
+        buf = bytearray(count * 2)
+        if _raw_CM_Get_Device_ID_ListW(flt, buf, count, CM_GETIDLIST_FILTER_PRESENT_ENUMERATOR):
+            return []
+        return _split_multi_sz(_wstr_decode_keep_nuls(buf, count))
+
+    def _cm_property(instance_id, prop):
+        devinst = bytearray(4)
+        if _raw_CM_Locate_DevNodeW(devinst, _wstr(instance_id), 0):
+            return None
+        node = int.from_bytes(devinst, "little")
+        length = bytearray(4)
+        _raw_CM_Get_DevNode_Registry_PropertyW(node, prop, None, None, length, 0)
+        nbytes = int.from_bytes(length, "little")
+        if not nbytes:
+            return None
+        buf = bytearray(nbytes)
+        if _raw_CM_Get_DevNode_Registry_PropertyW(node, prop, None, buf, length, 0):
+            return None
+        return _wstr_decode_keep_nuls(buf, nbytes // 2)
+
     def _wstr(s):
         if s is None:
             return None
         if isinstance(s, (bytes, bytearray)):
             return s
         return bytes(b for c in s for b in (ord(c) & 0xFF, (ord(c) >> 8) & 0xFF)) + b"\x00\x00"
+
+    def _wstr_decode_keep_nuls(buf, nchars):
+        # _wstr_decode() drops NUL, which is right for a single string and
+        # wrong for REG_MULTI_SZ, where NUL is the separator. MicroPython's
+        # bytes.decode() handles UTF-8 only, so the conversion is done by hand
+        # either way.
+        return "".join(
+            chr(buf[i * 2] | (buf[i * 2 + 1] << 8)) for i in range(nchars)
+        )
 
     def _wstr_decode(buf, nchars):
         return "".join(
@@ -1119,6 +1211,72 @@ else:
     ole32.CoCreateInstance.restype = HRESULT
     ole32.CoTaskMemFree.argtypes = [LPVOID]
     ole32.CoTaskMemFree.restype = None
+
+    # --- cfgmgr32: device enumeration. See the ffi branch for why CfgMgr32
+    #     rather than SetupAPI.
+    try:
+        cfgmgr32 = windll.cfgmgr32
+    except Exception as exc:  # pragma: no cover - present on every Windows
+        raise ImportError("uwin32 could not load cfgmgr32.dll") from exc
+
+    cfgmgr32.CM_Get_Device_ID_List_SizeW.argtypes = [
+        POINTER(ULONG), wintypes.LPCWSTR, ULONG]
+    cfgmgr32.CM_Get_Device_ID_List_SizeW.restype = ULONG
+    cfgmgr32.CM_Get_Device_ID_ListW.argtypes = [
+        wintypes.LPCWSTR, wintypes.LPWSTR, ULONG, ULONG]
+    cfgmgr32.CM_Get_Device_ID_ListW.restype = ULONG
+    cfgmgr32.CM_Locate_DevNodeW.argtypes = [
+        POINTER(DWORD), wintypes.LPCWSTR, ULONG]
+    cfgmgr32.CM_Locate_DevNodeW.restype = ULONG
+    cfgmgr32.CM_Get_DevNode_Registry_PropertyW.argtypes = [
+        DWORD, ULONG, POINTER(ULONG), c_void_p, POINTER(ULONG), ULONG]
+    cfgmgr32.CM_Get_DevNode_Registry_PropertyW.restype = ULONG
+    cfgmgr32.CM_Get_Parent.argtypes = [POINTER(DWORD), DWORD, ULONG]
+    cfgmgr32.CM_Get_Parent.restype = ULONG
+    cfgmgr32.CM_Get_Device_IDW.argtypes = [DWORD, wintypes.LPWSTR, ULONG, ULONG]
+    cfgmgr32.CM_Get_Device_IDW.restype = ULONG
+
+    def _cm_parent_id(instance_id):
+        devinst = DWORD(0)
+        if cfgmgr32.CM_Locate_DevNodeW(byref(devinst), instance_id, 0):
+            return None
+        parent = DWORD(0)
+        if cfgmgr32.CM_Get_Parent(byref(parent), devinst, 0):
+            return None
+        buf = ctypes.create_unicode_buffer(MAX_DEVICE_ID_LEN)
+        if cfgmgr32.CM_Get_Device_IDW(parent, buf, MAX_DEVICE_ID_LEN, 0):
+            return None
+        return buf.value or None
+
+    def _cm_device_ids(enumerator):
+        size = ULONG(0)
+        if cfgmgr32.CM_Get_Device_ID_List_SizeW(
+                byref(size), enumerator, CM_GETIDLIST_FILTER_PRESENT_ENUMERATOR):
+            return []
+        if not size.value:
+            return []
+        buf = ctypes.create_unicode_buffer(size.value)
+        if cfgmgr32.CM_Get_Device_ID_ListW(
+                enumerator, buf, size.value, CM_GETIDLIST_FILTER_PRESENT_ENUMERATOR):
+            return []
+        return _split_multi_sz(buf[: size.value])
+
+    def _cm_property(instance_id, prop):
+        devinst = DWORD(0)
+        if cfgmgr32.CM_Locate_DevNodeW(byref(devinst), instance_id, 0):
+            return None
+        length = ULONG(0)
+        # First call sizes the buffer; it is expected to fail with
+        # CR_BUFFER_SMALL, so its return value is deliberately ignored.
+        cfgmgr32.CM_Get_DevNode_Registry_PropertyW(
+            devinst, prop, None, None, byref(length), 0)
+        if not length.value:
+            return None
+        buf = ctypes.create_string_buffer(length.value)
+        if cfgmgr32.CM_Get_DevNode_Registry_PropertyW(
+                devinst, prop, None, buf, byref(length), 0):
+            return None
+        return buf.raw[: length.value].decode("utf-16-le", "replace")
 
     def _vtbl(punk):
         p = ctypes.cast(c_void_p(punk), POINTER(c_void_p))
@@ -2197,3 +2355,42 @@ def IAudioCaptureClient_ReleaseBuffer(capture, frames):
         _vcall(capture, 4, HRESULT, (UINT32,), UINT32(int(frames))),
         "IAudioCaptureClient.ReleaseBuffer",
     )
+
+
+# ---------------------------------------------------------------------------
+# Device enumeration (cfgmgr32)
+# ---------------------------------------------------------------------------
+#
+# Symbols and marshalling only, no policy: what a device instance ID or a
+# compatible-ID string *means* is decided by the consumer (usbif), so the same
+# judgement is shared with its MCU backend rather than duplicated per OS.
+
+
+def CM_Get_Device_ID_List(enumerator="USB"):
+    """Device instance IDs under an enumerator, e.g. ``USB\\VID_046D&PID_C31C\\...``."""
+    return _cm_device_ids(enumerator)
+
+
+def CM_Get_DevNode_Registry_Property(instance_id, prop):
+    """One registry property of a device node, or None.
+
+    REG_MULTI_SZ properties (notably ``CM_DRP_COMPATIBLEIDS``) come back as a
+    list; single strings come back stripped of their terminator.
+    """
+    raw = _cm_property(instance_id, prop)
+    if raw is None:
+        return None
+    parts = _split_multi_sz(raw)
+    if prop == CM_DRP_COMPATIBLEIDS:
+        return parts
+    return parts[0] if parts else None
+
+
+def CM_Get_Parent_Device_ID(instance_id):
+    """Instance ID of a device node's parent, or None.
+
+    Windows publishes a composite device's interfaces as separate nodes; the
+    parent link is what says which device they belong to. Consumers use it to
+    reassemble a device, rather than guessing from the instance path.
+    """
+    return _cm_parent_id(instance_id)

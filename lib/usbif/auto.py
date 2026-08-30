@@ -25,6 +25,8 @@ def select_backend():
     """
     if _module_available("_usbif"):
         return "native_usb"
+    if sys.platform == "win32" and _module_available("uwin32"):
+        return "win_usb"
     if sys.platform in ("linux", "linux2") or (
         _is_micropython() and sys.platform == "linux"
     ):
@@ -39,6 +41,10 @@ def host(**kwargs):
         from .native_usb import NativeHost
 
         return NativeHost(**kwargs)
+    if name == "win_usb":
+        from .win_usb import WindowsHost
+
+        return WindowsHost(**kwargs)
     if name == "linux_usb":
         from .linux_usb import LinuxHost
 

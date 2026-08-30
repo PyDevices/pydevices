@@ -16,6 +16,7 @@ the tree between polls, which is exactly what the kernel does to the real one.
 
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 
@@ -90,6 +91,10 @@ class UsbifContractTests:
         self.assertFalse(host.is_open)
 
 
+# The synthetic tree names interface directories the way sysfs does
+# ("1-1:1.0"), which Windows cannot represent in a filename -- and a Linux
+# backend has nothing to prove off Linux anyway.
+@unittest.skipUnless(sys.platform.startswith("linux"), "Linux backend")
 class TestLinuxBackend(UsbifContractTests, unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="usbif-sysfs-")
@@ -164,6 +169,49 @@ class TestLinuxBackend(UsbifContractTests, unittest.TestCase):
         host = LinuxHost(root=self.root + "/does-not-exist").start()
         self.assertEqual(host.devices(), ())
         self.assertEqual(host.poll(), ())
+
+
+def _windows_backend_available():
+    if sys.platform != "win32":
+        return False
+    try:
+        import uwin32  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+@unittest.skipUnless(_windows_backend_available(), "Windows backend")
+class TestWindowsBackend(UsbifContractTests, unittest.TestCase):
+    """The same contract, against the real bus.
+
+    There is no synthetic fixture here: Windows exposes devices through
+    cfgmgr32 rather than a filesystem, so these assertions run against whatever
+    is plugged into the machine. That makes them weaker on specifics and
+    stronger on the thing this suite exists for -- that a second, independently
+    written backend satisfies the same contract as the first.
+    """
+
+    def make_host(self):
+        from usbif.win_usb import WindowsHost
+
+        return WindowsHost()
+
+    def test_composite_devices_are_reported_once(self):
+        # Windows publishes a composite device as a parent node plus one node
+        # per interface. Reported verbatim, one board would appear several
+        # times here and once on Linux.
+        ids = [d.id for d in self.make_host().start().devices()]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_identity_comes_from_the_device_not_the_interface(self):
+        for info in self.make_host().start().devices():
+            self.assertIsInstance(info.vid, int)
+            self.assertIsInstance(info.pid, int)
+            # An interface node's instance path is generated and contains "&";
+            # a real serial does not.
+            if info.serial is not None:
+                self.assertNotIn("&", info.serial)
 
 
 class TestNullHost(UsbifContractTests, unittest.TestCase):

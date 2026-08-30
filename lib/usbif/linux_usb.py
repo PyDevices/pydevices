@@ -24,23 +24,9 @@ import os
 
 import events
 
-from . import CDC, FULL, HID, HIGH, LOW, MIDI, MSC, UAC, UVC, DeviceInfo, Host
+from . import FULL, HIGH, LOW, DeviceInfo, Host, class_from_interface
 
 SYSFS = "/sys/bus/usb/devices"
-
-# bInterfaceClass -> usbif class name. Audio (0x01) is resolved further by
-# subclass below, because MIDI is an audio subclass rather than a class of its
-# own -- the one place the USB spec's naming and a user's mental model differ.
-_BY_CLASS = {
-    0x02: CDC,   # Communications
-    0x03: HID,
-    0x08: MSC,
-    0x0A: CDC,   # CDC-Data
-    0x0E: UVC,
-    0x10: UAC,   # Audio/Video Function
-}
-_AUDIO = 0x01
-_MIDISTREAMING = 0x03
 
 
 def _read(path, default=None):
@@ -104,11 +90,9 @@ def _classes_of(entry, name):
         cls = _hex(itf + "/bInterfaceClass")
         if cls is None:
             continue
-        if cls == _AUDIO:
-            sub = _hex(itf + "/bInterfaceSubClass")
-            found.add(MIDI if sub == _MIDISTREAMING else UAC)
-        elif cls in _BY_CLASS:
-            found.add(_BY_CLASS[cls])
+        name = class_from_interface(cls, _hex(itf + "/bInterfaceSubClass"))
+        if name is not None:
+            found.add(name)
     return frozenset(found)
 
 

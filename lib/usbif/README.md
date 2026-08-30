@@ -26,6 +26,7 @@ while True:
 | `usbif` | The contracts: `Host`, `Device`, `DeviceInfo`, the class names, and the `USBATTACH`/`USBDETACH` event types |
 | `usbif.auto` | Picks a backend. Never imported by a backend, and never raises — a port with no USB returns a `NullHost` |
 | `usbif.linux_usb` | Linux, WSL, and containers, reading `/sys/bus/usb/devices` |
+| `usbif.win_usb` | Windows, over `uwin32`'s cfgmgr32 bindings |
 | `usbif.native_usb` | Hardware, over the `usbif` native C module |
 
 ## Two rules worth knowing before you read the code
@@ -46,6 +47,20 @@ the moment they happen and hand them over when asked, so a late poll costs
 latency — which the application controls — rather than data. Overflow is
 reported through `host.overflowed` rather than passing in silence.
 
+## One device, two operating-system models
+
+Linux publishes one node per device with its interfaces beneath it. Windows
+publishes a composite device as a parent node *plus* one node per interface,
+each with its own class and its own name. Reported verbatim, a two-interface
+board would be one device on Linux and three on Windows, and "the same API"
+would be a claim rather than a fact — so `win_usb` reassembles them through the
+parent link cfgmgr32 provides, and takes identity from the device node rather
+than from whichever interface happened to be enumerated first.
+
+Where an OS genuinely cannot answer, the backend says so instead of inventing:
+cfgmgr32 does not report negotiated link speed, so `speed` is `None` on
+Windows, which the contract allows for exactly this reason.
+
 ## Tests
 
 `tests/test_usbif.py` in this repository is a conformance suite, not a
@@ -57,3 +72,9 @@ laptop with devices attached, in CI with none, and on a board.
 ```bash
 python -m unittest discover -s tests -p "test_usbif.py"
 ```
+
+Backends not available on the running platform skip, so the same command is
+correct everywhere: on Linux it exercises the Linux backend against a
+synthetic sysfs tree, and on Windows it exercises `win_usb` against the real
+bus. Both were also run under MicroPython, since `uwin32` has an `ffi` branch
+as well as a `ctypes` one and the two must agree.
