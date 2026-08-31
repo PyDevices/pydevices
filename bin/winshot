@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# winshot -- screenshot the Windows desktop from WSL; prints the WSL path
+# to the saved PNG. Gives blind automation eyes: agents driving Windows
+# GUI apps (REAPER et al.) from WSL can capture the screen and Read the
+# image to see modals, splash screens, and stuck states instead of
+# guessing through timeouts. Born the night REAPER sat on "Scanning midi
+# output devices" and only a human could say so.
+#
+# Usage: winshot [basename]   (default: winshot-<epoch>.png in Windows %TEMP%)
+set -euo pipefail
+name="${1:-winshot-$(date +%s)}.png"
+name="${name%.png}.png"
+win_tmp="$(powershell.exe -NoProfile -Command '[System.IO.Path]::GetTempPath()' | tr -d '\r')"
+win_path="${win_tmp}${name}"
+powershell.exe -NoProfile -Command "
+Add-Type -AssemblyName System.Windows.Forms;
+Add-Type -AssemblyName System.Drawing;
+\$vs = [System.Windows.Forms.SystemInformation]::VirtualScreen;
+\$bmp = New-Object System.Drawing.Bitmap \$vs.Width, \$vs.Height;
+\$g = [System.Drawing.Graphics]::FromImage(\$bmp);
+\$g.CopyFromScreen(\$vs.Left, \$vs.Top, 0, 0, \$bmp.Size);
+\$bmp.Save('${win_path}', [System.Drawing.Imaging.ImageFormat]::Png);
+\$g.Dispose(); \$bmp.Dispose();
+" > /dev/null
+wslpath -u "$win_path"
