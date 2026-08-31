@@ -256,7 +256,7 @@ class Device(_Role):
     # The functions a board can present. Which of them a given firmware can
     # actually offer is reported by ``functions_available()``; what it is
     # presenting right now is ``functions()``.
-    FUNCTIONS = ("cdc", "msc", "uac", "midi")
+    FUNCTIONS = ("cdc", "msc", "uac", "midi", "hid")
 
     def _drain(self):
         return ()

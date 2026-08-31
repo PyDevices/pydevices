@@ -106,7 +106,7 @@ class NativeDevice(Device):
 
     # Portable names to the C module's bitmask. Kept here rather than in the
     # C module so the names stay the portable API's, not the firmware's.
-    _BITS = {"cdc": 1, "msc": 2, "uac": 4, "midi": 8}
+    _BITS = {"cdc": 1, "msc": 2, "uac": 4, "midi": 8, "hid": 16}
 
     def _mask_to_names(self, mask):
         return frozenset(n for n, b in self._BITS.items() if mask & b)
