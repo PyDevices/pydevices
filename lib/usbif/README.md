@@ -33,9 +33,17 @@ while True:
 
 **Capabilities are discovered, never assumed.** `host.capabilities()` returns a
 frozenset of class names, and it is legitimately empty — on a desktop the OS
-owns the bus, and on a port without USB there is nothing to own. Enumeration
-and hot-plug always work; the capability set says which classes this backend
-can carry *traffic* for. Branch on the set, not on `ImportError`.
+owns the bus, and on a port without USB there is nothing to own. Where a
+backend exists at all, enumeration and hot-plug work; the capability set says
+which classes it can carry *traffic* for. Branch on the set, not on
+`ImportError`.
+
+Backends exist today for Linux, Windows and the native C module. macOS falls
+through to `NullHost` — which enumerates nothing and reports an empty
+capability set — because nobody on this project has a Mac to develop against.
+That is a gap with a cause, not a design limit: the portable API's shape does
+not exclude a darwin backend, and `auto.select_backend()` is where one would
+be added.
 
 **Events are drained, not delivered.** `host.poll()` returns what has been
 buffered since the last call. This is not a stylistic choice: on ESP32 a
