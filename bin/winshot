@@ -6,20 +6,74 @@
 # guessing through timeouts. Born the night REAPER sat on "Scanning midi
 # output devices" and only a human could say so.
 #
-# Usage: winshot [basename]   (default: winshot-<epoch>.png in Windows %TEMP%)
+# Usage: winshot [basename]                whole virtual screen
+#        winshot -w <pattern> [basename]   one window, matched by process
+#                                          name or title substring
+#
+# -w uses PrintWindow(PW_RENDERFULLCONTENT), which reads the window's own
+# composited surface: a background window obscured by other windows
+# captures correctly. A *minimized* window may yield a stale or blank
+# frame -- restore it first if the shot looks wrong.
+#
+# The PowerShell payload is staged as a .ps1 in %TEMP% and run with
+# -File: multi-line constructs (Add-Type here-strings) do not survive
+# powershell.exe -Command parsing from a WSL heredoc.
 set -euo pipefail
+
+pattern=""
+if [ "${1:-}" = "-w" ]; then
+    pattern="${2:?winshot: -w needs a process-name or title substring}"
+    shift 2
+fi
 name="${1:-winshot-$(date +%s)}.png"
 name="${name%.png}.png"
 win_tmp="$(powershell.exe -NoProfile -Command '[System.IO.Path]::GetTempPath()' | tr -d '\r')"
 win_path="${win_tmp}${name}"
-powershell.exe -NoProfile -Command "
-Add-Type -AssemblyName System.Windows.Forms;
-Add-Type -AssemblyName System.Drawing;
-\$vs = [System.Windows.Forms.SystemInformation]::VirtualScreen;
-\$bmp = New-Object System.Drawing.Bitmap \$vs.Width, \$vs.Height;
-\$g = [System.Drawing.Graphics]::FromImage(\$bmp);
-\$g.CopyFromScreen(\$vs.Left, \$vs.Top, 0, 0, \$bmp.Size);
-\$bmp.Save('${win_path}', [System.Drawing.Imaging.ImageFormat]::Png);
-\$g.Dispose(); \$bmp.Dispose();
-" > /dev/null
+ps1_win="${win_tmp}winshot-payload.ps1"
+ps1_wsl="$(wslpath -u "$ps1_win")"
+
+cat > "$ps1_wsl" <<'PSEOF'
+param([string]$Out, [string]$Pat = '')
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+if ($Pat -eq '') {
+    $vs = [System.Windows.Forms.SystemInformation]::VirtualScreen
+    $bmp = New-Object System.Drawing.Bitmap $vs.Width, $vs.Height
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen($vs.Left, $vs.Top, 0, 0, $bmp.Size)
+    $bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
+    $g.Dispose(); $bmp.Dispose()
+    exit 0
+}
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public struct WsRect { public int Left, Top, Right, Bottom; }
+public class WsCap {
+    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out WsRect rect);
+}
+"@
+$p = Get-Process | Where-Object {
+    $_.MainWindowHandle -ne 0 -and
+    ($_.ProcessName -like "*$Pat*" -or $_.MainWindowTitle -like "*$Pat*")
+} | Select-Object -First 1
+if (-not $p) { Write-Error "winshot: no window matching '$Pat'"; exit 1 }
+$h = $p.MainWindowHandle
+$r = New-Object WsRect
+[void][WsCap]::GetWindowRect($h, [ref]$r)
+$w = $r.Right - $r.Left; $ht = $r.Bottom - $r.Top
+if ($w -le 0 -or $ht -le 0) { Write-Error "winshot: window '$($p.ProcessName)' has empty bounds (minimized?)"; exit 1 }
+$bmp = New-Object System.Drawing.Bitmap $w, $ht
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$hdc = $g.GetHdc()
+$ok = [WsCap]::PrintWindow($h, $hdc, 2)   # 2 = PW_RENDERFULLCONTENT
+$g.ReleaseHdc($hdc)
+if (-not $ok) { Write-Error "winshot: PrintWindow failed for '$($p.ProcessName)'"; exit 1 }
+$bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
+$g.Dispose(); $bmp.Dispose()
+PSEOF
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ps1_win" -Out "$win_path" -Pat "$pattern" > /dev/null
 wslpath -u "$win_path"
