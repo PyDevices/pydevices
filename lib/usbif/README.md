@@ -38,12 +38,14 @@ backend exists at all, enumeration and hot-plug work; the capability set says
 which classes it can carry *traffic* for. Branch on the set, not on
 `ImportError`.
 
-Backends exist today for Linux, Windows and the native C module. macOS falls
-through to `NullHost` — which enumerates nothing and reports an empty
-capability set — because nobody on this project has a Mac to develop against.
-That is a gap with a cause, not a design limit: the portable API's shape does
-not exclude a darwin backend, and `auto.select_backend()` is where one would
-be added.
+Backends exist today for Linux, Windows and the native C module, all
+bench-proven. macOS sits at the **community-verified tier, open** (see the
+org's [platform support tiers](https://github.com/PyDevices/.github/blob/main/docs/platform-support-tiers.md)):
+no Mac is on this project's bench and none is coming, so `auto.select_backend()`
+has no `darwin` branch yet and macOS falls through to `NullHost`, which
+enumerates nothing and says so. The seam is designed rather than merely
+absent — IOKit would carry enumeration, the same way `uwin32` carries it on
+Windows — and a report from a Mac user is what promotes the claim.
 
 **Events are drained, not delivered.** `host.poll()` returns what has been
 buffered since the last call. This is not a stylistic choice: on ESP32 a
