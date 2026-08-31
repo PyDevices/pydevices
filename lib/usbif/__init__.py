@@ -253,6 +253,11 @@ class Device(_Role):
 
     role = "device"
 
+    # The functions a board can present. Which of them a given firmware can
+    # actually offer is reported by ``functions_available()``; what it is
+    # presenting right now is ``functions()``.
+    FUNCTIONS = ("cdc", "msc", "uac", "midi")
+
     def _drain(self):
         return ()
 
@@ -260,6 +265,27 @@ class Device(_Role):
         self.start()
         self._overflowed = False
         return tuple(self._drain())
+
+    def functions(self, *names):
+        """Report or choose the USB functions this board presents.
+
+        Called with no arguments, returns the frozenset currently
+        advertised. Called with names, the board re-enumerates presenting
+        exactly those -- USB has no way to change identity in place, so the
+        host sees a detach and a fresh attach.
+
+            dev.functions()                  # -> frozenset({'cdc'})
+            dev.functions("cdc", "uac")      # a console and a sound card
+            dev.functions("midi")            # a bare MIDI instrument
+
+        A backend without runtime selection reports what it was built with
+        and raises on any attempt to change it.
+        """
+        raise NotImplementedError
+
+    def functions_available(self):
+        """The functions this firmware could present if asked."""
+        raise NotImplementedError
 
 
 class NullHost(Host):

@@ -55,3 +55,17 @@ def host(**kwargs):
 
 
 __all__ = ("host", "select_backend")
+
+
+def device(**kwargs):
+    """Construct the USB-device role for this platform, or ``None``.
+
+    Only the native backend can present the board as a peripheral; a desktop
+    Python has no such role, and ``None`` is the honest answer rather than a
+    stub that pretends.
+    """
+    if select_backend() == "native_usb":
+        from . import native_usb
+
+        return native_usb.NativeDevice(**kwargs)
+    return None

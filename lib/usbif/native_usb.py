@@ -24,11 +24,14 @@ satisfy:
                                 ``(kind, device_tuple)``; returns
                                 ``(events, overflowed)``.
 ``_usbif.capabilities()``       class names this firmware was built with.
+``_usbif.dev_functions([mask])`` report or choose the device functions this
+                               board presents; setting re-enumerates.
+``_usbif.dev_functions_built()`` the functions this firmware could present.
 """
 
 import events
 
-from . import DeviceInfo, Host
+from . import Device, DeviceInfo, Host
 
 try:
     import _usbif
@@ -94,4 +97,51 @@ class NativeHost(Host):
         return out
 
 
-__all__ = ("NativeHost",)
+class NativeDevice(Device):
+    """The board as a USB peripheral, with its identity chosen at runtime.
+
+    Every function this firmware was built with is present in the binary;
+    which ones the host is shown is a Python decision, taken here.
+    """
+
+    # Portable names to the C module's bitmask. Kept here rather than in the
+    # C module so the names stay the portable API's, not the firmware's.
+    _BITS = {"cdc": 1, "msc": 2, "uac": 4, "midi": 8}
+
+    def _mask_to_names(self, mask):
+        return frozenset(n for n, b in self._BITS.items() if mask & b)
+
+    def _names_to_mask(self, names):
+        mask = 0
+        for n in names:
+            try:
+                mask |= self._BITS[n]
+            except KeyError:
+                raise ValueError("unknown USB function: {}".format(n))
+        return mask
+
+    def functions(self, *names):
+        usbif = _require()
+        if not names:
+            return self._mask_to_names(usbif.dev_functions())
+        wanted = self._names_to_mask(names)
+        if not wanted:
+            # Presenting nothing is a legitimate wish, but USB expresses it
+            # by detaching, not by an empty configuration -- a descriptor
+            # with no interfaces is malformed and hosts flag the device.
+            raise ValueError("a device must present at least one function")
+        missing = self._mask_to_names(wanted & ~usbif.dev_functions_built())
+        if missing:
+            # Explicit rather than silent: a firmware that cannot present a
+            # function should say so, not enumerate without it.
+            raise ValueError(
+                "not built into this firmware: {}".format(", ".join(sorted(missing)))
+            )
+        usbif.dev_functions(wanted)
+        return self._mask_to_names(usbif.dev_functions())
+
+    def functions_available(self):
+        return self._mask_to_names(_require().dev_functions_built())
+
+
+__all__ = ("NativeHost", "NativeDevice")
