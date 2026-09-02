@@ -260,5 +260,103 @@ class TestEventRegistration(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "True")
 
 
+class _FakePort(usbif.MidiPort):
+    """A MidiPort whose transport is a pair of lists, for contract testing."""
+
+    def __init__(self, info):
+        usbif.MidiPort.__init__(self, info)
+        self.incoming = bytearray()
+        self.written = bytearray()
+        self.closed = 0
+
+    def _read(self, buf):
+        n = min(len(buf), len(self.incoming))
+        buf[:n] = self.incoming[:n]
+        del self.incoming[:n]
+        return n
+
+    def _write(self, data):
+        self.written.extend(data)
+        return len(data)
+
+    def _close(self):
+        self.closed += 1
+
+
+def _port(direction, name="port"):
+    return _FakePort(usbif.MidiPortInfo(id=1, name=name, direction=direction))
+
+
+class TestMidiContract(unittest.TestCase):
+    """The MIDI surface every backend must satisfy identically.
+
+    Direction is enforced in the base class rather than per backend, so these
+    assertions are the guarantee that an application gets the same error on a
+    board and on a workstation for the same mistake -- which is the whole
+    point of there being one contract.
+    """
+
+    def test_direction_must_be_known(self):
+        self.assertEqual(usbif.check_direction(usbif.IN), usbif.IN)
+        self.assertRaises(ValueError, usbif.check_direction, "sideways")
+
+    def test_port_info_has_the_documented_shape(self):
+        info = usbif.MidiPortInfo(id=3, name="Espressif Device", direction=usbif.OUT)
+        self.assertEqual(usbif.MIDI_PORT_FIELDS, ("id", "name", "direction"))
+        self.assertEqual(info.name, "Espressif Device")
+        self.assertIn("out", usbif.describe_port(info))
+
+    def test_reading_an_output_only_port_raises(self):
+        port = _port(usbif.OUT)
+        self.assertRaises(OSError, port.read, bytearray(8))
+
+    def test_writing_an_input_only_port_raises(self):
+        port = _port(usbif.IN)
+        self.assertRaises(OSError, port.write, b"\x90\x3c\x64")
+
+    def test_inout_accepts_both(self):
+        port = _port(usbif.INOUT)
+        port.incoming.extend(b"\x90\x3c\x64")
+        buf = bytearray(8)
+        self.assertEqual(port.read(buf), 3)
+        self.assertEqual(bytes(buf[:3]), b"\x90\x3c\x64")
+        self.assertEqual(port.write(b"\x80\x3c\x40"), 3)
+
+    def test_read_of_an_empty_stream_is_zero_not_an_error(self):
+        # A polling application calls this constantly; nothing waiting is the
+        # ordinary case and must stay cheap and quiet.
+        self.assertEqual(_port(usbif.IN).read(bytearray(8)), 0)
+
+    def test_use_after_close_raises_rather_than_silently_doing_nothing(self):
+        port = _port(usbif.INOUT)
+        port.close()
+        self.assertRaises(OSError, port.write, b"\x90\x3c\x64")
+        self.assertRaises(OSError, port.read, bytearray(8))
+
+    def test_close_is_idempotent(self):
+        port = _port(usbif.OUT)
+        port.close()
+        port.close()
+        self.assertEqual(port.closed, 1)
+
+    def test_context_manager_closes(self):
+        port = _port(usbif.OUT)
+        with port as p:
+            p.write(b"\xb0\x01\x40")
+        self.assertFalse(port.is_open)
+        self.assertEqual(port.closed, 1)
+
+    def test_partial_read_leaves_the_remainder_buffered(self):
+        # A short buffer must not lose the bytes it could not carry: MIDI is a
+        # stream, and a dropped middle byte desynchronises everything after it.
+        port = _port(usbif.IN)
+        port.incoming.extend(b"\x90\x3c\x64\x80\x3c\x40")
+        buf = bytearray(2)
+        self.assertEqual(port.read(buf), 2)
+        rest = bytearray(8)
+        self.assertEqual(port.read(rest), 4)
+        self.assertEqual(bytes(rest[:4]), b"\x64\x80\x3c\x40")
+
+
 if __name__ == "__main__":
     unittest.main()

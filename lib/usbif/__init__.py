@@ -144,6 +144,123 @@ def describe(info):
     return "{} [{}] ({})".format(name, ident, kinds)
 
 
+# --- MIDI ------------------------------------------------------------------
+#
+# MIDI is the one class where a plain byte stream is the whole API, and that
+# is deliberate. The native module already exposes device-side ``midi_read``/
+# ``midi_write`` and host-side ``host_midi_read``/``host_midi_write`` with the
+# same shape on purpose, so an application that harmonises, logs, or forwards
+# does not care which end of the cable it is on. The desktop backends are held
+# to the same shape, which is what makes "the same program runs on the board
+# and on the workstation" true for MIDI rather than aspirational.
+#
+# Ports are their own namespace rather than an attribute of DeviceInfo. On a
+# board a MIDI port belongs to an enumerated USB device; on a desktop the OS
+# has already claimed the hardware and publishes ports by name, with no
+# reliable path back to the USB node underneath. Pretending otherwise would
+# mean either a Windows-only correlation hack or an id that means something
+# different per platform. A separate namespace says the honest thing.
+
+IN = "in"
+OUT = "out"
+INOUT = "inout"
+
+DIRECTIONS = (IN, OUT, INOUT)
+
+# ``id`` is backend-assigned and opaque, exactly as for DeviceInfo: a winmm
+# device index, an ALSA rawmidi address, an enumeration handle on an MCU.
+MIDI_PORT_FIELDS = ("id", "name", "direction")
+
+MidiPortInfo = namedtuple("MidiPortInfo", " ".join(MIDI_PORT_FIELDS))  # noqa: PYI024
+
+
+def check_direction(name):
+    """Validate a MIDI direction, returning it unchanged."""
+    if name not in DIRECTIONS:
+        raise ValueError(
+            "unknown MIDI direction {!r}; expected one of {}".format(name, DIRECTIONS)
+        )
+    return name
+
+
+def describe_port(info):
+    """One-line human description of a MIDI port, for logs and REPL use."""
+    return "{} ({})".format(info.name or "MIDI port", info.direction)
+
+
+class MidiPort:
+    """A MIDI 1.0 byte stream, opened on one port.
+
+    Callers speak plain MIDI bytes -- ``b"\x90\x3c\x64"`` is a middle-C
+    note-on. USB-MIDI's 4-byte event packing never reaches Python, and neither
+    does any OS-specific message encoding; both are the backend's business.
+
+    **Running status is not guaranteed either way.** USB-MIDI and the Windows
+    MIDI input API both expand every message to include its status byte, but a
+    5-pin stream forwarded by a board may not, so a reader that cannot handle
+    running status is a reader with a latent bug. Writers should emit full
+    messages and not rely on a backend preserving an omitted status byte.
+
+    Subclasses implement ``_read``, ``_write`` and ``_close``. Direction is
+    enforced here so that no backend has to remember to, and so an application
+    gets the same error on every platform for the same mistake.
+    """
+
+    def __init__(self, info):
+        self.info = info
+        self.direction = check_direction(info.direction)
+        self.is_open = True
+
+    # -- subclass hooks --
+    def _read(self, buf):
+        raise NotImplementedError
+
+    def _write(self, data):
+        raise NotImplementedError
+
+    def _close(self):
+        pass
+
+    def _check(self, want):
+        if not self.is_open:
+            raise OSError("MIDI port is closed")
+        if self.direction not in (want, INOUT):
+            raise OSError(
+                "MIDI port {!r} is {}-only".format(self.info.name, self.direction)
+            )
+
+    def read(self, buf):
+        """Read waiting MIDI bytes into ``buf``; returns how many.
+
+        Never blocks and never raises on an empty stream: zero is the ordinary
+        answer when nothing has arrived, and a polling application relies on
+        that being cheap.
+        """
+        self._check(IN)
+        return self._read(buf)
+
+    def write(self, data):
+        """Write MIDI bytes; returns how many were accepted."""
+        self._check(OUT)
+        return self._write(data)
+
+    def close(self):
+        if not self.is_open:
+            return
+        try:
+            self._close()
+        finally:
+            self.is_open = False
+
+    deinit = close
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.close()
+
+
 class _Role:
     """Shared capability, lifecycle, and event-buffer housekeeping."""
 
@@ -307,6 +424,15 @@ class NullHost(Host):
 
 __all__ = (
     "CDC",
+    "DIRECTIONS",
+    "IN",
+    "INOUT",
+    "MIDI_PORT_FIELDS",
+    "MidiPort",
+    "MidiPortInfo",
+    "OUT",
+    "check_direction",
+    "describe_port",
     "CLASSES",
     "DEVICE_FIELDS",
     "class_from_interface",
