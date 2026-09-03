@@ -62,6 +62,12 @@ def _midi_backend():
     Windows box has no host role to offer but does have MIDI ports, and a board
     with a full host stack may have no OS MIDI service at all.
     """
+    if _module_available("_usbif"):
+        # A board with the native module is both roles at once: its own MIDI
+        # function and anything it is hosting. Checked first because a board
+        # running the unix port under Linux would otherwise be handed the ALSA
+        # backend, which knows nothing about either.
+        return "native_midi"
     if sys.platform == "win32" and _module_available("uwin32"):
         return "win_midi"
     if sys.platform in ("linux", "linux2"):
@@ -77,6 +83,10 @@ def midi_ports():
     branch on what came back rather than guarding an import.
     """
     name = _midi_backend()
+    if name == "native_midi":
+        from .native_midi import ports
+
+        return ports()
     if name == "win_midi":
         from .win_midi import ports
 
@@ -91,6 +101,10 @@ def midi_ports():
 def open_midi(port):
     """Open a MIDI port by ``MidiPortInfo`` or id, using this platform's backend."""
     name = _midi_backend()
+    if name == "native_midi":
+        from .native_midi import open_port
+
+        return open_port(port)
     if name == "win_midi":
         from .win_midi import open_port
 

@@ -60,6 +60,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/hid_keyboard.py" = "/lib/usbif/hid_keyboard.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/linux_midi.py" = "/lib/usbif/linux_midi.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/linux_usb.py" = "/lib/usbif/linux_usb.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/native_midi.py" = "/lib/usbif/native_midi.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/native_usb.py" = "/lib/usbif/native_usb.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/win_midi.py" = "/lib/usbif/win_midi.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/win_usb.py" = "/lib/usbif/win_usb.py"
