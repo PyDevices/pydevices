@@ -1014,3 +1014,139 @@ class TestNativeMidiBackend(unittest.TestCase):
         self._install()
         self.assertEqual(self.mod._split_id("dev:midi"), ("dev", None))
         self.assertEqual(self.mod._split_id("host:12"), ("host", 12))
+
+
+def _uac_blob(rates=(48000,), channels=1, bits=16, ep=0x81, attrs=0x05,
+              max_packet=192, extra_alt=None):
+    """A realistic UAC 1.0 configuration blob.
+
+    Assembled byte by byte rather than captured, so the test exercises the
+    real descriptor layout including the parts a naive reader gets wrong: the
+    three-byte sample rates, the audio endpoint's 9-byte form, and alt 0
+    existing with no endpoint at all.
+    """
+    def itf(number, alt, n_eps, subclass):
+        return bytes([9, 0x04, number, alt, n_eps, 0x01, subclass, 0x00, 0x00])
+
+    def rate_bytes(value):
+        return bytes([value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF])
+
+    parts = [bytes([9, 0x02, 0, 0, 2, 1, 0, 0x80, 50])]        # CONFIGURATION
+    parts.append(itf(0, 0, 0, 0x01))                            # AudioControl
+    parts.append(bytes([9, 0x24, 0x01, 0x00, 0x01, 9, 0, 1, 1]))  # CS header
+    parts.append(itf(1, 0, 0, 0x02))                            # AS alt 0: silent
+    parts.append(itf(1, 1, 1, 0x02))                            # AS alt 1
+    parts.append(bytes([7, 0x24, AS_GENERAL_SUBTYPE, 0x02, 1, 0x01, 0x00]))
+    fmt = bytes([8 + 3 * len(rates), 0x24, 0x02, 0x01, channels,
+                 bits // 8, bits, len(rates)])
+    for value in rates:
+        fmt += rate_bytes(value)
+    parts.append(fmt)
+    parts.append(bytes([9, 0x05, ep, attrs, max_packet & 0xFF,
+                        (max_packet >> 8) & 0xFF, 0x01, 0x00, 0x00]))
+    if extra_alt:
+        parts.extend(extra_alt)
+    blob = b"".join(parts)
+    return blob[:2] + bytes([len(blob) & 0xFF, (len(blob) >> 8) & 0xFF]) + blob[4:]
+
+
+AS_GENERAL_SUBTYPE = 0x01
+
+
+class TestUacDescriptorParsing(unittest.TestCase):
+    """UAC 1.0 descriptor reading -- how a host learns what a device can do.
+
+    A UAC device announces its formats in class-specific descriptors
+    interleaved between its interfaces, so choosing a format means walking the
+    whole configuration blob and then choosing an alternate setting. These
+    assertions cover the parts that fail quietly rather than loudly.
+    """
+
+    def test_a_simple_microphone_parses(self):
+        from usbif import uac
+
+        found = uac.streams(_uac_blob())
+        self.assertEqual(len(found), 1)
+        stream = found[0]
+        self.assertEqual(stream.direction, uac.IN)
+        self.assertEqual(stream.rates, (48000,))
+        self.assertEqual(stream.channels, 1)
+        self.assertEqual(stream.bits, 16)
+        self.assertEqual(stream.endpoint, 0x81)
+        self.assertEqual(stream.max_packet, 192)
+        self.assertEqual(stream.sync, "async")
+
+    def test_sample_rates_are_three_byte_little_endian(self):
+        # A four-byte read here returns a plausible-looking wrong number
+        # rather than failing, which is the worst kind of parser bug.
+        from usbif import uac
+
+        (stream,) = uac.streams(_uac_blob(rates=(44100, 48000, 96000)))
+        self.assertEqual(stream.rates, (44100, 48000, 96000))
+
+    def test_alt_zero_is_not_offered_as_a_stream(self):
+        # By specification alt 0 has no endpoint and exists so a device can be
+        # configured while using no bandwidth. Offering it would be offering a
+        # format that is silent by design.
+        from usbif import uac
+
+        for stream in uac.streams(_uac_blob()):
+            self.assertNotEqual(stream.alt, 0)
+
+    def test_a_feedback_endpoint_is_not_mistaken_for_audio(self):
+        # Feedback endpoints carry rate corrections, not samples. Treating one
+        # as a stream would produce a device that "works" and is silent.
+        from usbif import uac
+
+        found = uac.streams(_uac_blob(ep=0x82, attrs=0x11))  # isoc | feedback
+        self.assertEqual(found, ())
+
+    def test_a_bulk_endpoint_is_ignored(self):
+        from usbif import uac
+
+        self.assertEqual(uac.streams(_uac_blob(attrs=0x02)), ())
+
+    def test_an_output_endpoint_is_reported_as_out(self):
+        from usbif import uac
+
+        (stream,) = uac.streams(_uac_blob(ep=0x02))
+        self.assertEqual(stream.direction, uac.OUT)
+
+    def test_has_audio_detects_a_streaming_interface(self):
+        from usbif import uac
+
+        self.assertTrue(uac.has_audio(_uac_blob()))
+        self.assertFalse(uac.has_audio(bytes([9, 0x02, 9, 0, 0, 1, 0, 0x80, 50])))
+
+    def test_choose_prefers_the_best_offer_when_asked_for_nothing(self):
+        from usbif import uac
+
+        found = uac.streams(_uac_blob(rates=(8000, 48000)))
+        picked = uac.choose(found, uac.IN)
+        self.assertEqual(max(picked.rates), 48000)
+
+    def test_choose_filters_on_what_the_caller_asked_for(self):
+        from usbif import uac
+
+        found = uac.streams(_uac_blob(rates=(44100, 48000)))
+        self.assertIsNotNone(uac.choose(found, uac.IN, rate=44100))
+        self.assertIsNone(uac.choose(found, uac.IN, rate=192000))
+        self.assertIsNone(uac.choose(found, uac.OUT))
+
+    def test_a_truncated_blob_stops_rather_than_looping(self):
+        # Real hardware returns short and padded descriptors. A parser that
+        # hangs on one is worse than a parser that stops early.
+        from usbif import uac
+
+        blob = _uac_blob()
+        self.assertEqual(uac.streams(blob[:len(blob) // 2]), ())
+        self.assertEqual(list(uac.descriptors(b"\x00\x00")), [])
+        self.assertEqual(list(uac.descriptors(b"")), [])
+
+    def test_describe_names_the_essentials(self):
+        from usbif import uac
+
+        (stream,) = uac.streams(_uac_blob())
+        text = uac.describe(stream)
+        for fragment in ("48000", "1ch", "16bit", "in"):
+            self.assertIn(fragment, text)
