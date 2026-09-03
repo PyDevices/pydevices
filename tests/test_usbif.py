@@ -602,3 +602,124 @@ class TestLinuxMidiBackend(unittest.TestCase):
         from usbif.linux_midi import ports
 
         self.assertEqual(ports(self.tmp + "/does-not-exist"), ())
+
+
+class MidiParityMixin:
+    """One suite of assertions, run against every MIDI backend that loads.
+
+    Phase 3 item 5. A portable API with one implementation is a hope; a
+    portable API with two implementations and no shared suite is two APIs that
+    happen to share a name. These are the assertions both backends must
+    satisfy *identically*, written once and inherited, so a backend cannot
+    quietly drift into its own dialect.
+
+    Subclasses set ``backend``. Each skips itself when its platform's backend
+    is not the live one, so the same file passes on Windows, on Linux, and in
+    CI with no MIDI hardware at all -- an empty port list exercises every
+    shape assertion here without a device.
+    """
+
+    backend = None
+
+    def ports(self):
+        return self.backend.ports()
+
+    def test_ports_returns_a_tuple_of_MidiPortInfo(self):
+        found = self.ports()
+        self.assertIsInstance(found, tuple)
+        for port in found:
+            self.assertIsInstance(port, usbif.MidiPortInfo)
+
+    def test_every_port_has_the_documented_field_shape(self):
+        # DEVICE_FIELDS is asserted for DeviceInfo elsewhere in this file for
+        # the same reason: MicroPython's namedtuple has no _fields, so a
+        # portable caller has nothing to introspect and the contract has to be
+        # pinned by test instead.
+        self.assertEqual(usbif.MIDI_PORT_FIELDS, ("id", "name", "direction"))
+        for port in self.ports():
+            self.assertIsInstance(port.id, str)
+            self.assertIsInstance(port.name, str)
+            self.assertIn(port.direction, usbif.DIRECTIONS)
+
+    def test_ids_are_unique_within_a_backend(self):
+        ids = [p.id for p in self.ports()]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_an_id_round_trips_through_the_backend_that_made_it(self):
+        # Id format is the backend's business -- "out:1" on Windows carries a
+        # winmm index, "out:0:0" on Linux carries an ALSA card/device pair --
+        # but every backend must accept back what it emitted, or the ids it
+        # publishes are decorative.
+        for port in self.ports():
+            kind, index = self.backend._split_id(port.id)[0], None
+            self.assertIn(kind, (usbif.IN, usbif.OUT))
+
+    def test_a_foreign_or_malformed_id_is_refused(self):
+        # Refusing must be a ValueError naming the problem, not an IndexError
+        # from inside a split, and not a silent open of the wrong device.
+        for bad in ("", "nonsense", "sideways:0", "1"):
+            self.assertRaises(ValueError, self.backend._split_id, bad)
+
+    def test_find_is_case_insensitive_and_direction_filterable(self):
+        for port in self.ports():
+            if not port.name:
+                continue
+            matched = self.backend.find(port.name.lower())
+            self.assertTrue(any(p.id == port.id for p in matched))
+            filtered = self.backend.find(port.name.lower(), port.direction)
+            self.assertTrue(all(p.direction == port.direction for p in filtered))
+            break
+
+    def test_direction_refusal_is_identical_across_backends(self):
+        # Enforced in MidiPort, not per backend, so an application gets the
+        # same error on a board and on a workstation for the same mistake.
+        # Asserted here anyway: that is the promise, and a backend overriding
+        # read/write could break it without any backend test noticing.
+        for port in self.ports():
+            handle = self.backend.open_port(port)
+            try:
+                if handle.direction == usbif.OUT:
+                    self.assertRaises(OSError, handle.read, bytearray(8))
+                else:
+                    self.assertRaises(OSError, handle.write, b"\x90\x3c\x40")
+            finally:
+                handle.close()
+            self.assertFalse(handle.is_open)
+
+    def test_an_empty_read_is_zero_and_never_blocks(self):
+        # The whole polling contract rests on this. A backend that blocks here
+        # hangs its caller's service loop on a silent instrument.
+        for port in self.ports():
+            if port.direction != usbif.IN:
+                continue
+            handle = self.backend.open_port(port)
+            try:
+                self.assertEqual(handle.read(bytearray(64)), 0)
+            finally:
+                handle.close()
+
+    def test_close_is_idempotent_and_use_after_close_raises(self):
+        for port in self.ports():
+            handle = self.backend.open_port(port)
+            handle.close()
+            handle.close()
+            self.assertRaises(OSError, handle.read, bytearray(8))
+            self.assertRaises(OSError, handle.write, b"\xfa")
+
+
+@unittest.skipUnless(sys.platform == "win32", "winmm backend is Windows only")
+class TestWindowsMidiParity(MidiParityMixin, unittest.TestCase):
+    @property
+    def backend(self):
+        from usbif import win_midi
+
+        return win_midi
+
+
+@unittest.skipUnless(sys.platform.startswith("linux"), "ALSA backend is Linux only")
+class TestLinuxMidiParity(MidiParityMixin, unittest.TestCase):
+    @property
+    def backend(self):
+        from usbif import linux_midi
+
+        return linux_midi
