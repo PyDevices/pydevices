@@ -1287,3 +1287,157 @@ class TestUacRealDescriptors(unittest.TestCase):
         found = uac.streams(_PNP_MIC)
         self.assertIsNone(uac.choose(found, uac.IN, rate=96000))
         self.assertIsNotNone(uac.choose(found, uac.IN, rate=44100))
+
+
+class FakeUacUsbif:
+    """Native module stand-in that serves a real captured descriptor."""
+
+    def __init__(self, blob, dev_id=4, classes=("uac",)):
+        self.blob = blob
+        self.dev_id = dev_id
+        self.classes = set(classes)
+        self.opened = None
+        self.closed = 0
+        self.written = bytearray()
+        self.incoming = bytearray()
+
+    def host_devices(self):
+        return ((self.dev_id, 0x08bb, 0x2900, "USB Audio CODEC", None,
+                 self.classes, "full"),)
+
+    def host_desc(self, dev_id):
+        if dev_id != self.dev_id:
+            raise OSError("no such device")
+        return self.blob
+
+    def host_uac_open(self, dev_id, itf, alt, ep, mps, rate=0):
+        self.opened = (dev_id, itf, alt, ep, mps, rate)
+
+    def host_uac_write(self, data):
+        self.written.extend(data)
+        return len(data)
+
+    def host_uac_read(self, buf):
+        n = min(len(buf), len(self.incoming))
+        buf[:n] = self.incoming[:n]
+        del self.incoming[:n]
+        return n
+
+    def host_uac_queued(self):
+        return len(self.written)
+
+    def host_uac_stats(self):
+        return (0, len(self.written), 0, 0, 0)
+
+    def host_uac_close(self):
+        self.closed += 1
+
+
+class TestUacAudioSelection(unittest.TestCase):
+    """Choosing and opening a hosted USB audio device.
+
+    Driven by the real CODEC descriptor rather than a fixture invented for
+    the test, so what these assert is the exact set of arguments the C driver
+    would receive for a device that actually exists.
+    """
+
+    def setUp(self):
+        from usbif import uac_audio
+
+        self.mod = uac_audio
+        self.saved = uac_audio._usbif
+
+    def tearDown(self):
+        self.mod._usbif = self.saved
+
+    def _install(self, blob=None, classes=("uac",)):
+        fake = FakeUacUsbif(blob if blob is not None else _CODEC, classes=classes)
+        self.mod._usbif = fake
+        return fake
+
+    def test_audio_devices_reads_the_real_descriptor(self):
+        self._install()
+        found = self.mod.audio_devices()
+        self.assertEqual(len(found), 1)
+        dev_id, streams = found[0]
+        self.assertEqual(dev_id, 4)
+        self.assertGreater(len(streams), 10)
+
+    def test_a_device_claiming_audio_with_no_streams_is_not_listed(self):
+        # An interface can claim the audio class and offer nothing streamable.
+        # Listing it would put a device in an output list that cannot play.
+        self._install(blob=bytes([9, 0x02, 9, 0, 0, 1, 0, 0x80, 50]))
+        self.assertEqual(self.mod.audio_devices(), ())
+
+    def test_a_non_audio_device_is_skipped(self):
+        self._install(classes=("msc",))
+        self.assertEqual(self.mod.audio_devices(), ())
+
+    def test_output_opens_with_the_arguments_the_descriptor_implies(self):
+        fake = self._install()
+        device = self.mod.output(4)
+        device.open()
+        dev_id, itf, alt, ep, mps, rate = fake.opened
+        self.assertEqual(dev_id, 4)
+        self.assertEqual(rate, 48000)
+        self.assertNotEqual(alt, 0)            # alt 0 carries no endpoint
+        self.assertEqual(ep & 0x80, 0)         # an OUT endpoint
+        self.assertGreater(mps, 0)
+        self.assertEqual(device.format.rate, 48000)
+        self.assertEqual(device.format.channels, 2)
+        device.close()
+        self.assertEqual(fake.closed, 1)
+
+    def test_input_selects_an_in_endpoint(self):
+        fake = self._install()
+        device = self.mod.input(4)
+        device.open()
+        self.assertEqual(fake.opened[3] & 0x80, 0x80)
+        device.close()
+
+    def test_asking_for_an_unavailable_format_raises_and_says_what_is_offered(self):
+        # Substituting the nearest rate is how a pitch bug ships. The error
+        # has to name the alternatives so the caller can pick one.
+        self._install()
+        with self.assertRaises(ValueError) as caught:
+            self.mod.output(4, rate=192000)
+        message = str(caught.exception)
+        self.assertIn("192000", message)
+        self.assertIn("48000", message)
+
+    def test_a_requested_rate_is_honoured_exactly(self):
+        fake = self._install()
+        self.mod.output(4, rate=44100).open()
+        self.assertEqual(fake.opened[5], 44100)
+
+    def test_an_unknown_device_id_raises(self):
+        self._install()
+        self.assertRaises(ValueError, self.mod.output, 99)
+
+    def test_the_output_is_an_ordinary_audiodev_output(self):
+        # The milestone's actual claim: "like any other output". If this needs
+        # anything a PCMOutput does not have, the claim is not true.
+        from audiodev import PCMOutput
+
+        self._install()
+        device = self.mod.output(4)
+        self.assertIsInstance(device, PCMOutput)
+        self.assertEqual(device.direction, "out")
+        self.assertIn("playback", device.capabilities)
+        self.assertIn("volume", device.capabilities)
+
+    def test_writes_report_what_was_accepted(self):
+        fake = self._install()
+        device = self.mod.output(4)
+        device.open()
+        self.assertEqual(device._write(b"\x00\x01" * 8), 16)
+        self.assertEqual(len(fake.written), 16)
+        device.close()
+
+    def test_stats_are_separated_by_cause(self):
+        self._install()
+        device = self.mod.output(4)
+        device.open()
+        packets, byte_count, dropped, starved, errors = device.stats()
+        self.assertEqual((dropped, starved, errors), (0, 0, 0))
+        device.close()

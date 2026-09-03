@@ -63,6 +63,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/native_midi.py" = "/lib/usbif/native_midi.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/native_usb.py" = "/lib/usbif/native_usb.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/uac.py" = "/lib/usbif/uac.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/uac_audio.py" = "/lib/usbif/uac_audio.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/win_midi.py" = "/lib/usbif/win_midi.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/win_usb.py" = "/lib/usbif/win_usb.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/usdl2.py" = "/lib/usdl2.py"
