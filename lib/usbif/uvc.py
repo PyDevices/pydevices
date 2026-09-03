@@ -168,16 +168,30 @@ def formats(blob):
     found = []
     cur_itf = None
     cur_alt = None
+    is_vs = False
     pending = None
     for length, dtype, body in descriptors(blob):
         if dtype == DT_INTERFACE and length >= 9:
             cur_itf, cur_alt = body[2], body[3]
+            is_vs = (body[5] == CLASS_VIDEO
+                     and body[6] == SUBCLASS_VIDEOSTREAMING)
             pending = None
             continue
         if dtype != DT_CS_INTERFACE or length < 3:
             continue
-        # Format and frame descriptors live on alt 0 only.
-        if cur_alt != 0:
+        # VideoStreaming only, and alt 0 only.
+        #
+        # The subclass check is not belt-and-braces -- the subtype numbers
+        # collide outright. In a VideoControl interface, subtype 4 is
+        # VC_SELECTOR_UNIT, 5 is VC_PROCESSING_UNIT and 6 is
+        # VC_EXTENSION_UNIT, which are exactly the numbers VideoStreaming
+        # uses for FORMAT_UNCOMPRESSED, FRAME_UNCOMPRESSED and FORMAT_MJPEG.
+        # Without this, a real camera's control topology parses as a handful
+        # of phantom formats: the C920e on the bench reported six MJPEG
+        # formats with zero frames each, one per extension unit. The
+        # synthetic fixture could not catch it -- it had no units to trip on,
+        # which is precisely the kind of gap only real hardware fills.
+        if not is_vs or cur_alt != 0:
             continue
         subtype = body[2]
         if subtype in (VS_FORMAT_MJPEG, VS_FORMAT_UNCOMPRESSED,

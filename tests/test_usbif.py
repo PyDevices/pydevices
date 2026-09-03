@@ -1501,6 +1501,78 @@ def _uvc_blob():
     return b"".join(parts)
 
 
+# Captured 2026-09-03 from a Logitech C920e (046d:08b6), 2306 bytes -- the
+# configuration blob only, with the 18-byte device descriptor sysfs puts in
+# front of it removed. A high-speed camera, so its bandwidth alts carry the
+# additional-transactions-per-microframe bits that a full-speed device never
+# sets, and its VideoControl interface carries the extension and processing
+# units whose descriptor subtypes collide with the VideoStreaming format
+# subtypes. Both are things the synthetic fixture cannot exercise.
+_C920E = bytes.fromhex(
+    "0902020902010080fa080b00020e03000009040000010e0100000d24010001d60080c3c90101"
+    "011224020101020000000000000000032e0a020b240503010040025b17001b240606d09ee423"
+    "7811314fae52d2fb8a8d3b480a010302ff03001b240608e48e67690f41db40a8507420d7d824"
+    "0e070103023b03001c240609a94c5d1f11de8744840d50933c8ec8d110010303f3ff03001b24"
+    "060a1502e44934f4fe47b1580e885023e51b07010302aa0f001c24060b212de5ff30802c4e82"
+    "d9f587d00540bd0401030300c101001a24060d262d6113aa5ac446b13dff4d9a60db86010103"
+    "01020009240304010100030007058603400008052503400009040100000e0200000f2401024d"
+    "078100040000000100041b240401135955593200001000800000aa00389b7110010000000036"
+    "240501008002e001000077010000ca08006009001516050007151605009a5b060020a107002a"
+    "2c0a0040420f005558140080841e003624050200a0005a000094110000786900807000001516"
+    "050007151605009a5b060020a107002a2c0a0040420f005558140080841e003624050300a000"
+    "78000070170000a08c00009600001516050007151605009a5b060020a107002a2c0a0040420f"
+    "005558140080841e003624050400b000900000f01e0000a0b90000c600001516050007151605"
+    "009a5b060020a107002a2c0a0040420f005558140080841e0036240505004001b40000504600"
+    "00e0a50100c201001516050007151605009a5b060020a107002a2c0a0040420f005558140080"
+    "841e0036240506004001f00000c05d0000803202005802001516050007151605009a5b060020"
+    "a107002a2c0a0040420f005558140080841e0036240507006001200100c07b000080e6020018"
+    "03001516050007151605009a5b060020a107002a2c0a0040420f005558140080841e00362405"
+    "0800b001f00000907e000060f702002a03001516050007151605009a5b060020a107002a2c0a"
+    "0040420f005558140080841e0036240509008002680100401901008097060008070015160500"
+    "07151605009a5b060020a107002a2c0a0040420f005558140080841e003624050a002003c001"
+    "0080b5010000410a00f00a001516050007151605009a5b060020a107002a2c0a0040420f0055"
+    "58140080841e003224050b002003580200f049020080fc0a00a60e009a5b0600069a5b060020"
+    "a107002a2c0a0040420f005558140080841e003224050c006003e0010040fa0100007e0900a8"
+    "0c009a5b0600069a5b060020a107002a2c0a0040420f005558140080841e002a24050d00c003"
+    "d00200c04b030040e309001815002a2c0a00042a2c0a0040420f005558140080841e002a2405"
+    "0e00000440020000d00200007008000012002a2c0a00042a2c0a0040420f005558140080841e"
+    "002624050f000005d002000065040000ca0800201c0040420f000340420f005558140080841e"
+    "002224051000400680030000d6060000410a00c02b0055581400025558140080841e001e2405"
+    "1100800738040040e3090040e30900483f0080841e000180841e001e24051200000910050000"
+    "3d0e00003d0e00205b003e4b4c00013e4b4c001e24051300000900060000e0100000e0100000"
+    "6c003e4b4c00013e4b4c0006240d0101040b2406021101010000000036240701008002e00100"
+    "0077010000ca08006009001516050007151605009a5b060020a107002a2c0a0040420f005558"
+    "140080841e003624070200a0005a000094110000786900807000001516050007151605009a5b"
+    "060020a107002a2c0a0040420f005558140080841e003624070300a00078000070170000a08c"
+    "00009600001516050007151605009a5b060020a107002a2c0a0040420f005558140080841e00"
+    "3624070400b000900000f01e0000a0b90000c600001516050007151605009a5b060020a10700"
+    "2a2c0a0040420f005558140080841e0036240705004001b4000050460000e0a50100c2010015"
+    "16050007151605009a5b060020a107002a2c0a0040420f005558140080841e00362407060040"
+    "01f00000c05d0000803202005802001516050007151605009a5b060020a107002a2c0a004042"
+    "0f005558140080841e0036240707006001200100c07b000080e6020018030015160500071516"
+    "05009a5b060020a107002a2c0a0040420f005558140080841e003624070800b001f00000907e"
+    "000060f702002a03001516050007151605009a5b060020a107002a2c0a0040420f0055581400"
+    "80841e003624070900800268010040190100809706000807001516050007151605009a5b0600"
+    "20a107002a2c0a0040420f005558140080841e003624070a002003c0010080b5010000410a00"
+    "f00a001516050007151605009a5b060020a107002a2c0a0040420f005558140080841e003624"
+    "070b002003580200f0490200a0bb0d00a60e001516050007151605009a5b060020a107002a2c"
+    "0a0040420f005558140080841e003624070c006003e0010040fa010080dd0b00a80c00151605"
+    "0007151605009a5b060020a107002a2c0a0040420f005558140080841e003624070d00c003d0"
+    "0200c04b030080c613001815001516050007151605009a5b060020a107002a2c0a0040420f00"
+    "5558140080841e003624070e00000440020000d0020000e01000001200151605000715160500"
+    "9a5b060020a107002a2c0a0040420f005558140080841e003624070f000005d0020000650400"
+    "005e1a00201c001516050007151605009a5b060020a107002a2c0a0040420f00555814008084"
+    "1e003624071000400680030000d6060000042900c02b001516050007151605009a5b060020a1"
+    "07002a2c0a0040420f005558140080841e003624071100800738040040e3090080533b00483f"
+    "001516050007151605009a5b060020a107002a2c0a0040420f005558140080841e0006240d01"
+    "010409040101010e02000007058105c0000109040102010e0200000705810580010109040103"
+    "010e0200000705810500020109040104010e0200000705810580020109040105010e02000007"
+    "05810520030109040106010e02000007058105b0030109040107010e02000007058105800a01"
+    "09040108010e02000007058105200b0109040109010e02000007058105e00b010904010a010e"
+    "020000070581058013010904010b010e02000007058105001401"
+)
+
+
 class TestUvcDescriptors(unittest.TestCase):
     def setUp(self):
         from usbif import uvc
@@ -1598,3 +1670,70 @@ class TestUvcDescriptors(unittest.TestCase):
         self.assertIn("640x480", text)
         self.assertIn("mjpeg", text)
         self.assertNotIn("\n", text)
+
+
+class TestUvcRealCamera(unittest.TestCase):
+    """The UVC parser against a descriptor a real camera actually sent."""
+
+    def setUp(self):
+        from usbif import uvc
+
+        self.uvc = uvc
+
+    def test_reads_exactly_the_two_formats_the_camera_offers(self):
+        # The regression: VideoControl's VC_SELECTOR_UNIT / VC_PROCESSING_UNIT
+        # / VC_EXTENSION_UNIT are subtypes 4, 5 and 6 -- the same numbers
+        # VideoStreaming uses for FORMAT_UNCOMPRESSED, FRAME_UNCOMPRESSED and
+        # FORMAT_MJPEG. Parsing without checking the interface subclass turned
+        # this camera's six extension units into six phantom MJPEG formats
+        # with no frames.
+        found = self.uvc.formats(_C920E)
+        self.assertEqual([f.encoding for f in found], ["YUY2", "mjpeg"])
+        self.assertEqual([len(f.frames) for f in found], [19, 17])
+        self.assertTrue(all(f.frames for f in found))
+
+    def test_offers_the_modes_the_camera_is_sold_on(self):
+        found = self.uvc.formats(_C920E)
+        picked = self.uvc.choose(found, width=1280, height=720,
+                                 encoding="mjpeg", min_fps=30)
+        self.assertIsNotNone(picked)
+        fmt, frame, interval = picked
+        self.assertEqual((frame.width, frame.height), (1280, 720))
+        self.assertAlmostEqual(self.uvc.fps(interval), 30.0, places=2)
+
+    def test_high_speed_alts_carry_extra_transactions_per_microframe(self):
+        # A full-speed device leaves bits 12:11 of wMaxPacketSize at zero, so
+        # this is the half of that field the CODEC and mic could never test.
+        alts = self.uvc.alt_settings(_C920E)
+        self.assertEqual({a.transfer for a in alts}, {"isoc"})
+        self.assertEqual({a.endpoint for a in alts}, {0x81})
+        self.assertEqual(max(a.per_frame for a in alts), 3)
+        self.assertEqual(min(a.per_frame for a in alts), 1)
+        # Tiers must be usable as tiers: strictly increasing capacity.
+        caps = [a.max_packet * a.per_frame for a in alts]
+        self.assertEqual(caps, sorted(caps))
+
+    def test_alt_selection_walks_the_tiers(self):
+        alts = self.uvc.alt_settings(_C920E)
+        self.assertEqual(self.uvc.alt_for_payload(alts, 128).max_packet, 192)
+        big = self.uvc.alt_for_payload(alts, 3072)
+        self.assertIsNotNone(big)
+        self.assertEqual(big.max_packet * big.per_frame, 3072)
+        self.assertIsNone(self.uvc.alt_for_payload(alts, 99999))
+
+    def test_the_two_class_parsers_do_not_claim_each_other_s_devices(self):
+        # This configuration is video-only -- the C920e presents its
+        # microphone as a separate USB device, not another interface here.
+        # So the pair is a real cross-check: the video parser must recognise
+        # it and the audio parser must not, and both class-specific
+        # descriptor namespaces are 0x24 with overlapping subtypes, which is
+        # exactly how a parser ends up confidently reading the wrong device.
+        from usbif import uac
+
+        self.assertTrue(self.uvc.has_video(_C920E))
+        self.assertFalse(uac.has_audio(_C920E))
+        self.assertEqual(uac.streams(_C920E), ())
+        # And the reverse, against the audio device captured from this bench.
+        self.assertFalse(self.uvc.has_video(_CODEC))
+        self.assertEqual(self.uvc.formats(_CODEC), ())
+        self.assertEqual(self.uvc.alt_settings(_CODEC), ())
