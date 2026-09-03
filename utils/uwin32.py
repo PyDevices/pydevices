@@ -179,6 +179,40 @@ CM_DRP_SERVICE = 0x05
 CM_DRP_FRIENDLYNAME = 0x0D
 MAX_DEVICE_ID_LEN = 200
 
+# --- winmm MIDI ------------------------------------------------------------
+#
+# MIDI input is delivered by CALLBACK_WINDOW rather than CALLBACK_FUNCTION on
+# purpose. winmm invokes a function callback on its own thread, and re-entering
+# a Python interpreter from a foreign thread is a crash risk under MicroPython
+# ffi. With CALLBACK_WINDOW the OS posts MM_MIM_DATA to a window's message
+# queue and the application drains it on its own thread -- which is also the
+# transport shape usbif already specifies: capture at the source, collect by
+# polling, never deliver by callback.
+MMSYSERR_NOERROR = 0
+CALLBACK_NULL = 0x00000000
+CALLBACK_WINDOW = 0x00010000
+
+# MM_MIM_DATA packs the message into lParam: low byte status, next byte first
+# data byte, next byte second data byte, high byte unused. Running status is
+# expanded by the driver, so every message arrives with its status byte.
+MM_MIM_OPEN = 0x3C1
+MM_MIM_CLOSE = 0x3C2
+MM_MIM_DATA = 0x3C3
+MM_MIM_LONGDATA = 0x3C4
+MM_MIM_ERROR = 0x3C5
+MM_MOM_OPEN = 0x3C7
+MM_MOM_CLOSE = 0x3C8
+MM_MOM_DONE = 0x3C9
+
+# MIDIOUTCAPSW / MIDIINCAPSW. Read as raw buffers rather than declared as
+# structures in both backends: the only field either caller needs is the
+# name, and one offset shared by both branches cannot drift apart the way two
+# parallel struct declarations can.
+MIDIOUTCAPS_SIZE = 84
+MIDIINCAPS_SIZE = 76
+_MIDI_CAPS_NAME_OFF = 8
+_MIDI_CAPS_NAME_LEN = 64
+
 
 def _split_multi_sz(text):
     """Split a REG_MULTI_SZ payload into its non-empty strings."""
@@ -199,11 +233,26 @@ if _use_ffi:
     gdi32 = ffi.open("gdi32.dll")
     kernel32 = ffi.open("kernel32.dll")
     ole32 = ffi.open("ole32.dll")
+    winmm = ffi.open("winmm.dll")
 
     _L = "q" if _IS_64 else "i"
     _W = "Q" if _IS_64 else "I"
 
     _raw_DefWindowProcW = user32.func(_L, "DefWindowProcW", "PI" + _W + _L)
+
+    _raw_midiOutGetNumDevs = winmm.func("I", "midiOutGetNumDevs", "")
+    _raw_midiOutGetDevCapsW = winmm.func("I", "midiOutGetDevCapsW", _W + "pI")
+    _raw_midiOutOpen = winmm.func("I", "midiOutOpen", "pIP" + _W + "I")
+    _raw_midiOutShortMsg = winmm.func("I", "midiOutShortMsg", "PI")
+    _raw_midiOutReset = winmm.func("I", "midiOutReset", "P")
+    _raw_midiOutClose = winmm.func("I", "midiOutClose", "P")
+    _raw_midiInGetNumDevs = winmm.func("I", "midiInGetNumDevs", "")
+    _raw_midiInGetDevCapsW = winmm.func("I", "midiInGetDevCapsW", _W + "pI")
+    _raw_midiInOpen = winmm.func("I", "midiInOpen", "pIP" + _W + "I")
+    _raw_midiInStart = winmm.func("I", "midiInStart", "P")
+    _raw_midiInStop = winmm.func("I", "midiInStop", "P")
+    _raw_midiInReset = winmm.func("I", "midiInReset", "P")
+    _raw_midiInClose = winmm.func("I", "midiInClose", "P")
     _raw_RegisterClassExW = user32.func("H", "RegisterClassExW", "p")
     _raw_CreateWindowExW = user32.func("P", "CreateWindowExW", "IPPIiiiiPPPP")
     _raw_DestroyWindow = user32.func("i", "DestroyWindow", "P")
@@ -930,6 +979,7 @@ else:
         gdi32 = windll.gdi32
         kernel32 = windll.kernel32
         ole32 = windll.ole32
+        winmm = windll.winmm
     except Exception as exc:
         raise ImportError("uwin32 could not load Win32 DLLs") from exc
 
@@ -1054,6 +1104,33 @@ else:
             ("wBitsPerSample", WORD),
             ("cbSize", WORD),
         ]
+
+    winmm.midiOutGetNumDevs.argtypes = []
+    winmm.midiOutGetNumDevs.restype = UINT
+    winmm.midiOutGetDevCapsW.argtypes = [ctypes.c_size_t, c_void_p, UINT]
+    winmm.midiOutGetDevCapsW.restype = UINT
+    winmm.midiOutOpen.argtypes = [c_void_p, UINT, c_void_p, c_void_p, DWORD]
+    winmm.midiOutOpen.restype = UINT
+    winmm.midiOutShortMsg.argtypes = [c_void_p, DWORD]
+    winmm.midiOutShortMsg.restype = UINT
+    winmm.midiOutReset.argtypes = [c_void_p]
+    winmm.midiOutReset.restype = UINT
+    winmm.midiOutClose.argtypes = [c_void_p]
+    winmm.midiOutClose.restype = UINT
+    winmm.midiInGetNumDevs.argtypes = []
+    winmm.midiInGetNumDevs.restype = UINT
+    winmm.midiInGetDevCapsW.argtypes = [ctypes.c_size_t, c_void_p, UINT]
+    winmm.midiInGetDevCapsW.restype = UINT
+    winmm.midiInOpen.argtypes = [c_void_p, UINT, c_void_p, c_void_p, DWORD]
+    winmm.midiInOpen.restype = UINT
+    winmm.midiInStart.argtypes = [c_void_p]
+    winmm.midiInStart.restype = UINT
+    winmm.midiInStop.argtypes = [c_void_p]
+    winmm.midiInStop.restype = UINT
+    winmm.midiInReset.argtypes = [c_void_p]
+    winmm.midiInReset.restype = UINT
+    winmm.midiInClose.argtypes = [c_void_p]
+    winmm.midiInClose.restype = UINT
 
     user32.DefWindowProcW.argtypes = [HWND, UINT, WPARAM, LPARAM]
     user32.DefWindowProcW.restype = LRESULT
@@ -2394,3 +2471,158 @@ def CM_Get_Parent_Device_ID(instance_id):
     reassemble a device, rather than guessing from the instance path.
     """
     return _cm_parent_id(instance_id)
+
+
+# ---------------------------------------------------------------------------
+# winmm MIDI
+# ---------------------------------------------------------------------------
+#
+# Thin, policy-free wrappers, matching the rest of this module: real Win32
+# names, real Win32 semantics, and no opinion about what the bytes mean. The
+# MIDI message model and any port abstraction belong to the consumer.
+
+
+def _mm_check(rc, what):
+    """Raise on a non-zero MMRESULT, naming the call that produced it."""
+    if rc != MMSYSERR_NOERROR:
+        raise OSError("{} failed (MMRESULT {})".format(what, rc))
+    return rc
+
+
+def _mm_caps_name(buf):
+    """Pull szPname out of a MIDIOUTCAPSW/MIDIINCAPSW buffer.
+
+    Both structures carry the name at the same offset and length, which is why
+    one helper serves both.
+    """
+    raw = bytes(buf[_MIDI_CAPS_NAME_OFF:_MIDI_CAPS_NAME_OFF + _MIDI_CAPS_NAME_LEN])
+    name = raw.decode("utf-16-le", "replace")
+    end = name.find("\x00")
+    return name[:end] if end >= 0 else name
+
+
+def midiOutGetNumDevs():
+    if _use_ffi:
+        return _raw_midiOutGetNumDevs()
+    return winmm.midiOutGetNumDevs()
+
+
+def midiInGetNumDevs():
+    if _use_ffi:
+        return _raw_midiInGetNumDevs()
+    return winmm.midiInGetNumDevs()
+
+
+def midiOutGetDevName(index):
+    """Product name of MIDI output device ``index``."""
+    buf = bytearray(MIDIOUTCAPS_SIZE)
+    if _use_ffi:
+        _mm_check(_raw_midiOutGetDevCapsW(index, buf, len(buf)), "midiOutGetDevCapsW")
+    else:
+        cbuf = (ctypes.c_char * len(buf)).from_buffer(buf)
+        _mm_check(winmm.midiOutGetDevCapsW(index, ctypes.cast(cbuf, c_void_p), len(buf)),
+                  "midiOutGetDevCapsW")
+    return _mm_caps_name(buf)
+
+
+def midiInGetDevName(index):
+    """Product name of MIDI input device ``index``."""
+    buf = bytearray(MIDIINCAPS_SIZE)
+    if _use_ffi:
+        _mm_check(_raw_midiInGetDevCapsW(index, buf, len(buf)), "midiInGetDevCapsW")
+    else:
+        cbuf = (ctypes.c_char * len(buf)).from_buffer(buf)
+        _mm_check(winmm.midiInGetDevCapsW(index, ctypes.cast(cbuf, c_void_p), len(buf)),
+                  "midiInGetDevCapsW")
+    return _mm_caps_name(buf)
+
+
+def _handle_from(buf):
+    return int.from_bytes(bytes(buf[:_PTR_SIZE]), "little")
+
+
+def midiOutOpen(index):
+    """Open MIDI output device ``index``. Returns an opaque handle."""
+    buf = bytearray(_PTR_SIZE)
+    if _use_ffi:
+        _mm_check(_raw_midiOutOpen(buf, index, 0, 0, CALLBACK_NULL), "midiOutOpen")
+        return _handle_from(buf)
+    h = c_void_p()
+    _mm_check(winmm.midiOutOpen(byref(h), index, None, None, CALLBACK_NULL), "midiOutOpen")
+    return h.value
+
+
+def midiOutShortMsg(handle, status, data1=0, data2=0):
+    """Send one short MIDI message.
+
+    Packed as winmm wants it: status in the low byte, then the two optional
+    data bytes. Callers pass the MIDI bytes; the packing stays here.
+    """
+    msg = (status & 0xFF) | ((data1 & 0xFF) << 8) | ((data2 & 0xFF) << 16)
+    if _use_ffi:
+        return _mm_check(_raw_midiOutShortMsg(handle, msg), "midiOutShortMsg")
+    return _mm_check(winmm.midiOutShortMsg(c_void_p(handle), msg), "midiOutShortMsg")
+
+
+def midiOutReset(handle):
+    """Silence every note on every channel. Call before closing."""
+    if _use_ffi:
+        return _mm_check(_raw_midiOutReset(handle), "midiOutReset")
+    return _mm_check(winmm.midiOutReset(c_void_p(handle)), "midiOutReset")
+
+
+def midiOutClose(handle):
+    if _use_ffi:
+        return _mm_check(_raw_midiOutClose(handle), "midiOutClose")
+    return _mm_check(winmm.midiOutClose(c_void_p(handle)), "midiOutClose")
+
+
+def midiInOpen(index, hwnd):
+    """Open MIDI input device ``index``, posting messages to ``hwnd``.
+
+    CALLBACK_WINDOW, deliberately: the OS queues MM_MIM_DATA to that window and
+    the caller drains it with PeekMessageW on its own thread. A function
+    callback would run on winmm's thread, which is not a safe place to enter a
+    Python interpreter from. Call midiInStart() before anything arrives.
+    """
+    buf = bytearray(_PTR_SIZE)
+    if _use_ffi:
+        _mm_check(_raw_midiInOpen(buf, index, hwnd or 0, 0, CALLBACK_WINDOW), "midiInOpen")
+        return _handle_from(buf)
+    h = c_void_p()
+    _mm_check(winmm.midiInOpen(byref(h), index, c_void_p(hwnd or 0), None, CALLBACK_WINDOW),
+              "midiInOpen")
+    return h.value
+
+
+def midiInStart(handle):
+    if _use_ffi:
+        return _mm_check(_raw_midiInStart(handle), "midiInStart")
+    return _mm_check(winmm.midiInStart(c_void_p(handle)), "midiInStart")
+
+
+def midiInStop(handle):
+    if _use_ffi:
+        return _mm_check(_raw_midiInStop(handle), "midiInStop")
+    return _mm_check(winmm.midiInStop(c_void_p(handle)), "midiInStop")
+
+
+def midiInReset(handle):
+    if _use_ffi:
+        return _mm_check(_raw_midiInReset(handle), "midiInReset")
+    return _mm_check(winmm.midiInReset(c_void_p(handle)), "midiInReset")
+
+
+def midiInClose(handle):
+    if _use_ffi:
+        return _mm_check(_raw_midiInClose(handle), "midiInClose")
+    return _mm_check(winmm.midiInClose(c_void_p(handle)), "midiInClose")
+
+
+def midi_unpack(lparam):
+    """Unpack an MM_MIM_DATA lParam into ``(status, data1, data2)``.
+
+    The driver expands running status, so every message carries its status
+    byte. Realtime bytes arrive as a status with both data bytes unused.
+    """
+    return (lparam & 0xFF, (lparam >> 8) & 0xFF, (lparam >> 16) & 0xFF)

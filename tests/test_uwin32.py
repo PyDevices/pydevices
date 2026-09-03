@@ -100,3 +100,84 @@ class Uwin32RGB565Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Uwin32MidiTests(unittest.TestCase):
+    """winmm MIDI bindings.
+
+    All Windows-only: uwin32 refuses to import off Windows by design, so even
+    the checks that are pure arithmetic -- message packing, the caps-name
+    offset -- cannot reach the code without it. Run them with a Windows
+    interpreter; under WSL they skip rather than pass, which is the honest
+    outcome and not the same thing as passing.
+    """
+
+
+    @unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+    def test_message_packing_is_documented_order(self):
+        # winmm wants status in the low byte, then the two data bytes. Getting
+        # this backwards produces valid-looking MIDI that means something else,
+        # which is the failure that does not announce itself.
+        import uwin32 as w
+
+        self.assertEqual(w.midi_unpack(0x00643C90), (0x90, 0x3C, 0x64))
+        self.assertEqual(w.midi_unpack(0x0000FA), (0xFA, 0x00, 0x00))
+
+    @unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+    def test_unpack_ignores_the_unused_high_byte(self):
+        import uwin32 as w
+
+        self.assertEqual(w.midi_unpack(0xFF643C90), (0x90, 0x3C, 0x64))
+
+    @unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+    def test_caps_name_decodes_utf16_and_stops_at_nul(self):
+        import uwin32 as w
+
+        buf = bytearray(w.MIDIOUTCAPS_SIZE)
+        name = "Espressif Device"
+        raw = name.encode("utf-16-le")
+        buf[w._MIDI_CAPS_NAME_OFF:w._MIDI_CAPS_NAME_OFF + len(raw)] = raw
+        self.assertEqual(w._mm_caps_name(buf), name)
+
+    @unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+    def test_caps_name_survives_a_full_length_field(self):
+        # 32 WCHARs with no terminator is legal; the decoder must not run off
+        # the end looking for one.
+        import uwin32 as w
+
+        buf = bytearray(w.MIDIINCAPS_SIZE)
+        name = "X" * 32
+        buf[w._MIDI_CAPS_NAME_OFF:w._MIDI_CAPS_NAME_OFF + 64] = name.encode("utf-16-le")
+        self.assertEqual(w._mm_caps_name(buf), name)
+
+    @unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+    def test_mm_check_raises_with_the_call_name(self):
+        import uwin32 as w
+
+        self.assertEqual(w._mm_check(0, "midiOutOpen"), 0)
+        with self.assertRaises(OSError) as caught:
+            w._mm_check(11, "midiOutOpen")
+        self.assertIn("midiOutOpen", str(caught.exception))
+
+    @unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+    def test_bindings_present(self):
+        import uwin32 as w
+
+        for name in (
+            "midiOutGetNumDevs", "midiOutGetDevName", "midiOutOpen",
+            "midiOutShortMsg", "midiOutReset", "midiOutClose",
+            "midiInGetNumDevs", "midiInGetDevName", "midiInOpen",
+            "midiInStart", "midiInStop", "midiInReset", "midiInClose",
+        ):
+            self.assertTrue(hasattr(w, name), name)
+
+    @unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+    def test_enumeration_agrees_with_itself(self):
+        # Every advertised device must yield a name; a count without a
+        # readable name means the caps offset is wrong.
+        import uwin32 as w
+
+        for i in range(w.midiOutGetNumDevs()):
+            self.assertIsInstance(w.midiOutGetDevName(i), str)
+        for i in range(w.midiInGetNumDevs()):
+            self.assertIsInstance(w.midiInGetDevName(i), str)
