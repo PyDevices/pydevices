@@ -2514,7 +2514,19 @@ def midiInGetNumDevs():
 
 
 def midiOutGetDevName(index):
-    """Product name of MIDI output device ``index``."""
+    """Product name of MIDI output device ``index``.
+
+    The device count is queried first, and not only to bounds-check.
+    winmm builds its device list lazily on the first ``GetNumDevs`` call, so
+    ``midiOutGetDevCapsW`` on a fresh process returns MMSYSERR_BADDEVICEID (2)
+    for an index that plainly exists. Observed 2026-09-03: a direct name
+    lookup failed, an enumeration loop then succeeded, and the same lookup
+    worked afterwards -- because the loop had called GetNumDevs. Priming it
+    here means a caller cannot hit that ordering by accident.
+    """
+    count = midiOutGetNumDevs()
+    if not 0 <= index < count:
+        raise ValueError("no MIDI output device {} (there are {})".format(index, count))
     buf = bytearray(MIDIOUTCAPS_SIZE)
     if _use_ffi:
         _mm_check(_raw_midiOutGetDevCapsW(index, buf, len(buf)), "midiOutGetDevCapsW")
@@ -2526,7 +2538,14 @@ def midiOutGetDevName(index):
 
 
 def midiInGetDevName(index):
-    """Product name of MIDI input device ``index``."""
+    """Product name of MIDI input device ``index``.
+
+    Counts first for the same reason as :func:`midiOutGetDevName` -- see there
+    for the lazy-enumeration quirk this works around.
+    """
+    count = midiInGetNumDevs()
+    if not 0 <= index < count:
+        raise ValueError("no MIDI input device {} (there are {})".format(index, count))
     buf = bytearray(MIDIINCAPS_SIZE)
     if _use_ffi:
         _mm_check(_raw_midiInGetDevCapsW(index, buf, len(buf)), "midiInGetDevCapsW")
