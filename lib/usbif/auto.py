@@ -64,6 +64,8 @@ def _midi_backend():
     """
     if sys.platform == "win32" and _module_available("uwin32"):
         return "win_midi"
+    if sys.platform in ("linux", "linux2"):
+        return "linux_midi"
     return None
 
 
@@ -79,6 +81,10 @@ def midi_ports():
         from .win_midi import ports
 
         return ports()
+    if name == "linux_midi":
+        from .linux_midi import ports
+
+        return ports()
     return ()
 
 
@@ -87,6 +93,10 @@ def open_midi(port):
     name = _midi_backend()
     if name == "win_midi":
         from .win_midi import open_port
+
+        return open_port(port)
+    if name == "linux_midi":
+        from .linux_midi import open_port
 
         return open_port(port)
     raise OSError(

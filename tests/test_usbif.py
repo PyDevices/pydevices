@@ -383,16 +383,22 @@ class TestMidiBackendSelection(unittest.TestCase):
             self.assertIn(port.direction, usbif.DIRECTIONS)
             self.assertEqual(usbif.check_direction(port.direction), port.direction)
 
-    @unittest.skipIf(sys.platform == "win32", "a MIDI backend exists on Windows")
     def test_open_midi_without_a_backend_says_so(self):
-        # The failure must name the situation, not raise ImportError from
-        # somewhere inside a backend that was never going to load.
+        # Windows and Linux both have backends now, so the no-backend path is
+        # reached by forcing it rather than by choosing a platform -- which is
+        # the honest way to test it and does not silently stop covering the
+        # case the day a third backend lands.
         from usbif import auto
 
-        self.assertEqual(auto.midi_ports(), ())
-        with self.assertRaises(OSError) as caught:
-            auto.open_midi("out:0")
-        self.assertIn("no MIDI backend", str(caught.exception))
+        original = auto._midi_backend
+        auto._midi_backend = lambda: None
+        try:
+            self.assertEqual(auto.midi_ports(), ())
+            with self.assertRaises(OSError) as caught:
+                auto.open_midi("out:0")
+            self.assertIn("no MIDI backend", str(caught.exception))
+        finally:
+            auto._midi_backend = original
 
 
 @unittest.skipUnless(sys.platform == "win32", "win_midi is Windows only")
@@ -473,3 +479,126 @@ class TestWindowsMidiBackend(unittest.TestCase):
             self.assertRaises(NotImplementedError, port.write, b"\xf0\x7e\x00\xf7")
         finally:
             port.close()
+
+
+def _make_asound(root, entries):
+    """Build a synthetic /proc/asound tree.
+
+    ``entries`` maps ``(card, device)`` to the body of its per-device proc
+    file. Exercised the same way the Linux USB backend is tested against a
+    synthetic sysfs: the assertions then hold on a laptop with a keyboard
+    plugged in, in CI with none, and under WSL where ALSA has no cards.
+    """
+    os.makedirs(root, exist_ok=True)
+    lines = ["  0: [ 0]   : control", "  1:        : sequencer"]
+    for (card, device) in entries:
+        lines.append("  4: [ {}- {}]: raw midi".format(card, device))
+        card_dir = "{}/card{}".format(root, card)
+        os.makedirs(card_dir, exist_ok=True)
+        with open("{}/midi{}".format(card_dir, device), "w") as handle:
+            handle.write(entries[(card, device)])
+    lines.append(" 33:        : timer")
+    with open(root + "/devices", "w") as handle:
+        handle.write("\n".join(lines) + "\n")
+    return root
+
+
+class TestLinuxMidiBackend(unittest.TestCase):
+    """ALSA rawmidi discovery, against a synthetic /proc/asound tree.
+
+    No libasound and no hardware: the backend reads kernel files, so a fake
+    tree exercises the whole discovery path exactly as the real one would.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_no_cards_is_an_empty_tuple_not_an_error(self):
+        # WSL and headless CI genuinely have no MIDI. That is an ordinary
+        # answer the caller branches on, not a failure.
+        from usbif.linux_midi import ports
+
+        root = _make_asound(self.tmp + "/asound", {})
+        self.assertEqual(ports(root), ())
+
+    def test_a_bidirectional_device_is_reported_once_per_direction(self):
+        # ALSA lets the two halves be opened independently, so a single INOUT
+        # record would force a caller wanting input to also hold an output.
+        from usbif.linux_midi import ports
+
+        root = _make_asound(self.tmp + "/asound", {
+            (0, 0): "DONNER DMK25Pro\n\nOutput 0\n  Tx bytes : 0\nInput 0\n  Rx bytes : 0\n",
+        })
+        found = ports(root)
+        self.assertEqual({p.direction for p in found}, {usbif.IN, usbif.OUT})
+        self.assertEqual({p.name for p in found}, {"DONNER DMK25Pro"})
+        self.assertEqual({p.id for p in found}, {"in:0:0", "out:0:0"})
+
+    def test_an_output_only_device_reports_one_direction(self):
+        from usbif.linux_midi import ports
+
+        root = _make_asound(self.tmp + "/asound", {
+            (1, 2): "Some Synth\n\nOutput 0\n  Tx bytes : 0\n",
+        })
+        found = ports(root)
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].direction, usbif.OUT)
+        self.assertEqual(found[0].id, "out:1:2")
+
+    def test_a_device_naming_neither_direction_is_assumed_bidirectional(self):
+        # Being unable to read the capability is not evidence it is absent.
+        # Reporting nothing would hide a working device; an open attempt is
+        # where an honest failure belongs.
+        from usbif.linux_midi import ports
+
+        root = _make_asound(self.tmp + "/asound", {(0, 0): "Mystery Device\n"})
+        self.assertEqual({p.direction for p in ports(root)}, {usbif.IN, usbif.OUT})
+
+    def test_several_cards_and_devices_are_all_found(self):
+        from usbif.linux_midi import ports
+
+        root = _make_asound(self.tmp + "/asound", {
+            (0, 0): "First\n\nOutput 0\n",
+            (1, 0): "Second\n\nInput 0\n",
+            (2, 3): "Third\n\nOutput 0\nInput 0\n",
+        })
+        self.assertEqual(
+            {p.id for p in ports(root)},
+            {"out:0:0", "in:1:0", "out:2:3", "in:2:3"})
+
+    def test_find_matches_a_name_substring(self):
+        from usbif.linux_midi import find
+
+        root = _make_asound(self.tmp + "/asound", {
+            (0, 0): "DONNER DMK25Pro\n\nOutput 0\nInput 0\n",
+            (1, 0): "Some Synth\n\nOutput 0\n",
+        })
+        self.assertEqual({p.id for p in find("donner", proc=root)},
+                         {"in:0:0", "out:0:0"})
+        self.assertEqual({p.id for p in find("donner", usbif.IN, proc=root)},
+                         {"in:0:0"})
+
+    def test_a_nameless_device_still_gets_an_identifying_label(self):
+        from usbif.linux_midi import ports
+
+        root = _make_asound(self.tmp + "/asound", {(3, 1): "\n\nOutput 0\n"})
+        self.assertEqual(ports(root)[0].name, "card 3 device 1")
+
+    def test_port_ids_carry_the_alsa_address(self):
+        from usbif.linux_midi import _split_id
+
+        self.assertEqual(_split_id("in:0:0"), ("in", 0, 0))
+        self.assertEqual(_split_id("out:2:3"), ("out", 2, 3))
+        self.assertRaises(ValueError, _split_id, "out:0")       # Windows form
+        self.assertRaises(ValueError, _split_id, "0:0")
+        self.assertRaises(ValueError, _split_id, "sideways:0:0")
+
+    def test_a_missing_proc_tree_is_empty_not_an_exception(self):
+        # A container with no /proc/asound at all must report nothing rather
+        # than raising out of a capability query.
+        from usbif.linux_midi import ports
+
+        self.assertEqual(ports(self.tmp + "/does-not-exist"), ())
