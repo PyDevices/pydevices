@@ -1441,3 +1441,160 @@ class TestUacAudioSelection(unittest.TestCase):
         packets, byte_count, dropped, starved, errors = device.stats()
         self.assertEqual((dropped, starved, errors), (0, 0, 0))
         device.close()
+
+
+def _uvc_blob():
+    """A synthetic UVC configuration descriptor, built rather than captured.
+
+    Built because the camera has not reached the bench yet, and a parser with
+    no test is worth less than no parser. Its shape follows the layout every
+    UVC 1.1 camera uses -- formats and frames on alt 0, bandwidth tiers on
+    alts 1..n -- so the structural claims this exercises (frames attach to the
+    preceding format, alts carry only packet sizes) hold for a real device
+    too. It is NOT a substitute for a real capture: byte-level surprises are
+    exactly what real hardware supplies, and this cannot.
+    """
+    def desc(*parts):
+        body = bytes(parts)
+        return bytes((len(body) + 1,)) + body
+
+    def le16(v):
+        return (v & 0xFF, (v >> 8) & 0xFF)
+
+    def le32(v):
+        return (v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF)
+
+    def frame(subtype, index, w, h, intervals, max_bytes):
+        return desc(0x24, subtype, index, 0x00, *le16(w), *le16(h),
+                    *le32(1000000), *le32(20000000), *le32(max_bytes),
+                    *le32(intervals[0]), len(intervals),
+                    *[b for i in intervals for b in le32(i)])
+
+    def interface(num, alt, nep, cls, sub):
+        return desc(0x04, num, alt, nep, cls, sub, 0x00, 0x00)
+
+    def endpoint(addr, attrs, mps, ival):
+        return desc(0x05, addr, attrs, *le16(mps), ival)
+
+    parts = [
+        desc(0x02, 0x00, 0x00, 0x02, 0x01, 0x00, 0x80, 0x32),   # CONFIGURATION
+        interface(0, 0, 1, 0x0E, 0x01),                          # VideoControl
+        desc(0x24, 0x01, 0x00, 0x01, 0x4D, 0x00, *le32(15000000), 0x00, 0x00),
+        interface(1, 0, 0, 0x0E, 0x02),                          # VS alt 0
+        desc(0x24, 0x01, 0x02, *le16(0x00DA), 0x81, 0x00, 0x02,
+             0x00, 0x00, 0x00, 0x01, 0x00, 0x00),                # VS_INPUT_HEADER
+        desc(0x24, 0x06, 0x01, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00),
+        frame(0x07, 1, 640, 480, [333333, 666666], 614400),
+        frame(0x07, 2, 320, 240, [333333], 153600),
+        desc(0x24, 0x04, 0x02, 0x01,
+             0x59, 0x55, 0x59, 0x32, 0x00, 0x00, 0x10, 0x00,     # "YUY2" GUID
+             0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71,
+             0x10, 0x01, 0x00, 0x00, 0x00, 0x00),
+        frame(0x05, 1, 320, 240, [333333], 153600),
+        interface(1, 1, 1, 0x0E, 0x02),                          # bandwidth tiers
+        endpoint(0x81, 0x05, 192, 1),
+        interface(1, 2, 1, 0x0E, 0x02),
+        endpoint(0x81, 0x05, 512, 1),
+        interface(1, 3, 1, 0x0E, 0x02),
+        endpoint(0x81, 0x05, 1023, 1),
+    ]
+    return b"".join(parts)
+
+
+class TestUvcDescriptors(unittest.TestCase):
+    def setUp(self):
+        from usbif import uvc
+
+        self.uvc = uvc
+        self.blob = _uvc_blob()
+
+    def test_recognises_a_video_streaming_interface(self):
+        self.assertTrue(self.uvc.has_video(self.blob))
+        self.assertFalse(self.uvc.has_video(b""))
+
+    def test_formats_carry_their_own_frames(self):
+        # The association is positional in UVC -- a frame descriptor has no
+        # back-reference to its format -- so getting this wrong silently
+        # attributes 640x480 to the wrong encoding.
+        found = self.uvc.formats(self.blob)
+        self.assertEqual([f.encoding for f in found], ["mjpeg", "YUY2"])
+        self.assertEqual([len(f.frames) for f in found], [2, 1])
+        self.assertEqual(found[1].bits_per_pixel, 16)
+
+    def test_frame_sizes_and_rates(self):
+        mjpeg = self.uvc.formats(self.blob)[0]
+        self.assertEqual([(f.width, f.height) for f in mjpeg.frames],
+                         [(640, 480), (320, 240)])
+        self.assertEqual(len(mjpeg.frames[0].intervals), 2)
+        self.assertAlmostEqual(self.uvc.fps(mjpeg.frames[0].intervals[0]),
+                               30.0, places=3)
+        self.assertAlmostEqual(self.uvc.fps(mjpeg.frames[0].intervals[1]),
+                               15.0, places=3)
+
+    def test_frames_are_not_read_from_the_bandwidth_alts(self):
+        # Formats live on alt 0 only. A parser that ignored the alt would
+        # find nothing extra here, so assert the count is exactly right.
+        self.assertEqual(sum(len(f.frames)
+                             for f in self.uvc.formats(self.blob)), 3)
+
+    def test_alt_settings_are_bandwidth_tiers_on_one_endpoint(self):
+        alts = self.uvc.alt_settings(self.blob)
+        self.assertEqual([a.alt for a in alts], [1, 2, 3])
+        self.assertEqual({a.endpoint for a in alts}, {0x81})
+        self.assertEqual([a.max_packet for a in alts], [192, 512, 1023])
+        self.assertEqual({a.transfer for a in alts}, {"isoc"})
+        self.assertEqual({a.per_frame for a in alts}, {1})
+
+    def test_alt_zero_contributes_no_endpoint(self):
+        self.assertNotIn(0, [a.alt for a in self.uvc.alt_settings(self.blob)])
+
+    def test_choose_prefers_the_largest_frame_then_the_fastest_rate(self):
+        found = self.uvc.formats(self.blob)
+        picked = self.uvc.choose(found)
+        self.assertIsNotNone(picked)
+        fmt, frame, interval = picked
+        self.assertEqual((frame.width, frame.height), (640, 480))
+        # 640x480 offers 30 and 15 fps; the faster one wins at equal size.
+        self.assertAlmostEqual(self.uvc.fps(interval), 30.0, places=3)
+
+    def test_choose_honours_an_explicit_encoding(self):
+        found = self.uvc.formats(self.blob)
+        picked = self.uvc.choose(found, encoding="YUY2")
+        self.assertIsNotNone(picked)
+        self.assertEqual(picked[0].encoding, "YUY2")
+        self.assertEqual((picked[1].width, picked[1].height), (320, 240))
+
+    def test_choose_honours_a_minimum_rate(self):
+        found = self.uvc.formats(self.blob)
+        self.assertIsNotNone(self.uvc.choose(found, min_fps=25))
+        self.assertIsNone(self.uvc.choose(found, min_fps=60))
+
+    def test_choose_returns_none_when_nothing_matches(self):
+        found = self.uvc.formats(self.blob)
+        self.assertIsNone(self.uvc.choose(found, width=1920))
+        self.assertIsNone(self.uvc.choose(found, encoding="H264"))
+
+    def test_alt_is_selected_from_the_negotiated_payload_not_a_guess(self):
+        # The regression this guards: selecting the alt from
+        # dwMaxVideoFrameBufferSize refuses every mode on a full-speed bus,
+        # because that field is a worst case. A real device answers PROBE
+        # with a payload size, and that is what picks the tier.
+        alts = self.uvc.alt_settings(self.blob)
+        self.assertEqual(self.uvc.alt_for_payload(alts, 100).max_packet, 192)
+        self.assertEqual(self.uvc.alt_for_payload(alts, 500).max_packet, 512)
+        self.assertEqual(self.uvc.alt_for_payload(alts, 1000).max_packet, 1023)
+        self.assertIsNone(self.uvc.alt_for_payload(alts, 4096))
+
+    def test_required_bytes_scales_with_rate(self):
+        frame = self.uvc.formats(self.blob)[0].frames[0]
+        at30 = self.uvc.required_packet_bytes(frame, 333333)
+        at15 = self.uvc.required_packet_bytes(frame, 666666)
+        self.assertGreater(at30, at15)
+        self.assertAlmostEqual(at30 / at15, 2.0, places=1)
+
+    def test_describe_is_a_single_line(self):
+        fmt = self.uvc.formats(self.blob)[0]
+        text = self.uvc.describe(fmt, fmt.frames[0])
+        self.assertIn("640x480", text)
+        self.assertIn("mjpeg", text)
+        self.assertNotIn("\n", text)
