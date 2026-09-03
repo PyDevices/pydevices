@@ -57,6 +57,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/multimer/win32.py" = "/lib/multimer/win32.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/__init__.py" = "/lib/usbif/__init__.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/auto.py" = "/lib/usbif/auto.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/hid_keyboard.py" = "/lib/usbif/hid_keyboard.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/linux_midi.py" = "/lib/usbif/linux_midi.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/linux_usb.py" = "/lib/usbif/linux_usb.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/usbif/native_usb.py" = "/lib/usbif/native_usb.py"

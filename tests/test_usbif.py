@@ -723,3 +723,128 @@ class TestLinuxMidiParity(MidiParityMixin, unittest.TestCase):
         from usbif import linux_midi
 
         return linux_midi
+
+
+class TestHidKeyboardDecoder(unittest.TestCase):
+    """HID boot reports to events.Key -- the policy layer M1 needs.
+
+    M1 promises a USB keyboard drives an app through the ordinary event
+    system, producing the same records an SDL keyboard produces. The host
+    stack delivers raw reports and is right to; this is where a report
+    becomes a keypress, so these assertions are the milestone's actual
+    contract rather than a convenience.
+    """
+
+    def setUp(self):
+        from usbif.hid_keyboard import KeyboardDecoder
+
+        self.d = KeyboardDecoder()
+
+    @staticmethod
+    def _report(mod=0, *usages):
+        body = list(usages) + [0] * (6 - len(usages))
+        return bytes([mod, 0] + body)
+
+    def test_a_press_produces_a_keydown_matching_sdl(self):
+        import events
+        import keys
+
+        (event,) = self.d.feed(self._report(0, 0x04))
+        self.assertEqual(event.type, events.KEYDOWN)
+        self.assertEqual(event.key, keys.K_a)          # SDL reports unshifted
+        self.assertEqual(event.name, keys.keyname(keys.K_a))
+        self.assertEqual(event.scancode, 0x04)         # the HID usage
+        self.assertIsNone(event.window)                # not from a display
+
+    def test_holding_a_key_repeats_nothing(self):
+        # A keyboard resends the same report while a key is held. Emitting a
+        # KEYDOWN each time would invent auto-repeat the hardware never
+        # reported, and sdldisplay explicitly drops OS auto-repeat to match
+        # the browser backends -- so inventing it here would break parity in
+        # the opposite direction.
+        self.d.feed(self._report(0, 0x04))
+        self.assertEqual(self.d.feed(self._report(0, 0x04)), ())
+
+    def test_release_produces_a_keyup(self):
+        import events
+
+        self.d.feed(self._report(0, 0x04))
+        (event,) = self.d.feed(self._report())
+        self.assertEqual(event.type, events.KEYUP)
+
+    def test_a_modifier_alone_still_produces_an_event(self):
+        # HID reports modifiers only as a bitmask, never in the usage array,
+        # so a naive decoder emits nothing at all for a Shift press. SDL emits
+        # a KEYDOWN for the modifier key itself.
+        import events
+        import keys
+
+        (event,) = self.d.feed(self._report(0x02))
+        self.assertEqual(event.type, events.KEYDOWN)
+        self.assertEqual(event.key, keys.K_LSHIFT)
+        self.assertEqual(event.mod & keys.KMOD_LSHIFT, keys.KMOD_LSHIFT)
+
+    def test_a_chord_arrives_in_sdl_order(self):
+        # modifier down, key down, key up, modifier up. An application
+        # reconstructing chords depends on never seeing the key before the
+        # modifier that qualifies it.
+        import events
+        import keys
+
+        seq = []
+        for report in (self._report(0x02), self._report(0x02, 0x04),
+                       self._report(0x02), self._report()):
+            seq.extend(self.d.feed(report))
+        self.assertEqual(
+            [(e.type, e.key) for e in seq],
+            [(events.KEYDOWN, keys.K_LSHIFT), (events.KEYDOWN, keys.K_a),
+             (events.KEYUP, keys.K_a), (events.KEYUP, keys.K_LSHIFT)])
+
+    def test_a_swapped_key_reads_up_then_down(self):
+        import events
+
+        self.d.feed(self._report(0, 0x04))
+        out = self.d.feed(self._report(0, 0x05))
+        self.assertEqual([e.type for e in out], [events.KEYUP, events.KEYDOWN])
+
+    def test_rollover_is_ignored_not_reported_as_six_keys(self):
+        # A keyboard fills every slot with ErrorRollOver when more keys are
+        # held than the report carries. Six bogus keypresses would be garbage;
+        # treating it as "nothing held" would release keys still physically
+        # down. The held set must survive untouched so the eventual release
+        # still balances.
+        self.d.feed(self._report(0, 0x04))
+        self.assertEqual(self.d.feed(self._report(0, 1, 1, 1, 1, 1, 1)), ())
+        self.assertEqual(self.d.held, frozenset({0x04}))
+
+    def test_digit_row_maps_with_zero_last(self):
+        # HID orders the digits 1-9 then 0; ASCII orders 0-9. This is the
+        # off-by-one that silently turns every digit into its neighbour.
+        from usbif.hid_keyboard import keycode
+
+        self.assertEqual(keycode(0x1E), ord("1"))
+        self.assertEqual(keycode(0x26), ord("9"))
+        self.assertEqual(keycode(0x27), ord("0"))
+
+    def test_letters_and_function_keys_are_contiguous(self):
+        import keys
+        from usbif.hid_keyboard import keycode
+
+        self.assertEqual(keycode(0x04), keys.K_a)
+        self.assertEqual(keycode(0x1D), keys.K_a + 25)   # z
+        self.assertEqual(keycode(0x3A), keys.K_F1)
+        self.assertEqual(keycode(0x45), keys.K_F1 + 11)  # F12
+
+    def test_an_unmapped_usage_is_reported_not_dropped(self):
+        # A key this table does not know must still produce an event carrying
+        # its scancode, so an application can handle it and a gap is visible
+        # rather than silent.
+        import events
+
+        (event,) = self.d.feed(self._report(0, 0x68))   # F13, unmapped
+        self.assertEqual(event.type, events.KEYDOWN)
+        self.assertIsNone(event.key)
+        self.assertEqual(event.scancode, 0x68)
+
+    def test_a_short_report_is_ignored(self):
+        self.assertEqual(self.d.feed(b"\x00\x00"), ())
