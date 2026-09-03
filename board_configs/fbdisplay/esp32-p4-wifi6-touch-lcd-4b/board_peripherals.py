@@ -14,7 +14,7 @@ _LRCK = 10
 _DSDIN = 9
 _PA_CTRL = 53
 
-from audiodev import AudioFormat, AudioSession, queue_bytes
+from audiodev import AudioFormat, AudioSession, check_latency, queue_bytes
 from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput
 
 # 24 kHz mono PCM. Firmware has no I2S mck= — PWM supplies MCLK.
@@ -158,6 +158,15 @@ def audio_out(*, latency=None, queue_ms=None):
     # full-size ring simply guarantees writes never block. Shrinking the ring
     # for latency="low" only made every service call block against the DMA
     # (measured 88-160ms per call on this board - the interaction stutter).
+    # Validate the profile even though the ring no longer varies with it.
+    # queue_bytes() used to do this as a side effect of being handed `latency`;
+    # passing None to stop it shrinking the ring also stopped it checking, so
+    # every unknown value -- "fast", "nonsense" -- was silently accepted while
+    # only "low" did anything. That contradicts this function's own docstring,
+    # and silently accepting a latency keyword promises tuning that does not
+    # happen. The check is explicit here so it cannot be lost again by
+    # changing what queue_bytes is asked for.
+    check_latency(latency)
     ibuf = queue_bytes(_FORMAT, None, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
     transport = I2SPCMOutput(
         lambda: _output_stream(ibuf),
