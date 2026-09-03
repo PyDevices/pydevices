@@ -145,16 +145,29 @@ class ESP32P4AudioTests(unittest.TestCase):
             self.assertEqual(20000, device.transport.i2s.options["ibuf"])
             device.close()
 
-    def test_low_latency_shortens_the_i2s_ring_buffer(self):
+    def test_low_latency_shortens_the_input_ring_but_not_the_output_ring(self):
+        # This asserted 4800 for BOTH directions until 5f52477. On the output
+        # side that is retired, and deliberately: the ring is a physical
+        # ceiling, not the latency governor. I2SPCMOutput now reports
+        # queued_size() over the DMA's exactly-realtime drain, so the pump's
+        # lookahead governs note-to-sound latency and a full-size ring only
+        # guarantees writes never block. Shrinking it for latency="low" made
+        # every service call block against the DMA (88-160 ms per call) and
+        # wedged the device outright, because the ring fell below the pump's
+        # own queue target. latency="low" now means a 10 ms chunk with a
+        # 4-chunk (~50 ms) schedule, against a measured 28 ms worst stall.
         device = self.board.audio_out(latency="low")
         device.open()
-        # 100ms at 24kHz mono 16-bit.
-        self.assertEqual(4800, device.transport.i2s.options["ibuf"])
+        self.assertEqual(20000, device.transport.i2s.options["ibuf"])
         device.close()
 
+        # The input side is unchanged and still shortens: capture has no pump
+        # to govern latency, so its ring IS the latency. Kept rather than
+        # dropped with the output assertion -- 5f52477 touched audio_out only,
+        # and deleting this half would retire a contract nothing changed.
         capture = self.board.audio_in(latency="low")
         capture.open()
-        self.assertEqual(4800, capture.i2s.options["ibuf"])
+        self.assertEqual(4800, capture.i2s.options["ibuf"])  # 100ms @ 24kHz mono 16-bit
         capture.close()
 
     def test_explicit_queue_ms_wins_but_cannot_starve_the_dma(self):

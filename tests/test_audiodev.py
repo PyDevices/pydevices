@@ -229,7 +229,17 @@ class I2SAdapterTests(unittest.TestCase):
         self.assertEqual(out.write(b"\x02\x00\x03\x00"), 4)
         self.assertEqual(bytes(i2s.written), b"\x02\x00\x03\x00")
         self.assertEqual(out.service(), None)
-        self.assertEqual(out.queued_size(), 0)
+        # queued_size() used to be inherited as a constant 0, because
+        # machine.I2S cannot report its own ring fill. That was not a fact
+        # about the queue but a missing measurement, and it silently disabled
+        # the sample pump's backpressure entirely: every service rendered its
+        # full catch-up allowance and paid for it inside blocking writes at
+        # realtime speed (88-160 ms per service on the ESP32-P4). 5f52477
+        # replaced it with a software byte-clock -- bytes written minus
+        # rate x elapsed -- because DMA consumption is exactly realtime. So
+        # the queue now reports what was actually written, and asserting 0
+        # here would be re-asserting the absent measurement.
+        self.assertEqual(out.queued_size(), 4)
         out.close()
         self.assertTrue(i2s.closed)
 
