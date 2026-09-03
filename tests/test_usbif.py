@@ -1150,3 +1150,140 @@ class TestUacDescriptorParsing(unittest.TestCase):
         text = uac.describe(stream)
         for fragment in ("48000", "1ch", "16bit", "in"):
             self.assertIn(fragment, text)
+
+
+# --- Real descriptors, captured from hardware -----------------------------
+#
+# A synthetic blob tests the parser against the author's understanding of the
+# spec. These test it against what devices actually send, which is not always
+# the same thing -- and they cost nothing to keep, so a future change that
+# breaks a real device breaks a test instead.
+
+# Captured 2026-09-03 from real hardware (08bb:2900), 1191 bytes.
+_CODEC = bytes.fromhex(
+    "0902a70404010080320904000000010100000a240100013e000201020c240201010100020300"
+    "00000924030201030003000a2406030101010202000c24020401020002030000000924030501"
+    "0100040009040100000102000009040101010102000007240101000100112402010202100300"
+    "7d0044ac0080bb0009050209c000010000072501000200020904010201010200000724010100"
+    "01001124020101021003007d0044ac0080bb0009050209600001000007250100020002090401"
+    "030101020000072401010001001124020102010803007d0044ac0080bb000905020960000100"
+    "0007250100020002090401040101020000072401010001001124020101010803007d0044ac00"
+    "80bb000905020930000100000725010002000209040105010102000007240101000200112402"
+    "0102010803007d0044ac0080bb00090502096000010000072501000200020904010601010200"
+    "00072401010002001124020101010803007d0044ac0080bb0009050209300001000007250100"
+    "020002090402000001020000090402010101020000072401050001000b2402010202100180bb"
+    "0009058405c40001000007250100020000090402020101020000072401050001000b24020101"
+    "02100180bb000905840562000100000725010002000009040203010102000007240105000100"
+    "0b2402010202100144ac0009058405b400010000072501000200000904020401010200000724"
+    "01050001000b2402010102100144ac00090584055a0001000007250100020000090402050101"
+    "020000072401050001000b24020102021001007d000905840584000100000725010002000009"
+    "0402060101020000072401050001000b24020101021001007d00090584054200010000072501"
+    "00020000090402070101020000072401050001000b24020102021001225600090584055c0001"
+    "000007250100020000090402080101020000072401050001000b240201010210012256000905"
+    "84052e0001000007250100020000090402090101020000072401050001000b24020102021001"
+    "803e00090584054400010000072501000200000904020a0101020000072401050001000b2402"
+    "0101021001803e00090584052200010000072501000200000904020b01010200000724010500"
+    "01000b24020102010801803e00090584052200010000072501000200000904020c0101020000"
+    "072401050001000b24020101010801803e00090584051100010000072501000200000904020d"
+    "0101020000072401050001000b24020102010801401f00090584051200010000072501000200"
+    "000904020e0101020000072401050001000b24020101010801401f0009058405090001000007"
+    "2501000200000904020f0101020000072401050001000b24020102021001112b000905840d30"
+    "0001000007250100020000090402100101020000072401050001000b24020101021001112b00"
+    "0905840d180001000007250100020000090402110101020000072401050001000b2402010201"
+    "0801112b000905840d180001000007250100020000090402120101020000072401050001000b"
+    "24020101010801112b000905840d0c0001000007250100020000090403000103000000092100"
+    "010001221f000705850301000a"
+)
+
+# Captured 2026-09-03 from real hardware (08bb:2902), 153 bytes.
+_PNP_MIC = bytes.fromhex(
+    "0902990003010080320904000000010100000924010001370001010c24020201020001010000"
+    "0009240307010100080007240508010a000924060a02014300000924060d0201030000090401"
+    "000001020000090401010101020000072401070101000e2402010102100280bb0044ac000905"
+    "8209640001000007250101000000090402000103000000092100010001223c00070587030400"
+    "02"
+)
+
+
+class TestUacRealDescriptors(unittest.TestCase):
+    """The parser against two real USB audio devices.
+
+    A Burr-Brown/TI CODEC with 24 alternate settings across both directions,
+    and a single-format C-Media microphone. Between them they cover the shapes
+    a synthetic fixture is least likely to imagine: many alts on one
+    interface, both directions on one device, all three synchronisation types,
+    and 8-bit as well as 16-bit formats.
+    """
+
+    def test_the_codec_offers_both_directions(self):
+        from usbif import uac
+
+        found = uac.streams(_CODEC)
+        self.assertTrue(any(s.direction == uac.OUT for s in found))
+        self.assertTrue(any(s.direction == uac.IN for s in found))
+
+    def test_the_codec_output_is_found_at_cd_quality_and_better(self):
+        from usbif import uac
+
+        found = uac.streams(_CODEC)
+        best = uac.choose(found, uac.OUT)
+        self.assertEqual(best.channels, 2)
+        self.assertEqual(best.bits, 16)
+        self.assertIn(48000, best.rates)
+        self.assertIn(44100, best.rates)
+
+    def test_every_codec_stream_is_isochronous_with_a_real_endpoint(self):
+        from usbif import uac
+
+        for stream in uac.streams(_CODEC):
+            self.assertIsNotNone(stream.endpoint)
+            self.assertGreater(stream.max_packet, 0)
+            self.assertIn(stream.sync, ("async", "adaptive", "sync", "none"))
+
+    def test_the_codec_input_and_output_use_different_interfaces(self):
+        # Two directions on one device means two AudioStreaming interfaces,
+        # and a parser that keyed on interface alone would collapse them.
+        from usbif import uac
+
+        found = uac.streams(_CODEC)
+        ins = {s.interface for s in found if s.direction == uac.IN}
+        outs = {s.interface for s in found if s.direction == uac.OUT}
+        self.assertTrue(ins)
+        self.assertTrue(outs)
+        self.assertFalse(ins & outs)
+
+    def test_alt_settings_are_distinct_and_none_is_zero(self):
+        from usbif import uac
+
+        for interface in (1, 2):
+            alts = [s.alt for s in uac.streams(_CODEC) if s.interface == interface]
+            self.assertEqual(len(alts), len(set(alts)))
+            self.assertNotIn(0, alts)
+
+    def test_the_microphone_is_input_only_at_one_format(self):
+        from usbif import uac
+
+        found = uac.streams(_PNP_MIC)
+        self.assertEqual(len(found), 1)
+        stream = found[0]
+        self.assertEqual(stream.direction, uac.IN)
+        self.assertEqual(stream.channels, 1)
+        self.assertEqual(stream.bits, 16)
+        self.assertEqual(set(stream.rates), {48000, 44100})
+        self.assertIsNone(uac.choose(found, uac.OUT))
+
+    def test_both_devices_are_recognised_as_audio(self):
+        from usbif import uac
+
+        self.assertTrue(uac.has_audio(_CODEC))
+        self.assertTrue(uac.has_audio(_PNP_MIC))
+
+    def test_choosing_an_unavailable_rate_returns_none_rather_than_guessing(self):
+        # The mic offers 44100 and 48000. Asking for 96000 must fail rather
+        # than silently returning the nearest, which would start a stream at a
+        # rate the caller did not ask for.
+        from usbif import uac
+
+        found = uac.streams(_PNP_MIC)
+        self.assertIsNone(uac.choose(found, uac.IN, rate=96000))
+        self.assertIsNotNone(uac.choose(found, uac.IN, rate=44100))
