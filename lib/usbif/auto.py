@@ -54,7 +54,48 @@ def host(**kwargs):
     return NullHost()
 
 
-__all__ = ("host", "select_backend")
+def _midi_backend():
+    """Module name of the MIDI backend for this platform, or None.
+
+    Deliberately separate from :func:`select_backend`. The USB *host* role and
+    the OS *MIDI* service are different questions with different answers: a
+    Windows box has no host role to offer but does have MIDI ports, and a board
+    with a full host stack may have no OS MIDI service at all.
+    """
+    if sys.platform == "win32" and _module_available("uwin32"):
+        return "win_midi"
+    return None
+
+
+def midi_ports():
+    """Every MIDI port this platform offers, as ``MidiPortInfo`` records.
+
+    An empty tuple is a valid and common answer, not an error -- the same
+    reasoning as ``capabilities()`` returning an empty frozenset. Callers
+    branch on what came back rather than guarding an import.
+    """
+    name = _midi_backend()
+    if name == "win_midi":
+        from .win_midi import ports
+
+        return ports()
+    return ()
+
+
+def open_midi(port):
+    """Open a MIDI port by ``MidiPortInfo`` or id, using this platform's backend."""
+    name = _midi_backend()
+    if name == "win_midi":
+        from .win_midi import open_port
+
+        return open_port(port)
+    raise OSError(
+        "no MIDI backend on this platform; usbif.auto.midi_ports() reports "
+        "what is available and returns an empty tuple when nothing is"
+    )
+
+
+__all__ = ("host", "midi_ports", "open_midi", "select_backend")
 
 
 def device(**kwargs):

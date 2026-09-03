@@ -360,3 +360,116 @@ class TestMidiContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMidiBackendSelection(unittest.TestCase):
+    """``usbif.auto``'s MIDI half, which must be safe to call anywhere.
+
+    These run on every platform on purpose: the contract's promise is that a
+    program asks what is available and branches on the answer, rather than
+    guarding an import. If that promise holds, these assertions hold with no
+    MIDI hardware and no Windows.
+    """
+
+    def test_midi_ports_is_always_a_tuple(self):
+        from usbif import auto
+
+        self.assertIsInstance(auto.midi_ports(), tuple)
+
+    def test_every_reported_port_has_a_valid_direction(self):
+        from usbif import auto
+
+        for port in auto.midi_ports():
+            self.assertIn(port.direction, usbif.DIRECTIONS)
+            self.assertEqual(usbif.check_direction(port.direction), port.direction)
+
+    @unittest.skipIf(sys.platform == "win32", "a MIDI backend exists on Windows")
+    def test_open_midi_without_a_backend_says_so(self):
+        # The failure must name the situation, not raise ImportError from
+        # somewhere inside a backend that was never going to load.
+        from usbif import auto
+
+        self.assertEqual(auto.midi_ports(), ())
+        with self.assertRaises(OSError) as caught:
+            auto.open_midi("out:0")
+        self.assertIn("no MIDI backend", str(caught.exception))
+
+
+@unittest.skipUnless(sys.platform == "win32", "win_midi is Windows only")
+class TestWindowsMidiBackend(unittest.TestCase):
+    """The winmm backend. Windows-only: it imports uwin32 at module level."""
+
+    def test_message_lengths_cover_every_status_class(self):
+        from usbif.win_midi import _msg_len
+
+        self.assertEqual(_msg_len(0x90), 2)   # note-on
+        self.assertEqual(_msg_len(0x80), 2)   # note-off
+        self.assertEqual(_msg_len(0xB0), 2)   # control change
+        self.assertEqual(_msg_len(0xE0), 2)   # pitch bend
+        self.assertEqual(_msg_len(0xC0), 1)   # program change
+        self.assertEqual(_msg_len(0xD0), 1)   # channel pressure
+        self.assertEqual(_msg_len(0xF2), 2)   # song position
+        self.assertEqual(_msg_len(0xF3), 1)   # song select
+        self.assertEqual(_msg_len(0xFA), 0)   # realtime start
+        self.assertEqual(_msg_len(0xF8), 0)   # realtime clock
+
+    def test_port_ids_namespace_the_two_directions(self):
+        # winmm numbers inputs and outputs independently, so a bare index is
+        # ambiguous. Mixing them up must fail a lookup, not open the wrong
+        # device.
+        from usbif.win_midi import _split_id
+
+        self.assertEqual(_split_id("out:3"), ("out", 3))
+        self.assertEqual(_split_id("in:0"), ("in", 0))
+        self.assertRaises(ValueError, _split_id, "3")
+        self.assertRaises(ValueError, _split_id, "sideways:1")
+
+    def test_ports_are_well_formed(self):
+        from usbif import win_midi
+
+        for port in win_midi.ports():
+            self.assertIn(port.direction, (usbif.IN, usbif.OUT))
+            self.assertIsInstance(port.name, str)
+            self.assertRegex(port.id, r"^(out|in):\d+$")
+
+    def test_find_matches_on_a_name_substring(self):
+        # Names survive reboots; indices do not. Substring matching is what
+        # lets a caller name a device once and keep working.
+        from usbif import win_midi
+
+        for port in win_midi.ports():
+            if not port.name:
+                continue
+            fragment = port.name.split()[0]
+            self.assertTrue(any(p.id == port.id for p in win_midi.find(fragment)))
+            break
+
+    def test_output_write_handles_running_status(self):
+        # A forwarded 5-pin stream carries running status, and winmm needs
+        # every message expanded. Dropping the second message here would look
+        # like a device that ignored it.
+        from usbif import win_midi
+
+        outs = win_midi.find("", usbif.OUT)
+        if not outs:
+            self.skipTest("no MIDI output device on this machine")
+        port = win_midi.open_port(outs[0])
+        try:
+            self.assertEqual(port.write(b"\x90\x3c\x00"), 3)
+            self.assertEqual(port.write(b"\x90\x3c\x00\x3e\x00"), 5)
+            self.assertRaises(OSError, port.read, bytearray(8))
+        finally:
+            port.close()
+        self.assertFalse(port.is_open)
+
+    def test_sysex_raises_rather_than_vanishing(self):
+        from usbif import win_midi
+
+        outs = win_midi.find("", usbif.OUT)
+        if not outs:
+            self.skipTest("no MIDI output device on this machine")
+        port = win_midi.open_port(outs[0])
+        try:
+            self.assertRaises(NotImplementedError, port.write, b"\xf0\x7e\x00\xf7")
+        finally:
+            port.close()
