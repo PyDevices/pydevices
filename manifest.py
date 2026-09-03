@@ -14,9 +14,9 @@ matters: MicroPython ships ``mip`` in firmware, and ``utils/mip.py`` raises
 ImportError if the search order ever lets it shadow that.
 
 Note this is not a freeze manifest -- the target paths are prefixed, so frozen
-modules would import as ``lib.appdev`` rather than ``appdev``. Freezing the same
-tree is what ``cmods/manifest-micropython.py`` does, via each component repo's
-own ``manifest.py``.
+modules would import as ``lib.appdev`` rather than ``appdev``. Nor does the
+org's interpreter build freeze this tree: hosts install it with ``mip``, so
+what runs is always the published or staged code, never a build-time snapshot.
 """
 
 if 0:

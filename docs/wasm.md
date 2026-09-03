@@ -1,7 +1,7 @@
 # Direct MicroPython WebAssembly
 
 The direct browser runtime is a reproducible MicroPython v1.28.0 WebAssembly
-variant built by the sibling `cmods` repository. Its compiled `_wasm_bridge`
+variant built by the org's aggregator workspace. Its compiled `_wasm_bridge`
 owns browser integration; Python never imports `js`, uses DOM proxies, or
 receives browser objects.
 

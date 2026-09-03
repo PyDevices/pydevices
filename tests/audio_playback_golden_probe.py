@@ -6,14 +6,14 @@
 ``test_audio_playback_golden.py`` runs this under every ``micropython``/
 ``circuitpython`` interpreter it finds on PATH and byte-diffs the resulting
 WAV files when more than one is present -- this is the DSP-parity discipline
-from ``cmods/audioif/docs/upstream-diff.md`` applied to the
+from ``audioif/docs/upstream-diff.md`` applied to the
 audiodev side of the bridge: a real ``synthio``/``audiomixer`` script,
 rendered through the real ``AudioOut`` pump, over a real (WAV-file) transport.
 
 Needs the ``audioif`` usermod (``synthio``, ``audiomixer``,
 ``audiocore``) built into the interpreter -- this repo's own
 ``micropython``/``micropython.exe``/``circuitpython`` on PATH already are
-(see ``build_interpreters.sh`` in the ``cmods`` workspace). Prints
+(see ``build_interpreters.sh`` in the org's aggregator workspace). Prints
 ``GOLDEN OK`` and exits 0 on success.
 
 Drives ``AudioOut.service()`` with a fake, manually-advanced clock rather

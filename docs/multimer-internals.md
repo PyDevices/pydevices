@@ -41,11 +41,11 @@ When running on **CPython** (Linux/Windows) or **MicroPython Unix** (Linux), the
 * No C compilation or custom binary build is needed.
 * Timer ticks and window pump hooks can be called directly from Python code.
 
-### 2. Compiled User C Module (`displayif` / `cmods`)
+### 2. Compiled User C Module (`displayif`)
 When running on interpreters **without FFI** (such as CircuitPython, or a custom
 MicroPython build that omits `ffi`):
 * Python cannot load DLLs or shared libraries dynamically.
-* The [cmods](https://github.com/PyDevices/cmods) workspace compiles `displayif` directly into the interpreter binary as a native C module (`usdl2`).
+* The org's [optional aggregator workspace](https://github.com/PyDevices/cmods) compiles `displayif` directly into the interpreter binary as a native C module (`usdl2`).
 * Python code imports `usdl2` as a built-in module, exposing identical SDL function signatures without requiring runtime FFI.
 
 ---
