@@ -9,6 +9,17 @@ from urllib.parse import urlencode
 
 RUNTIMES = ("wasm", "pyodide")
 
+# Present in the direct-WebAssembly runtime without being installed: compiled
+# in as a usermod (displayif, audioif, pygraphics, lvgl, usdl2), frozen from
+# the aggregator's manifest (palettes), or installed unconditionally by every
+# host as part of pydevices-desktop (appdev, displaydev, multimer,
+# board_config, display_driver).
+#
+# pdwidgets was frozen here until 2026-09-04, when it left the aggregator to
+# win back flash on a 3.5 MB ESP32 partition. It is pure Python and it is in
+# the MIP index, so it now installs like any other dependency. A name in this
+# set that is not really in the runtime fails as an ImportError in the
+# browser, with nothing in the build going red.
 _DIRECT_BUILTINS = frozenset(
     {
         "appdev",
@@ -19,7 +30,6 @@ _DIRECT_BUILTINS = frozenset(
         "lvgl",
         "multimer",
         "palettes",
-        "pdwidgets",
         "pydevices-lvgl",
         "pygraphics",
         "usdl2",
