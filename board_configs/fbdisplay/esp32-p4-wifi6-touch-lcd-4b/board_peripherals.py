@@ -221,10 +221,37 @@ def sdcard():
         return SDCard(slot=0)
 
 
-def camera():
-    raise NotImplementedError(
-        "MIPI CSI camera needs a native camera module in firmware; no single-file driver"
-    )
+# MIPI-CSI camera control shares the panel's I2C bus (GPIO7/8, alongside
+# touch, the ES8311 and the ES7210). The board exposes no reset, power-down
+# or XCLK pin for the camera connector, so the module's defaults stand.
+_CAM_SDA = 7
+_CAM_SCL = 8
+
+
+def camera(**kwargs):
+    """MIPI-CSI camera on the panel's camera connector.
+
+    Any ``cameraif.Camera`` keyword passes straight through, so a caller can
+    pick a format, set exposure and gain, or turn on the sensor's test
+    pattern without this function growing a parameter per feature::
+
+        cam = boarddev.camera(exposure=400, gain=8)
+        cam = boarddev.camera(test_pattern=True)   # proves the MIPI link
+
+    The board facts -- which pins the SCCB bus is on -- are supplied here
+    because that is what this file is for. cameraif itself knows nothing
+    about any board, which is what lets the same module drive a different
+    camera on different wiring.
+    """
+    import cameraif
+
+    if not cameraif.available():
+        raise NotImplementedError(
+            "cameraif is not in this firmware, or this is not an ESP32-P4"
+        )
+    kwargs.setdefault("sda", _CAM_SDA)
+    kwargs.setdefault("scl", _CAM_SCL)
+    return cameraif.Camera(**kwargs)
 
 
 def radio():
