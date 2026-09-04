@@ -43,6 +43,30 @@ class TestWasmCli(unittest.TestCase):
             resolve_dependencies(["palettes", "custom"], "wasm"), ["custom"]
         )
 
+    def test_every_first_party_dep_is_prefixed_for_pyodide(self):
+        # MIP serves `audioinstruments`; the wheel on the index is
+        # `pydevices-audioinstruments`. A first-party name missing from
+        # _WHEEL_REWRITE passes through unchanged and micropip then looks for
+        # a project that does not exist -- the failure drum_machine hit. Any
+        # new first-party package belongs in both this list and the table.
+        first_party = [
+            "audioeffects",
+            "audioif",
+            "audioinstruments",
+            "lvgl",
+            "palettes",
+            "pdwidgets",
+            "pygraphics",
+        ]
+        for name in first_party:
+            with self.subTest(dep=name):
+                resolved = resolve_dependencies([name], "pyodide")
+                self.assertTrue(resolved, f"{name} resolved to nothing")
+                self.assertTrue(
+                    resolved[0].startswith("pydevices-"),
+                    f"{name} -> {resolved[0]}, which is not a wheel name",
+                )
+
     def test_find_script_prefers_cwd_over_workspace_examples(self):
         # `wasm.py -m foo` should behave like real `micropython -m foo`,
         # where cwd (the empty sys.path entry) is searched before installed
