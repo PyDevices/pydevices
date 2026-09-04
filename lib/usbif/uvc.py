@@ -204,21 +204,27 @@ def formats(blob):
                 default_index = body[22] if length > 22 else 1
             else:
                 encoding, bpp, default_index = "frame-based", 0, 0
-            pending = UvcFormat(
-                interface=cur_itf, index=body[3], encoding=encoding,
-                bits_per_pixel=bpp, default_frame_index=default_index,
-                frames=[],
-            )
+            # Fields held loose until the frames that follow are all in.
+            # MicroPython's namedtuple has no _replace(), so a record cannot
+            # be built now and completed later -- it has to be built once,
+            # complete. (CPython's does, which is exactly why the desktop
+            # tests were happy with the version that could not run on a board.)
+            pending = [cur_itf, body[3], encoding, bpp, default_index, []]
             found.append(pending)
         elif subtype in (VS_FRAME_MJPEG, VS_FRAME_UNCOMPRESSED):
             if pending is None:
                 continue
             frame = _frame(body, length)
             if frame is not None:
-                pending.frames.append(frame)
-    # Freeze the frame lists now that they are complete, so a returned record
-    # cannot be mutated by a later parse of the same blob.
-    return tuple(f._replace(frames=tuple(f.frames)) for f in found)
+                pending[5].append(frame)
+    # Built now that the frame lists are complete, and with the frames frozen
+    # so a returned record cannot be mutated by a later parse of the blob.
+    return tuple(
+        UvcFormat(interface=f[0], index=f[1], encoding=f[2],
+                  bits_per_pixel=f[3], default_frame_index=f[4],
+                  frames=tuple(f[5]))
+        for f in found
+    )
 
 
 def alt_settings(blob):
