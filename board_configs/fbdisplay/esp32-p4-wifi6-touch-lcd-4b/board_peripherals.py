@@ -224,8 +224,16 @@ def sdcard():
 # MIPI-CSI camera control shares the panel's I2C bus (GPIO7/8, alongside
 # touch, the ES8311 and the ES7210). The board exposes no reset, power-down
 # or XCLK pin for the camera connector, so the module's defaults stand.
+#
+# Sharing means sharing the *bus object*, not just the pins. board_config
+# already opened this bus as machine.I2C(1, ...) for the GT911, so the port
+# is named here and cameraif attaches to what is already there. Letting it
+# open its own master on the same two pins is not an error anyone reports:
+# both peripherals reach the wires through the pin matrix, the camera works
+# perfectly, and the touchscreen then times out on every read.
 _CAM_SDA = 7
 _CAM_SCL = 8
+_CAM_I2C_PORT = 1       # the port board_config's machine.I2C(1, ...) opened
 
 
 def camera(**kwargs):
@@ -251,6 +259,7 @@ def camera(**kwargs):
         )
     kwargs.setdefault("sda", _CAM_SDA)
     kwargs.setdefault("scl", _CAM_SCL)
+    kwargs.setdefault("i2c", _CAM_I2C_PORT)
     return cameraif.Camera(**kwargs)
 
 
