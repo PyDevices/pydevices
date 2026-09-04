@@ -27,13 +27,30 @@ class CH422G:
     OUT = Pin.OUT
     IN = Pin.IN
 
-    def __init__(self, i2c, address=0x20):
+    def __init__(self, i2c, address=0x20, initial=0xFF):
+        """``initial`` is the IO0..IO7 output state written at construction.
+
+        It exists because the default of all-high is not safe on every board.
+        These pins drive resets, chip selects and analog multiplexers, and a
+        board that wires a mux here gets it thrown the moment the expander is
+        constructed -- before any board config has had a chance to say what it
+        wanted. On the Waveshare ESP32-S3-Touch-LCD-4.3 that silently routes
+        the USB-C connector to the CAN transceiver, so the board's USB simply
+        stops existing with no error anywhere.
+
+        Writing the board's intended state *here* rather than correcting it
+        afterwards also closes the window in between, which matters when the
+        pin controls something already running.
+
+        All-high remains the default, so boards that do not pass ``initial``
+        behave exactly as before.
+        """
         # ``address`` kept for API parity with other expanders; CH422G ignores it.
         self.i2c = i2c
         self.address = address
         self._wr_set = 0x01  # IO_OE default on
         self._wr_oc = 0x0F
-        self._wr_io = 0xFF
+        self._wr_io = initial & 0xFF
         self.enable_all_io_output()
         self._write_outputs()
 

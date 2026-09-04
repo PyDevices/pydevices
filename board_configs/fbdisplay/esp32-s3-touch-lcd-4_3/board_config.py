@@ -25,10 +25,27 @@ _TP_RST = 1
 _LCD_BL = 2
 _LCD_RST = 3
 _TP_INT = 4
+_USB_SEL = 5
 
 i2c = I2C(0, sda=Pin(8), scl=Pin(9), freq=400_000)
 
-io_expander = CH422G(i2c)
+# EXIO5 drives this board's FSUSB42UMX multiplexer: low routes the second
+# USB-C connector to the ESP32-S3's native USB, high routes it to the CAN
+# transceiver. It is declared in the constructor rather than corrected after,
+# because the expander's default is all-high -- so merely constructing it
+# selects CAN and disconnects the board's USB, with no error and nothing in
+# any API to say so. A USB host then sees zero attach events forever. That
+# survives a reset, because the CH422G only clears on power loss.
+#
+# USB is the right default: it is what the connector is for unless someone
+# asks for CAN, and board_peripherals.can() sets this high when they do.
+#
+# Recovering a board already stuck in CAN mode: setting EXIO5 low is not
+# enough once the USB controller has initialised against a disconnected bus.
+# The mux must be low *before* the controller starts, so reset after setting.
+_IO_INITIAL = 0xFF & ~(1 << _USB_SEL)
+
+io_expander = CH422G(i2c, initial=_IO_INITIAL)
 io_expander.enable_all_io_output()
 io_expander.digital_write(_LCD_BL, 1)
 # LCD reset (ESP_PANEL_BOARD_LCD_PRE_BEGIN_FUNCTION)
