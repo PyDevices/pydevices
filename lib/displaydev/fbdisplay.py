@@ -194,6 +194,30 @@ class FBDisplay(DisplayDriver):
             native_fill(x, y, w, h, color)
             return (x, y, w, h)
 
+        # Native FB blit: the ESP32-P4's mipidsi Display exposes ``blit`` but no
+        # ``fill_rect``, so without this a fill falls through to per-row
+        # memoryview assigns into SPIRAM. Measured on the P4 Touch-LCD-4B, a
+        # 100x100 fill took 1.387 s that way and 950 us through ``blit`` — the
+        # same ratio blit_rect already documents for LVGL partials. Bands keep
+        # the temporary bounded: a full 720x720 frame would be ~1 MB.
+        native_blit = getattr(self._raw_buffer, "blit", None)
+        if native_blit is not None and w > 0 and h > 0:
+            if self._auto_byteswap:
+                cbytes = color.to_bytes(2, "big")
+            else:
+                cbytes = color.to_bytes(2, "little")
+            band_rows = max(1, min(h, 8192 // w))
+            band = cbytes * (w * band_rows)
+            y0, left = y, h
+            while left:
+                rows = band_rows if left >= band_rows else left
+                if rows != band_rows:
+                    band = cbytes * (w * rows)
+                native_blit(band, x, y0, w, rows)
+                y0 += rows
+                left -= rows
+            return (x, y, w, h)
+
         dest = self._pixel_bytes
         if dest is None:
             # uint16 buffer without byte cast — last-resort element stores.
