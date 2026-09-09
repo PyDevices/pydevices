@@ -42,9 +42,37 @@ class FBDisplay(DisplayDriver):
         color_depth (int): The color depth of the display
         share_framebuffer (bool): True — GUIs may bind panel FBs via
             :meth:`framebuffers` for direct paint.
+        needs_refresh (bool): Computed, not fixed — see below.
     """
 
     share_framebuffer = True
+
+    @property
+    def needs_refresh(self):
+        """Whether ``appdev.App`` must drive periodic ``show()``.
+
+        This cannot be a class attribute, because one class covers two runtimes
+        that need opposite answers:
+
+        * CircuitPython's ``framebufferio.FramebufferDisplay(fb,
+          auto_refresh=True)`` composites at the panel rate on its own, and
+          presenting it again tears against the free-running DPI scanout (see
+          the Qualia board config).
+        * MicroPython's ``dotclockframebuffer.DotClockFramebuffer`` uses double
+          panel buffers with ``auto_refresh=False``: nothing reaches the panel
+          until ``refresh()`` promotes the back buffer.
+
+        `DisplayDriver` defaults this to ``False``, which is right for the first
+        and wrong for the second — so without LVGL, every MicroPython program had
+        to call ``show()`` itself, and forgetting looked exactly like dead
+        hardware. The driver already knows which case it is: this is the same
+        test :meth:`show` makes before presenting, asked once rather than left to
+        the caller.
+        """
+        disp = self._display
+        if disp is not None:
+            return not getattr(disp, "auto_refresh", False)
+        return not getattr(self._raw_buffer, "auto_refresh", False)
 
     def __init__(
         self,

@@ -137,17 +137,32 @@ Then use LVGL widgets normally. `display_driver` builds the App for you from
 
 ## 5. Presenting the frame — the trap that looks like broken hardware
 
-On a `dotclockframebuffer` panel, drawing is **not** showing. The panel is
-double-buffered and the back buffer is only promoted by `display_drv.show()`.
+On a MicroPython `dotclockframebuffer` panel, drawing is not showing until the
+back buffer is promoted: the panel is double-buffered with `auto_refresh=False`,
+and `display_drv.show()` is what promotes it.
 
-Under LVGL this is wired for you (`display_driver` hands LVGL's `refresh_cb`
-to `show()`). **Without LVGL it is not.** `appdev.App` drives periodic `show()`
-only for displays whose `needs_refresh` is `True`, and `FBDisplay` inherits the
-base-class default of `False`. So non-LVGL code calls `show()` itself, once per
-finished frame — `paint.py` does exactly this in each of its handlers.
+Under LVGL this is wired for you — `display_driver` hands LVGL's `refresh_cb` to
+`show()`, and disables `App`'s own refresh so nothing presents twice.
 
-Symptom if you forget: every blit succeeds, no error is raised, and the screen
-never changes. It reads as "the hardware is dead" or "my data is wrong".
+**Without LVGL it is now wired for you too**, as of 2026-09-09. `appdev.App`
+drives periodic `show()` for any display whose `needs_refresh` is `True`, and
+`FBDisplay.needs_refresh` is a computed property rather than a fixed attribute:
+it reports `True` when the underlying display does not auto-refresh, `False`
+when it does. One class has to serve two runtimes that need opposite answers —
+CircuitPython's `framebufferio.FramebufferDisplay(fb, auto_refresh=True)`
+composites at the panel rate and *tears* if presented again, while MicroPython's
+`DotClockFramebuffer` shows nothing until `refresh()`. The driver already made
+exactly this test inside `show()`; the property just asks it once instead of
+leaving it to the caller.
+
+Older non-LVGL code that calls `show()` itself per frame — `paint.py` does this
+in each handler — is still correct and costs nothing; `show()` is idempotent
+against the auto-refresh case.
+
+**Before that change** the class inherited `needs_refresh = False`, so a
+non-LVGL program that did not call `show()` saw every blit succeed, no error
+raised, and the screen never change. If you meet that on an older install,
+this is it.
 
 ## 6. `blit_rect` byteswaps in place
 
