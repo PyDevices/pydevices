@@ -144,7 +144,7 @@ class SPIBus:
             sleep_us(1000)
 
         self._buf1: bytearray = bytearray(1)
-        print("SPIBus loaded")
+        print("SPIBus loaded (Python)")
 
     def reset(self) -> None:
         """Hardware reset pulse when ``reset`` pin was provided."""
