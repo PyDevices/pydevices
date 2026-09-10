@@ -10,6 +10,11 @@ on:
       - 'drivers/**'
       - 'board_configs/**/package.json'
       - 'scripts/validate_board_mip_installers.py'
+      # test_desktop_publication asserts this file lists every source under
+      # lib/ and utils/, so a change to it has to run the suite. Without this
+      # the assertion only fires when something ELSE changes: the wifi.py move
+      # left the TOML stale, and the fix could not trigger its own test.
+      - 'pydevices-desktop.toml'
       - 'tests/**'
       - '.github/workflows/tests.yml'
   pull_request:
@@ -19,6 +24,11 @@ on:
       - 'drivers/**'
       - 'board_configs/**/package.json'
       - 'scripts/validate_board_mip_installers.py'
+      # test_desktop_publication asserts this file lists every source under
+      # lib/ and utils/, so a change to it has to run the suite. Without this
+      # the assertion only fires when something ELSE changes: the wifi.py move
+      # left the TOML stale, and the fix could not trigger its own test.
+      - 'pydevices-desktop.toml'
       - 'tests/**'
       - '.github/workflows/tests.yml'
   workflow_dispatch:
