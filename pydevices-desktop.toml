@@ -57,3 +57,4 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/multimer/win32.py" = "/lib/multimer/win32.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/usdl2.py" = "/lib/usdl2.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/uwin32.py" = "/lib/uwin32.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/wifi.py" = "/lib/wifi.py"
