@@ -40,7 +40,7 @@ Write your display and hardware logic once and run across 6 supported Python env
 | [`board_configs/`](board_configs/) | MicroPython boards (top level); CircuitPython under `board_configs/cp/` |
 | [`drivers/`](drivers/) | Display, touch, bus, joystick, IO expander, input helpers |
 | [`lib/displaydev/`](lib/displaydev/) | Display backends (`BusDisplay`, `SDLDisplay`, …); `auto.py` is convenience only |
-| [`lib/`](lib/) | `audiodev/`, `displaydev/`, `appdev/`, `events.py`, `keys.py`, `multimer/` |
+| [`lib/`](lib/) | `audiodev/`, `displaydev/`, `appdev/`, `events.py`, `keys.py`, `multimer/`, `wifi.py` |
 | [`utils/`](utils/) | Desktop-bundled helpers (`mip`, `frame_recorder`, `micropython`, `usdl2`, `uwin32`) |
 | `tests/` | Stdlib unittest for `displaydev`, `multimer`, `events`, `keys`, `audiodev`, `boarddev`, `mip` |
 | `docs/` | Hardware and Board Contract documentation ([index](docs/README.md)) |

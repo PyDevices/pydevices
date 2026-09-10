@@ -56,9 +56,11 @@ mpremote connect COM49 fs cp wifi.py :/lib/wifi.py
 mpremote connect COM49 fs cp secrets.py :/lib/secrets.py
 ```
 
-`wifi.py` is `pydevices-examples/lib/utils/wifi.py`. `secrets.py` in that same
-directory is the *desktop* shim that reads environment variables — on a board
-replace it with two plain assignments:
+`wifi.py` is `pydevices/lib/wifi.py` — the same file the `pydevices` package
+installs, copied by hand here only because it is what *gets you onto* the
+network that `mip` needs. `secrets.py` is not in any package and should not be:
+it holds credentials and is per-user. Write it yourself, as two plain
+assignments:
 
 ```python
 WIFI_SSID = "..."
