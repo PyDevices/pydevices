@@ -228,7 +228,17 @@ def _pcm_in(format=None, *, latency=None, queue_ms=None):
     from audiodev import check_latency, queue_bytes
 
     check_latency(latency)
-    wire, _ = negotiate(AUDIO_IN, format)
+    wire, source = negotiate(AUDIO_IN, format)
+    if source is not wire:
+        # Capture has no adapter. negotiate() will happily say "open the wire
+        # at 1 channel and convert to the 2 you asked for", but that machinery
+        # exists only on the push side -- so handing back the wire format here
+        # would give a caller who asked for stereo a mono stream and no error.
+        # Silently-different is the exact failure this contract prevents.
+        raise ValueError(
+            "this board captures %d channel(s); asked for %d, and capture "
+            "cannot be remixed" % (wire.channels, source.channels)
+        )
     ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
     codec = _INPUT_SESSION.get_codec()
     return I2SPCMInput(

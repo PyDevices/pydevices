@@ -23,7 +23,9 @@ EXPECTED = {
         "eager_touch": True,
         "devices": {
             "audio_out",
-            "audio_in",
+            "pcm_out",
+            "pcm_in",
+            "audio_power",
             "sdcard",
             "camera",
             "radio",

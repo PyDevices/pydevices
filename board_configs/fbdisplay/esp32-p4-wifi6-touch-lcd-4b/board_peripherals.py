@@ -3,8 +3,24 @@ import boarddev
 import sys
 
 PERIPHERALS = frozenset(
-    {"audio_out", "audio_in", "sdcard", "camera", "radio", "wlan", "ble", "usb_device"}
+    {
+        "audio_out",
+        "pcm_out",
+        "pcm_in",
+        "audio_power",
+        "sdcard",
+        "camera",
+        "radio",
+        "wlan",
+        "ble",
+        "usb_device",
+    }
 )
+
+# Audio roles are factories: first board_config access does not construct.
+# GUI: import board_config, then board_config.pcm_out(format=...).
+# Non-GUI: import board_peripherals and call the same factory.
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in", "audio_power"})
 
 # Waveshare wiki I2S / ES8311 pin map (P4 panel family)
 _MCLK = 13
@@ -14,14 +30,69 @@ _LRCK = 10
 _DSDIN = 9
 _PA_CTRL = 53
 
-from audiodev import AudioFormat, AudioSession, check_latency, queue_bytes
+# Panel I2C (touch, ES8311, ES7210, camera SCCB). Same bus object as
+# board_config.i2c when that module is already imported.
+_I2C_PORT = 1
+_I2C_SCL = 8
+_I2C_SDA = 7
+
+from audiodev import (
+    AudioCapability,
+    AudioFactory,
+    AudioFormat,
+    AudioSession,
+    I2SWire,
+    adapt_channels,
+    check_latency,
+    negotiate,
+    pace_output,
+    queue_bytes,
+)
 from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput
 
-# 24 kHz mono PCM. Firmware has no I2S mck= — PWM supplies MCLK.
-# Bring-up (ear-verified): MCLK before ES8311 init; unmute + volume before I2S; MONO.
+# Default when format=None. Codec init still needs a clock before I2S exists,
+# so PWM bootstraps GPIO13; once I2S opens it takes mck=Pin(13) from the same
+# PLL as BCLK/LRCK and PWM is released. Dual PWM+I2S on that pin beats and
+# sounds like irregular skips. IDF I2S MCLK is 256fs; match the codec to that.
+# Rate is app-chosen; this board's DAC/speaker are mono 16-bit signed LE.
+# Discover what it takes without opening: pcm_out.capability.
 _RATE = 24000
 _FORMAT = AudioFormat(_RATE, 1, 16)
 _DEFAULT_VOLUME = 50
+_MCLK_FS = 256
+
+# --- what this board can actually do --------------------------------------
+#
+# The speaker is mono. The wire is not: the ES8311 clocks two slots and feeds
+# one of them to one speaker, so stereo content opens I2S.STEREO and nothing
+# is mixed down. That is why ``channels`` and ``native_channels`` differ, and
+# it is the whole reason the two are separate fields.
+#
+# This replaces a _MAX_CHANNELS = 1 that sat beside an audio_out accepting 2
+# channels while audio_in raised on the same request -- the file contradicted
+# itself, which is what happens when every board writes its own validation.
+_MAX_CHANNELS = 1
+AUDIO_OUT = AudioCapability(
+    _FORMAT,
+    rates=None,          # I2S PLL; MCLK follows at rate * 256
+    channels=(1, 2),
+    native_channels=_MAX_CHANNELS,
+    bits=(16,),
+    wire=I2SWire(0, sck=_SCLK, ws=_LRCK, sd=_DSDIN, mck=_MCLK, mck_fs=_MCLK_FS),
+)
+
+# Capture is the ES7210 on the SAME I2S port and the same clocks as playback,
+# with AudioSession(duplex=False) below. That is why this board cannot run the
+# acoustic loopback in tools/audio_rig/ and the T-Embed can: there, output and
+# input are separate peripherals on separate pins.
+AUDIO_IN = AudioCapability(
+    _FORMAT,
+    rates=None,
+    channels=(1,),
+    native_channels=1,
+    bits=(16,),
+    wire=I2SWire(0, sck=_SCLK, ws=_LRCK, sd=_ASDOUT, mck=_MCLK, mck_fs=_MCLK_FS),
+)
 
 # I2S ring buffer. The default is the ear-verified bring-up value; leave it. A
 # caller asking for latency="low" gets a shorter one instead (see queue_bytes),
@@ -35,18 +106,43 @@ _SESSION = AudioSession(codec_factory=lambda: _codec(), duplex=False)
 _INPUT_SESSION = AudioSession(codec_factory=lambda: _input_codec(), duplex=False)
 _pa = None
 _mclk = None
+_mclk_rate = _RATE
+_i2c_own = None
 
 
 def load_peripherals(ns):
     boarddev.bind_lazy(ns, sys.modules[__name__])
 
 
-def _ensure_mclk(multiplier=512):
-    """Drive the shared codec MCLK on GPIO13 (fixed at 512fs on this board)."""
-    global _mclk
+def _i2c():
+    """Panel I2C without forcing a board_config import.
+
+    GUI apps import board_config first (eager display); reuse that bus.
+    Non-GUI apps import this module only and we open I2C(1) on the panel
+    pins. Never ``import board_config`` from here: on this board that
+    module inits MIPI DSI at import and stalls the VM.
+    """
+    global _i2c_own
+
+    bc = sys.modules.get("board_config")
+    bus = getattr(bc, "i2c", None) if bc is not None else None
+    if bus is not None:
+        return bus
+    if _i2c_own is None:
+        from machine import I2C, Pin
+
+        _i2c_own = I2C(_I2C_PORT, scl=Pin(_I2C_SCL), sda=Pin(_I2C_SDA), freq=400_000)
+    return _i2c_own
+
+
+def _ensure_mclk(multiplier=_MCLK_FS, rate=None):
+    """PWM-bootstrap the shared codec MCLK on GPIO13 until I2S takes the pin."""
+    global _mclk, _mclk_rate
     from machine import PWM, Pin
 
-    freq = _RATE * multiplier
+    if rate is not None:
+        _mclk_rate = int(rate)
+    freq = _mclk_rate * multiplier
     if _mclk is None:
         _mclk = PWM(Pin(_MCLK), freq=freq, duty_u16=32768)
     else:
@@ -66,11 +162,10 @@ def _stop_mclk():
 
 
 def _codec():
-    import board_config as bc
     from es8311 import ES8311
 
-    _ensure_mclk(512)
-    codec = ES8311(bc.i2c, mclk_multiplier=512)
+    _ensure_mclk(_MCLK_FS)
+    codec = ES8311(_i2c(), mclk_multiplier=_MCLK_FS)
     # Enable path before I2S starts (PCMOutput opens the stream next).
     codec.enable_output(True)
     codec.dac_mute(False)
@@ -79,59 +174,55 @@ def _codec():
 
 
 def _input_codec():
-    import board_config as bc
     from es7210 import ES7210
 
-    _ensure_mclk(512)
-    return ES7210(bc.i2c, profile="waveshare_p4")
+    _ensure_mclk(_MCLK_FS)
+    return ES7210(_i2c(), profile="waveshare_p4")
 
 
-def _output_stream(ibuf=_IBUF):
+def _i2s(mode, sd_pin, ibuf, fmt):
+    """Open I2S and move MCLK off PWM onto the I2S PLL (same as BCLK/LRCK)."""
     from machine import I2S, Pin
 
-    _ensure_mclk(512)
+    _stop_mclk()
     return I2S(
         0,
         sck=Pin(_SCLK),
         ws=Pin(_LRCK),
-        sd=Pin(_DSDIN),
-        mode=I2S.TX,
-        bits=16,
-        format=I2S.MONO,
-        rate=_RATE,
+        sd=Pin(sd_pin),
+        mck=Pin(_MCLK),
+        mode=mode,
+        bits=fmt.bits,
+        format=I2S.STEREO if fmt.channels == 2 else I2S.MONO,
+        rate=fmt.rate,
         ibuf=ibuf,
     )
 
 
-def _input_stream(ibuf=_IBUF):
-    from machine import I2S, Pin
+def _output_stream(ibuf, fmt):
+    from machine import I2S
 
-    _ensure_mclk(512)
-    return I2S(
-        0,
-        sck=Pin(_SCLK),
-        ws=Pin(_LRCK),
-        sd=Pin(_ASDOUT),
-        mode=I2S.RX,
-        bits=16,
-        format=I2S.MONO,
-        rate=_RATE,
-        ibuf=ibuf,
-    )
+    return _i2s(I2S.TX, _DSDIN, ibuf, fmt)
+
+
+def _input_stream(ibuf, fmt):
+    from machine import I2S
+
+    return _i2s(I2S.RX, _ASDOUT, ibuf, fmt)
 
 
 def _codec_call(name, value):
     return getattr(_SESSION.get_codec(), name)(value)
 
 
-def _output_power(enable):
+def _output_power(enable, rate):
     global _pa
     from machine import Pin
 
     if _pa is None:
         _pa = Pin(_PA_CTRL, Pin.OUT, value=0)
     if enable:
-        _ensure_mclk(512)
+        # Stream already owns GPIO13 via I2S mck=. PWM here fights that PLL.
         _codec_call("enable_output", True)
         _pa.value(1)
     else:
@@ -139,76 +230,164 @@ def _output_power(enable):
         _codec_call("enable_output", False)
 
 
-def audio_out(*, latency=None, queue_ms=None):
+def _pcm_out(format=None, *, latency=None, queue_ms=None):
+    """ES8311 speaker: a raw ``PCMOutput``. Push bytes with ``write()``.
+
+    ``format`` is the write() contract; ``None`` is the board default
+    (24 kHz mono 16-bit). Ask ``pcm_out.capability`` what it takes. Asking
+    for 2 channels opens ``I2S.STEREO`` so the ES8311's two-slot clock tree
+    matches -- the DAC still feeds one speaker, and nothing is mixed down.
+
+    Needs no audioif: nothing here pulls a sample graph. That is what lets a
+    Spotify Connect speaker or a USB sound card run on firmware built
+    without a DSP package.
+
+    The ring is a physical ceiling, not the latency governor. I2SPCMOutput
+    reports queued_size() over a byte-clock against the DMA's exactly-realtime
+    drain, so the pump's lookahead governs note-to-sound latency and a
+    full-size ring only guarantees writes never block. Shrinking it for
+    latency="low" made every service call block against the DMA (measured
+    88-160ms per call on this board -- the interaction stutter).
+
+    The result is paced. I2S is armed into asyncio mode on open, so a full
+    DMA returns zero from write() rather than holding the GIL; without
+    PaceOutput keeping the remainder, PCMOutput.write() raises "audio stream
+    made no write progress". It also covers Device.attach(), which slams
+    write() from a Connect pump; blocking there starves the C6 SDIO Wi-Fi
+    path and is audible as skips.
+    """
+    global _mclk_rate
+
+    # check_latency is explicit rather than a side effect of handing `latency`
+    # to queue_bytes: passing None to stop it shrinking the ring also stopped
+    # it checking, so every unknown value -- "fast", "nonsense" -- was silently
+    # accepted while only "low" did anything, contradicting this function's own
+    # docstring. A latency keyword that promises tuning it does not do is worse
+    # than one that raises.
+    check_latency(latency)
+    wire, source = negotiate(AUDIO_OUT, format)
+    _mclk_rate = wire.rate
+    ibuf = queue_bytes(wire, None, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
+    device = I2SPCMOutput(
+        lambda: _output_stream(ibuf, wire),
+        wire,
+        session=_SESSION,
+        set_hardware_volume=lambda value: _codec_call("set_dac_volume", value),
+        set_hardware_mute=lambda value: _codec_call("dac_mute", value),
+        power=lambda enable: _output_power(enable, wire.rate),
+    )
+    device.set_volume(_DEFAULT_VOLUME)
+    if source is not wire:
+        from audiodev.accel import best_remix
+
+        device = adapt_channels(device, source, remix=best_remix())
+    return pace_output(device, queue_ms=80)
+
+
+def _pcm_in(format=None, *, latency=None, queue_ms=None):
+    """ES7210 capture: a raw ``PCMInput`` with hardware ADC gain.
+
+    Shares I2S(0) and its clocks with playback under a non-duplex session,
+    so this board cannot record itself.
+    """
+    global _mclk_rate
+
+    check_latency(latency)
+    wire, source = negotiate(AUDIO_IN, format)
+    if source is not wire:
+        # Capture has no adapter. negotiate() will happily say "open the wire
+        # at 1 channel and convert to the 2 you asked for", but that machinery
+        # exists only on the push side -- so handing back the wire format here
+        # would give a caller who asked for stereo a mono stream and no error.
+        # Silently-different is the exact failure this contract prevents.
+        raise ValueError(
+            "this board captures %d channel(s); asked for %d, and capture "
+            "cannot be remixed" % (wire.channels, source.channels)
+        )
+    _mclk_rate = wire.rate
+    ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
+    return I2SPCMInput(
+        lambda: _input_stream(ibuf, wire),
+        wire,
+        session=_INPUT_SESSION,
+        set_hardware_gain=lambda value: _INPUT_SESSION.get_codec().set_gain(value),
+        power=lambda enable: _input_power(enable, wire.rate),
+    )
+
+
+def _audio_out(format=None, *, latency=None, queue_ms=None, **kwargs):
     """ES8311 sample player: ``play(sample, loop=)``/``stop()``/``pause()``/
     ``resume()``/``playing`` over any audiosample (``synthio.Synthesizer``,
     ``audiomixer.Mixer``, ``audiocore.RawSample``/``WaveFile``, effects),
     with hardware volume and mute.
 
-    ``latency`` / ``queue_ms`` size the I2S ring buffer. Only these two of the
-    shared audio keywords mean anything here: there is no software coalescing
-    stage and no host device to name, so the rest raise rather than being
-    accepted and ignored.
+    Requires audioif in firmware. Use ``pcm_out`` when you already have PCM.
+
+    GUI apps: ``import board_config`` then ``board_config.audio_out(...)``.
+    Non-GUI apps: ``import board_peripherals`` and call the same factory --
+    this module never imports ``board_config``, which on this board would
+    start MIPI DSI and stall the VM.
     """
     from audiodev.sample_out import AudioOut
 
-    # The ring is a physical ceiling, not the latency governor: I2SPCMOutput
-    # now reports queued_size() (a byte-clock over the DMA's exactly-realtime
-    # drain), so the pump's lookahead governs note-to-sound latency and a
-    # full-size ring simply guarantees writes never block. Shrinking the ring
-    # for latency="low" only made every service call block against the DMA
-    # (measured 88-160ms per call on this board - the interaction stutter).
-    # Validate the profile even though the ring no longer varies with it.
-    # queue_bytes() used to do this as a side effect of being handed `latency`;
-    # passing None to stop it shrinking the ring also stopped it checking, so
-    # every unknown value -- "fast", "nonsense" -- was silently accepted while
-    # only "low" did anything. That contradicts this function's own docstring,
-    # and silently accepting a latency keyword promises tuning that does not
-    # happen. The check is explicit here so it cannot be lost again by
-    # changing what queue_bytes is asked for.
-    check_latency(latency)
-    ibuf = queue_bytes(_FORMAT, None, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
-    transport = I2SPCMOutput(
-        lambda: _output_stream(ibuf),
-        _FORMAT,
-        session=_SESSION,
-        set_hardware_volume=lambda value: _codec_call("set_dac_volume", value),
-        set_hardware_mute=lambda value: _codec_call("dac_mute", value),
-        power=_output_power,
-    )
-    transport.set_volume(_DEFAULT_VOLUME)
-    pump_kwargs = {}
+    pump = {}
+    for key in ("chunk_ms", "lookahead_chunks", "max_catchup_chunks"):
+        if key in kwargs:
+            pump[key] = kwargs.pop(key)
     if latency == "low":
-        # 10ms chunks, 4-chunk lookahead: a ~50ms schedule. The measured
-        # worst pump gap under heavy interaction is 28ms (the ~33ms frame
-        # render showing through), so 50ms keeps real margin while staying
-        # tight enough for live pad response.
-        pump_kwargs["chunk_ms"] = 10
-        pump_kwargs["lookahead_chunks"] = 4
-    return AudioOut(transport, **pump_kwargs)
+        # 10ms chunks, 4-chunk lookahead: a ~50ms schedule. The measured worst
+        # pump gap under heavy interaction is 28ms (the ~33ms frame render
+        # showing through), so 50ms keeps real margin while staying tight
+        # enough for live pad response.
+        pump.setdefault("chunk_ms", 10)
+        pump.setdefault("lookahead_chunks", 4)
+    device = _pcm_out(format, latency=latency, queue_ms=queue_ms, **kwargs)
+    return AudioOut(device, **pump)
 
 
-def _input_power(enable):
+def _audio_power(enable=True, *, volume=None):
+    """Bring the analog path up or down WITHOUT opening an I2S stream.
+
+    For a consumer that drives the peripheral itself -- usbif's C FreeRTOS
+    pump reads ``AUDIO_OUT.wire`` and opens I2S in C. Two owners of one I2S
+    channel is a silent failure rather than an error, so Python must not
+    open one; but the codec still has to be powered and unmuted or every
+    byte moves and nothing is audible.
+
+    The codec needs a clock before I2S exists, so PWM bootstraps MCLK here
+    and the C pump's own ``mclk`` takes the pin over when it starts.
+    """
     if enable:
-        _ensure_mclk(512)
+        _ensure_mclk(_MCLK_FS)
+        _codec_call("enable_output", True)
+        _codec_call("dac_mute", False)
+        if volume is not None:
+            _codec_call("set_dac_volume", int(volume))
+        from machine import Pin
+
+        global _pa
+        if _pa is None:
+            _pa = Pin(_PA_CTRL, Pin.OUT, value=0)
+        _pa.value(1)
+    else:
+        if _pa is not None:
+            _pa.value(0)
+        _codec_call("enable_output", False)
+        _stop_mclk()
+    return enable
+
+
+def _input_power(enable, rate):
+    if enable:
         _INPUT_SESSION.get_codec().enable_input(True)
     else:
         _INPUT_SESSION.get_codec().enable_input(False)
 
 
-def audio_in(*, latency=None, queue_ms=None):
-    """Portable ES8311 PCM capture device with hardware ADC gain.
-
-    ``latency`` / ``queue_ms`` size the I2S ring buffer; see :func:`audio_out`.
-    """
-    ibuf = queue_bytes(_FORMAT, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
-    return I2SPCMInput(
-        lambda: _input_stream(ibuf),
-        _FORMAT,
-        session=_INPUT_SESSION,
-        set_hardware_gain=lambda value: _INPUT_SESSION.get_codec().set_gain(value),
-        power=_input_power,
-    )
+pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
+pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
+audio_out = AudioFactory(_audio_out, AUDIO_OUT)
+audio_power = _audio_power
 
 
 def sdcard():
@@ -231,9 +410,9 @@ def sdcard():
 # open its own master on the same two pins is not an error anyone reports:
 # both peripherals reach the wires through the pin matrix, the camera works
 # perfectly, and the touchscreen then times out on every read.
-_CAM_SDA = 7
-_CAM_SCL = 8
-_CAM_I2C_PORT = 1       # the port board_config's machine.I2C(1, ...) opened
+_CAM_SDA = _I2C_SDA
+_CAM_SCL = _I2C_SCL
+_CAM_I2C_PORT = _I2C_PORT
 
 
 def camera(**kwargs):
