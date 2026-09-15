@@ -22,7 +22,7 @@ from audiodev import pygame_audio  # noqa: E402
 class PygameBackendTests(unittest.TestCase):
     def test_sync_and_async_output(self):
         fmt = AudioFormat(8000, 1, 16)
-        output = pygame_audio.audio_out(fmt, samples=128)
+        output = pygame_audio.pcm_out(fmt, samples=128)
         self.assertIsInstance(output, PCMOutput)
         output.write(b"\0\0" * 80)
         output.service()
@@ -38,7 +38,7 @@ class PygameBackendTests(unittest.TestCase):
 
     def test_audio_in_factory_and_mocked_capture(self):
         fmt = AudioFormat(8000, 1, 16)
-        capture = pygame_audio.audio_in(fmt, poll_ms=1)
+        capture = pygame_audio.pcm_in(fmt, poll_ms=1)
         self.assertEqual(capture.format, fmt)
 
         stream = pygame_audio.PygamePCMInput(fmt, poll_ms=1)

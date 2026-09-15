@@ -10,12 +10,18 @@ if str(_TESTS) not in sys.path:
     sys.path.insert(0, str(_TESTS))
 import _env  # noqa: E402, F401
 
-from audiodev import (  # noqa: E402
+import audiodev  # noqa: E402
+from audiodev import (
+    AudioCapability,  # noqa: E402
     AudioFormat,
     AudioSession,
+    AudioFactory,
+    negotiate,
     PCMInput,
     PCMOutput,
     ToneOutput,
+    adapt_channels,
+    pace_output,
 )
 from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput  # noqa: E402
 from audiodev.pwm_tone import PWMToneOutput  # noqa: E402
@@ -250,6 +256,18 @@ class I2SAdapterTests(unittest.TestCase):
         self.assertEqual(inp.readinto(buf), 2)
         inp.close()
         self.assertTrue(capture.closed)
+
+    def test_none_write_is_zero_bytes_not_a_full_buffer(self):
+        class NoneI2S(FakeI2S):
+            def write(self, data):
+                return None
+
+        fmt = AudioFormat(16000, 1, 16)
+        out = I2SPCMOutput(NoneI2S(), fmt)
+        out.open()
+        self.assertEqual(0, out.try_write(b"\x02\x00\x03\x00"))
+        self.assertEqual(0, out.queued_size())
+        out.close()
 
 
 class FakeSample:
@@ -612,6 +630,359 @@ class ToneTests(unittest.TestCase):
             self.assertEqual(power, [True, False])
 
         asyncio.run(run())
+
+
+class AudioFactoryTests(unittest.TestCase):
+    def test_carries_capability_and_forwards_call(self):
+        seen = {}
+
+        def ctor(format=None, **kwargs):
+            seen["format"] = format
+            seen["kwargs"] = kwargs
+            return "device"
+
+        cap = AudioCapability(AudioFormat(24000, 1, 16), channels=(1, 2))
+        factory = AudioFactory(ctor, cap)
+        self.assertIs(cap, factory.capability)
+        fmt = AudioFormat(44100, 2, 16)
+        self.assertEqual("device", factory(fmt, latency="low"))
+        self.assertIs(fmt, seen["format"])
+        self.assertEqual({"latency": "low"}, seen["kwargs"])
+
+    def test_capability_is_the_only_discovery_surface(self):
+        """No ``max_channels`` beside ``capability``. Two ways to ask one
+        question is the quirk this contract is removing."""
+        cap = AudioCapability(AudioFormat(24000, 1, 16), channels=(1, 2))
+        factory = AudioFactory(lambda format=None, **kw: None, cap)
+        self.assertFalse(hasattr(factory, "max_channels"))
+
+    def test_rejects_a_non_capability(self):
+        with self.assertRaises(TypeError):
+            AudioFactory(lambda format=None: None, 2)
+
+
+class ChannelAdapterTests(unittest.TestCase):
+    def test_identity_when_channels_match(self):
+        fmt = AudioFormat(44100, 1, 16)
+        pcm = FakePCMOutput(fmt)
+        self.assertIs(pcm, adapt_channels(pcm, fmt))
+
+    def test_stereo_write_averages_to_mono(self):
+        inner = FakePCMOutput(AudioFormat(44100, 1, 16))
+        pcm = adapt_channels(inner, AudioFormat(44100, 2, 16))
+        pcm.open()
+        pcm.write(bytes((100, 0, 50, 0)))  # 100, 50 little-endian s16
+        self.assertEqual(bytes((75, 0)), bytes(inner.data))
+
+    def test_queued_size_is_in_source_bytes(self):
+        inner = FakePCMOutput(AudioFormat(44100, 1, 16))
+        pcm = adapt_channels(inner, AudioFormat(44100, 2, 16))
+        inner.queued_size = lambda: 100
+        self.assertEqual(200, pcm.queued_size())
+
+    def test_try_write_reports_source_bytes(self):
+        inner = FakePCMOutput(AudioFormat(44100, 1, 16), partial=2)
+        pcm = adapt_channels(inner, AudioFormat(44100, 2, 16))
+        pcm.open()
+        # 4 source bytes remix to 2 dest; inner takes both dest bytes.
+        self.assertEqual(4, pcm.try_write(bytes((100, 0, 50, 0))))
+        self.assertEqual(2, len(inner.data))
+
+
+class NegotiateTests(unittest.TestCase):
+    """The board declares facts; negotiate() holds the policy.
+
+    Boards used to hand-write ``_require_format()`` each, which meant each
+    reimplemented validation with its own error text -- and the P4's copy
+    contradicted itself (``_MAX_CHANNELS = 1`` beside an ``audio_out`` that
+    accepted 2, while ``audio_in`` raised on the same request).
+    """
+
+    P4 = None
+
+    def setUp(self):
+        # The Waveshare P4: mono speaker, but the wire takes two slots.
+        self.P4 = AudioCapability(
+            AudioFormat(24000, 1, 16), channels=(1, 2), native_channels=1
+        )
+
+    def test_default_when_nothing_requested(self):
+        wire, source = negotiate(self.P4)
+        self.assertEqual(AudioFormat(24000, 1, 16), wire)
+        self.assertIs(wire, source)
+
+    def test_stereo_on_a_mono_speaker_needs_no_remix(self):
+        """The heart of the channels/native_channels split.
+
+        The P4's speaker is mono, but ES8311 clocks two slots and feeds one
+        speaker -- so Connect's 44.1k stereo opens I2S.STEREO and nothing is
+        mixed down. A capability that could not say this would force the
+        board to either refuse stereo or mix it needlessly.
+        """
+        asked = AudioFormat(44100, 2, 16)
+        wire, source = negotiate(self.P4, asked)
+        self.assertIs(wire, source)
+        self.assertEqual(2, wire.channels)
+        self.assertEqual(1, self.P4.native_channels)
+
+    def test_a_truly_mono_wire_bridges_to_stereo_content(self):
+        cap = AudioCapability(AudioFormat(16000, 1, 16))  # channels=(1,)
+        wire, source = negotiate(cap, AudioFormat(16000, 2, 16))
+        self.assertIsNot(wire, source)
+        self.assertEqual(1, wire.channels)
+        self.assertEqual(2, source.channels)
+
+    def test_mono_content_expands_onto_a_stereo_only_wire(self):
+        cap = AudioCapability(AudioFormat(16000, 2, 16))  # channels=(2,)
+        wire, source = negotiate(cap, AudioFormat(16000, 1, 16))
+        self.assertEqual(2, wire.channels)
+        self.assertEqual(1, source.channels)
+
+    def test_a_rate_the_board_cannot_clock_raises(self):
+        cap = AudioCapability(AudioFormat(16000, 2, 16), rates=(16000, 48000))
+        with self.assertRaisesRegex(ValueError, "does not.*resample"):
+            negotiate(cap, AudioFormat(44100, 2, 16))
+
+    def test_continuous_rates_accept_anything(self):
+        wire, _ = negotiate(self.P4, AudioFormat(48000, 1, 16))
+        self.assertEqual(48000, wire.rate)
+
+    def test_width_mismatches_raise_rather_than_substitute(self):
+        for bad in (
+            AudioFormat(24000, 1, 32),
+            AudioFormat(24000, 1, 16, signed=False),
+            AudioFormat(24000, 1, 16, byteorder="big"),
+        ):
+            with self.assertRaises(ValueError):
+                negotiate(self.P4, bad)
+
+    def test_three_channels_is_refused_not_truncated(self):
+        with self.assertRaises(ValueError):
+            negotiate(self.P4, AudioFormat(24000, 3, 16))
+
+    def test_tone_roles_take_no_format(self):
+        cap = AudioCapability(None, kind="tone")
+        self.assertEqual((None, None), negotiate(cap))
+        with self.assertRaisesRegex(ValueError, "not PCM"):
+            negotiate(cap, AudioFormat(24000, 1, 16))
+
+    def test_a_board_that_cannot_open_its_own_default_fails_at_import(self):
+        """Planted fault: a capability whose default is outside its own
+        declared limits. Without this check the board imports fine and
+        ``audio_out()`` with no argument explodes on the hardware."""
+        with self.assertRaises(ValueError):
+            AudioCapability(AudioFormat(44100, 1, 16), rates=(16000,))
+
+
+class RemixInjectionTests(unittest.TestCase):
+    """audiodev must not import audioif. The fast path is handed in."""
+
+    def test_default_remix_is_the_pure_python_one(self):
+        inner = FakePCMOutput(AudioFormat(44100, 1, 16))
+        pcm = adapt_channels(inner, AudioFormat(44100, 2, 16))
+        self.assertIs(audiodev._remix_s16_py, pcm.remix)
+
+    def test_injected_remix_is_used(self):
+        calls = []
+
+        def spy(src, src_ch, dst_ch, dest=None):
+            calls.append((src_ch, dst_ch))
+            return audiodev._remix_s16_py(src, src_ch, dst_ch, dest)
+
+        inner = FakePCMOutput(AudioFormat(44100, 1, 16))
+        pcm = adapt_channels(inner, AudioFormat(44100, 2, 16), remix=spy)
+        pcm.open()
+        pcm.write(bytes((100, 0, 50, 0)))
+        self.assertEqual([(2, 1)], calls)
+        self.assertEqual(bytes((75, 0)), bytes(inner.data))
+
+    def test_audiodev_core_imports_no_audioif(self):
+        """The layering rule, asserted rather than trusted.
+
+        PR #31 added ``from audiomath import remix_s16`` to this module and
+        nothing caught it. audiodev/__init__.py and every transport backend
+        must be importable with no DSP package present -- that is what lets
+        a headless Connect speaker or USB audio pump run on firmware without
+        one. Only sample_out.py and accel.py may reach for audioif.
+        """
+        import ast
+        import pathlib
+
+        audioif_names = {
+            "audiocore", "audiomath", "audiomixer", "audiofilters",
+            "synthio", "_audioif", "audioeffects", "audioinstruments",
+        }
+        allowed = {"sample_out.py", "accel.py"}
+        root = pathlib.Path(__file__).resolve().parent.parent / "lib" / "audiodev"
+        offenders = []
+        for path in sorted(root.glob("*.py")):
+            if path.name in allowed:
+                continue
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [a.name.split(".")[0] for a in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    names = [(node.module or "").split(".")[0]]
+                else:
+                    continue
+                for name in names:
+                    if name in audioif_names:
+                        offenders.append("%s: %s" % (path.name, name))
+        self.assertEqual([], offenders)
+
+
+class PaceOutputTests(unittest.TestCase):
+    def test_stashes_when_inner_write_takes_nothing(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        pcm.write(bytes(8))
+        self.assertEqual(0, len(inner.data))
+        self.assertEqual(8, pcm.queued_size())
+
+    def test_flush_stops_when_inner_is_full(self):
+        class Tracking(FakePCMOutput):
+            def __init__(self, fmt, dma_bytes):
+                super().__init__(fmt)
+                self.writes = []
+                self._queued = 0
+                self._dma = dma_bytes
+
+            def queued_size(self):
+                return self._queued
+
+            def _write(self, buf):
+                room = self._dma - self._queued
+                if room <= 0:
+                    return 0
+                take = len(buf) if len(buf) < room else room
+                take -= take % self.format.frame_size
+                if take <= 0:
+                    return 0
+                self.writes.append(take)
+                self._queued += take
+                self.data.extend(buf[:take])
+                return take
+
+        inner = Tracking(AudioFormat(44100, 2, 16), 1764)
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        pcm.write(bytes(4000))
+        self.assertEqual([1764], inner.writes)
+        self.assertEqual(1764, len(inner.data))
+        # cap is 10 ms = 1764; leftover above that is dropped so write()
+        # cannot grow a Python stash while waiting for I2S.
+        self.assertEqual(1764 + 1764, pcm.queued_size())
+        self.assertLessEqual(pcm._held, pcm._cap)
+
+    def test_flush_keeps_remainder_when_inner_takes_nothing_more(self):
+        class Gate(FakePCMOutput):
+            def _write(self, buf):
+                if len(self.data) >= 8:
+                    return 0
+                return super()._write(buf)
+
+        inner = Gate(AudioFormat(44100, 2, 16), partial=8)
+        pcm = pace_output(inner, queue_ms=80)
+        pcm.open()
+        # write() used to call inner.write(), which loops until every byte
+        # lands or raises OSError on a 0-byte _write. DMA-full I2S is the
+        # latter, and that was an audible skip once asyncio mode started
+        # returning partial/zero instead of blocking.
+        pcm.write(bytes(32))
+        self.assertEqual(8, len(inner.data))
+        self.assertEqual(24, pcm.queued_size())
+        pcm.service()
+        self.assertEqual(8, len(inner.data))
+        self.assertEqual(24, pcm.queued_size())
+
+    def test_write_returns_without_waiting_for_inner_drain(self):
+        import audiodev as module
+
+        class Drain(FakePCMOutput):
+            def __init__(self, fmt, dma_bytes):
+                super().__init__(fmt)
+                self._queued = 0
+                self._dma = dma_bytes
+
+            def queued_size(self):
+                return self._queued
+
+            def _write(self, buf):
+                room = self._dma - self._queued
+                if room <= 0:
+                    return 0
+                take = len(buf) if len(buf) < room else room
+                take -= take % self.format.frame_size
+                if take <= 0:
+                    return 0
+                self._queued += take
+                self.data.extend(buf[:take])
+                return take
+
+        inner = Drain(AudioFormat(44100, 2, 16), 1764)
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        sleeps = []
+
+        def fake_sleep(ms):
+            sleeps.append(ms)
+
+        old = module._pace_sleep_ms
+        module._pace_sleep_ms = fake_sleep
+        try:
+            pcm.write(bytes(4000))
+            self.assertEqual([], sleeps)
+            self.assertLessEqual(pcm._held, pcm._cap)
+        finally:
+            module._pace_sleep_ms = old
+
+    def test_space_is_zero_when_stash_is_at_cap(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        pcm.write(bytes(4000))
+        self.assertEqual(0, pcm.space())
+        self.assertEqual(pcm._cap, pcm._held)
+
+    def test_write_drops_stash_if_inner_never_drains(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        pcm.write(bytes(4000))
+        self.assertLessEqual(pcm._held, pcm._cap)
+        self.assertEqual(0, len(inner.data))
+
+    def test_write_copies_so_caller_may_reuse_the_buffer(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        class Open(FakePCMOutput):
+            pass
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=80)
+        pcm.open()
+        buf = bytearray(b"\x11\x22" * 4)
+        pcm.write(buf)
+        buf[:] = b"\x00" * 8
+        pcm._inner = Open(AudioFormat(44100, 2, 16))
+        pcm.service()
+        self.assertEqual(b"\x11\x22" * 4, bytes(pcm._inner.data))
 
 
 if __name__ == "__main__":

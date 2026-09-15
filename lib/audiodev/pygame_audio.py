@@ -860,7 +860,7 @@ class PygamePCMInput(PCMInput):
         _close_audiodevice_async(dev)
 
 
-def audio_out(
+def pcm_out(
     format=None,
     *,
     latency=None,
@@ -886,7 +886,7 @@ def audio_out(
     )
 
 
-def audio_in(format=None, *, device=None, latency=None, samples=None, poll_ms=2, queue_ms=None):
+def pcm_in(format=None, *, device=None, latency=None, samples=None, poll_ms=2, queue_ms=None):
     """Create a pygame-ce-backed PCM capture device via ``_sdl2.AudioDevice``.
 
     ``latency`` picks a profile as in :func:`audio_out`; ``samples`` and

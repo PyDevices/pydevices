@@ -50,15 +50,33 @@ class AutoSelectTests(unittest.TestCase):
             with self.assertRaisesRegex(ImportError, "install pygame-ce"):
                 auto.select_backend()
 
-    def test_sample_audio_out_wraps_the_selected_transport(self):
+    def test_audio_out_wraps_the_selected_transport(self):
+        """``audio_out`` is the sample player; ``pcm_out`` is the raw sink.
+
+        One name, one return type -- on hosts and on boards alike. The
+        collision this replaces (``auto.audio_out`` giving a PCMOutput while
+        ``board_peripherals.audio_out`` gave an AudioOut) is what forced
+        callers to write ``getattr(pcm, "transport", pcm)``.
+        """
+        from audiodev import PCMOutput
         from audiodev.sample_out import AudioOut
 
         fake_core = mock.Mock()
         with mock.patch.dict(sys.modules, {"audiocore": fake_core}), mock.patch.object(
-            auto, "audio_out", return_value=mock.Mock()
+            auto, "pcm_out", return_value=mock.Mock()
         ):
-            self.assertIsInstance(auto.sample_audio_out(), AudioOut)
-            self.assertIsInstance(auto.AutoAudio(), AudioOut)
+            self.assertIsInstance(auto.audio_out(), AudioOut)
+
+        fake = mock.Mock(spec=PCMOutput)
+        with mock.patch.object(auto, "_impl", return_value=lambda fmt, **kw: fake):
+            self.assertIs(fake, auto.pcm_out())
+            self.assertIs(fake, auto.pcm_in())
+
+    def test_no_stale_names_remain(self):
+        """The old spellings are gone, not aliased. An alias would keep two
+        names for one thing, which is the quirk being removed."""
+        for gone in ("sample_audio_out", "AutoAudio"):
+            self.assertFalse(hasattr(auto, gone), gone)
 
     def test_backends_do_not_import_auto(self):
         root = _env.ROOT / "lib" / "audiodev"

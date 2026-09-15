@@ -69,11 +69,16 @@ class DesktopBoardConfigContractTests(unittest.TestCase):
         self.assertIs(board_config.host_read, display.get_events)
         self.assertFalse(board_config.timer_async)
         self.assertFalse(hasattr(board_config, "app"))
-        self.assertEqual(board_config.PERIPHERALS, frozenset({"audio_out", "audio_in"}))
+        self.assertEqual(board_config.PERIPHERALS, frozenset({"audio_out", "pcm_out", "pcm_in"}))
         import board_peripherals
 
         self.assertTrue(callable(board_peripherals.audio_out))
-        self.assertTrue(callable(board_peripherals.audio_in))
+        self.assertTrue(callable(board_peripherals.pcm_out))
+        self.assertTrue(callable(board_peripherals.pcm_in))
+        # There is no audio_in: capture has no sample-player layer, so a name
+        # implying one would be the same vagueness that let audio_out mean
+        # two different return types.
+        self.assertFalse(hasattr(board_peripherals, "audio_in"))
         self.assertNotIn("width", board_config.__dict__)
         self.assertNotIn("height", board_config.__dict__)
         display.fill.assert_called_once_with(0)
@@ -94,7 +99,7 @@ class DesktopBoardConfigHeadlessSmoke(unittest.TestCase):
         self.assertTrue(hasattr(board_config, "display_drv"))
         self.assertFalse(hasattr(board_config, "app"))
         self.assertIn("audio_out", board_config.PERIPHERALS)
-        self.assertIn("audio_in", board_config.PERIPHERALS)
+        self.assertIn("pcm_in", board_config.PERIPHERALS)
         self.assertTrue(hasattr(board_config.display_drv, "width"))
         self.assertTrue(hasattr(board_config.display_drv, "height"))
         self.assertTrue(callable(board_config.display_drv.get_events))

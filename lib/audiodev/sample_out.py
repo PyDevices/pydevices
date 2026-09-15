@@ -331,13 +331,13 @@ class AudioOut:
 
 
 def sample_out(transport_factory, format=None, **kwargs):
-    """Wrap a backend's ``audio_out(format, **kwargs)`` transport in :class:`AudioOut`.
+    """Wrap a backend's ``pcm_out(format, **kwargs)`` transport in :class:`AudioOut`.
 
-    ``transport_factory`` is a module (or any object) exposing ``audio_out``,
+    ``transport_factory`` is a module (or any object) exposing ``pcm_out``,
     e.g. ``audiodev.sdl2_audio`` -- so ``sample_out(sdl2_audio)`` is the sdl2
     equivalent of CircuitPython's ``audiobusio.I2SOut(...)``.
     """
-    return AudioOut(transport_factory.audio_out(format, **kwargs))
+    return AudioOut(transport_factory.pcm_out(format, **kwargs))
 
 
 __all__ = ("AudioOut", "sample_out")

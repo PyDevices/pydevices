@@ -13,6 +13,13 @@ except ImportError:  # pragma: no cover - uasyncio name on older firmware
     except ImportError:
         asyncio = None
 
+# PaceOutput waits this many 1 ms ticks for DMA to drain before dropping
+# stash. CPython tests leave it None so write() stays instantaneous.
+try:
+    from time import sleep_ms as _pace_sleep_ms
+except ImportError:  # pragma: no cover - CPython host
+    _pace_sleep_ms = None
+
 # Latency profiles, shared vocabulary for every backend's ``audio_out`` /
 # ``audio_in``. Backends translate a profile into their own block and queue
 # sizes -- the names live here so all of them spell it the same way, and so a
@@ -117,6 +124,263 @@ class AudioFormat:  # noqa: PLW1641 - mutable value object is intentionally unha
             other.signed,
             other.byteorder,
         )
+
+
+class I2SWire:
+    """Physical facts about a board's I2S port, published without opening it.
+
+    A consumer that wants to drive the peripheral itself -- usbif's C
+    FreeRTOS pump is the live example -- needs the port and pin numbers and
+    no Python device at all. Publishing them on the capability is what lets
+    such a consumer stop reaching into a board module's private names.
+    """
+
+    def __init__(self, port, *, sck, ws, sd, mck=None, mck_fs=256):
+        self.port = int(port)
+        self.sck = int(sck)
+        self.ws = int(ws)
+        self.sd = int(sd)
+        self.mck = None if mck is None else int(mck)
+        self.mck_fs = int(mck_fs)
+
+    def __repr__(self):
+        return (
+            "I2SWire(port=%d, sck=%d, ws=%d, sd=%d, mck=%r, mck_fs=%d)"
+            % (self.port, self.sck, self.ws, self.sd, self.mck, self.mck_fs)
+        )
+
+
+class AudioCapability:
+    """What a board's audio role can actually do. Boards declare; we decide.
+
+    Boards used to hand-write a ``_require_format()`` with their own raises,
+    which meant every board reimplemented validation with different error
+    text and each new question grew another ad-hoc attribute. Here a board
+    states facts and :func:`negotiate` holds the policy.
+
+    ``channels`` is what the **wire** will open; ``native_channels`` is how
+    many signals actually reach a transducer. They are not the same thing
+    and conflating them is a bug: the ESP32-P4's ES8311 clocks two slots and
+    feeds one speaker, so it accepts ``channels=(1, 2)`` with
+    ``native_channels=1`` and needs no mixdown for stereo content.
+
+    ``rates=None`` means continuous -- an I2S PLL will take any rate asked.
+    A board with a fixed crystal lists the rates it can actually clock.
+
+    New axes are added as keywords with defaults, so a board written today
+    keeps working when one appears. That is the point of the class.
+    """
+
+    def __init__(
+        self,
+        default,
+        *,
+        kind="pcm",
+        rates=None,
+        channels=None,
+        native_channels=None,
+        bits=(16,),
+        signed=True,
+        byteorder="little",
+        wire=None,
+    ):
+        if kind not in ("pcm", "tone"):
+            raise ValueError("kind must be 'pcm' or 'tone'")
+        if kind == "pcm" and not isinstance(default, AudioFormat):
+            raise TypeError("default must be an AudioFormat for kind='pcm'")
+        self.kind = kind
+        self.default = default
+        self.rates = None if rates is None else tuple(int(r) for r in rates)
+        if channels is not None:
+            self.channels = tuple(int(c) for c in channels)
+        elif default is not None:
+            self.channels = (default.channels,)
+        else:
+            self.channels = ()
+        if native_channels is not None:
+            self.native_channels = int(native_channels)
+        else:
+            self.native_channels = min(self.channels) if self.channels else 0
+        self.bits = tuple(int(b) for b in bits)
+        self.signed = bool(signed)
+        self.byteorder = byteorder
+        self.wire = wire
+        if kind == "pcm":
+            # A board that cannot open its own default is a board that will
+            # fail on audio_out() with no argument. Catch it at import.
+            negotiate(self, default)
+
+    def __repr__(self):
+        return (
+            "AudioCapability(kind=%r, default=%r, rates=%r, channels=%r, "
+            "native_channels=%d, bits=%r)"
+            % (
+                self.kind,
+                self.default,
+                self.rates,
+                self.channels,
+                self.native_channels,
+                self.bits,
+            )
+        )
+
+
+def _describe(values):
+    return ", ".join(str(v) for v in values)
+
+
+def negotiate(capability, requested=None):
+    """Resolve a requested format against a board capability.
+
+    Returns ``(wire_format, source_format)``. ``wire_format`` is what the
+    board opens its peripheral at; ``source_format`` is what the returned
+    device's ``write()`` accepts. When they are the same object no
+    conversion is needed -- which is the common case, including stereo
+    content on a mono-speaker board whose wire takes two slots.
+
+    Raises rather than substituting. A silently-different format is a class
+    of bug that sounds like working audio at the wrong pitch, which is
+    exactly what nobody notices until it ships.
+    """
+    if capability.kind != "pcm":
+        if requested is not None:
+            raise ValueError(
+                "this audio role is %r, not PCM; it takes no format"
+                % capability.kind
+            )
+        return None, None
+    if requested is None:
+        requested = capability.default
+    if not isinstance(requested, AudioFormat):
+        raise TypeError("format must be an AudioFormat or None")
+
+    if requested.bits not in capability.bits:
+        raise ValueError(
+            "this board takes %s-bit audio; asked for %d"
+            % (_describe(capability.bits), requested.bits)
+        )
+    if requested.signed != capability.signed:
+        raise ValueError(
+            "this board takes %s samples"
+            % ("signed" if capability.signed else "unsigned")
+        )
+    if requested.byteorder != capability.byteorder:
+        raise ValueError(
+            "this board takes %s-endian samples" % capability.byteorder
+        )
+    if capability.rates is not None and requested.rate not in capability.rates:
+        raise ValueError(
+            "this board can clock %s Hz; asked for %d (audiodev does not "
+            "resample)" % (_describe(capability.rates), requested.rate)
+        )
+
+    if requested.channels in capability.channels:
+        return requested, requested
+
+    # The wire cannot take that channel count. Remix bridges 1<->2 only.
+    if requested.channels not in (1, 2):
+        raise ValueError(
+            "channel count must be 1 or 2; asked for %d" % requested.channels
+        )
+    bridge = 2 if requested.channels == 1 else 1
+    if bridge not in capability.channels:
+        raise ValueError(
+            "this board opens %s channel(s); asked for %d and cannot bridge it"
+            % (_describe(capability.channels), requested.channels)
+        )
+    wire = AudioFormat(
+        requested.rate,
+        bridge,
+        requested.bits,
+        signed=requested.signed,
+        byteorder=requested.byteorder,
+    )
+    return wire, requested
+
+
+class AudioFactory:
+    """A board's ``audio_out``/``pcm_out`` callable, with its capability attached.
+
+    MicroPython function objects cannot hold attributes, so a board wraps its
+    factory here rather than assigning ``audio_out.capability`` onto a bare
+    function. Call shape matches ``audiodev.auto``: ``(format=None, **kwargs)``.
+
+    ``capability`` is the only discovery surface -- ask it what rates and
+    channel counts the board takes, and ``capability.wire`` for the pins when
+    you mean to open the peripheral yourself. There is deliberately no second
+    way to ask the same question.
+    """
+
+    def __init__(self, call, capability):
+        if not isinstance(capability, AudioCapability):
+            raise TypeError("capability must be an AudioCapability")
+        self.capability = capability
+        self._call = call
+
+    def __call__(self, format=None, **kwargs):
+        return self._call(format, **kwargs)
+
+    def __repr__(self):
+        return "AudioFactory(%r)" % (self.capability,)
+
+
+def _remix_s16_py(source, src_channels, dst_channels, dest=None):
+    """CPython / no-audioif fallback. Matches ``audioif_remix_s16``."""
+    src_channels = int(src_channels)
+    dst_channels = int(dst_channels)
+    if src_channels not in (1, 2) or dst_channels not in (1, 2):
+        raise ValueError("channel_count must be 1 or 2")
+    src = memoryview(source)
+    frame = src_channels * 2
+    if frame == 0 or len(src) % frame:
+        raise ValueError("source must be a whole number of frames")
+    frames = len(src) // frame
+    need = frames * dst_channels * 2
+    if dest is None:
+        dest = bytearray(need)
+    dst = memoryview(dest)
+    if len(dst) < need:
+        raise ValueError("dest is too small")
+
+    def _s16(lo, hi):
+        value = lo | (hi << 8)
+        return value - 65536 if value >= 32768 else value
+
+    def _store(offset, sample):
+        if sample < 0:
+            sample += 65536
+        dst[offset] = sample & 255
+        dst[offset + 1] = (sample >> 8) & 255
+
+    if src_channels == dst_channels:
+        dst[:need] = src[:need]
+        return dest
+    if src_channels == 2:
+        o = 0
+        for i in range(0, frames * 4, 4):
+            left = _s16(src[i], src[i + 1])
+            right = _s16(src[i + 2], src[i + 3])
+            total = left + right
+            mixed = total // 2 if total >= 0 else -((-total) // 2)
+            _store(o, mixed)
+            o += 2
+        return dest
+    o = 0
+    for i in range(0, frames * 2, 2):
+        sample = _s16(src[i], src[i + 1])
+        _store(o, sample)
+        _store(o + 2, sample)
+        o += 4
+    return dest
+
+
+# NOTE: no audioif import here, deliberately. audiodev/__init__.py and every
+# transport backend are importable with no audioif present -- that is the
+# layering rule the README's table states, and the reason a headless PCM
+# consumer (a Connect speaker, a USB audio pump) needs no DSP package in
+# firmware. The pure-Python remix below is correct but slow; a caller that
+# wants the C one passes it in. ``audiodev.accel.best_remix()`` is the seam,
+# and it lives in its own module precisely so importing it is a choice.
 
 
 class AudioSession:
@@ -381,6 +645,26 @@ class PCMOutput(_Device):
             written += count
         return len(buf)
 
+    def try_write(self, buf):
+        """Push as many bytes as the backend will take without blocking.
+
+        Unlike :meth:`write`, a 0-byte or partial I2S return is not an error:
+        the caller keeps the remainder. Volume scaling is applied to *buf*
+        before the backend sees it; leftover bytes should be retried as the
+        original unscaled prefix.
+        """
+        self.open()
+        source = self._prepare(buf)
+        count = self._write(source)
+        if count is None:
+            return 0
+        count = int(count)
+        if count < 0:
+            return 0
+        if count > len(source):
+            return len(source)
+        return count
+
     def drain(self):
         self.open()
         return self._drain()
@@ -520,6 +804,345 @@ class PCMInput(_Device):
             super().close()
 
 
+class ChannelAdapter(PCMOutput):
+    """Accept ``source_format`` on ``write()``; emit the inner device's format.
+
+    Native I2S / WASAPI / etc. stay at their wire format. This wrapper is the
+    producer-facing ``PCMOutput`` (``AudioOut.transport``, ``Device.attach``).
+    """
+
+    def __init__(self, inner, source_format, remix=None):
+        super().__init__(
+            source_format,
+            session=None,
+            set_hardware_volume=getattr(inner, "_set_hardware_volume", None),
+            set_hardware_mute=getattr(inner, "_set_hardware_mute", None),
+        )
+        self._inner = inner
+        self._mix = bytearray()
+        self.remix = remix or _remix_s16_py
+        self.codec = getattr(inner, "codec", None)
+
+    @property
+    def i2s(self):
+        return getattr(self._inner, "i2s", None)
+
+    @property
+    def volume(self):
+        return self._inner.volume
+
+    @property
+    def muted(self):
+        return self._inner.muted
+
+    def set_volume(self, percent):
+        return self._inner.set_volume(percent)
+
+    def mute(self, value=True):
+        return self._inner.mute(value)
+
+    def open(self):
+        self._inner.open()
+        self.is_open = True
+        self.codec = getattr(self._inner, "codec", None)
+        return self
+
+    def close(self):
+        if not self.is_open:
+            return
+        try:
+            self._inner.close()
+        finally:
+            self.is_open = False
+
+    def queued_size(self):
+        inner_q = self._inner.queued_size()
+        inner_frame = self._inner.format.frame_size
+        if inner_frame <= 0:
+            return 0
+        return inner_q * self.format.frame_size // inner_frame
+
+    def is_active(self):
+        return self._inner.is_active()
+
+    def clear(self):
+        return self._inner.clear()
+
+    def service(self):
+        return self._inner.service()
+
+    def space(self):
+        fn = getattr(self._inner, "space", None)
+        if fn is None:
+            return 0
+        inner_space = int(fn())
+        inner_frame = self._inner.format.frame_size
+        if inner_frame <= 0:
+            return 0
+        return inner_space * self.format.frame_size // inner_frame
+
+    def _write(self, buf):
+        src = memoryview(buf)
+        src_ch = self.format.channels
+        dst_ch = self._inner.format.channels
+        need = len(src) * dst_ch // src_ch
+        if len(self._mix) < need:
+            self._mix = bytearray(need)
+        self.remix(src, src_ch, dst_ch, self._mix)
+        taken = self._inner.try_write(memoryview(self._mix)[:need])
+        if taken <= 0:
+            return 0
+        src_taken = taken * src_ch // dst_ch
+        src_taken -= src_taken % self.format.frame_size
+        return src_taken
+
+
+def adapt_channels(pcm, source_format, remix=None):
+    """Return *pcm* unchanged, or a wrapper that converts *source_format* to it.
+
+    ``pcm.format`` is the wire. ``source_format`` is what ``write()`` accepts.
+    Channel counts must be 1 or 2 and rates/widths must already match; this
+    does not resample.
+
+    ``remix`` is the conversion callable ``(src, src_ch, dst_ch, dest)``.
+    Default is the pure-Python one in this module, which is correct
+    everywhere and slow; pass ``audiodev.accel.best_remix()`` for the C
+    implementation when audioif is present.
+    """
+    if not isinstance(source_format, AudioFormat):
+        raise TypeError("source_format must be AudioFormat")
+    if source_format.channels == pcm.format.channels:
+        return pcm
+    if source_format.rate != pcm.format.rate:
+        raise ValueError("adapt_channels does not resample")
+    if (
+        source_format.bits != pcm.format.bits
+        or source_format.signed != pcm.format.signed
+        or source_format.byteorder != pcm.format.byteorder
+    ):
+        raise ValueError("adapt_channels converts channels only")
+    if source_format.channels not in (1, 2) or pcm.format.channels not in (1, 2):
+        raise ValueError("channel_count must be 1 or 2")
+    return ChannelAdapter(pcm, source_format, remix=remix)
+
+
+class PaceOutput(PCMOutput):
+    """Take write() without blocking ``machine.I2S`` until DMA is full.
+
+    ESP32 ``I2S.write`` holds the GIL until the DMA has room. Filling the
+    ring then blocking was measured at 88-160 ms on the P4 and starves the
+    C6 SDIO Wi-Fi path (Connect underruns, audible skips). Overflow is
+    copied into a preallocated bytearray ring and flushed until the inner
+    device returns 0 (DMA full). ``bytes(buf)`` / leftover slices on that
+    path allocated a 7 kB object per Connect pump and GC-paused the P4
+    for 200 ms–1.8 s. A software byte-clock must not gate the flush: I2S
+    MCLK on this board runs ~1.6% fast, so the clock reports the ring
+    still full after DMA has already gone empty, and audio sits in Python
+    while the speaker underruns. ``queue_ms`` only caps how much we keep
+    in the stash (OOM), not how much we are willing to push into I2S.
+
+    Inner writes use :meth:`PCMOutput.try_write`, not :meth:`write`. The
+    latter loops until every byte lands (or raises on a 0-byte I2S
+    return). ``machine.I2S`` in asyncio mode returns partial/zero when DMA
+    is full; that is the stop signal, not an error.
+
+    ``write()`` always copies what it is given, then flushes. It does not
+    sleep for I2S room: a 250 ms ``sleep_ms`` wait held the GIL while DMA
+    played out, which is the Connect skip (C ring full, I2S empty). Overflow
+    above ``queue_ms`` is dropped. The Connect pump must call :meth:`space`
+    and leave PCM in the C ring when the stash is at cap.
+    """
+
+    def __init__(self, inner, queue_ms=80):
+        super().__init__(
+            inner.format,
+            session=None,
+            set_hardware_volume=getattr(inner, "_set_hardware_volume", None),
+            set_hardware_mute=getattr(inner, "_set_hardware_mute", None),
+        )
+        self._inner = inner
+        frame = inner.format.frame_size
+        self._cap = int(queue_ms) * inner.format.rate * frame // 1000
+        if self._cap < frame:
+            self._cap = frame
+        # One inner.write of a 40 ms Connect pump still blocks I2S with the
+        # GIL held if DMA only has a few milliseconds of room. Slice to 10 ms.
+        self._slice = 10 * inner.format.rate * frame // 1000
+        if self._slice < frame:
+            self._slice = frame
+        size = self._cap + self._slice
+        rem = size % frame
+        if rem:
+            size += frame - rem
+        self._store = bytearray(size)
+        self._store_mv = memoryview(self._store)
+        self._r = 0
+        self._held = 0
+        self.codec = getattr(inner, "codec", None)
+
+    def _reset_stash(self):
+        self._r = 0
+        self._held = 0
+
+    def _compact(self):
+        if self._r == 0 or self._held <= 0:
+            return
+        n = len(self._store)
+        first = n - self._r
+        if first > self._held:
+            first = self._held
+        linear = bytearray(self._held)
+        linear[:first] = self._store_mv[self._r : self._r + first]
+        rest = self._held - first
+        if rest:
+            linear[first:] = self._store_mv[:rest]
+        self._store_mv[: self._held] = linear
+        self._r = 0
+
+    @property
+    def i2s(self):
+        return getattr(self._inner, "i2s", None)
+
+    @property
+    def volume(self):
+        return self._inner.volume
+
+    @property
+    def muted(self):
+        return self._inner.muted
+
+    def set_volume(self, percent):
+        return self._inner.set_volume(percent)
+
+    def mute(self, value=True):
+        return self._inner.mute(value)
+
+    def open(self):
+        self._inner.open()
+        self.is_open = True
+        self.codec = getattr(self._inner, "codec", None)
+        return self
+
+    def close(self):
+        if not self.is_open:
+            return
+        try:
+            self._inner.close()
+        finally:
+            self._reset_stash()
+            self.is_open = False
+
+    def queued_size(self):
+        return self._inner.queued_size() + self._held
+
+    def is_active(self):
+        return self._held > 0 or self._inner.is_active()
+
+    def clear(self):
+        self._reset_stash()
+        return self._inner.clear()
+
+    def service(self):
+        self._flush()
+        return self._inner.service()
+
+    def space(self):
+        """Bytes the stash can take without dropping. Flushes first."""
+        self._flush()
+        frame = self._inner.format.frame_size
+        room = self._cap - self._held
+        if room < frame:
+            return 0
+        return room - (room % frame)
+
+    def _ensure(self, extra):
+        need = self._held + extra
+        n = len(self._store)
+        if need <= n:
+            return
+        new = bytearray(need + self._slice)
+        if self._held:
+            first = n - self._r
+            if first > self._held:
+                first = self._held
+            new[:first] = self._store_mv[self._r : self._r + first]
+            rest = self._held - first
+            if rest:
+                new[first : first + rest] = self._store_mv[:rest]
+        self._store = new
+        self._store_mv = memoryview(new)
+        self._r = 0
+
+    def _append(self, buf):
+        src = memoryview(buf)
+        extra = len(src)
+        if extra <= 0:
+            return
+        self._ensure(extra)
+        n = len(self._store)
+        off = (self._r + self._held) % n
+        i = 0
+        while i < extra:
+            room = n - off
+            chunk = extra - i
+            if chunk > room:
+                chunk = room
+            self._store[off : off + chunk] = src[i : i + chunk]
+            off = (off + chunk) % n
+            i += chunk
+        self._held += extra
+
+    def _flush(self):
+        frame = self._inner.format.frame_size
+        if frame <= 0:
+            return
+        n = len(self._store)
+        while self._held >= frame:
+            contig = n - self._r
+            if contig > self._held:
+                contig = self._held
+            take = contig if contig < self._slice else self._slice
+            take -= take % frame
+            if take < frame:
+                if contig < self._held:
+                    self._compact()
+                    n = len(self._store)
+                    continue
+                return
+            written = self._inner.try_write(self._store_mv[self._r : self._r + take])
+            if written < 0:
+                written = 0
+            if written > take:
+                written = take
+            written -= written % frame
+            if written <= 0:
+                return
+            self._r = (self._r + written) % n
+            self._held -= written
+
+    def _drop_to_cap(self):
+        if self._held <= self._cap:
+            return
+        drop = self._held - self._cap
+        n = len(self._store)
+        if n:
+            self._r = (self._r + drop) % n
+        self._held = self._cap
+
+    def _write(self, buf):
+        self._append(buf)
+        self._flush()
+        self._drop_to_cap()
+        return len(buf)
+
+
+def pace_output(pcm, queue_ms=80):
+    """Return *pcm* wrapped so ``write()`` will not block a full I2S DMA."""
+    if isinstance(pcm, PaceOutput):
+        return pcm
+    return PaceOutput(pcm, queue_ms=queue_ms)
+
+
 class ToneOutput(_Device):
     """Frequency/duty output for PWM speakers and buzzers.
 
@@ -602,7 +1225,15 @@ __all__ = (
     "LATENCIES",
     "LOW_LATENCY_QUEUE_MS",
     "AudioFormat",
+    "AudioFactory",
+    "AudioCapability",
+    "I2SWire",
+    "negotiate",
     "AudioSession",
+    "ChannelAdapter",
+    "adapt_channels",
+    "PaceOutput",
+    "pace_output",
     "PCMInput",
     "PCMOutput",
     "ToneOutput",

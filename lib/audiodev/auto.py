@@ -74,30 +74,34 @@ def _impl(name, direction):
     return getattr(mod, direction)
 
 
-def audio_out(format=None, **kwargs):
-    """Construct a raw PCM transport via :func:`select_backend`.
+def pcm_out(format=None, **kwargs):
+    """Construct a raw :class:`~audiodev.PCMOutput` via :func:`select_backend`.
 
-    Low-level escape hatch (raw ``write()``); most callers want
-    :func:`sample_audio_out`, which wraps this in an :class:`AudioOut` sample
-    player.
+    Push bytes at it with ``write()``. This is what a consumer that already
+    has PCM wants -- a Connect speaker, a USB audio pump -- and it needs no
+    audioif, because no sample graph is ever pulled.
     """
-    return _impl(select_backend(), "audio_out")(format, **kwargs)
+    return _impl(select_backend(), "pcm_out")(format, **kwargs)
 
 
-def audio_in(format=None, **kwargs):
-    """Construct capture via :func:`select_backend`. Forward kwargs unchanged."""
-    return _impl(select_backend(), "audio_in")(format, **kwargs)
+def pcm_in(format=None, **kwargs):
+    """Construct a raw :class:`~audiodev.PCMInput` via :func:`select_backend`."""
+    return _impl(select_backend(), "pcm_in")(format, **kwargs)
 
 
-def sample_audio_out(format=None, **kwargs):
-    """Construct an :class:`~audiodev.sample_out.AudioOut` sample player via
-    :func:`select_backend`. This is what a board's ``audio_out`` role returns.
+def audio_out(format=None, **kwargs):
+    """Construct an :class:`~audiodev.sample_out.AudioOut` sample player.
+
+    ``play(sample)`` over a CircuitPython-shaped audiosample. This is what a
+    board's ``audio_out`` role returns, and the name means the same thing
+    here as it does there -- see ``pcm_out`` for the raw sink.
 
     ``chunk_ms``/``lookahead_chunks``/``max_catchup_chunks`` go to the
     :class:`AudioOut` pump; everything else goes to the transport factory.
     ``latency="low"`` also shrinks the pump's chunk to 20ms (a 40ms schedule
     with the default 2-chunk lookahead) -- the transport profile alone cannot
-    lower note-to-sound latency below what the pump keeps rendered ahead."""
+    lower note-to-sound latency below what the pump keeps rendered ahead.
+    """
     from audiodev.sample_out import AudioOut
 
     pump_kwargs = {}
@@ -113,9 +117,4 @@ def sample_audio_out(format=None, **kwargs):
             # of the drum machine). Six chunks (60ms) measured 2, at a
             # note-to-sound cost that stays acceptable for live pads.
             pump_kwargs.setdefault("lookahead_chunks", 6)
-    return AudioOut(audio_out(format, **kwargs), **pump_kwargs)
-
-
-def AutoAudio(format=None, **kwargs):
-    """Convenience alias for :func:`sample_audio_out`."""
-    return sample_audio_out(format, **kwargs)
+    return AudioOut(pcm_out(format, **kwargs), **pump_kwargs)

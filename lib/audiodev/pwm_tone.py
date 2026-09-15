@@ -56,6 +56,6 @@ class PWMToneOutput(ToneOutput):
             pwm.duty(0)
 
 
-def audio_out(pwm, *, session=None, power=None):
+def tone_out(pwm, *, session=None, power=None):
     """Build a :class:`PWMToneOutput` around *pwm* (instance or factory)."""
     return PWMToneOutput(pwm, session=session, power=power)

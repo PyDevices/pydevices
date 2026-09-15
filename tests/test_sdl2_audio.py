@@ -22,7 +22,7 @@ class SDLBackendTests(unittest.TestCase):
         sdl2_audio = _sdl2_audio
 
     def test_sync_output_controls_and_drain(self):
-        output = sdl2_audio.audio_out(AudioFormat(8000, 1, 16), queue_ms=10)
+        output = sdl2_audio.pcm_out(AudioFormat(8000, 1, 16), queue_ms=10)
         self.assertIsInstance(output, PCMOutput)
         self.assertIsInstance(output, sdl2_audio.SDLPCMOutput)
         self.assertTrue(callable(output.service))
@@ -39,7 +39,7 @@ class SDLBackendTests(unittest.TestCase):
 
     def test_async_output_and_cancellation(self):
         async def run():
-            output = sdl2_audio.audio_out(AudioFormat(8000, 1, 16), queue_ms=10)
+            output = sdl2_audio.pcm_out(AudioFormat(8000, 1, 16), queue_ms=10)
             await output.awrite(b"\0\0" * 80)
             await output.adrain()
 

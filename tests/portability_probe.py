@@ -97,7 +97,7 @@ def probe_buffer_consumption():
     from audiodev import AudioFormat, sdl2_audio
 
     fmt = AudioFormat(24000, 1, 16)
-    device = sdl2_audio.audio_out(fmt)
+    device = sdl2_audio.pcm_out(fmt)
     device.open()
 
     # Small enough that the first queued piece overflows it, so the trim branch
@@ -149,7 +149,7 @@ def probe_latency_profile():
     from audiodev import AudioFormat, sdl2_audio
 
     fmt = AudioFormat(24000, 1, 16)
-    device = sdl2_audio.audio_out(fmt, latency="low")
+    device = sdl2_audio.pcm_out(fmt, latency="low")
     device.open()
     check(
         "low profile shortened the coalesce window ({} bytes)".format(device._coalesce_bytes),
@@ -162,7 +162,7 @@ def probe_latency_profile():
 
     failed = False
     try:
-        sdl2_audio.audio_out(fmt, latency="nope")
+        sdl2_audio.pcm_out(fmt, latency="nope")
     except ValueError:
         failed = True
     check("an unknown profile raises instead of falling back", failed)

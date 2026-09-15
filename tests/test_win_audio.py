@@ -20,7 +20,7 @@ class WinAudioTests(unittest.TestCase):
         win_audio = _win_audio
 
     def test_sync_output_controls_and_drain(self):
-        output = win_audio.audio_out(AudioFormat(8000, 1, 16), queue_ms=50, coalesce_ms=10)
+        output = win_audio.pcm_out(AudioFormat(8000, 1, 16), queue_ms=50, coalesce_ms=10)
         self.assertIsInstance(output, PCMOutput)
         self.assertIsInstance(output, win_audio.WinPCMOutput)
         self.assertTrue(callable(output.service))
