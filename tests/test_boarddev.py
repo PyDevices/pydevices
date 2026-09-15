@@ -11,11 +11,12 @@ import boarddev
 
 
 class TestBindLazy(unittest.TestCase):
-    def _make_devices_mod(self, **factories):
+    def _make_devices_mod(self, factory_roles=(), **factories):
         import types
 
         mod = types.ModuleType("fake_board_peripherals")
         mod.PERIPHERALS = frozenset(factories)
+        mod.FACTORY_ROLES = frozenset(factory_roles)
         for name, factory in factories.items():
             setattr(mod, name, factory)
         return mod
@@ -50,6 +51,24 @@ class TestBindLazy(unittest.TestCase):
         self.assertIn("app", names)
         self.assertIn("sdcard", names)
         self.assertIn("wlan", names)
+
+    def test_factory_roles_bind_the_callable_without_invoking(self):
+        calls = {"n": 0}
+
+        def audio_out(format=None):
+            calls["n"] += 1
+            return {"format": format}
+
+        ns = {}
+        boarddev.bind_lazy(
+            ns,
+            self._make_devices_mod(factory_roles=("audio_out",), audio_out=audio_out),
+        )
+        bound = ns["__getattr__"]("audio_out")
+        self.assertIs(bound, audio_out)
+        self.assertEqual(calls["n"], 0)
+        self.assertEqual(bound(format="pcm")["format"], "pcm")
+        self.assertEqual(calls["n"], 1)
 
 
 if __name__ == "__main__":

@@ -37,6 +37,16 @@ def _valid_ipv4(ip):
     return bool(ip) and ip != "0.0.0.0"
 
 
+def _sync_time():
+    try:
+        import ntptime
+
+        ntptime.settime()
+        print("wifi: ntp ok")
+    except Exception as exc:
+        print("wifi: ntp", type(exc).__name__, exc)
+
+
 class Radio:
     def __init__(self):
         self._wlan = network.WLAN(network.STA_IF)
@@ -55,6 +65,7 @@ class Radio:
     def connect(self, ssid, password):
         if self._ipv4() is not None:
             print("\nAlready connected.\nNetwork config:", self._wlan.ifconfig(), "\n")
+            _sync_time()
             return None
 
         self._wlan.active(True)
@@ -65,6 +76,7 @@ class Radio:
         while ticks_diff(ticks_ms(), t0) < _CONNECT_TIMEOUT_MS:
             if self._ipv4() is not None:
                 print("Connection established.\nNetwork config:", self._wlan.ifconfig(), "\n")
+                _sync_time()
                 return None
             now = ticks_ms()
             if ticks_diff(now, last_prog) >= _PROGRESS_MS:
@@ -79,6 +91,7 @@ class Radio:
             sleep_ms(_POLL_MS)
         if self._ipv4() is not None:
             print("Connection established.\nNetwork config:", self._wlan.ifconfig(), "\n")
+            _sync_time()
             return None
         print("Failed to connect after %ds.\n" % (_CONNECT_TIMEOUT_MS // 1000))
         return None
@@ -106,6 +119,7 @@ def connect_from_secrets(module="secrets"):
     # Already online (e.g. NVS auto-reconnect) — do not call connect() again.
     if radio.ipv4_address is not None:
         print("\nAlready connected.\nNetwork config:", radio._wlan.ifconfig(), "\n")
+        _sync_time()
         return True
     if not ssid:
         print("wifi: WIFI_SSID missing in secrets")

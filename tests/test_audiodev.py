@@ -13,9 +13,12 @@ import _env  # noqa: E402, F401
 from audiodev import (  # noqa: E402
     AudioFormat,
     AudioSession,
+    AudioFactory,
     PCMInput,
     PCMOutput,
     ToneOutput,
+    adapt_channels,
+    pace_output,
 )
 from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput  # noqa: E402
 from audiodev.pwm_tone import PWMToneOutput  # noqa: E402
@@ -250,6 +253,18 @@ class I2SAdapterTests(unittest.TestCase):
         self.assertEqual(inp.readinto(buf), 2)
         inp.close()
         self.assertTrue(capture.closed)
+
+    def test_none_write_is_zero_bytes_not_a_full_buffer(self):
+        class NoneI2S(FakeI2S):
+            def write(self, data):
+                return None
+
+        fmt = AudioFormat(16000, 1, 16)
+        out = I2SPCMOutput(NoneI2S(), fmt)
+        out.open()
+        self.assertEqual(0, out.try_write(b"\x02\x00\x03\x00"))
+        self.assertEqual(0, out.queued_size())
+        out.close()
 
 
 class FakeSample:
@@ -612,6 +627,208 @@ class ToneTests(unittest.TestCase):
             self.assertEqual(power, [True, False])
 
         asyncio.run(run())
+
+
+class AudioFactoryTests(unittest.TestCase):
+    def test_advertises_max_channels_and_forwards_call(self):
+        seen = {}
+
+        def ctor(format=None, **kwargs):
+            seen["format"] = format
+            seen["kwargs"] = kwargs
+            return "device"
+
+        factory = AudioFactory(ctor, 2)
+        self.assertEqual(2, factory.max_channels)
+        fmt = AudioFormat(44100, 2, 16)
+        self.assertEqual("device", factory(fmt, latency="low"))
+        self.assertIs(fmt, seen["format"])
+        self.assertEqual({"latency": "low"}, seen["kwargs"])
+
+    def test_rejects_non_positive_max_channels(self):
+        with self.assertRaises(ValueError):
+            AudioFactory(lambda format=None: None, 0)
+
+
+class ChannelAdapterTests(unittest.TestCase):
+    def test_identity_when_channels_match(self):
+        fmt = AudioFormat(44100, 1, 16)
+        pcm = FakePCMOutput(fmt)
+        self.assertIs(pcm, adapt_channels(pcm, fmt))
+
+    def test_stereo_write_averages_to_mono(self):
+        inner = FakePCMOutput(AudioFormat(44100, 1, 16))
+        pcm = adapt_channels(inner, AudioFormat(44100, 2, 16))
+        pcm.open()
+        pcm.write(bytes((100, 0, 50, 0)))  # 100, 50 little-endian s16
+        self.assertEqual(bytes((75, 0)), bytes(inner.data))
+
+    def test_queued_size_is_in_source_bytes(self):
+        inner = FakePCMOutput(AudioFormat(44100, 1, 16))
+        pcm = adapt_channels(inner, AudioFormat(44100, 2, 16))
+        inner.queued_size = lambda: 100
+        self.assertEqual(200, pcm.queued_size())
+
+    def test_try_write_reports_source_bytes(self):
+        inner = FakePCMOutput(AudioFormat(44100, 1, 16), partial=2)
+        pcm = adapt_channels(inner, AudioFormat(44100, 2, 16))
+        pcm.open()
+        # 4 source bytes remix to 2 dest; inner takes both dest bytes.
+        self.assertEqual(4, pcm.try_write(bytes((100, 0, 50, 0))))
+        self.assertEqual(2, len(inner.data))
+
+
+class PaceOutputTests(unittest.TestCase):
+    def test_stashes_when_inner_write_takes_nothing(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        pcm.write(bytes(8))
+        self.assertEqual(0, len(inner.data))
+        self.assertEqual(8, pcm.queued_size())
+
+    def test_flush_stops_when_inner_is_full(self):
+        class Tracking(FakePCMOutput):
+            def __init__(self, fmt, dma_bytes):
+                super().__init__(fmt)
+                self.writes = []
+                self._queued = 0
+                self._dma = dma_bytes
+
+            def queued_size(self):
+                return self._queued
+
+            def _write(self, buf):
+                room = self._dma - self._queued
+                if room <= 0:
+                    return 0
+                take = len(buf) if len(buf) < room else room
+                take -= take % self.format.frame_size
+                if take <= 0:
+                    return 0
+                self.writes.append(take)
+                self._queued += take
+                self.data.extend(buf[:take])
+                return take
+
+        inner = Tracking(AudioFormat(44100, 2, 16), 1764)
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        pcm.write(bytes(4000))
+        self.assertEqual([1764], inner.writes)
+        self.assertEqual(1764, len(inner.data))
+        # cap is 10 ms = 1764; leftover above that is dropped so write()
+        # cannot grow a Python stash while waiting for I2S.
+        self.assertEqual(1764 + 1764, pcm.queued_size())
+        self.assertLessEqual(pcm._held, pcm._cap)
+
+    def test_flush_keeps_remainder_when_inner_takes_nothing_more(self):
+        class Gate(FakePCMOutput):
+            def _write(self, buf):
+                if len(self.data) >= 8:
+                    return 0
+                return super()._write(buf)
+
+        inner = Gate(AudioFormat(44100, 2, 16), partial=8)
+        pcm = pace_output(inner, queue_ms=80)
+        pcm.open()
+        # write() used to call inner.write(), which loops until every byte
+        # lands or raises OSError on a 0-byte _write. DMA-full I2S is the
+        # latter, and that was an audible skip once asyncio mode started
+        # returning partial/zero instead of blocking.
+        pcm.write(bytes(32))
+        self.assertEqual(8, len(inner.data))
+        self.assertEqual(24, pcm.queued_size())
+        pcm.service()
+        self.assertEqual(8, len(inner.data))
+        self.assertEqual(24, pcm.queued_size())
+
+    def test_write_returns_without_waiting_for_inner_drain(self):
+        import audiodev as module
+
+        class Drain(FakePCMOutput):
+            def __init__(self, fmt, dma_bytes):
+                super().__init__(fmt)
+                self._queued = 0
+                self._dma = dma_bytes
+
+            def queued_size(self):
+                return self._queued
+
+            def _write(self, buf):
+                room = self._dma - self._queued
+                if room <= 0:
+                    return 0
+                take = len(buf) if len(buf) < room else room
+                take -= take % self.format.frame_size
+                if take <= 0:
+                    return 0
+                self._queued += take
+                self.data.extend(buf[:take])
+                return take
+
+        inner = Drain(AudioFormat(44100, 2, 16), 1764)
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        sleeps = []
+
+        def fake_sleep(ms):
+            sleeps.append(ms)
+
+        old = module._pace_sleep_ms
+        module._pace_sleep_ms = fake_sleep
+        try:
+            pcm.write(bytes(4000))
+            self.assertEqual([], sleeps)
+            self.assertLessEqual(pcm._held, pcm._cap)
+        finally:
+            module._pace_sleep_ms = old
+
+    def test_space_is_zero_when_stash_is_at_cap(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        pcm.write(bytes(4000))
+        self.assertEqual(0, pcm.space())
+        self.assertEqual(pcm._cap, pcm._held)
+
+    def test_write_drops_stash_if_inner_never_drains(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        pcm.write(bytes(4000))
+        self.assertLessEqual(pcm._held, pcm._cap)
+        self.assertEqual(0, len(inner.data))
+
+    def test_write_copies_so_caller_may_reuse_the_buffer(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        class Open(FakePCMOutput):
+            pass
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=80)
+        pcm.open()
+        buf = bytearray(b"\x11\x22" * 4)
+        pcm.write(buf)
+        buf[:] = b"\x00" * 8
+        pcm._inner = Open(AudioFormat(44100, 2, 16))
+        pcm.service()
+        self.assertEqual(b"\x11\x22" * 4, bytes(pcm._inner.data))
 
 
 if __name__ == "__main__":
