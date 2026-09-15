@@ -34,7 +34,7 @@ Omit the name entirely when the hardware is absent. Canonical symbols:
 | Discrete LED | `led` | Primary user LED only |
 | Motion | `accelerometer`, `gyroscope`, `magnetometer` | Separate; omit missing axes |
 | Environment | `temperature`, `humidity`, `pressure` | Same driver may bind to several names |
-| Audio | `audio_out`, `audio_in` | Playback and capture use the portable `audiodev` contracts |
+| Audio | `audio_out`, `pcm_out`, `pcm_in` | One name, one return type — see below. There is no `audio_in`. |
 | Storage | `sdcard` | Driver object only; no auto-mount |
 | Camera | `camera` | |
 | Expansion I2C | `i2c` | Dedicated STEMMA/Qwiic/Grove only (not internal-only) |
@@ -46,17 +46,62 @@ Omit the name entirely when the hardware is absent. Canonical symbols:
 | RF co-processor | `radio` | AirLift/C6/etc.; may coexist with `wlan`/`ble` |
 | Runtime USB device | `usb_device` | Non-tooling `machine.USBDevice`; omit tooling CDC bridge |
 
-`audio_out` returns an `audiodev.sample_out.AudioOut` sample player
-(`play(sample, loop=)`/`stop()`/`pause()`/`resume()`/`playing`, over any
-CircuitPython-shaped audiosample -- `synthio`, `audiomixer`, `audiocore`,
-effects) or a `ToneOutput` for PWM/buzzer-only hardware. `audio_in` returns a
-`PCMInput`. Every device exposes its `format`, `capabilities`, normalized
-volume/gain and mute controls, synchronous I/O, and portable asynchronous
-I/O. When a codec provides hardware controls, the device delegates to them
-and exposes the codec as `device.codec`; otherwise volume or gain is applied
-to PCM samples in software. CircuitPython boards (`board_configs/cp/`) have
-no `audio_out` role at all -- the same audiosample protocol is satisfied
-natively by `audiobusio.I2SOut`/`audioio.AudioOut`.
+### The three audio roles
+
+`pcm_out(format=None, …)` returns a `PCMOutput`; `pcm_in(format=None, …)`
+returns a `PCMInput`; `audio_out(format=None, …)` returns an
+`audiodev.sample_out.AudioOut` sample player. Each role always returns the
+same kind of object, on every board and on every host.
+
+There is deliberately **no `audio_in`**: output has a player layer above raw
+PCM and capture has none, so a name implying one would be misleading. That
+asymmetry is intentional, not an oversight.
+
+`pcm_out` exists so a consumer that already has PCM bytes — a Spotify
+Connect speaker, a USB sound card — never constructs an `AudioOut` and so
+never needs audioif in firmware.
+
+Boards with PWM/buzzer-only hardware expose a `ToneOutput` and declare
+`kind="tone"`; they take no format.
+
+### Declaring what the board accepts
+
+Audio roles are **factories**: list them in `FACTORY_ROLES` so first
+attribute access binds the callable instead of constructing. Each publishes
+an `AudioCapability` as a module constant (`AUDIO_OUT` / `AUDIO_IN`) and as
+`role.capability`:
+
+```python
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in"})
+
+AUDIO_OUT = AudioCapability(
+    AudioFormat(24000, 1, 16),   # default when format=None
+    rates=None,                  # None = continuous; or a tuple of exact rates
+    channels=(1, 2),             # slot counts the WIRE will open
+    native_channels=1,           # signals that reach a transducer
+    bits=(16,),
+    wire=I2SWire(0, sck=12, ws=10, sd=9, mck=13),
+)
+```
+
+A board declares facts and calls `audiodev.negotiate()`; it does not write
+its own validation. **Declare only what has been measured on the hardware** —
+a capability is a promise the contract makes on the board's behalf.
+
+`channels` is not `native_channels`. The ESP32-P4's ES8311 clocks two slots
+into one speaker, so stereo content opens `I2S.STEREO` and is not mixed down.
+
+`wire` is for a consumer that opens the peripheral itself and wants no Python
+device — usbif's C pump is the live example. Publishing it is what lets such
+a consumer stop reaching into private names.
+
+Every device exposes its `format`, `capabilities`, normalized volume/gain and
+mute controls, synchronous I/O, and portable asynchronous I/O. When a codec
+provides hardware controls, the device delegates to them and exposes the
+codec as `device.codec`; otherwise volume or gain is applied to PCM samples
+in software. CircuitPython boards (`board_configs/cp/`) have no audio roles
+at all -- the same audiosample protocol is satisfied natively by
+`audiobusio.I2SOut`/`audioio.AudioOut`.
 See [Portable audio](audio.md) for backend, async, and board details.
 
 Out of contract as `board_config` symbols: high-level `wifi` / `bluetooth` modules
