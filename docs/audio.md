@@ -87,6 +87,13 @@ from audiodev.accel import best_remix
 pcm = adapt_channels(pcm, fmt, remix=best_remix())
 ```
 
+**"Slow" is measured, not hand-waved.** On a QT Py ESP32 Pico at 240 MHz, one
+10 ms chunk of stereo→mono costs 0.63× realtime at 16 kHz, 0.94× at 24 kHz and
+1.73× at 44.1 kHz. So `pcm_out` needing no audioif holds *while the format
+matches the wire* — the usual case, since a board whose wire takes two slots
+never remixes. A board that must genuinely mix down at a high rate needs
+audioif in firmware. That is a real constraint on board design, not a detail.
+
 `audiodev/__init__.py` and every transport backend import no audioif at all;
 only `sample_out.py` and `accel.py` may. A test asserts this by walking the
 AST, because the rule was broken once without anyone noticing.

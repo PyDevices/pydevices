@@ -10,6 +10,8 @@ if str(_TESTS) not in sys.path:
     sys.path.insert(0, str(_TESTS))
 import _env  # noqa: E402, F401
 
+import struct  # noqa: E402
+
 import audiodev  # noqa: E402
 from audiodev import (
     AudioCapability,  # noqa: E402
@@ -830,6 +832,63 @@ class RemixInjectionTests(unittest.TestCase):
                     if name in audioif_names:
                         offenders.append("%s: %s" % (path.name, name))
         self.assertEqual([], offenders)
+
+
+class RemixRoundingTests(unittest.TestCase):
+    """The averaging edge, which a weak test waves straight through.
+
+    While benchmarking a faster remix on an ESP32 I checked it against
+    ``avg(100, 50) == 75`` and ``avg(-100, -50) == -75`` and called it
+    correct. Both pairs sum to EVEN numbers, so neither exercises the
+    rounding rule at all -- the candidate was flooring where the C
+    implementation truncates toward zero, and it disagreed on every odd
+    negative sum. An exhaustive sweep found it immediately.
+    """
+
+    @staticmethod
+    def _reference(a, b):
+        """What audioif_remix_s16 does: average, truncating toward zero."""
+        total = a + b
+        return total // 2 if total >= 0 else -((-total) // 2)
+
+    def test_stereo_to_mono_truncates_toward_zero_exhaustively(self):
+        for a in range(-8, 9):
+            for b in range(-8, 9):
+                got = struct.unpack(
+                    "<h", audiodev._remix_s16_py(struct.pack("<hh", a, b), 2, 1)
+                )[0]
+                self.assertEqual(
+                    self._reference(a, b), got, "avg(%d, %d)" % (a, b)
+                )
+
+    def test_odd_negative_sums_are_where_flooring_differs(self):
+        """Names the exact discrepancy, so a future rewrite cannot lose it."""
+        # -3 + -2 = -5. Truncating gives -2; flooring gives -3.
+        got = struct.unpack(
+            "<h", audiodev._remix_s16_py(struct.pack("<hh", -3, -2), 2, 1)
+        )[0]
+        self.assertEqual(-2, got)
+        self.assertNotEqual(-5 >> 1, got)
+
+    def test_full_scale_negatives_do_not_wrap(self):
+        got = struct.unpack(
+            "<h", audiodev._remix_s16_py(struct.pack("<hh", -32768, -32767), 2, 1)
+        )[0]
+        self.assertEqual(-32767, got)
+
+    def test_expansion_may_alias_its_source(self):
+        """Documented property: the 1->2 pass runs backwards for this."""
+        buf = bytearray(struct.pack("<hh", 111, 222) + bytes(4))
+        audiodev._remix_s16_py(memoryview(buf)[:4], 1, 2, buf)
+        self.assertEqual((111, 111, 222, 222), struct.unpack("<hhhh", buf))
+
+    def test_dest_too_small_raises_rather_than_truncating(self):
+        with self.assertRaisesRegex(ValueError, "dest is too small"):
+            audiodev._remix_s16_py(bytes(800), 2, 1, bytearray(200))
+
+    def test_odd_sized_source_raises(self):
+        with self.assertRaisesRegex(ValueError, "whole number of frames"):
+            audiodev._remix_s16_py(bytes(6), 2, 1)
 
 
 class PaceOutputTests(unittest.TestCase):

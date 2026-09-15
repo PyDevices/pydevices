@@ -7,6 +7,19 @@ with no DSP package in it. But the pure-Python channel remix in
 ``audiodev`` is a per-sample Python loop, which is fine for a 10 ms chunk on
 a desktop and much too slow for 44.1 kHz stereo on an MCU.
 
+**How slow is slow.** Measured on a QT Py ESP32 Pico (240 MHz), converting a
+10 ms chunk of stereo to mono with the portable implementation:
+
+    16000 Hz   6.3 ms   0.63x realtime   usable
+    24000 Hz   9.4 ms   0.94x realtime   marginal, no headroom for an app
+    44100 Hz  17.3 ms   1.73x realtime   cannot feed a live stream
+
+So the common claim that ``pcm_out`` needs no audioif in firmware holds only
+while the format matches the wire -- which is the usual case, because a board
+whose wire takes two slots needs no remix at all. A board that must genuinely
+mix down at a high rate needs the C implementation, and therefore needs
+audioif built in. Offline or low-rate work is fine on the portable one.
+
 So the fast path is offered here rather than reached for there. A caller
 that has audioif asks::
 

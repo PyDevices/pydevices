@@ -325,7 +325,21 @@ class AudioFactory:
 
 
 def _remix_s16_py(source, src_channels, dst_channels, dest=None):
-    """CPython / no-audioif fallback. Matches ``audioif_remix_s16``."""
+    """Portable channel remix. Matches ``audioif_remix_s16`` exactly.
+
+    Indexes the bytes directly rather than calling ``struct`` per sample, and
+    allocates nothing when ``dest`` is supplied. Both matter on an MCU:
+    measured on a QT Py ESP32 Pico at 240 MHz, a 10 ms chunk of 44.1 kHz
+    stereo cost 50.5 ms with ``struct`` and 17.3 ms this way, with zero heap
+    growth across repeated calls. Per-chunk allocation on an audio path is
+    what produced the multi-hundred-millisecond GC pauses recorded in
+    :class:`PaceOutput`.
+
+    It is still not fast enough to feed a live 44.1 kHz stereo stream on that
+    chip (1.73x realtime); 16 kHz is comfortable at 0.63x and 24 kHz marginal
+    at 0.94x. A board that must remix at a high rate needs the C
+    implementation -- see :func:`audiodev.accel.best_remix`.
+    """
     src_channels = int(src_channels)
     dst_channels = int(dst_channels)
     if src_channels not in (1, 2) or dst_channels not in (1, 2):
@@ -338,39 +352,44 @@ def _remix_s16_py(source, src_channels, dst_channels, dest=None):
     need = frames * dst_channels * 2
     if dest is None:
         dest = bytearray(need)
-    dst = memoryview(dest)
-    if len(dst) < need:
+    elif len(dest) < need:
         raise ValueError("dest is too small")
 
-    def _s16(lo, hi):
-        value = lo | (hi << 8)
-        return value - 65536 if value >= 32768 else value
-
-    def _store(offset, sample):
-        if sample < 0:
-            sample += 65536
-        dst[offset] = sample & 255
-        dst[offset + 1] = (sample >> 8) & 255
-
     if src_channels == dst_channels:
-        dst[:need] = src[:need]
+        dest[:need] = src[:need]
         return dest
+
     if src_channels == 2:
         o = 0
         for i in range(0, frames * 4, 4):
-            left = _s16(src[i], src[i + 1])
-            right = _s16(src[i + 2], src[i + 3])
-            total = left + right
-            mixed = total // 2 if total >= 0 else -((-total) // 2)
-            _store(o, mixed)
+            a = src[i] | (src[i + 1] << 8)
+            if a > 32767:
+                a -= 65536
+            b = src[i + 2] | (src[i + 3] << 8)
+            if b > 32767:
+                b -= 65536
+            total = a + b
+            # Truncate toward zero, which is what the C does. A plain
+            # ``total >> 1`` floors instead, differing by one on every ODD
+            # NEGATIVE sum -- a discrepancy invisible to any test whose
+            # sample pairs happen to sum to even numbers.
+            total = (total + (total < 0)) >> 1
+            dest[o] = total & 255
+            dest[o + 1] = (total >> 8) & 255
             o += 2
         return dest
-    o = 0
-    for i in range(0, frames * 2, 2):
-        sample = _s16(src[i], src[i + 1])
-        _store(o, sample)
-        _store(o + 2, sample)
-        o += 4
+
+    # Expansion runs backwards so dest may alias src: it cannot overwrite a
+    # sample it has yet to read.
+    o = frames * 4 - 4
+    for i in range(frames * 2 - 2, -2, -2):
+        lo = src[i]
+        hi = src[i + 1]
+        dest[o] = lo
+        dest[o + 1] = hi
+        dest[o + 2] = lo
+        dest[o + 3] = hi
+        o -= 4
     return dest
 
 
