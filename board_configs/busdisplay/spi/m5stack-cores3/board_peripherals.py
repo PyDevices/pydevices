@@ -16,10 +16,18 @@ PERIPHERALS = frozenset(
     }
 )
 
-from audiodev import AudioFormat, AudioSession
+from audiodev import (
+    AudioCapability,
+    AudioFactory,
+    AudioFormat,
+    AudioSession,
+    I2SWire,
+    adapt_channels,
+    negotiate,
+    queue_bytes,
+)
 from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput
 
-_FORMAT = AudioFormat(16000, 2, 16)
 _SESSION = AudioSession(duplex=False)
 
 # M5Unified CoreS3 I2S / codec pin map
@@ -30,6 +38,35 @@ _DOUT = 13
 _DIN = 14
 _BMI270_ADDR = 0x69
 _RATE = 16000
+_I2C_SDA = 12
+_I2C_SCL = 11
+_IBUF = 20000
+_MIN_IBUF = 4096
+
+# --- what this board can actually do --------------------------------------
+#
+# Declared as exactly what this board already did before the format contract
+# existed: one rate, two channels, 16-bit. Nobody here has a CoreS3 to measure
+# on, and a capability is a promise the contract makes on the board's behalf,
+# so widening it would be inventing a claim. The AW88298 is handed
+# sample_rate=_RATE at construction, which is a second reason another rate
+# needs real work rather than a wider tuple.
+AUDIO_OUT = AudioCapability(
+    AudioFormat(_RATE, 2, 16),
+    rates=(_RATE,),
+    channels=(2,),
+    native_channels=1,          # AW88298 drives one speaker
+    bits=(16,),
+    wire=I2SWire(1, sck=_BCLK, ws=_LRCK, sd=_DOUT),
+)
+AUDIO_IN = AudioCapability(
+    AudioFormat(_RATE, 2, 16),
+    rates=(_RATE,),
+    channels=(2,),
+    native_channels=2,
+    bits=(16,),
+    wire=I2SWire(1, sck=_BCLK, ws=_LRCK, sd=_DIN, mck=_MCLK, mck_fs=256),
+)
 
 _imu = None
 
@@ -39,9 +76,8 @@ def load_peripherals(ns):
 
 
 def i2c():
-    import board_config as bc
-
-    return bc.i2c
+    """CoreS3 internal / Grove I2C."""
+    return _i2c_bus()
 
 
 def _bmi270():
@@ -50,73 +86,111 @@ def _bmi270():
         return _imu
     from bmi270 import BMI270
 
-    import board_config as bc
-
-    _imu = BMI270(bc.i2c, address=_BMI270_ADDR)
+    _imu = BMI270(_i2c_bus(), address=_BMI270_ADDR)
     return _imu
 
 
-def audio_in():
-    """ES7210 ADC + I2S RX (dual MEMS)."""
+def _i2c_bus():
+    """Internal I2C, shared with whatever already opened it.
+
+    Never ``import board_config`` from here: a non-graphics app importing
+    this module must not start a display. That import is what the previous
+    version of this file did, on every audio call.
+    """
+    bc = sys.modules.get("board_config")
+    bus = getattr(bc, "i2c", None) if bc is not None else None
+    if bus is not None:
+        return bus
+    from machine import I2C, Pin
+
+    return I2C(0, sda=Pin(_I2C_SDA), scl=Pin(_I2C_SCL), freq=100_000)
+
+
+def _pcm_in(format=None, *, latency=None, queue_ms=None):
+    """ES7210 ADC + I2S RX (dual MEMS): a raw ``PCMInput``."""
     from machine import I2S, Pin
 
     from es7210 import ES7210
 
-    import board_config as bc
-
-    codec = ES7210(bc.i2c, profile="m5")
+    wire, _ = negotiate(AUDIO_IN, format)
+    codec = ES7210(_i2c_bus(), profile="m5")
+    ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
 
     def stream():
         return I2S(
-        1,
-        sck=Pin(_BCLK),
-        ws=Pin(_LRCK),
-        sd=Pin(_DIN),
-        mck=Pin(_MCLK),
-        mode=I2S.RX,
-        bits=16,
-        format=I2S.STEREO,
-        rate=_RATE,
-        ibuf=20000,
+            1,
+            sck=Pin(_BCLK),
+            ws=Pin(_LRCK),
+            sd=Pin(_DIN),
+            mck=Pin(_MCLK),
+            mode=I2S.RX,
+            bits=wire.bits,
+            format=I2S.STEREO if wire.channels == 2 else I2S.MONO,
+            rate=wire.rate,
+            ibuf=ibuf,
         )
 
     return I2SPCMInput(
-        stream, _FORMAT, session=_SESSION, codec=codec,
+        stream, wire, session=_SESSION, codec=codec,
         set_hardware_gain=codec.set_gain, power=codec.enable_input,
     )
 
 
-def audio_out():
-    """AW88298 amp + I2S TX (AW9523 speaker enable). Returns an AudioOut
-    sample player: ``play(sample, loop=)``/``stop()``/``pause()``/
-    ``resume()``/``playing`` over any audiosample."""
+def _pcm_out(format=None, *, latency=None, queue_ms=None):
+    """AW88298 amp + I2S TX (AW9523 speaker enable): a raw ``PCMOutput``.
+
+    Paced: ``I2SPCMOutput`` arms I2S into asyncio mode, so an unpaced
+    ``write()`` raises once DMA fills.
+    """
     from machine import I2S, Pin
 
     from aw88298 import AW88298
 
-    import board_config as bc
+    from audiodev import pace_output
 
-    from audiodev.sample_out import AudioOut
-
-    codec = AW88298(bc.i2c, sample_rate=_RATE, enable_aw9523=True)
+    wire, source = negotiate(AUDIO_OUT, format)
+    codec = AW88298(_i2c_bus(), sample_rate=wire.rate, enable_aw9523=True)
+    ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
 
     def stream():
         return I2S(
-        1,
-        sck=Pin(_BCLK),
-        ws=Pin(_LRCK),
-        sd=Pin(_DOUT),
-        mode=I2S.TX,
-        bits=16,
-        format=I2S.STEREO,
-        rate=_RATE,
-        ibuf=20000,
+            1,
+            sck=Pin(_BCLK),
+            ws=Pin(_LRCK),
+            sd=Pin(_DOUT),
+            mode=I2S.TX,
+            bits=wire.bits,
+            format=I2S.STEREO if wire.channels == 2 else I2S.MONO,
+            rate=wire.rate,
+            ibuf=ibuf,
         )
 
-    return AudioOut(I2SPCMOutput(
-        stream, _FORMAT, session=_SESSION, codec=codec,
+    device = I2SPCMOutput(
+        stream, wire, session=_SESSION, codec=codec,
         set_hardware_mute=codec.mute, power=codec.enable_output,
-    ))
+    )
+    if source is not wire:
+        from audiodev.accel import best_remix
+
+        device = adapt_channels(device, source, remix=best_remix())
+    return pace_output(device)
+
+
+def _audio_out(format=None, **kwargs):
+    """``AudioOut`` sample player. Requires audioif; use ``pcm_out`` for raw
+    PCM bytes, which has no DSP dependency."""
+    from audiodev.sample_out import AudioOut
+
+    pump = {}
+    for key in ("chunk_ms", "lookahead_chunks", "max_catchup_chunks"):
+        if key in kwargs:
+            pump[key] = kwargs.pop(key)
+    return AudioOut(_pcm_out(format, **kwargs), **pump)
+
+
+pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
+pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
+audio_out = AudioFactory(_audio_out, AUDIO_OUT)
 
 
 def sdcard():

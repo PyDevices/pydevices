@@ -4,6 +4,13 @@ import sys
 
 PERIPHERALS = frozenset({"pixels", "accelerometer", "audio_out", "i2c"})
 
+# A PWM buzzer, not a PCM path: no sample rate, no channels, nothing to
+# configure. kind="tone" says so, and negotiate() refuses a format here
+# rather than accepting one and quietly ignoring it. audio_out stays a
+# zero-argument role -- there is no format to pass, so it is not a factory.
+AUDIO_OUT = AudioCapability(None, kind="tone")
+
+from audiodev import AudioCapability
 from audiodev.pwm_tone import PWMToneOutput
 
 _i2c = None
