@@ -11,12 +11,19 @@ what this panel's ES8311 and speaker are) and asks for `latency="low"`, which
 is the 10 ms chunk and four-chunk lookahead an instrument responding to events
 wants rather than the buffered profile file playback wants.
 
-The pattern is driven off the pump rather than a clock: `service()` is what
-pulls the graph and pushes bytes, so the loop below counts the chunks it has
-serviced and strikes on the ones a sixteenth lands on. That keeps the timing
-tied to the audio that has actually been produced instead of to `ticks_ms`,
-which would drift against it.
+The pattern is clocked off `ticks_ms`, which is the same clock the pump uses.
+
+That is worth stating because the obvious alternative is wrong. `service()`
+does not push a fixed amount per call and does not block: it reads `ticks_ms`
+itself, works out how many frames the schedule owes by now, and returns having
+done nothing at all if the answer is none. So counting `service()` calls as
+though each were a chunk of audio measures how fast the interpreter loops, not
+how much sound has been made - and the whole pattern fires in under a second
+while the pump quietly produces real time underneath it. Written that way
+first, and that is exactly what it did.
 """
+
+from time import ticks_diff, ticks_ms
 
 import board_peripherals
 from audiodev import AudioFormat
@@ -59,17 +66,13 @@ def main(bars=4):
     kit = audioinstruments.create("acoustickit", RATE, channel_count=1)
     out.play(kit.output)
 
-    # `service()` returns after pushing at most one chunk, so the count of
-    # chunks is the clock. chunk_ms is 10 at latency="low".
-    chunk_ms = 10.0
-    step_chunks = SIXTEENTH_MS / chunk_ms
     total_steps = bars * 16
     step = 0
-    chunks = 0.0
+    started = ticks_ms()
     while step < total_steps:
         out.service()
-        chunks += 1.0
-        while step < total_steps and chunks >= step * step_chunks:
+        elapsed = ticks_diff(ticks_ms(), started)
+        while step < total_steps and elapsed >= step * SIXTEENTH_MS:
             if step % 16 == 0:
                 # One line per bar. It is also what keeps `mpftp exec` alive:
                 # its per-character quiet timeout is about ten seconds and a
@@ -83,10 +86,14 @@ def main(bars=4):
             step += 1
 
     # Let the last crash and the toms ring out rather than cutting them.
-    for _ in range(int(3000.0 / chunk_ms)):
+    ringing = ticks_ms()
+    while ticks_diff(ticks_ms(), ringing) < 3000:
         out.service()
     out.stop()
+    played = ticks_diff(ticks_ms(), started) / 1000.0
+    expected = bars * 16 * SIXTEENTH_MS / 1000.0 + 3.0
     print("acoustickit: %d bars at %d bpm, %d Hz mono" % (bars, BPM, RATE))
+    print("  %.1f s played, %.1f s expected" % (played, expected))
 
 
 if __name__ == "__main__":
