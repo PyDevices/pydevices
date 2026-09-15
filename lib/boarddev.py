@@ -12,17 +12,25 @@ they use ``board_config.PERIPHERALS`` and attribute access.
 def bind_lazy(ns, peripherals_mod):
     """Install module ``__getattr__`` / ``__dir__`` on *ns* for lazy roles.
 
-    Each name in ``peripherals_mod.PERIPHERALS`` maps to a zero-arg factory
-    ``peripherals_mod.<name>()``. First access constructs, caches into
-    ``ns[name]``, and returns the object. Further access hits the module
-    dict (no ``__getattr__``).
+    Each name in ``peripherals_mod.PERIPHERALS`` maps to
+    ``peripherals_mod.<name>``. Names in optional
+    ``peripherals_mod.FACTORY_ROLES`` (a subset of ``PERIPHERALS``) are
+    bound as the factory callable itself — first access does not invoke it.
+    That is the audio pattern: ``board_config.audio_out(format=...)`` matches
+    ``audiodev.auto.audio_out``. Every other role stays construct-on-getattr:
+    first access calls the zero-arg factory, caches the object into
+    ``ns[name]``, and further access hits the module dict (no ``__getattr__``).
     """
     roles = peripherals_mod.PERIPHERALS
+    factory_roles = frozenset(getattr(peripherals_mod, "FACTORY_ROLES", ()))
 
     def __getattr__(name):
         if name not in roles:
             raise AttributeError("module has no attribute {!r}".format(name))
         factory = getattr(peripherals_mod, name)
+        if name in factory_roles:
+            ns[name] = factory
+            return factory
         obj = factory()
         ns[name] = obj
         return obj

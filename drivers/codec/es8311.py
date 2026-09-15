@@ -6,13 +6,15 @@
 # Espressif reference driver shipped with the Freenove ESP32-S3 Display
 # tutorial sketches (Sketch_07.1_Music / Sketch_07.2_Echo, es8311.cpp).
 #
-# Clock configuration (MCLK_MULTIPLE = 256, 16-bit I2S, two slots per frame):
-#   MCLK   = sample_rate × 256  (driven by MCK PWM pin)
-#   BCLK   = MCLK / 4  (bclk_div = 4  → REG06 = bclk_div−1 = 3)
-#   LRCK   = MCLK / 256 = sample_rate  (lrck_h=0x00, lrck_l=0xFF → REG07/08)
+# Clock configuration. Espressif's coeff_div[] assumes 32-bit I2S slots
+# (BCLK = 64fs, so MCLK/4 at 256fs). MicroPython machine.I2S 16-bit Philips
+# on ESP32-P4 uses 16-bit slots (BCLK = 32fs, two slots). REG06 must match
+# the wire, not the Espressif 32-bit-slot tree:
+#   256fs MCLK / 32fs BCLK → bclk_div 8  → REG06 = 7
+#   512fs MCLK keeps Espressif bclk_div 4 (REG06 = 3); pre_div 2 is the
+#   24 kHz bring-up tree and is not retuned here.
+#   LRCK divider is always 256 (post-prediv) → REG07/08 = 0x00FF
 #   ADC/DAC oversampling rate = 0x10  (REG03 / REG04)
-# These divider values are identical for every standard sample rate when
-# MCLK = rate × 256 (verified against Espressif coeff_div[] table).
 #
 # The codec runs as I2S slave (ESP32-S3 drives BCLK and LRCK).
 
@@ -75,6 +77,10 @@ class ES8311:
         codec = ES8311(i2c)
     """
 
+    # Mono DAC. Board factories copy this onto audio_out.max_channels so
+    # apps can discover without constructing the codec.
+    channels = 1
+
     def __init__(self, i2c, *, mclk_multiplier=256):
         if mclk_multiplier not in (256, 512):
             raise ValueError("mclk_multiplier must be 256 or 512")
@@ -116,9 +122,12 @@ class ES8311:
         self._wr(_REG04_DAC_OSR, 0x10)
         # REG05: ADC clk_div=1 (bits[7:4]=0000), DAC clk_div=1 (bits[3:0]=0000)
         self._wr(_REG05_CLKDIV,  0x00)
-        # REG06: BCLK divider = bclk_div−1 = 4−1 = 3  (MCLK/4 = BCLK for 16-bit stereo)
-        self._wr(_REG06_BCLKDIV, 0x03)
-        # REG07/08: LRCK divider = 0x00FF = 255+1 = 256  (MCLK/256 = sample_rate)
+        # REG06: BCLK divider = bclk_div−1. Espressif uses 4 (64fs) for
+        # 32-bit slots. MicroPython 16-bit Philips is 32fs, so 256fs MCLK
+        # needs div 8. 512fs bring-up (pre_div 2) keeps Espressif's 4.
+        bclk_div = 8 if self.mclk_multiplier == 256 else 4
+        self._wr(_REG06_BCLKDIV, bclk_div - 1)
+        # REG07/08: LRCK divider is post-prediv 256fs (always 256).
         self._wr(_REG07_LRCK_H,  0x00)
         self._wr(_REG08_LRCK_L,  0xFF)
 

@@ -23,6 +23,16 @@ DEFAULT_PLAY_QUEUE_MS = 2000
 DEFAULT_COALESCE_MS = 100
 PREBUFFER_MS = 100
 
+# Same WSLg Pulse/RDP WASAPI stall as sdl2_audio: the sink keeps accepting
+# PCM at 5-30% of realtime after a minute or two. Recycle the IAudioClient.
+# Do not drop coalesce on overflow — that removes backpressure and decode
+# runs unbounded (measured ~2.6× realtime).
+STALL_WINDOW_MS = 1500
+STALL_RATIO = 0.5
+STALL_SAMPLE_MS = 100
+RECOVER_GRACE_MS = 1500
+RECOVER_SETTLE_MS = 800
+
 # Fourth field: prebuffer_ms (see sdl2_audio._PLAY_PROFILES for why a small
 # prime matters for note-to-sound latency). None falls back to PREBUFFER_MS.
 _PLAY_PROFILES = {
@@ -38,13 +48,40 @@ _CAPTURE_PROFILES = {
 }
 
 
-def _sleep_ms(milliseconds):
-    try:
-        from multimer import win32 as timer
+WRITE_WAIT_MS = 500
 
-        timer.sleep_ms(milliseconds)
-    except Exception:
+
+def _sleep_ms(milliseconds):
+    # Do not use multimer here: a pumping sleep re-enters Device.service while
+    # write() holds the WASAPI client mid-recycle and deadlocks the pump.
+    if hasattr(time, "sleep_ms"):
+        time.sleep_ms(milliseconds)
+    else:
         time.sleep(milliseconds / 1000)
+
+
+def _monotonic_ms():
+    if hasattr(time, "ticks_ms"):
+        return time.ticks_ms()
+    return int(time.time() * 1000)
+
+
+def _elapsed_ms(since):
+    if hasattr(time, "ticks_diff"):
+        return time.ticks_diff(_monotonic_ms(), since)
+    return _monotonic_ms() - since
+
+
+def _diff_ms(later, earlier):
+    if hasattr(time, "ticks_diff"):
+        return time.ticks_diff(later, earlier)
+    return later - earlier
+
+
+def _deadline_ms(milliseconds):
+    if hasattr(time, "ticks_add"):
+        return time.ticks_add(_monotonic_ms(), milliseconds)
+    return _monotonic_ms() + milliseconds
 
 
 async def _asleep_ms(milliseconds):
@@ -93,6 +130,21 @@ class WinPCMOutput(PCMOutput):
         self._render = None
         self._buffer_frames = 0
         self._started = False
+        self._in_push = False
+        self._pushed_total = 0
+        self._samples = []
+        self._grace_until = None
+        self._recycling = False
+        self._min_depth_bytes = max(
+            self.format.frame_size,
+            self._bytes_per_second * 40 // 1000,
+        )
+        self._min_rate = max(1, int(self._bytes_per_second * STALL_RATIO))
+        self.recycles = 0
+        self.lost_bytes = 0
+        self.requeued_bytes = 0
+        self._last_push_ms = None
+        self._play_origin_ms = None
 
     def _hw_queued(self):
         if not self._client:
@@ -107,6 +159,9 @@ class WinPCMOutput(PCMOutput):
 
     def clear(self):
         self._coalesce = bytearray()
+        self._pushed_total = 0
+        self._samples = []
+        self._play_origin_ms = None
         if self._client and self._started:
             try:
                 win.IAudioClient_Stop(self._client)
@@ -127,8 +182,10 @@ class WinPCMOutput(PCMOutput):
         self._buffer_frames = win.IAudioClient_GetBufferSize(self._client)
         self._render = win.IAudioClient_GetService(self._client, win.IID_IAudioRenderClient)
         self._started = False
+        self._play_origin_ms = None
+        self._last_push_ms = _monotonic_ms()
 
-    def _close(self):
+    def _close(self, keep_coalesce=False):
         if self._client and self._started:
             try:
                 win.IAudioClient_Stop(self._client)
@@ -139,7 +196,12 @@ class WinPCMOutput(PCMOutput):
                 win.IUnknown_Release(punk)
         self._render = self._client = self._endpoint = self._enumerator = None
         self._started = False
-        self._coalesce = bytearray()
+        self._pushed_total = 0
+        self._samples = []
+        self._last_push_ms = None
+        self._play_origin_ms = None
+        if not keep_coalesce:
+            self._coalesce = bytearray()
 
     def _available_frames(self):
         if not self._client:
@@ -147,20 +209,60 @@ class WinPCMOutput(PCMOutput):
         padding = win.IAudioClient_GetCurrentPadding(self._client)
         return max(0, self._buffer_frames - padding)
 
+    def _recover_client(self):
+        if not self._client:
+            return
+        try:
+            win.IAudioClient_Stop(self._client)
+        except OSError:
+            pass
+        try:
+            win.IAudioClient_Reset(self._client)
+        except OSError:
+            pass
+        self._started = False
+        self._pushed_total = 0
+        self._play_origin_ms = None
+
+    def _push_budget(self):
+        if not self._started or self._play_origin_ms is None:
+            return self._pushed_total + self._queue_limit
+        elapsed = max(0, _diff_ms(_monotonic_ms(), self._play_origin_ms))
+        return self._bytes_per_second * (elapsed + self.queue_ms) // 1000
+
     def _push_frames(self, data):
         frame = self.format.frame_size
         nbytes = len(data) - (len(data) % frame)
-        if nbytes <= 0 or not self._render:
+        if nbytes <= 0 or not self._render or self._in_push:
             return 0
         frames = nbytes // frame
         room = self._available_frames()
         if room <= 0:
             return 0
         frames = min(frames, room)
-        ptr = win.IAudioRenderClient_GetBuffer(self._render, frames)
-        win.memmove(ptr, data[: frames * frame], frames * frame)
-        win.IAudioRenderClient_ReleaseBuffer(self._render, frames)
-        return frames * frame
+        self._in_push = True
+        got = False
+        try:
+            ptr = win.IAudioRenderClient_GetBuffer(self._render, frames)
+            got = True
+            win.memmove(ptr, data[: frames * frame], frames * frame)
+            win.IAudioRenderClient_ReleaseBuffer(self._render, frames)
+            got = False
+            written = frames * frame
+            self._pushed_total += written
+            self._last_push_ms = _monotonic_ms()
+            return written
+        except OSError as exc:
+            print("win_audio GetBuffer/Release failed", exc)
+            if got:
+                try:
+                    win.IAudioRenderClient_ReleaseBuffer(self._render, frames)
+                except OSError:
+                    pass
+            self._recover_client()
+            return 0
+        finally:
+            self._in_push = False
 
     def _start_if_primed(self, force=False):
         if self._started or not self._client:
@@ -170,11 +272,18 @@ class WinPCMOutput(PCMOutput):
             return
         if not force and queued < self._prebuffer_bytes:
             return
-        win.IAudioClient_Start(self._client)
-        self._started = True
+        try:
+            win.IAudioClient_Start(self._client)
+            self._started = True
+            queued_ms = queued * 1000 // max(1, self._bytes_per_second)
+            self._play_origin_ms = _monotonic_ms() - queued_ms
+        except OSError as exc:
+            print("win_audio Start failed", exc)
+            self._recover_client()
 
     def _flush_coalesce(self, force=False):
         frame = max(1, self.format.frame_size)
+        budget = self._push_budget()
         while self._coalesce:
             pending = len(self._coalesce)
             if not force and pending < self._coalesce_bytes:
@@ -184,6 +293,8 @@ class WinPCMOutput(PCMOutput):
             if take <= 0:
                 break
             if not force and self._hw_queued() + take > self._queue_limit:
+                break
+            if not force and self._pushed_total >= budget:
                 break
             written = self._push_frames(bytes(self._coalesce[:take]))
             if written <= 0:
@@ -195,16 +306,91 @@ class WinPCMOutput(PCMOutput):
         if not buf:
             return 0
         waited = 0
-        while len(self._coalesce) >= self._max_pending and waited < 500:
+        # Bound the wait so Device.service can return and pcm.service can recycle.
+        # Forever-blocking write froze Tremor at 3:49 of Under Pressure.
+        while len(self._coalesce) >= self._max_pending and waited < WRITE_WAIT_MS:
             self._flush_coalesce(force=False)
+            if len(self._coalesce) < self._max_pending:
+                break
             _sleep_ms(self.poll_ms)
             waited += self.poll_ms
+        if len(self._coalesce) >= 2 * self._max_pending:
+            return len(buf)
         self._coalesce.extend(buf)
         self._flush_coalesce(force=False)
         return len(buf)
 
+    def _check_stall(self):
+        if self._recycling or not self._client:
+            return
+        if self._grace_until is not None and _elapsed_ms(self._grace_until) < 0:
+            self._samples = []
+            return
+        hw = self._hw_queued()
+        pending = len(self._coalesce)
+        now = _monotonic_ms()
+        # Room in the device but GetBuffer has not succeeded: WSLg gulp-then-wedge.
+        # Do not treat a full healthy WASAPI (no GetBuffer because it is full) as a stall.
+        if (
+            pending >= self._coalesce_bytes
+            and self._last_push_ms is not None
+            and hw + self._coalesce_bytes <= self._queue_limit
+            and _diff_ms(now, self._last_push_ms) >= STALL_WINDOW_MS
+        ):
+            self._samples = []
+            self._recycle_client(stalled_bytes=hw, rate=0)
+            return
+        if not self._started or hw < self._min_depth_bytes:
+            self._samples = []
+            return
+        consumed = self._pushed_total - hw
+        samples = self._samples
+        if not samples or _diff_ms(now, samples[-1][0]) >= STALL_SAMPLE_MS:
+            samples.append((now, consumed))
+        while len(samples) > 1 and _diff_ms(now, samples[1][0]) >= STALL_WINDOW_MS:
+            samples.pop(0)
+        span = _diff_ms(now, samples[0][0])
+        if span < STALL_WINDOW_MS:
+            return
+        rate = (consumed - samples[0][1]) * 1000 // span
+        if rate >= self._min_rate:
+            return
+        self._samples = []
+        self._recycle_client(stalled_bytes=hw, rate=rate)
+
+    def _recycle_client(self, stalled_bytes=0, rate=None):
+        if self._recycling:
+            return
+        self._recycling = True
+        self.lost_bytes += int(stalled_bytes)
+        self.recycles += 1
+        pending = len(self._coalesce)
+        print(
+            "win_audio stall recycle rate=%s hw=%d pending=%d"
+            % (rate, int(stalled_bytes), pending)
+        )
+        try:
+            before = len(self._coalesce)
+            self._recover_client()
+            self._samples = []
+            self._flush_coalesce(force=False)
+            pushed = before - len(self._coalesce)
+            if pushed > 0:
+                print("win_audio stall recover inplace pushed=%d" % pushed)
+            else:
+                print("win_audio stall recover inplace no-push")
+        except OSError as exc:
+            print("win_audio stall recover failed", exc)
+        finally:
+            # Reopen (Close + Initialize) native-crashed 0xc0000005 on WSLg.
+            self._grace_until = _deadline_ms(RECOVER_GRACE_MS * 4)
+            self._recycling = False
+
     def service(self):
+        if self._recycling:
+            return self.queued_size()
         self._flush_coalesce(force=False)
+        self._check_stall()
         return self.queued_size()
 
     def _drain(self):

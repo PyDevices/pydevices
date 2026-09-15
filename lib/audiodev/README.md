@@ -156,6 +156,13 @@ Portable bases, no host dependencies:
 
 - **`AudioFormat(rate, channels, bits, signed=True, byteorder="little")`** —
   validates its arguments and precomputes `frame_size`. Compares by value.
+- **`AudioFactory(call, max_channels)`** — callable `audio_out` / `audio_in`
+  wrapper so `max_channels` is discoverable on MicroPython (functions there
+  cannot hold attributes). Call shape matches `auto.audio_out`.
+- **`adapt_channels(pcm, source_format)`** — write-path channel adapter
+  (1↔2, s16). Uses `audiomath.remix_s16` when audioif is present.
+- **`pace_output(pcm, queue_ms=80)`** — stash `write()` so a blocking
+  `machine.I2S` DMA fill cannot hold the GIL. Flush in `service()`.
 - **`PCMOutput` / `PCMInput`** — subclassable bases: volume/gain, session,
   write-all looping, async surface. `write()` loops until the whole buffer is
   consumed and raises if a transport makes no progress.
