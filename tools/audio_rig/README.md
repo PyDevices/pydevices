@@ -81,3 +81,20 @@ the mic that saturates, and the harmonics swamp the fundamental — measured
 purity 0.32 against 0.89 for the same tone at gain 35. The rig sets 35.
 Pitch survives saturation; purity does not, so a low-purity PASS usually
 means the gain is too high rather than the audio being wrong.
+
+
+## Re-upload after every edit — a stale board is silent
+
+Staging code on the board (`/tst`, or `/lib`) and then editing the host copy
+gives you measurements of the OLD code with nothing to indicate it. This cost
+three consecutive wrong results while characterising the portable remix: the
+host had a version 2.9x faster than the one the board was running, so an
+end-to-end chain looked 3x more expensive than its own components, and a
+plausible-sounding explanation was constructed for a gap that did not exist.
+
+The tell was arithmetic that did not reconcile: 160 frames measured 39 us per
+frame and 1024 frames measured 113 us per frame, for the same function on the
+same chip. Non-linearity in a flat loop means you are not running what you
+think you are running.
+
+Re-upload as the first step of any measurement, not as a step you remember.

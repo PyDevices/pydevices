@@ -14,6 +14,10 @@ a desktop and much too slow for 44.1 kHz stereo on an MCU.
     24000 Hz   9.4 ms   0.94x realtime   marginal, no headroom for an app
     44100 Hz  17.3 ms   1.73x realtime   cannot feed a live stream
 
+End to end, pushing real audio through the whole chain on the same board,
+16 kHz stereo-to-mono sustains realtime (1778 ms of wall clock per 2000 ms of
+audio) and 44.1 kHz does not (4363 ms, 2.2x over).
+
 So the common claim that ``pcm_out`` needs no audioif in firmware holds only
 while the format matches the wire -- which is the usual case, because a board
 whose wire takes two slots needs no remix at all. A board that must genuinely
