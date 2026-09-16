@@ -58,7 +58,7 @@ class BoardPeripheralsSelectTests(unittest.TestCase):
 
     def test_devices_roles(self):
         bd = self._load()
-        self.assertEqual(bd.PERIPHERALS, frozenset({"audio_out", "audio_in"}))
+        self.assertEqual(bd.PERIPHERALS, frozenset({"audio_out", "pcm_out", "pcm_in"}))
 
 
 if __name__ == "__main__":

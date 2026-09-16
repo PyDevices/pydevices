@@ -15,8 +15,8 @@ from audiodev.emulated_audio import (  # noqa: E402
     NullPCMOutput,
     WavPCMInput,
     WavPCMOutput,
-    audio_in,
-    audio_out,
+    pcm_in,
+    pcm_out,
     loopback_pair,
 )
 
@@ -27,12 +27,12 @@ class WavRoundTripTests(unittest.TestCase):
         pcm = b"".join((i * 100).to_bytes(2, "little", signed=True) for i in range(64))
         with tempfile.TemporaryDirectory() as tmp:
             path = str(Path(tmp) / "self_feed.wav")
-            out = audio_out(fmt, path=path)
+            out = pcm_out(fmt, path=path)
             self.assertIsInstance(out, WavPCMOutput)
             self.assertEqual(out.write(pcm), len(pcm))
             out.close()
 
-            mic = audio_in(path=path)
+            mic = pcm_in(path=path)
             self.assertIsInstance(mic, WavPCMInput)
             self.assertEqual(mic.format, fmt)
             got = bytearray()
@@ -63,7 +63,7 @@ class GeneratorTests(unittest.TestCase):
 
     def test_factory_wave(self):
         fmt = AudioFormat(8000, 1, 16)
-        mic = audio_in(fmt, wave="silence", duration_ms=10)
+        mic = pcm_in(fmt, wave="silence", duration_ms=10)
         self.assertIsInstance(mic, PCMInput)
         buf = bytearray(fmt.frame_size)
         self.assertEqual(mic.readinto(buf), 2)
@@ -86,8 +86,8 @@ class LoopbackTests(unittest.TestCase):
     def test_shared_buffer_factory(self):
         fmt = AudioFormat(16000, 1, 16)
         buf = LoopbackBuffer(fmt, queue_ms=50)
-        out = audio_out(loopback=buf)
-        inp = audio_in(loopback=buf)
+        out = pcm_out(loopback=buf)
+        inp = pcm_in(loopback=buf)
         out.write(b"\x10\x00")
         got = bytearray(2)
         self.assertEqual(inp.readinto(got), 2)
@@ -97,7 +97,7 @@ class LoopbackTests(unittest.TestCase):
 class NullTests(unittest.TestCase):
     def test_discard(self):
         fmt = AudioFormat(8000, 1, 16)
-        out = audio_out(fmt, discard=True)
+        out = pcm_out(fmt, discard=True)
         self.assertIsInstance(out, NullPCMOutput)
         self.assertIsInstance(out, PCMOutput)
         self.assertEqual(out.write(b"\0\0" * 8), 16)

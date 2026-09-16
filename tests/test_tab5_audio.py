@@ -117,8 +117,9 @@ class Tab5AudioTests(unittest.TestCase):
 
     def ibuf(self, device):
         # audio_out() now returns an AudioOut wrapping the I2SPCMOutput
-        # transport, whose raw i2s stream lives on .transport; audio_in()
-        # still returns the raw I2SPCMInput directly (capture is unchanged).
+        # transport, whose raw i2s stream lives on .transport. pcm_out()
+        # returns a PaceOutput, which forwards .i2s to the device it wraps;
+        # pcm_in() returns the I2SPCMInput directly.
         device.open()
         try:
             transport = getattr(device, "transport", device)
@@ -144,7 +145,7 @@ class Tab5AudioTests(unittest.TestCase):
         for name, board in self.boards():
             with self.subTest(board=name):
                 self.assertEqual(6400, self.ibuf(board.audio_out(latency="low")))
-                self.assertEqual(6400, self.ibuf(board.audio_in(latency="low")))
+                self.assertEqual(6400, self.ibuf(board.pcm_in(latency="low")))
 
     def test_explicit_queue_ms_wins_but_cannot_starve_the_dma(self):
         for name, board in self.boards():

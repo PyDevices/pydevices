@@ -2,12 +2,26 @@
 import boarddev
 import sys
 
-PERIPHERALS = frozenset({"audio_in", "audio_out", "sdcard", "camera", "i2c", "wlan", "ble"})
+PERIPHERALS = frozenset(
+    {"audio_out", "pcm_out", "pcm_in", "sdcard", "camera", "i2c", "wlan", "ble"}
+)
 
-from audiodev import AudioFormat, AudioSession, queue_bytes
+# Audio roles are factories: first attribute access must not construct, so a
+# caller can pass a format. See boarddev.bind_lazy.
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in"})
+
+from audiodev import (
+    AudioCapability,
+    AudioFactory,
+    AudioFormat,
+    AudioSession,
+    I2SWire,
+    adapt_channels,
+    negotiate,
+    queue_bytes,
+)
 from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput
 
-_FORMAT = AudioFormat(16000, 2, 16)
 _SESSION = AudioSession(duplex=False)
 
 # M5Unified Tab5 I2S / codec pin map
@@ -17,6 +31,8 @@ _LRCK = 29
 _DOUT = 26
 _DIN = 28
 _RATE = 16000
+_I2C_SCL = 32
+_I2C_SDA = 31
 
 # I2S ring buffer. The default is the value this board was brought up with;
 # leave it. A caller asking for latency="low" gets a shorter one instead (see
@@ -28,96 +44,148 @@ _IBUF = 20000
 # ring underruns no matter how promptly the caller writes.
 _MIN_IBUF = 4096
 
+# --- what this board can actually do --------------------------------------
+#
+# Declared as exactly what this board already did before the format contract
+# existed: one rate, two channels, 16-bit. Nobody here has a Tab5 to measure
+# on, and a capability is a promise the contract makes on the board's behalf,
+# so widening it would be inventing a claim. The codec's clock tree is set up
+# for this rate; another rate needs register work and a capture to prove it.
+# Someone holding the hardware should widen this, not a reader of a datasheet.
+_OUT_DEFAULT = AudioFormat(_RATE, 2, 16)
+AUDIO_OUT = AudioCapability(
+    _OUT_DEFAULT,
+    rates=(_RATE,),
+    channels=(2,),
+    native_channels=2,
+    bits=(16,),
+    wire=I2SWire(0, sck=_BCLK, ws=_LRCK, sd=_DOUT, mck=_MCLK, mck_fs=256),
+)
+AUDIO_IN = AudioCapability(
+    AudioFormat(_RATE, 2, 16),
+    rates=(_RATE,),
+    channels=(2,),
+    native_channels=2,
+    bits=(16,),
+    wire=I2SWire(0, sck=_BCLK, ws=_LRCK, sd=_DIN, mck=_MCLK, mck_fs=256),
+)
+
 
 def load_peripherals(ns):
     boarddev.bind_lazy(ns, sys.modules[__name__])
 
 
 def i2c():
-    import board_config as bc
+    """Panel / expansion I2C."""
+    return _i2c_bus()
 
-    return bc.i2c
 
+def _i2c_bus():
+    """Panel I2C, shared with whatever already opened it.
 
-def audio_in(*, latency=None, queue_ms=None):
-    """ES7210 ADC + I2S RX.
-
-    ``latency`` / ``queue_ms`` size the I2S ring buffer; see :func:`audio_out`.
+    Never ``import board_config`` from here: a non-graphics app importing
+    this module must not start a display. That import is what the previous
+    version of this file did, on every audio call.
     """
+    bc = sys.modules.get("board_config")
+    bus = getattr(bc, "i2c", None) if bc is not None else None
+    if bus is not None:
+        return bus
+    from machine import I2C, Pin
+
+    return I2C(0, scl=Pin(_I2C_SCL), sda=Pin(_I2C_SDA), freq=400_000)
+
+
+def _stream(mode, sd_pin, ibuf, fmt):
     from machine import I2S, Pin
 
-    from es7210 import ES7210
-
-    import board_config as bc
-
-    codec = ES7210(bc.i2c, profile="m5")
-    ibuf = queue_bytes(_FORMAT, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
-
-    def stream():
-        return I2S(
+    return I2S(
         0,
         sck=Pin(_BCLK),
         ws=Pin(_LRCK),
-        sd=Pin(_DIN),
+        sd=Pin(sd_pin),
         mck=Pin(_MCLK),
-        mode=I2S.RX,
-        bits=16,
-        format=I2S.STEREO,
-        rate=_RATE,
+        mode=mode,
+        bits=fmt.bits,
+        format=I2S.STEREO if fmt.channels == 2 else I2S.MONO,
+        rate=fmt.rate,
         ibuf=ibuf,
-        )
-
-    return I2SPCMInput(
-        stream, _FORMAT, session=_SESSION, codec=codec,
-        set_hardware_gain=codec.set_gain, power=codec.enable_input,
     )
 
 
-def audio_out(*, latency=None, queue_ms=None):
-    """ES8388 DAC + I2S TX (+ PI4IOE amp enable). Returns an AudioOut sample
-    player: ``play(sample, loop=)``/``stop()``/``pause()``/``resume()``/
-    ``playing`` over any audiosample.
+def _pcm_in(format=None, *, latency=None, queue_ms=None):
+    """ES7210 ADC + I2S RX: a raw ``PCMInput``."""
+    from machine import I2S
 
-    ``latency`` / ``queue_ms`` size the I2S ring buffer. Only these two of the
-    shared audio keywords mean anything here: there is no software coalescing
-    stage and no host device to name, so the rest raise rather than being
-    accepted and ignored.
+    from es7210 import ES7210
+
+    wire, _ = negotiate(AUDIO_IN, format)
+    codec = ES7210(_i2c_bus(), profile="m5")
+    ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
+    return I2SPCMInput(
+        lambda: _stream(I2S.RX, _DIN, ibuf, wire),
+        wire,
+        session=_SESSION,
+        codec=codec,
+        set_hardware_gain=codec.set_gain,
+        power=codec.enable_input,
+    )
+
+
+def _pcm_out(format=None, *, latency=None, queue_ms=None):
+    """ES8388 DAC + I2S TX (+ PI4IOE amp enable): a raw ``PCMOutput``.
+
+    Paced: ``I2SPCMOutput`` arms I2S into asyncio mode, so an unpaced
+    ``write()`` raises once DMA fills. See the T-Embed board for the measured
+    version of that.
     """
-    from machine import I2S, Pin
+    from machine import I2S
 
     from es8388 import ES8388
     from pi4ioe5v import tab5_set_amp
 
-    import board_config as bc
+    from audiodev import pace_output
 
-    from audiodev.sample_out import AudioOut
-
-    codec = ES8388(bc.i2c)
-    ibuf = queue_bytes(_FORMAT, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
-
-    def stream():
-        return I2S(
-        0,
-        sck=Pin(_BCLK),
-        ws=Pin(_LRCK),
-        sd=Pin(_DOUT),
-        mck=Pin(_MCLK),
-        mode=I2S.TX,
-        bits=16,
-        format=I2S.STEREO,
-        rate=_RATE,
-        ibuf=ibuf,
-        )
+    wire, source = negotiate(AUDIO_OUT, format)
+    bus = _i2c_bus()
+    codec = ES8388(bus)
+    ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
 
     def power(enable):
         codec.enable_output(enable)
-        tab5_set_amp(bc.i2c, enable)
+        tab5_set_amp(bus, enable)
 
-    return AudioOut(I2SPCMOutput(
-        stream, _FORMAT, session=_SESSION, codec=codec,
+    device = I2SPCMOutput(
+        lambda: _stream(I2S.TX, _DOUT, ibuf, wire),
+        wire,
+        session=_SESSION,
+        codec=codec,
         set_hardware_volume=codec.set_dac_volume,
-        set_hardware_mute=codec.dac_mute, power=power,
-    ))
+        set_hardware_mute=codec.dac_mute,
+        power=power,
+    )
+    if source is not wire:
+        from audiodev.accel import best_remix
+
+        device = adapt_channels(device, source, remix=best_remix())
+    return pace_output(device)
+
+
+def _audio_out(format=None, **kwargs):
+    """``AudioOut`` sample player. Requires audioif; use ``pcm_out`` for
+    raw PCM bytes, which has no DSP dependency."""
+    from audiodev.sample_out import AudioOut
+
+    pump = {}
+    for key in ("chunk_ms", "lookahead_chunks", "max_catchup_chunks"):
+        if key in kwargs:
+            pump[key] = kwargs.pop(key)
+    return AudioOut(_pcm_out(format, **kwargs), **pump)
+
+
+pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
+pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
+audio_out = AudioFactory(_audio_out, AUDIO_OUT)
 
 
 def sdcard():

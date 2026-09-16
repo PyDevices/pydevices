@@ -385,7 +385,7 @@ class WebPCMInput(PCMInput):
         self._pending = bytearray()
 
 
-def audio_out(format=None, *, latency=None, poll_ms=4):
+def pcm_out(format=None, *, latency=None, poll_ms=4):
     """Create a Web Audio-backed :class:`PCMOutput` (PyScript).
 
     ``latency`` is accepted for portability and validated, but every profile
@@ -398,7 +398,7 @@ def audio_out(format=None, *, latency=None, poll_ms=4):
     return WebPCMOutput(fmt, poll_ms=poll_ms)
 
 
-def audio_in(format=None, *, latency=None, poll_ms=4, queue_ms=500, samples=None):
+def pcm_in(format=None, *, latency=None, poll_ms=4, queue_ms=500, samples=None):
     """Create a Web Audio-backed :class:`PCMInput` via getUserMedia (PyScript).
 
     ``samples`` is the ``ScriptProcessorNode`` block size, which the browser

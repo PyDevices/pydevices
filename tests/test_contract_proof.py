@@ -59,7 +59,8 @@ EXPECTED = {
         "devices": {
             "pixels",
             "audio_out",
-            "audio_in",
+            "pcm_out",
+            "pcm_in",
             "sdcard",
             "battery",
             "i2c",
@@ -149,7 +150,16 @@ class TestGraduatedBoardLayout(unittest.TestCase):
                 self.assertIn("PERIPHERALS = frozenset", text)
                 self.assertIn("def load_peripherals", text)
                 for role in expect["devices"]:
-                    self.assertIn("def {}(".format(role), text)
+                    # A role is satisfied either by a plain factory function
+                    # or by a module-level binding -- audio roles are
+                    # AudioFactory objects, because a MicroPython function
+                    # cannot carry the capability attribute apps discover
+                    # through. Both are the role being present.
+                    self.assertTrue(
+                        "def {}(".format(role) in text
+                        or "\n{} = ".format(role) in text,
+                        "{} provides no {!r} role".format(bd, role),
+                    )
 
                 meta = json.loads(pkg.read_text())
                 urls = {u[0] for u in meta["urls"]}

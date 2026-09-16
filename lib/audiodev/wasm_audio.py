@@ -65,9 +65,9 @@ class WasmPCMInput(PCMInput):
         _wasm_bridge.audio_clear(True)
 
 
-def audio_out(format=None, **kwargs):
+def pcm_out(format=None, **kwargs):
     return WasmPCMOutput(format or DEFAULT_FORMAT, **kwargs)
 
 
-def audio_in(format=None, **kwargs):
+def pcm_in(format=None, **kwargs):
     return WasmPCMInput(format or DEFAULT_FORMAT, **kwargs)

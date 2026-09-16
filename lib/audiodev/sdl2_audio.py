@@ -784,7 +784,7 @@ class SDLPCMInput(PCMInput):
         return sdl.SDL_DequeueAudio(self.device, buf, available)
 
 
-def audio_out(
+def pcm_out(
     format=None,
     *,
     device=None,
@@ -817,7 +817,7 @@ def audio_out(
     )
 
 
-def audio_in(
+def pcm_in(
     format=None,
     *,
     device=None,

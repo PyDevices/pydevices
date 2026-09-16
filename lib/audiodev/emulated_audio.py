@@ -331,7 +331,7 @@ class GeneratorPCMInput(PCMInput):
         return frames * fmt.frame_size
 
 
-def audio_out(format=None, *, path=None, loopback=None, discard=False, queue_ms=None):
+def pcm_out(format=None, *, path=None, loopback=None, discard=False, queue_ms=None):
     """Standalone emulated playback: WAV path, loopback buffer, or discard."""
     if discard:
         fmt = format or AudioFormat(16000, 1, 16)
@@ -347,7 +347,7 @@ def audio_out(format=None, *, path=None, loopback=None, discard=False, queue_ms=
     raise ValueError("emulated audio_out needs path, loopback, or discard=True")
 
 
-def audio_in(
+def pcm_in(
     format=None,
     *,
     path=None,

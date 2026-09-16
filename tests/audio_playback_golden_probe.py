@@ -41,7 +41,7 @@ import audiomixer  # noqa: E402
 import synthio  # noqa: E402
 
 from audiodev import AudioFormat  # noqa: E402
-from audiodev.emulated_audio import audio_out as _wav_audio_out  # noqa: E402
+from audiodev.emulated_audio import pcm_out as _wav_audio_out  # noqa: E402
 import audiodev.sample_out as sample_out  # noqa: E402
 from audiodev.sample_out import AudioOut  # noqa: E402
 
