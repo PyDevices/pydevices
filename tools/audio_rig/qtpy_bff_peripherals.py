@@ -2,8 +2,11 @@
 
 NOT YET RUN AGAINST THE BFF -- it is not soldered on. What IS measured is the
 wire underneath it: every rate from 8 kHz to 48 kHz, mono and stereo, opened
-on these exact pins and drain-timed within 1 permille (tools/audio_rig/,
-2026-09-15). machine.I2S clocks into unconnected pins as happily as into an
+on these exact pins -- including GPIO15, a strapping pin -- and drain-timed
+within 1 permille (tools/audio_rig/, 2026-09-15).
+
+Gain is set by solder pads on the BFF's underside: 6, 9 or 12 dB, defaulting
+to 9 with none bridged. Nothing here touches it; it is a hardware choice. machine.I2S clocks into unconnected pins as happily as into an
 amplifier, so the pin choice and the clock are already proven; what is not
 proven is that anything comes out of the speaker.
 
@@ -36,15 +39,29 @@ PERIPHERALS = frozenset({"audio_out", "pcm_out"})
 # caller can pass a format. See boarddev.bind_lazy.
 FACTORY_ROLES = PERIPHERALS
 
-# Audio BFF pads on the QT Py ESP32 Pico. The pad names are Adafruit's
-# (A0/A1/A2); the GPIO numbers were read off the CircuitPython board
-# definition running on this board's twin, not from a datasheet.
-#   A0 = GPIO26 -> DIN    A1 = GPIO25 -> LRC    A2 = GPIO27 -> BCLK
-# GPIO25/26 are the classic ESP32's DAC pins; they are ordinary GPIOs too and
-# drive I2S without complaint (measured).
-_BCLK = 27
-_LRC = 25
-_DIN = 26
+# Adafruit Audio BFF (product 5769) pads on the QT Py ESP32 Pico.
+#
+#   A1 = GPIO25 -> DIN    A2 = GPIO27 -> LRC    A3 = GPIO15 -> BCLK
+#   A0 = GPIO26 -> microSD chip select (NOT audio; see _SD_CS)
+#
+# Note this is shifted one pad from the I2S Amplifier BFF (5770), which uses
+# A0/A1/A2 for DIN/LRC/BCLK. Building against the wrong guide puts the bit
+# clock on the SD card's chip select. The pad names are Adafruit's; the GPIO
+# numbers were read off the CircuitPython board definition running on this
+# board's twin.
+#
+# GPIO15 is a boot strapping pin on the classic ESP32 (MTDO). It drives I2S
+# correctly after boot -- measured at every rate below -- but it is the pin to
+# suspect first if the board ever comes up strangely with the BFF fitted.
+_BCLK = 15
+_LRC = 27
+_DIN = 25
+
+# The Audio BFF also carries a microSD slot on the SPI bus, chip-selected from
+# A0. Not wired up here: this file exists to test the audio contract. A board
+# config that shipped would want an sdcard role too, since playing WAVs off
+# that card is what the board is for.
+_SD_CS = 26
 
 _I2S_PORT = 0
 _IBUF = 20000
@@ -56,20 +73,25 @@ _MIN_IBUF = 4096
 # 24000, 32000, 44100 and 48000 Hz, in both mono and stereo. So rates=None is
 # a real claim.
 #
-# channels=(1,) is a POLICY, and the interesting line in this file.
+# channels=(1, 2) with native_channels=1, which is the same shape as the
+# ESP32-P4 and for the same reason: two slots on the wire, one speaker at the
+# end of them.
 #
-# The wire will happily open two slots -- that was measured too. But the
-# MAX98357A drives one speaker and picks what it plays by jumper: left, right,
-# or (L+R)/2. On the common left-only setting, handing it a stereo stream
-# means the right channel is simply discarded, and a listener loses half the
-# music with nothing anywhere reporting a problem.
+# An earlier draft of this file declared channels=(1,) on the theory that the
+# MAX98357A picks a single channel by jumper, so that handing it stereo would
+# silently discard the right half unless we averaged in software first. That
+# is true of the I2S Amplifier BFF (5770). It is NOT true of this board: the
+# Audio BFF is, in Adafruit's words, "pre-configured for stereo mix output" --
+# the amplifier averages L+R itself, in hardware, with no jumper and no cost.
 #
-# Declaring one channel says: hand me mono, and if you have stereo I will
-# average it so that nothing is thrown away. That routes stereo content
-# through adapt_channels -- which is also, not by accident, the first time
-# the software mixdown path runs on real hardware anywhere in this project.
+# So stereo content opens two slots and nothing is mixed down in software,
+# and this board does not after all give the project a case where the
+# software remix is genuinely required. adapt_channels stays exercised by
+# unit tests and by a deliberately-configured rig run, not by a board that
+# needs it. Saying otherwise here would be arranging the evidence.
 #
-# COST, because it is not free here. This firmware carries no audioif, so
+# COST, for the deliberate mono-wire configuration only -- the production
+# path above never converts. This firmware carries no audioif, so
 # accel.best_remix() returns None and the portable remix runs. Measured
 # END TO END on this board -- pushing two seconds of audio through the whole
 # chain (adapter, pacing, I2S) against the wall clock, which is the number
@@ -87,10 +109,10 @@ _MIN_IBUF = 4096
 # realtime, adapter-outside 0.95x. The arrangement below is the same as every
 # other board here, which is worth more than 2%.
 AUDIO_OUT = AudioCapability(
-    AudioFormat(16000, 1, 16),
+    AudioFormat(16000, 2, 16),
     rates=None,
-    channels=(1,),
-    native_channels=1,
+    channels=(1, 2),
+    native_channels=1,          # one speaker; the amp averages L+R itself
     bits=(16,),
     wire=I2SWire(_I2S_PORT, sck=_BCLK, ws=_LRC, sd=_DIN),
 )
@@ -119,10 +141,9 @@ def _stream(ibuf, fmt):
 def _pcm_out(format=None, *, latency=None, queue_ms=None):
     """MAX98357A on the Audio BFF: a raw ``PCMOutput``.
 
-    Hand it stereo and it is averaged to mono rather than half-discarded --
-    see the note on ``channels`` above, including what that costs on this
-    chip. Needs no audioif for mono material; stereo material at a high rate
-    does.
+    Takes mono or stereo. Stereo opens two slots and the amplifier averages
+    them into its one speaker in hardware, so nothing is converted and
+    nothing is lost -- and no audioif is needed at any rate.
     """
     from audiodev import check_latency, pace_output, queue_bytes
     from audiodev.accel import best_remix
