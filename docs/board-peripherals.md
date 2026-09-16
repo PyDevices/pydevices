@@ -119,6 +119,18 @@ and tooling USB / UART bridges. Apps may still use those stacks directly.
 `PERIPHERALS` is authored in **`board_peripherals.PERIPHERALS`** only. `board_config`
 re-exports that frozenset; eager UI names are not listed there.
 
+## Boards with no display
+
+`board_configs/nodisplay/` holds boards that are only peripherals — an audio
+DAC or amplifier on a QT Py, say. They ship a `board_peripherals.py` and **no
+`board_config.py`**, because there is nothing eager to construct. Apps import
+`board_peripherals` directly, which is the non-graphics idiom with nothing
+else in the way.
+
+Every other category is named for a display technology (`busdisplay`,
+`fbdisplay`, `pixeldisplay`, …), so a board with no display had nowhere to
+live before this.
+
 ## Module layout (shape to prove)
 
 Keep `board_config.py`. Sibling `board_peripherals.py` holds `PERIPHERALS`, zero-arg

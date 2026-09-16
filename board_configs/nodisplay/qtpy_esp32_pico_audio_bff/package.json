@@ -1,0 +1,16 @@
+{
+  "urls": [
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/nodisplay/qtpy_esp32_pico_audio_bff/board_peripherals.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1.0",
+  "notes": "Headless: no board_config.py, because there is no display to construct. Import board_peripherals directly."
+}

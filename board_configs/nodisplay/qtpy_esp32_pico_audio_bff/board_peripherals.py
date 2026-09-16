@@ -20,9 +20,11 @@ the one to reach for if full scale is still too quiet. machine.I2S clocks into u
 amplifier, so the pin choice and the clock are already proven; what is not
 proven is that anything comes out of the speaker.
 
-Placement is deliberately provisional. Every board_configs/ category is named
-for a display, and this board has none -- where a headless board belongs is a
-structural question, so this sits in tools/ until that is decided.
+This board has no display, which is why the ``nodisplay`` category exists:
+every other board_configs/ category is named for a display technology, and a
+board that is only an audio peripheral fits none of them. There is no
+board_config.py here either -- nothing eager to construct. A non-graphics app
+imports board_peripherals directly, which is the whole point of the idiom.
 
 The amplifier is a MAX98357A: no codec, no I2C, no register set, no MCLK. It
 takes its clock from BCLK, which is why rates are continuous here rather than
