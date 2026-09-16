@@ -54,6 +54,20 @@ class ES8311Tests(unittest.TestCase):
         self.assertFalse(self.codec.output_enabled)
         self.assertFalse(self.codec.input_enabled)
 
+    def test_class_advertises_mono(self):
+        self.assertEqual(ES8311.channels, 1)
+
+    def test_256fs_bclk_matches_micropython_16bit_slots(self):
+        # machine.I2S 16-bit Philips: BCLK = 32fs, not Espressif's 64fs.
+        self.assertEqual(self.register(0x06), 7)
+        self.assertEqual(self.register(0x07), 0x00)
+        self.assertEqual(self.register(0x08), 0xFF)
+
+    def test_512fs_keeps_bring_up_bclk_div(self):
+        codec = ES8311(self.i2c, mclk_multiplier=512)
+        self.assertEqual(self.i2c.registers[(0x18, 0x02)], 0x20)
+        self.assertEqual(self.i2c.registers[(0x18, 0x06)], 3)
+
 
 if __name__ == "__main__":
     unittest.main()

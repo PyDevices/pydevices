@@ -16,8 +16,15 @@ BOARD = ROOT / "board_configs" / "fbdisplay" / "esp32-p4-wifi6-touch-lcd-4b"
 
 
 class FakeI2C:
-    def __init__(self):
+    instances = []
+
+    def __init__(self, port=None, scl=None, sda=None, freq=None):
+        self.port = port
+        self.scl = scl
+        self.sda = sda
+        self.freq = freq
         self.registers = {}
+        self.instances.append(self)
 
     def writeto_mem(self, address, register, data):
         self.registers[register] = data[0]
@@ -46,11 +53,13 @@ class FakeI2S:
     RX = 2
     STEREO = 3
     MONO = 4
+    constructed = []
 
     def __init__(self, number, **kwargs):
         self.number = number
         self.options = kwargs
         self.closed = False
+        FakeI2S.constructed.append(self)
 
     def write(self, data):
         return len(data)
@@ -92,7 +101,9 @@ class ESP32P4AudioTests(unittest.TestCase):
         cls.i2c = FakeI2C()
         sys.modules["board_config"] = types.SimpleNamespace(i2c=cls.i2c)
         sys.modules["boarddev"] = types.SimpleNamespace(bind_lazy=lambda *args: None)
-        sys.modules["machine"] = types.SimpleNamespace(I2S=FakeI2S, Pin=FakePin, PWM=FakePWM)
+        sys.modules["machine"] = types.SimpleNamespace(
+            I2S=FakeI2S, Pin=FakePin, PWM=FakePWM, I2C=FakeI2C
+        )
         spec = importlib.util.spec_from_file_location("p4_board_peripherals", BOARD / "board_peripherals.py")
         cls.board = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.board)
@@ -111,11 +122,18 @@ class ESP32P4AudioTests(unittest.TestCase):
             # Drop the cached codec too: it holds register state from whatever
             # this test opened, and the next test expects a fresh bring-up.
             session.codec = None
+        sys.modules["board_config"] = types.SimpleNamespace(i2c=self.i2c)
         self.i2c.registers.clear()
         FakePin.instances.clear()
         FakePWM.instances.clear()
+        FakeI2C.instances.clear()
+        # Class-level, so it accumulates across tests and leaks into whatever
+        # runs next in the same process unless it is cleared here.
+        FakeI2S.constructed.clear()
         self.board._pa = None
         self.board._mclk = None
+        self.board._mclk_rate = self.board._RATE
+        self.board._i2c_own = None
 
     def test_output_format_is_24khz_mono_pcm(self):
         from audiodev import AudioFormat
@@ -123,16 +141,57 @@ class ESP32P4AudioTests(unittest.TestCase):
         output = self.board.audio_out()
         self.assertEqual(output.format, AudioFormat(24000, 1, 16))
 
+    def test_capability_is_discoverable_without_opening(self):
+        """A caller asks what the board takes; it does not open to find out.
+
+        ``channels`` is what the WIRE opens, ``native_channels`` is what
+        reaches a speaker. They differ here, and that is the point: the
+        ES8311 clocks two slots into one speaker, so stereo content needs no
+        mixdown. The previous shape had a single ``max_channels = 1`` beside
+        an ``audio_out`` that accepted 2 -- it could not express this board.
+        """
+        FakeI2S.constructed.clear()
+        cap = self.board.pcm_out.capability
+        self.assertEqual((1, 2), cap.channels)
+        self.assertEqual(1, cap.native_channels)
+        self.assertIs(cap, self.board.AUDIO_OUT)
+        self.assertEqual([], FakeI2S.constructed)
+
+    def test_capability_publishes_the_wire_for_a_c_pump(self):
+        """usbif's C pump opens I2S itself and wants only the pin numbers."""
+        FakeI2S.constructed.clear()
+        wire = self.board.AUDIO_OUT.wire
+        self.assertEqual(12, wire.sck)
+        self.assertEqual(10, wire.ws)
+        self.assertEqual(9, wire.sd)
+        self.assertEqual(13, wire.mck)
+        self.assertEqual([], FakeI2S.constructed)
+
+    def test_input_refuses_stereo_that_output_accepts(self):
+        """Not a contradiction any more: the capabilities differ and say so.
+
+        Before, ``_MAX_CHANNELS = 1`` sat beside an ``audio_out`` accepting 2
+        while ``audio_in`` raised on the same request, from one constant.
+        """
+        from audiodev import AudioFormat
+
+        self.board.pcm_out(AudioFormat(44100, 2, 16))
+        with self.assertRaises(ValueError):
+            self.board.pcm_in(AudioFormat(44100, 2, 16))
+
     def test_output_has_codec_controls_and_amplifier_lifecycle(self):
         output = self.board.audio_out()
         self.assertIsNotNone(output.codec)
-        self.assertEqual(output.codec.mclk_multiplier, 512)
-        self.assertEqual(self.i2c.registers[0x02], 0x20)
+        self.assertEqual(output.codec.mclk_multiplier, 256)
+        self.assertEqual(self.i2c.registers[0x02], 0x00)
+        self.assertEqual(self.i2c.registers[0x06], 7)
         output.set_volume(42)
         output.open()
         self.assertEqual(output.codec.dac_volume, 42)
         self.assertFalse(output.codec.dac_muted)
         self.assertEqual(FakePin.instances[53].state, 1)
+        self.assertTrue(FakePWM.instances[-1].closed)
+        self.assertEqual(output.transport.i2s.options["mck"].number, 13)
         output.close()
         self.assertTrue(output.codec.dac_muted)
         self.assertEqual(FakePin.instances[53].state, 0)
@@ -165,7 +224,7 @@ class ESP32P4AudioTests(unittest.TestCase):
         # to govern latency, so its ring IS the latency. Kept rather than
         # dropped with the output assertion -- 5f52477 touched audio_out only,
         # and deleting this half would retire a contract nothing changed.
-        capture = self.board.audio_in(latency="low")
+        capture = self.board.pcm_in(latency="low")
         capture.open()
         self.assertEqual(4800, capture.i2s.options["ibuf"])  # 100ms @ 24kHz mono 16-bit
         capture.close()
@@ -190,16 +249,65 @@ class ESP32P4AudioTests(unittest.TestCase):
             self.board.audio_out(coalesce_ms=20)
 
     def test_input_uses_es7210_codec_and_gain(self):
-        capture = self.board.audio_in()
+        capture = self.board.pcm_in()
         capture.set_gain(35)
         capture.open()
         self.assertEqual(capture.codec.gain, 35)
-        self.assertEqual(FakePWM.instances[-1].freq(), 24000 * 512)
+        self.assertTrue(FakePWM.instances[-1].closed)
+        self.assertEqual(capture.i2s.options["mck"].number, 13)
         self.assertEqual(capture.i2s.options["sck"].number, 12)
         self.assertEqual(capture.i2s.options["ws"].number, 10)
         self.assertEqual(capture.i2s.options["sd"].number, 11)
         capture.close()
         self.assertFalse(capture.codec.enabled)
+
+    def test_factory_opens_app_chosen_rate_and_retunes_mclk(self):
+        from audiodev import AudioFormat
+
+        fmt = AudioFormat(44100, 1, 16)
+        output = self.board.audio_out(fmt)
+        self.assertEqual(output.format, fmt)
+        output.open()
+        self.assertEqual(output.transport.i2s.options["rate"], 44100)
+        self.assertEqual(output.transport.i2s.options["format"], FakeI2S.MONO)
+        self.assertTrue(FakePWM.instances[-1].closed)
+        self.assertEqual(output.transport.i2s.options["mck"].number, 13)
+        output.close()
+
+    def test_stereo_opens_i2s_stereo_slots(self):
+        from audiodev import AudioFormat
+
+        fmt = AudioFormat(44100, 2, 16)
+        output = self.board.audio_out(fmt)
+        self.assertEqual(output.format, fmt)
+        output.open()
+        self.assertEqual(output.transport.i2s.options["rate"], 44100)
+        self.assertEqual(output.transport.i2s.options["format"], FakeI2S.STEREO)
+        self.assertTrue(FakePWM.instances[-1].closed)
+        self.assertEqual(output.transport.i2s.options["mck"].number, 13)
+        output.close()
+
+    def test_non_16bit_still_raises(self):
+        from audiodev import AudioFormat
+
+        with self.assertRaises(ValueError):
+            self.board.audio_out(AudioFormat(44100, 1, 32))
+
+    def test_headless_factory_opens_panel_i2c_without_board_config(self):
+        from audiodev import AudioFormat
+
+        saved = sys.modules.pop("board_config")
+        try:
+            output = self.board.audio_out(AudioFormat(44100, 1, 16))
+            output.open()
+            self.assertEqual(1, len(FakeI2C.instances))
+            bus = FakeI2C.instances[0]
+            self.assertEqual(bus.port, 1)
+            self.assertEqual(bus.scl.number, 8)
+            self.assertEqual(bus.sda.number, 7)
+            output.close()
+        finally:
+            sys.modules["board_config"] = saved
 
 
 if __name__ == "__main__":
