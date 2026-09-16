@@ -1,12 +1,22 @@
 """board_peripherals for a QT Py ESP32 Pico carrying an Adafruit Audio BFF.
 
-NOT YET RUN AGAINST THE BFF -- it is not soldered on. What IS measured is the
-wire underneath it: every rate from 8 kHz to 48 kHz, mono and stereo, opened
-on these exact pins -- including GPIO15, a strapping pin -- and drain-timed
-within 1 permille (tools/audio_rig/, 2026-09-15).
+HEARD WORKING 2026-09-15, on a QT Py ESP32 Pico with the BFF stacked on it.
+Brad listened to: a sustained 440 Hz tone at 16 kHz mono; an A-C#-E-A
+arpeggio; and a 44.1 kHz stereo pair with 440 Hz left and 660 Hz right. All
+correct, at half and at full scale.
+
+That stereo pair is the useful one -- it came back as a power chord, both
+notes sounding together, which confirms by ear that the amplifier really does
+average L+R in hardware the way Adafruit documents. The channel policy below
+rests on that, not on the datasheet.
+
+The wire had been measured before the board went on: every rate from 8 kHz to
+48 kHz, mono and stereo, opened on these exact pins -- including GPIO15, a
+strapping pin -- and drain-timed within 1 permille.
 
 Gain is set by solder pads on the BFF's underside: 6, 9 or 12 dB, defaulting
-to 9 with none bridged. Nothing here touches it; it is a hardware choice. machine.I2S clocks into unconnected pins as happily as into an
+to 9 with none bridged. Nothing here touches it; it is a hardware choice, and
+the one to reach for if full scale is still too quiet. machine.I2S clocks into unconnected pins as happily as into an
 amplifier, so the pin choice and the clock are already proven; what is not
 proven is that anything comes out of the speaker.
 
