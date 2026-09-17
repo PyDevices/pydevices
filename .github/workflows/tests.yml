@@ -9,6 +9,12 @@ on:
       - 'utils/**'
       - 'drivers/**'
       - 'board_configs/**/package.json'
+      # The contract proof (tests/test_contract_proof.py) reads and binds every
+      # board's board_config.py and board_peripherals.py, so a change to those
+      # must run the suite. The t-embed rail-power regression reached main
+      # untested because only package.json under board_configs was watched.
+      - 'board_configs/**/board_config.py'
+      - 'board_configs/**/board_peripherals.py'
       - 'scripts/validate_board_mip_installers.py'
       # test_desktop_publication asserts this file lists every source under
       # lib/ and utils/, so a change to it has to run the suite. Without this
@@ -23,6 +29,12 @@ on:
       - 'utils/**'
       - 'drivers/**'
       - 'board_configs/**/package.json'
+      # The contract proof (tests/test_contract_proof.py) reads and binds every
+      # board's board_config.py and board_peripherals.py, so a change to those
+      # must run the suite. The t-embed rail-power regression reached main
+      # untested because only package.json under board_configs was watched.
+      - 'board_configs/**/board_config.py'
+      - 'board_configs/**/board_peripherals.py'
       - 'scripts/validate_board_mip_installers.py'
       # test_desktop_publication asserts this file lists every source under
       # lib/ and utils/, so a change to it has to run the suite. Without this
