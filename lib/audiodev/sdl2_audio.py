@@ -307,6 +307,10 @@ class SDLPCMOutput(PCMOutput):
         self._lock = threading.Lock() if threading is not None else None
         # True while a worker thread is closing/reopening the device.
         self._recycling = False
+        # True while service() is running. A scheduled pump (mp_sched) can call
+        # service() re-entrantly on this same thread; the guard drops the nested
+        # call so the two do not both mutate self._samples.
+        self._servicing = False
         # Cumulative bytes handed to SDL. Progress is measured as
         # ``_queued_total - queued``, not as a drop in queue depth: a caller that
         # tops the queue up replaces each consumed period before the next check
@@ -354,7 +358,11 @@ class SDLPCMOutput(PCMOutput):
         # Stay paused until primed; see PREBUFFER_MS.
         self._prime_pause = True
         self._queued_total = 0
-        del self._samples[:]
+        # Do NOT clear self._samples here. On a recycle this runs on the rebuild
+        # worker thread while the tick thread may be inside _check_stall reading
+        # that same list -- an unlocked clear there raced it empty and crashed
+        # the pump. The stall window belongs to the tick thread: _check_stall
+        # clears it every tick during the post-rebuild grace window instead.
         sdl.SDL_PauseAudioDevice(self.device, 1)
         return self
 
@@ -569,14 +577,24 @@ class SDLPCMOutput(PCMOutput):
         Required, not optional -- stall recovery only happens here and in
         :meth:`drain`. A no-op during a rebuild, since the worker owns the device
         and the pending PCM is queued on the next tick.
+
+        Re-entrancy: a MicroPython ``mp_sched`` callback (spremote's pump) can
+        fire between bytecodes on this same thread and call ``service()`` again
+        while we are mid-``_check_stall``. Both would mutate ``self._samples``
+        and the inner one leaves the outer indexing an emptied list. The guard
+        makes the nested call a no-op; the outer call finishes the tick.
         """
-        if self._recycling or not self.device:
+        if self._recycling or not self.device or self._servicing:
             return
-        if self._coalesce:
-            self._flush_coalesce(force=False)
-        # Failsafe: a pump parked at the fill watermark must not leave us paused.
-        self._unpause_if_primed()
-        self._check_stall()
+        self._servicing = True
+        try:
+            if self._coalesce:
+                self._flush_coalesce(force=False)
+            # Failsafe: a pump parked at the fill watermark must not leave paused.
+            self._unpause_if_primed()
+            self._check_stall()
+        finally:
+            self._servicing = False
 
     def _check_stall(self):
         """Recycle the device when it plays back well below realtime.
@@ -590,6 +608,16 @@ class SDLPCMOutput(PCMOutput):
         work: the pump refills each consumed period before the next check, so
         depth stays flat during healthy playback and during a total stall alike.
         """
+        try:
+            self._check_stall_impl()
+        except IndexError:
+            # Re-entrancy safety net. The service() guard stops the common
+            # nested case, but a scheduled pump's write()->_unpause and drain()
+            # can still empty self._samples between our index checks on this
+            # same thread. Skip the tick; the window rebuilds on the next call.
+            return
+
+    def _check_stall_impl(self):
         if not self.device or self._prime_pause:
             return
         if self._grace_until is not None and _elapsed_ms(self._grace_until) < 0:
@@ -606,10 +634,16 @@ class SDLPCMOutput(PCMOutput):
             samples.append((now, consumed))
         while len(samples) > 1 and _diff_ms(now, samples[1][0]) >= self._stall_window_ms:
             del samples[0]
-        span = _diff_ms(now, samples[0][0])
+        # Snapshot the head once, and tolerate an empty list: _open_device no
+        # longer clears self._samples off-thread, but _close/clear/drain still
+        # can, so read the oldest sample defensively rather than index twice.
+        if not samples:
+            return
+        head_t, head_c = samples[0]
+        span = _diff_ms(now, head_t)
         if span < self._stall_window_ms:
             return
-        rate = (consumed - samples[0][1]) * 1000 // span
+        rate = (consumed - head_c) * 1000 // span
         if rate >= self._min_rate:
             return
         del samples[:]
