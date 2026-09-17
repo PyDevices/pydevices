@@ -26,9 +26,16 @@ from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput
 # MAX98357A sits on that rail. Without it the I2S DMA drains at exactly
 # realtime into an unpowered amplifier: every byte-clock reads as playing and
 # nothing is heard. Found by playing a tone the DMA reported consumed.
-from machine import Pin as _Pin
+try:
+    from machine import Pin as _Pin
 
-_Pin(46, _Pin.OUT, value=1)
+    _Pin(46, _Pin.OUT, value=1)
+except ImportError:
+    # Host structural import (the contract proof binds this module on CPython,
+    # where there is no ``machine``). There is no rail to power there; every
+    # peripheral factory below imports ``machine`` lazily and is guarded the
+    # same way, so the module stays importable off the board.
+    pass
 
 # LilyGO T-Embed pin_config.h
 _APA102_CLK = 45
