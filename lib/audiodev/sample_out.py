@@ -123,9 +123,9 @@ def _load_audiocore():
             )
         else:
             message = (
-                "AudioOut requires pydevices-audioif; install it with: "
+                "AudioOut requires pydevices-audiodsp; install it with: "
                 "python -m pip install --index-url https://test.pypi.org/simple/ "
-                "pydevices-audioif"
+                "pydevices-audiodsp"
             )
         raise ImportError(message) from exc
 
