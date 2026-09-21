@@ -547,9 +547,13 @@ class SinkDriver(_Driver):
     needs_service = False
 
     def __init__(self, wire, fmt, *, power=None, volume=100, dma_desc=4,
-                 dma_frame=128, din=-1):
+                 dma_frame=128, din=-1, transport=None):
         self.wire = wire
         self.fmt = fmt
+        # The transport that published the wire. Nothing opens it on this
+        # path, so it has to be told its codec is live or its set_volume()
+        # and mute() go nowhere -- see PCMOutput.hardware_live.
+        self.transport = transport
         self._power = power
         self.volume = int(volume)
         self.dma_desc = int(dma_desc)
@@ -579,6 +583,12 @@ class SinkDriver(_Driver):
             dma_desc=self.dma_desc, dma_frame=self.dma_frame, din=self.din,
         )
         self._open = True
+        self._mark_transport(True)
+
+    def _mark_transport(self, live):
+        t = self.transport
+        if t is not None and hasattr(t, "hardware_live"):
+            t.hardware_live(live)
 
     def opened(self):
         return self._open
@@ -592,6 +602,7 @@ class SinkDriver(_Driver):
         # shutdown() closes the channel with the task, so this only has to
         # undo what open() did that shutdown does not.
         self._open = False
+        self._mark_transport(False)
         if self._power is not None:
             self._power(False)
 
