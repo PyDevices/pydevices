@@ -189,13 +189,20 @@ class FakeEngine:
         self._threads = threads
         self._spawn_error = spawn_error
         self.frame = 0
+        self.loop = False
 
     # the six names module() insists on
-    def spawn(self, sample, blocks, status, ring=None, timeout_ms=0):
+    def spawn(self, sample, blocks, status, ring=None, loop=False,
+              timeout_ms=0):
+        # `loop` is the engine's since the split: the pump IS the output, so
+        # the flag sits on it the way CircuitPython puts it on `I2SOut.play`.
+        # A fake that does not take it turns every caller into "the audio
+        # pump would not take this graph" and the whole file goes red at once.
         if self._spawn_error is not None:
             raise RuntimeError(self._spawn_error)
         self.calls.append(("spawn", sample))
         self.spawned = sample
+        self.loop = bool(loop)
         self.alive = True
         return True
 
@@ -404,15 +411,16 @@ class ASecondClientGetsARootMixer(PumpFixture):
         self.assertEqual(mixer.channel_count, CHANNELS)
 
     def test_a_looping_client_goes_on_looping(self):
-        """RED ON TODAY'S CODE, on purpose.
+        """Written red, against a real defect, and green since the fix.
 
-        `Pump._tail()` mixes every client with ``loop=False``. A player that
-        was looping on its own -- which is the whole of what an `AudioOut`
-        playing ``loop=True`` was doing a moment earlier -- stops at the end
-        of its first lap as soon as anything else starts sounding. Nothing
-        reports it: the voice simply goes quiet.
+        `Pump._tail()` used to mix every client with ``loop=False``. A player
+        that was looping on its own -- which is the whole of what an
+        `AudioOut` playing ``loop=True`` was doing a moment earlier -- stopped
+        at the end of its first lap as soon as anything else started
+        sounding. Nothing reported it: the voice simply went quiet.
 
-        Being fixed on the board branch. When it lands this goes green.
+        The loop belongs to the client now. Put ``loop=False`` back in
+        `_tail()` and this row fails again.
         """
         looping = FakeSample()
         self.player(sample=looping, loop=True)
