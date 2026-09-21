@@ -303,6 +303,15 @@ class AudioOut:
             # No wire published: this board has not been taught the pump.
             # Play the old way rather than guessing at pins.
             return None
+        if not pump_mod.threaded():
+            # WebAssembly: no thread, so the loop runs inside this player's
+            # own service tick and the ring has to hold a tick's worth of
+            # look-ahead rather than just absorb a racing thread.
+            return pump_mod.ServiceDriver(
+                self.transport.format.frame_size,
+                chunk_bytes=self._chunk_bytes(),
+                max_block=pump_mod.block_size(tail),
+                ahead_ms=2 * self.chunk_ms)
         return pump_mod.RingDriver(
             self.transport.format.frame_size,
             chunk_bytes=self._chunk_bytes(),

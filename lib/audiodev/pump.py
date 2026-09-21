@@ -15,7 +15,8 @@ a root ``audiomixer.Mixer`` built for them and the pump is retargeted onto
 it; one client is pulled with nothing in the way, which is why a single
 player's PCM is byte-identical to the old path's.
 
-Two drivers, because the two ports differ in where the bytes land:
+Three drivers, because the ports differ in where the bytes land and in
+whether there is a thread to land them from:
 
 ``RingDriver``
     The desktop (unix, and anything else with no ``i2s_start``). The pump
@@ -24,6 +25,13 @@ Two drivers, because the two ports differ in where the bytes land:
     the interpreter thread; the byte-shovelling stays. Nothing on a desktop
     paces the pump, so this driver parks it between ticks -- see
     :meth:`RingDriver.produce`.
+
+``ServiceDriver``
+    WebAssembly, which has no threads. ``audiopump.service()`` runs the same
+    C loop on the interpreter thread, filling the same ring, and the audio is
+    byte-identical to the unix build's. What changes is that the ring is
+    look-ahead rather than slack: a tick of T milliseconds needs a ring
+    longer than T.
 
 ``SinkDriver``
     esp32. The pump owns the I2S channel outright (``audiopump.i2s_start``
@@ -105,6 +113,20 @@ def on_board():
     """True when the pump owns an I2S peripheral (esp32), rather than a ring."""
     mod = module()
     return mod is not None and hasattr(mod, "i2s_start")
+
+
+def threaded():
+    """True where spawn() puts the pull loop on a thread of its own.
+
+    False on WebAssembly, where there is no thread to put it on and
+    ``audiopump.service()`` runs the same loop on this one. A build too old to
+    answer has a thread, because every build that had the pump before this
+    question existed did.
+    """
+    mod = module()
+    if mod is None or not hasattr(mod, "threaded"):
+        return True
+    return bool(mod.threaded())
 
 
 def block_size(sample):
@@ -398,6 +420,71 @@ class RingDriver(_Driver):
 
     def close(self):
         self._parked = False
+
+
+class ServiceDriver(RingDriver):
+    """WebAssembly: there is no thread, so this tick *is* the pump.
+
+    Same ring, same drain, same bytes. What changes is where the loop runs:
+    ``audiopump.service()`` enters the C pull loop on the interpreter thread
+    and returns when the ring is full, so the park/unpark dance above has
+    nothing to park -- the pump is at a block boundary whenever Python holds
+    the thread, which is always.
+
+    The ring stops being a buffer against a racing thread and becomes the
+    **look-ahead**: everything produced in this tick has to last until the
+    next one. A tick of T milliseconds therefore needs a ring longer than T,
+    and measurably so -- 10 ms wants 4 blocks, 50 ms wants 16 and 200 ms
+    wants 64 (``docs/spikes/probes/wasm_timer.py``). That is the whole of the
+    difference a missing thread makes; the audio is byte-identical either way.
+    """
+
+    def __init__(self, frame_size, *, chunk_bytes=0, max_block=0, ahead_ms=0):
+        super().__init__(frame_size, chunk_bytes=chunk_bytes,
+                         max_block=max_block)
+        # A ring that cannot hold what one tick must hand out will starve the
+        # sink however fast the machine is, so the look-ahead is sized here
+        # rather than discovered in a browser. RingDriver's own floor (four
+        # blocks, eight drains) still applies -- this only ever grows it.
+        if ahead_ms and frame_size:
+            want = int(ahead_ms) * 48 * int(frame_size)
+            if max_block:
+                want = ((want + max_block - 1) // max_block) * max_block
+            if want > len(self._ring):
+                self._ring = bytearray(want)
+
+    def spawn(self, sample, status):
+        mod = module()
+        self._status = status
+        mod.spawn(sample, _BLOCKS_FOREVER, status, ring=self._ring,
+                  timeout_ms=200)
+        # No park handshake: spawn() on this port adopts the tail and returns
+        # without pulling a block, so there is nothing to wait for and
+        # nothing to catch. The first service() below is the first audio.
+        self._parked = False
+
+    def produce(self, into):
+        mod = module()
+        view = memoryview(into)
+        at = 0
+        while at < len(view):
+            # Fill first, then drain -- the opposite order to RingDriver's,
+            # and it has to be: nothing else is going to fill it.
+            packed = mod.service()
+            why = packed & mod.SERVICE_MASK
+            live = why != mod.SERVICE_DONE
+            got = mod.drain(view[at:])
+            if got:
+                at += got
+                continue
+            if at or not live:
+                break
+            if why == mod.SERVICE_MORE and packed >> mod.SERVICE_SHIFT == 0:
+                break
+        return at
+
+    def rest(self):
+        """Nothing to rest. The pump only runs inside produce()."""
 
 
 class SinkDriver(_Driver):
