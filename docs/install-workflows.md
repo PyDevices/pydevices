@@ -64,6 +64,11 @@ python -m pip install \
 
 ## MicroPython hardware board
 
+Bringing up a board for the first time? [board-bringup.md](board-bringup.md)
+is the guide: what the firmware already has so you do not install it twice,
+how to let the board fetch its own files over Wi-Fi instead of feeding them
+down a serial line, and the handful of traps that look like broken hardware.
+
 Board installers live in this repository rather than the MIP index. Select the
 matching directory and install it directly from GitHub while passing the
 PyDevices index for its `pydevices` dependency:

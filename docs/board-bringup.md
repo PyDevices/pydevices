@@ -1,15 +1,16 @@
-# Bringing up a PyDevices board — raw notes
+# Bringing up a board
 
-**Status: draft, raw material.** Written from one full bring-up of a Waveshare
-ESP32-S3-Touch-LCD-4.3 on 2026-09-03 -- from a board with nothing on it to one
-hosting a USB camera and showing live video on its own panel -- for
-consolidation into a single "set up a board and draw on it" guide. Everything
-below was done, not recalled; where something is untested it says so.
+From a board with nothing on it to one drawing on its own panel. Everything
+here was done rather than recalled — it comes out of a full bring-up of a
+Waveshare ESP32-S3-Touch-LCD-4.3 — and where something is untested it says so.
 
-The reason this exists: doing it once meant reading `board_configs/`,
-`lib/appdev/`, `lib/displaydev/`, `lvgl-bindings/python/`, `mpftp/docs/`,
-`pydevices-examples/lib/examples/` and `docs/install-workflows.md`, and the
-two things that cost the most time were not in any of them.
+For installing PyDevices anywhere else, including desktop, see
+[install-workflows.md](install-workflows.md). This page is the board.
+
+**Read §1 and §2 before you install anything.** Between them they are most of
+the time a first bring-up costs: half of what you might install is already in
+the firmware, and installing over serial when the board has Wi-Fi turns minutes
+into an afternoon.
 
 ---
 
@@ -86,7 +87,60 @@ second call alone is usually enough. Board installers live in the `pydevices`
 repo, not in the MIP index — hence the `github:` prefix with `index=` for the
 dependency.
 
-## 3. Iterating without installing
+## 3. Choosing what to install, and from where
+
+`mip.install("pydevices", index=INDEX)` and
+`mip.install("github:PyDevices/pydevices", ...)` both work and give you
+different things. The difference is invisible until you wonder why your edit
+did not take.
+
+| | What you get | When you want it |
+|---|---|---|
+| `mip.install("name", index=INDEX)` | the **released** version, as `.mpy` bytecode | running a release, which is the normal case |
+| `mip.install("github:owner/repo/path", ...)` | whatever is on that **branch**, as `.py` source | developing against current `main` |
+
+Two separate axes hide in there. The index serves a *release* — the tag pinned
+in the [MIP index](https://github.com/PyDevices/mip)'s lockfile — while
+`github:` serves the branch as it stands this minute. Separately, the index
+serves bytecode by default and source on request:
+
+```python
+mip.install("pydevices", index=INDEX, mpy=False)   # released, but as .py source
+```
+
+Bytecode is smaller and loads faster; source is what you can read on the board
+and what a CircuitPython or CPython tree needs. `mpremote mip` and
+`micropython -m mip` spell the same thing `--no-mpy`.
+
+### Single files from GitHub
+
+`github:` installs one file just as happily as a package, which is the escape
+hatch when a repository has no `package.json`:
+
+```python
+mip.install("github:PyDevices/audiocomponents/lib/audioeffects/reverb.py",
+            target="/lib/audioeffects")
+```
+
+`audiocomponents` has no manifest **by choice**, and that is the reason rather
+than an oversight: the normal workflow is to install the released version from
+the index, and not shipping a manifest is what keeps people on releases. If you
+want current source from it, you install file by file and you are meant to
+notice that you are doing something unusual.
+
+## 4. An erase-flash wipes `/lib`
+
+Firmware and installed Python have separate lifetimes, and only one of them
+survives an erase. After `esptool erase_flash` — or any partition-table change,
+which forces one — the board comes back with `boot.py` and nothing else, and
+everything in §2 has to run again.
+
+Worth knowing before you reflash rather than after: if the board is on Wi-Fi,
+keep `wifi.py` and `secrets.py` somewhere you can push back in two `mpremote`
+commands, because they are the two files that let the board fetch the rest for
+itself.
+
+## 5. Iterating without installing
 
 `mpremote mount` serves a local directory as the board's filesystem, so a whole
 staged tree can be exercised with no transfer step. Invaluable while a
@@ -100,7 +154,7 @@ mpremote connect COM49 mount /path/to/staged run /path/to/staged/example.py
 no way to "peek" at a running program over the same serial port — a second
 `mpremote ... exec` to check on it is what kills it.
 
-## 4. The two drawing idioms
+## 6. The two drawing idioms
 
 Both start from `board_config`. They are not mixed.
 
@@ -137,16 +191,20 @@ from display_driver import app
 Then use LVGL widgets normally. `display_driver` builds the App for you from
 `board_config` when one does not already exist. See `lv_test_timer.py`.
 
-## 5. Presenting the frame — the trap that looks like broken hardware
+## 7. Presenting the frame, and when you must ask for it
+
+Short answer: **if your program is built on `appdev.App`, you never call
+`show()`.** If it is not, you do, once per frame.
 
 On a MicroPython `dotclockframebuffer` panel, drawing is not showing until the
 back buffer is promoted: the panel is double-buffered with `auto_refresh=False`,
-and `display_drv.show()` is what promotes it.
+and `display_drv.show()` is what promotes it. Miss that and every blit succeeds,
+nothing raises, and the screen never changes.
 
-Under LVGL this is wired for you — `display_driver` hands LVGL's `refresh_cb` to
+Under LVGL it is wired for you — `display_driver` hands LVGL's `refresh_cb` to
 `show()`, and disables `App`'s own refresh so nothing presents twice.
 
-**Without LVGL it is now wired for you too**, as of 2026-09-09. `appdev.App`
+Without LVGL it is wired for you too, since `pydevices` 0.4.0. `appdev.App`
 drives periodic `show()` for any display whose `needs_refresh` is `True`, and
 `FBDisplay.needs_refresh` is a computed property rather than a fixed attribute:
 it reports `True` when the underlying display does not auto-refresh, `False`
@@ -161,12 +219,12 @@ Older non-LVGL code that calls `show()` itself per frame — `paint.py` does thi
 in each handler — is still correct and costs nothing; `show()` is idempotent
 against the auto-refresh case.
 
-**Before that change** the class inherited `needs_refresh = False`, so a
-non-LVGL program that did not call `show()` saw every blit succeed, no error
-raised, and the screen never change. If you meet that on an older install,
-this is it.
+**On an older install** the class inherited `needs_refresh = False`, so a
+non-LVGL program that did not call `show()` drew nothing, silently. If you meet
+that, this is it — and the fix is to update `pydevices` rather than to sprinkle
+`show()` calls.
 
-## 6. `blit_rect` byteswaps in place
+## 8. `blit_rect` byteswaps in place
 
 ```python
 display_drv.blit_rect(buf, x, y, w, h)   # RGB565, native byte order
@@ -182,7 +240,7 @@ This bites specifically when repeating a row to upscale. Build a block of
 The driver handles the swap itself, so produce plain native-order RGB565 and do
 not pre-swap.
 
-## 7. IO expanders: what construction alone can change
+## 9. IO expanders: what construction alone can change
 
 The single most expensive failure of this bring-up, and the reason this
 section exists at all.
@@ -232,7 +290,7 @@ When a peripheral on a board is inexplicably absent, `board_peripherals.py` is
 the first file to read — it is where the board's pins are named, even when
 nothing is calling the function that uses them.
 
-## 8. Odds and ends worth knowing
+## 10. Odds and ends worth knowing
 
 - `pdMS_TO_TICKS(n)` for `n < 10` is **zero ticks** at this port's
   `CONFIG_FREERTOS_HZ=100`, and `vTaskDelay(0)` does not block. This is a C
