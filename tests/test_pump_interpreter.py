@@ -52,9 +52,19 @@ RUNS = (
      ("drop", "flip", "short")),
 )
 
+#: Faults that need the pump on a thread of its own. `drop` lets it
+#: free-run so its ring overruns -- and a build with no platform driver has
+#: no other thread to free-run on, so unparking it changes nothing and the
+#: plant quietly passes. Not run there, and counted when it is not.
+THREADED_ONLY = ("drop",)
+
 #: What the probes could not be run against, filled in by the finder so the
 #: banner can say it once rather than once per test.
 _MISSED = []
+
+
+#: Whether the interpreter found puts the pump on a thread of its own.
+_THREADED = []
 
 
 def _interpreter():
@@ -71,7 +81,8 @@ def _interpreter():
             return None, ("no %s on PATH and PYDEVICES_PUMP_INTERPRETER is "
                           "unset" % "/".join(CANDIDATES))
     probe = ("import audiopump, audiocore\n"
-             "print('pump' if hasattr(audiopump, 'spawn') else 'no')\n")
+             "print('pump' if hasattr(audiopump, 'spawn') else 'no',\n"
+             "      'threaded' if audiopump.threaded() else 'service')\n")
     try:
         result = subprocess.run([found, "-c", probe], capture_output=True,
                                 text=True, timeout=60)
@@ -81,6 +92,7 @@ def _interpreter():
         return None, ("%s has no usable audiopump: %s"
                       % (found, (result.stderr or result.stdout).strip()
                          .splitlines()[-1:] or "no spawn"))
+    _THREADED.append("threaded" in result.stdout)
     return found, None
 
 
@@ -166,9 +178,17 @@ class ThePumpProbesRunOnARealInterpreter(unittest.TestCase):
                            _ring_note(result.stdout)))
 
     def test_every_probe_is_shown_failing_on_its_planted_faults(self):
+        threaded = bool(_THREADED and _THREADED[0])
         with tempfile.TemporaryDirectory() as tmpdir:
             for name, arguments, faults in RUNS:
                 for fault in faults:
+                    if fault in THREADED_ONLY and not threaded:
+                        why = ("the %s plant on %s needs the pump on its own "
+                               "thread; this build has no platform driver"
+                               % (fault, name))
+                        if why not in _MISSED:
+                            _MISSED.append(why)
+                        continue
                     with self.subTest(probe=name, fault=fault):
                         result = _run(self.interpreter,
                                       arguments + ["--fault", fault], tmpdir)
@@ -183,18 +203,26 @@ def tearDownModule():
     """Say what was not run, where somebody will see it."""
     if not _MISSED:
         return
-    cases = sum(1 + len(faults) for _name, _args, faults in RUNS)
+    if _THREADED:
+        cases = sum(len([f for f in faults if f in THREADED_ONLY])
+                    for _name, _args, faults in RUNS)
+        headline = ("%d planted fault(s) could not be run on this build"
+                    % cases)
+    else:
+        cases = sum(1 + len(faults) for _name, _args, faults in RUNS)
+        headline = ("%d pump probe cases in tests/pump_probes/ were skipped"
+                    % cases)
     print("\n" + "!" * 72, file=sys.stderr)
-    print("NOT RUN: %d pump probe cases in tests/pump_probes/ were skipped."
-          % cases, file=sys.stderr)
+    print("NOT RUN: %s." % headline, file=sys.stderr)
     for why in _MISSED:
         print("         " + why, file=sys.stderr)
-    print("         The pump's C half is UNTESTED in this run. Build an "
-          "interpreter with", file=sys.stderr)
-    print("         the audioif usermod and the audiopump driver, point "
-          "PYDEVICES_PUMP_INTERPRETER", file=sys.stderr)
-    print("         at it, and set PYDEVICES_REQUIRE_PUMP=1 so this can "
-          "never pass by skipping.", file=sys.stderr)
+    if not _THREADED:
+        print("         The pump's C half is UNTESTED in this run. Build an "
+              "interpreter with", file=sys.stderr)
+        print("         the audioif usermod, point "
+              "PYDEVICES_PUMP_INTERPRETER at it, and set", file=sys.stderr)
+        print("         PYDEVICES_REQUIRE_PUMP=1 so this can never pass by "
+              "skipping.", file=sys.stderr)
     print("!" * 72, file=sys.stderr)
 
 
