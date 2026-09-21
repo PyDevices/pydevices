@@ -3,12 +3,23 @@ import boarddev
 import sys
 
 PERIPHERALS = frozenset(
-    {"pixels", "audio_out", "pcm_out", "pcm_in", "sdcard", "battery", "i2c", "wlan", "ble"}
+    {
+        "pixels",
+        "audio_out",
+        "pcm_out",
+        "pcm_in",
+        "audio_power",
+        "sdcard",
+        "battery",
+        "i2c",
+        "wlan",
+        "ble",
+    }
 )
 
 # Audio roles are factories: first attribute access must not construct, so a
 # caller can pass a format. See boarddev.bind_lazy.
-FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in"})
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in", "audio_power"})
 
 from audiodev import (
     AudioCapability,
@@ -21,21 +32,32 @@ from audiodev import (
 )
 from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput
 
-# Keep peripherals powered (LilyGO PIN_POWER_ON). board_config asserts this
-# too, but the non-graphics idiom imports only this module -- and the
-# MAX98357A sits on that rail. Without it the I2S DMA drains at exactly
-# realtime into an unpowered amplifier: every byte-clock reads as playing and
-# nothing is heard. Found by playing a tone the DMA reported consumed.
-try:
-    from machine import Pin as _Pin
+_POWER_ON = 46           # LilyGO PIN_POWER_ON: the whole peripheral rail
 
-    _Pin(46, _Pin.OUT, value=1)
-except ImportError:
-    # Host structural import (the contract proof binds this module on CPython,
-    # where there is no ``machine``). There is no rail to power there; every
-    # peripheral factory below imports ``machine`` lazily and is guarded the
-    # same way, so the module stays importable off the board.
-    pass
+
+def _rail_on():
+    """Raise LilyGO's peripheral rail. Idempotent; returns False off-board.
+
+    Keep peripherals powered (LilyGO PIN_POWER_ON). board_config asserts this
+    too, but the non-graphics idiom imports only this module -- and the
+    MAX98357A sits on that rail. Without it the I2S DMA drains at exactly
+    realtime into an unpowered amplifier: every byte-clock reads as playing
+    and nothing is heard. Found by playing a tone the DMA reported consumed.
+    """
+    try:
+        from machine import Pin as _Pin
+    except ImportError:
+        # Host structural import (the contract proof binds this module on
+        # CPython, where there is no ``machine``). There is no rail to power
+        # there; every peripheral factory below imports ``machine`` lazily and
+        # is guarded the same way, so the module stays importable off the
+        # board.
+        return False
+    _Pin(_POWER_ON, _Pin.OUT, value=1)
+    return True
+
+
+_rail_on()
 
 # LilyGO T-Embed pin_config.h
 _APA102_CLK = 45
@@ -231,7 +253,19 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
     check_latency(latency)
     wire, source = negotiate(AUDIO_OUT, format)
     ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
-    device = I2SPCMOutput(lambda: _out_stream(ibuf, wire), wire)
+    device = I2SPCMOutput(
+        lambda: _out_stream(ibuf, wire),
+        wire,
+        # For a consumer that drives the peripheral in C: the pin map, and a
+        # way to bring the analog path up without opening a stream. On a
+        # firmware carrying ``audiopump``, audiodev's sample player uses both
+        # and never opens ``machine.I2S`` on this port -- the pump's own I2S
+        # channel is the only owner. On a firmware without it these two are
+        # inert. Without them this board plays every sample on machine.I2S
+        # and the pump sits idle (PyDevices/pydevices#41).
+        wire=AUDIO_OUT.wire,
+        audio_power=_audio_power,
+    )
     if source is not wire:
         from audiodev.accel import best_remix
 
@@ -282,9 +316,34 @@ def _audio_out(format=None, **kwargs):
     return AudioOut(_pcm_out(format, **kwargs), **pump)
 
 
+def _audio_power(enable=True, *, volume=None):
+    """Bring the analog path up WITHOUT opening an I2S stream.
+
+    The same role the P4 panel publishes, on a board that has no codec to
+    talk to. A MAX98357A is an amplifier: no I2C, no register set, no mute
+    and no volume. So all "power on" means here is LilyGO's rail, and
+    ``volume=`` is accepted and ignored -- the loudness lives in the
+    material, which is why every probe on this board scales its source.
+
+    **``enable=False`` does not lower anything, on purpose.** GPIO46 is
+    PIN_POWER_ON: the display, the backlight, the SD card and the amplifier
+    are all on it, so taking it low to silence one of them blanks the screen
+    and drops the card. There is no amplifier shutdown pin broken out, and an
+    idle I2S channel is already silent, so there is nothing to switch and
+    nothing to lose by saying so.
+
+    The audio pump's ``BusioDriver`` calls this before it opens the channel
+    and again when it closes it; both calls are safe here.
+    """
+    if enable:
+        _rail_on()
+    return enable
+
+
 pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
 pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
 audio_out = AudioFactory(_audio_out, AUDIO_OUT)
+audio_power = _audio_power
 
 
 def sdcard():

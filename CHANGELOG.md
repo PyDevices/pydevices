@@ -55,11 +55,13 @@ old path produced.
   not start — …`, and playback continues on the old path. A board whose
   config predates `wire=` used to fall back to `machine.I2S` in silence, which
   looks exactly like a working board; it says so once now.
-- **`board_peripherals.py` for the Waveshare ESP32-P4 publishes `wire=` and
-  `audio_power=`** on its PCM device, so the pump can bring the codec up
-  without opening a stream. On a firmware without the pump both are inert.
-  **It is the only board config that does**; every other I2S board keeps the
-  old path and says so once.
+- **`board_peripherals.py` for the Waveshare ESP32-P4 and the LilyGO T-Embed
+  S3 publish `wire=` and `audio_power=`** on their PCM devices, so the pump
+  can bring the analog path up without opening a stream. On a firmware
+  without the pump both are inert. The T-Embed has no codec — `audio_power`
+  there raises LilyGO's peripheral rail and, deliberately, lowers nothing,
+  because GPIO46 also carries the display and the SD card. Every other I2S
+  board keeps the old path and says so once.
 - **Tests, where there were none.** `pump.py` had no test in this repository
   at all — CI's only contact with it was a layering rule and a line in a
   manifest. 35 now: 32 in `tests/test_pump.py` against stand-ins and 3 in
