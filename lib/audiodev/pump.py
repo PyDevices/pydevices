@@ -19,7 +19,8 @@ Three drivers, because the ports differ in where the bytes land and in
 whether there is a thread to land them from:
 
 ``RingDriver``
-    The desktop (unix, and anything else with no ``i2s_start``). The pump
+    The desktop (unix, and anything else whose driver has no ``i2s_start``).
+    The pump
     fills a RAM ring; :meth:`Pump.next_block` drains it on the interpreter
     thread and hands the bytes to the existing push transport. The DSP leaves
     the interpreter thread; the byte-shovelling stays. Nothing on a desktop
@@ -34,7 +35,7 @@ whether there is a thread to land them from:
     longer than T.
 
 ``SinkDriver``
-    esp32. The pump owns the I2S channel outright (``audiopump.i2s_start``
+    esp32. The pump owns the I2S channel outright (``_audioif.i2s_start``
     from the board's :class:`~audiodev.I2SWire`, never ``machine.I2S``) and
     writes each block into the DMA on its own thread, with no Python in the
     path at all. **Unrun**: no board has executed this. See
@@ -85,6 +86,8 @@ FILE_BACKED = ("WaveFile", "MP3Decoder")
 
 _audiopump = None
 _looked = False
+_driver = None
+_driver_looked = False
 
 
 def module():
@@ -104,14 +107,55 @@ def module():
     return mod
 
 
+def driver():
+    """The ``_audioif`` C module -- the pump's platform driver -- or None.
+
+    The pump is two halves. ``audiopump`` is the portable engine and ships
+    with audioif on every port; ``_audioif`` is the hardware, and it exists
+    only where there is hardware to drive. The I2S channel, the microphone
+    ``Input`` and the round-trip probe are ITS names, not the engine's.
+
+    Private by convention, the way ``usbif`` ships a C ``_usbif`` under a
+    Python package: ``audiodev`` is the public face, and nothing outside this
+    module should import it.
+    """
+    global _driver, _driver_looked
+    if _driver_looked:
+        return _driver
+    _driver_looked = True
+    try:
+        import _audioif as mod
+    except ImportError:
+        return None
+    _driver = mod
+    return mod
+
+
+def driver_name():
+    """Which platform driver the engine bound: esp32, pthread, win32, none.
+
+    "none" on a build with no driver linked -- WebAssembly, and anything that
+    shipped the engine without the hardware half. That build still pumps;
+    ``threaded()`` is False and ``audiopump.service()`` drives the loop.
+    """
+    mod = module()
+    if mod is None or not hasattr(mod, "driver"):
+        return "none"
+    return mod.driver()
+
+
 def available():
     """True when this firmware carries a usable pump."""
     return module() is not None
 
 
 def on_board():
-    """True when the pump owns an I2S peripheral (esp32), rather than a ring."""
-    mod = module()
+    """True when the pump owns an I2S peripheral (esp32), rather than a ring.
+
+    Asked of the DRIVER, not the engine: the engine is the same code on every
+    port and has no idea whether there is an I2S peripheral behind it.
+    """
+    mod = driver()
     return mod is not None and hasattr(mod, "i2s_start")
 
 
@@ -528,7 +572,7 @@ class SinkDriver(_Driver):
             except TypeError:
                 self._power(True)
         w = self.wire
-        self.cushion = mod.i2s_start(
+        self.cushion = driver().i2s_start(
             w.port, w.sck, w.ws, w.sd, self.fmt.rate,
             bits=self.fmt.bits, channels=self.fmt.channels,
             mclk=-1 if w.mck is None else w.mck, mclk_fs=w.mck_fs,
