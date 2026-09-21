@@ -87,6 +87,11 @@ second call alone is usually enough. Board installers live in the `pydevices`
 repo, not in the MIP index — hence the `github:` prefix with `index=` for the
 dependency.
 
+When it finishes, reset the board (`machine.reset()`, or the button) before you
+`import board_config`. On a panel like this one the display will not start
+while Wi-Fi is connected — [§10](#10-odds-and-ends-worth-knowing) has the
+numbers — and in your own programs the display comes up first.
+
 ## 3. Choosing what to install, and from where
 
 `mip.install("pydevices", index=INDEX)` and
@@ -301,6 +306,15 @@ nothing is calling the function that uses them.
   7" boards are both 800x480, which makes a wrong assumption easy to miss.
 - Memory headroom on an 8 MB-PSRAM S3, measured: ~8.3 MB free at the REPL,
   ~6.7 MB with the 800x480 panel and LVGL up.
+- **Display first, then Wi-Fi.** PSRAM is not the scarce thing on an S3;
+  contiguous *internal* RAM is. Measured on the Waveshare 4.3" with
+  `esp32.idf_heap_info(esp32.HEAP_DATA)`: the largest internal block is 98 KB
+  at boot, the RGB panel takes about 63 KB of it in one piece, and a connected
+  Wi-Fi radio leaves 53 KB as the largest. So `import board_config` after
+  `wifi.connect_from_secrets()` raises `OSError: ESP-IDF error 257
+  (ESP_ERR_NO_MEM)`, and the same two calls the other way round both succeed.
+  A soft reset does not help, because it leaves the radio up; `machine.reset()`
+  does.
 - MicroPython's `namedtuple` has **no `_replace()`**. CPython's does, so a
   pure-Python module can pass a full desktop test suite and still raise
   `AttributeError` on the first board it meets. Anything destined for a board
