@@ -165,8 +165,9 @@ old path produced.
 
 What it buys is that your app keeps running while the sound keeps its clock.
 On the Waveshare ESP32-P4 panel, an LVGL pedalboard with a riff through two
-effects ran ten minutes with 11 828 slider moves and 29 patch changes at a
-12 × 128 ring and lost **no audio at all**, with the REPL alive beside it.
+effects ran ten minutes of 11 828 slider moves and 29 patch changes at a
+12 × 128 ring, with the REPL alive beside it: `err=0 fault=0`, and zero
+starved bytes at the end.
 
 Three things to know before you rely on that on an ESP32:
 
