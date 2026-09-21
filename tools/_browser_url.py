@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 RUNTIMES = ("wasm", "pyodide")
 
 # Present in the direct-WebAssembly runtime without being installed: compiled
-# in as a usermod (displayif, audioif, pygraphics, lvgl, usdl2), frozen from
+# in as a usermod (displayif, audiodsp, pygraphics, lvgl, usdl2), frozen from
 # the aggregator's manifest (palettes), or installed unconditionally by every
 # host as part of pydevices-desktop (appdev, displaydev, multimer,
 # board_config, display_driver).
@@ -23,7 +23,7 @@ RUNTIMES = ("wasm", "pyodide")
 _DIRECT_BUILTINS = frozenset(
     {
         "appdev",
-        "audioif",
+        "audiodsp",
         "board_config",
         "display_driver",
         "displaydev",
@@ -46,7 +46,7 @@ _MIP_REWRITE = {
 _WHEEL_REWRITE = {
     "appdev": "pydevices",
     "audioeffects": "pydevices-audioeffects",
-    "audioif": "pydevices-audioif",
+    "audiodsp": "pydevices-audioif",
     "audioinstruments": "pydevices-audioinstruments",
     "display-driver": "pydevices-lvgl",
     "displaydev": "pydevices",

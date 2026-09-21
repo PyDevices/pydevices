@@ -79,7 +79,7 @@ def pcm_out(format=None, **kwargs):
 
     Push bytes at it with ``write()``. This is what a consumer that already
     has PCM wants -- a Connect speaker, a USB audio pump -- and it needs no
-    audioif, because no sample graph is ever pulled.
+    audiodsp, because no sample graph is ever pulled.
     """
     return _impl(select_backend(), "pcm_out")(format, **kwargs)
 

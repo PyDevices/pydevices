@@ -85,7 +85,7 @@ def _audio_out(format=None, **kwargs):
     audiosample (``synthio.Synthesizer``, ``audiomixer.Mixer``,
     ``audiocore.RawSample``/``WaveFile``, effects).
 
-    Requires audioif; use ``pcm_out`` if you only have PCM bytes.
+    Requires audiodsp; use ``pcm_out`` if you only have PCM bytes.
     """
     from audiodev.auto import audio_out as _auto
 

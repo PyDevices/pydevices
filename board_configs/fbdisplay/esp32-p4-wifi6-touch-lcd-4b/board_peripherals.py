@@ -238,7 +238,7 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
     for 2 channels opens ``I2S.STEREO`` so the ES8311's two-slot clock tree
     matches -- the DAC still feeds one speaker, and nothing is mixed down.
 
-    Needs no audioif: nothing here pulls a sample graph. That is what lets a
+    Needs no audiodsp: nothing here pulls a sample graph. That is what lets a
     Spotify Connect speaker or a USB sound card run on firmware built
     without a DSP package.
 
@@ -328,7 +328,7 @@ def _audio_out(format=None, *, latency=None, queue_ms=None, **kwargs):
     ``audiomixer.Mixer``, ``audiocore.RawSample``/``WaveFile``, effects),
     with hardware volume and mute.
 
-    Requires audioif in firmware. Use ``pcm_out`` when you already have PCM.
+    Requires audiodsp in firmware. Use ``pcm_out`` when you already have PCM.
 
     GUI apps: ``import board_config`` then ``board_config.audio_out(...)``.
     Non-GUI apps: ``import board_peripherals`` and call the same factory --

@@ -10,7 +10,7 @@ the only way to say that the pump path is *byte-identical* to the old one, or
 that a hundred play/stop rounds leave nothing behind.
 
 It needs an interpreter CPython cannot stand in for: a MicroPython or
-CircuitPython build carrying the ``audioif`` usermod **and** the
+CircuitPython build carrying the ``audiodsp`` usermod **and** the
 ``audiopump`` driver. Point one out with ``PYDEVICES_PUMP_INTERPRETER``, or
 put it on PATH as ``micropython``.
 
@@ -237,7 +237,7 @@ def tearDownModule():
     if not _THREADED:
         print("         The pump's C half is UNTESTED in this run. Build an "
               "interpreter with", file=sys.stderr)
-        print("         the audioif usermod, point "
+        print("         the audiodsp usermod, point "
               "PYDEVICES_PUMP_INTERPRETER at it, and set", file=sys.stderr)
         print("         PYDEVICES_REQUIRE_PUMP=1 so this can never pass by "
               "skipping.", file=sys.stderr)

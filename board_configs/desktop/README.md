@@ -78,7 +78,7 @@ probe:
 - else: `sdl2_audio`
 
 `web_audio`/`pygame_audio` are no longer auto-selected here: neither can run
-the `audioif` usermod that supplies the audiosample protocol
+the `audiodsp` usermod that supplies the audiosample protocol
 (`synthio`, `audiomixer`, effects), so neither can back an `AudioOut`. This
 board is MicroPython/CircuitPython-only for audio; a CPython-only host
 without `uwin32` gets `sdl2_audio` too (raw `write()` still works there, but

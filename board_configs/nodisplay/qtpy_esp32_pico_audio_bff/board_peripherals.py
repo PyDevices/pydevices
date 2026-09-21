@@ -103,7 +103,7 @@ _MIN_IBUF = 4096
 # needs it. Saying otherwise here would be arranging the evidence.
 #
 # COST, for the deliberate mono-wire configuration only -- the production
-# path above never converts. This firmware carries no audioif, so
+# path above never converts. This firmware carries no audiodsp, so
 # accel.best_remix() returns None and the portable remix runs. Measured
 # END TO END on this board -- pushing two seconds of audio through the whole
 # chain (adapter, pacing, I2S) against the wall clock, which is the number
@@ -114,7 +114,7 @@ _MIN_IBUF = 4096
 #   44.1 kHz stereo 4363 ms per 2000 ms            falls behind, 2.2x over
 #
 # So stereo source material works at 16 kHz on this board as it stands, and
-# 44.1 kHz stereo needs audioif built into the firmware for the C remix.
+# 44.1 kHz stereo needs audiodsp built into the firmware for the C remix.
 # Mono source at any rate costs nothing, because no conversion happens.
 #
 # Wrapper order was tested and does not matter: adapter-inside-pacing 0.97x
@@ -155,7 +155,7 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
 
     Takes mono or stereo. Stereo opens two slots and the amplifier averages
     them into its one speaker in hardware, so nothing is converted and
-    nothing is lost -- and no audioif is needed at any rate.
+    nothing is lost -- and no audiodsp is needed at any rate.
     """
     from audiodev import check_latency, pace_output, queue_bytes
     from audiodev.accel import best_remix
@@ -173,7 +173,7 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
 
 
 def _audio_out(format=None, **kwargs):
-    """``AudioOut`` sample player. Requires audioif in firmware; this board's
+    """``AudioOut`` sample player. Requires audiodsp in firmware; this board's
     build has none, so use ``pcm_out`` unless that changes."""
     from audiodev.sample_out import AudioOut
 

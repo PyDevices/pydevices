@@ -28,13 +28,13 @@ That used to be argued here as "the only sound architecture", on the grounds
 that pulling a synthio graph allocates on the GC heap and so cannot be done
 from a C callback. The premise was wrong: the pull is allocation-free under a
 cold ``micropython.heap_lock()`` across 313 targets, byte-exact off the
-interpreter thread, and safe under audioif's pump lock with no park. What
+interpreter thread, and safe under audiodsp's pump lock with no park. What
 made the old path necessary was never the DSP -- it was that nobody had
 written the thread. See ``docs/spikes/live-audio-path-audiodev.md`` in the
 workspace anchor.
 
 Requires ``audiocore`` when :class:`AudioOut` is constructed.  Importing
-``audiodev`` and using a raw PCM transport remain independent of audioif.
+``audiodev`` and using a raw PCM transport remain independent of audiodsp.
 
 No resampling: ``transport.format`` is the fixed playback rate/bit-depth/
 channel-count (whatever the backend/device was opened with). A sample whose
@@ -119,7 +119,7 @@ def _load_audiocore():
         if implementation == "micropython":
             message = (
                 "AudioOut requires the audiocore module; rebuild the firmware "
-                "with the audioif MicroPython usermod included"
+                "with the audiodsp MicroPython usermod included"
             )
         else:
             message = (
@@ -769,7 +769,7 @@ class AudioOut:
                 break
             if buf:
                 if scale is None:
-                    # len(buf) must be counted in BYTES. Current audioif
+                    # len(buf) must be counted in BYTES. Current audiodsp
                     # returns byte views, but older frozen firmware returned
                     # typed ('h') memoryviews whose len() is the SAMPLE
                     # count -- trusting it made this pump under-count 16-bit

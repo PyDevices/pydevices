@@ -233,7 +233,7 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
 
     ``format`` is the write() contract; ``None`` is this board's default
     (16 kHz stereo 16-bit). Ask ``pcm_out.capability`` what it takes rather
-    than guessing. Needs no audioif -- no sample graph is pulled.
+    than guessing. Needs no audiodsp -- no sample graph is pulled.
 
     The returned device is paced, and that is not optional. ``I2SPCMOutput``
     arms ``machine.I2S`` into asyncio mode on open (a POLL ioctl), so a full
@@ -304,7 +304,7 @@ def _audio_out(format=None, **kwargs):
     """``AudioOut`` sample player over the amplifier: ``play(sample, loop=)``/
     ``stop()``/``pause()``/``resume()``/``playing`` over any audiosample.
 
-    Requires audioif in the firmware. Use ``pcm_out`` when you already have
+    Requires audiodsp in the firmware. Use ``pcm_out`` when you already have
     PCM bytes -- that path has no DSP dependency at all.
     """
     from audiodev.sample_out import AudioOut

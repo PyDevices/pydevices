@@ -394,7 +394,7 @@ class AudioOutTests(unittest.TestCase):
             ):
                 sample_out.AudioOut(FakePCMOutput(AudioFormat(8000, 1, 16)))
 
-    def test_micropython_missing_module_error_names_audioif_usermod(self):
+    def test_micropython_missing_module_error_names_audiodsp_usermod(self):
         from audiodev import sample_out
 
         real_import = __import__
@@ -407,7 +407,7 @@ class AudioOutTests(unittest.TestCase):
         with mock.patch("builtins.__import__", side_effect=import_without_audiocore), mock.patch.object(
             sys, "implementation", SimpleNamespace(name="micropython")
         ):
-            with self.assertRaisesRegex(ImportError, "audioif MicroPython usermod"):
+            with self.assertRaisesRegex(ImportError, "audiodsp MicroPython usermod"):
                 sample_out.AudioOut(FakePCMOutput(AudioFormat(8000, 1, 16)))
 
     def test_stop_halts_playback(self):
@@ -484,7 +484,7 @@ class AudioOutTests(unittest.TestCase):
         self.assertEqual(self.transport.close_count, 1)
 
     def test_typed_memoryview_chunks_do_not_double_production(self):
-        # The real audioif usermod's get_buffer() once returned typed ('h')
+        # The real audiodsp usermod's get_buffer() once returned typed ('h')
         # memoryviews whose len() is the SAMPLE count, not bytes; trusting
         # len(buf) made the pump under-count 16-bit PCM by 2x and produce at
         # twice realtime, saturating the transport (500ms blocking writes,
@@ -777,7 +777,7 @@ class NegotiateTests(unittest.TestCase):
 
 
 class RemixInjectionTests(unittest.TestCase):
-    """audiodev must not import audioif. The fast path is handed in."""
+    """audiodev must not import audiodsp. The fast path is handed in."""
 
     def test_default_remix_is_the_pure_python_one(self):
         inner = FakePCMOutput(AudioFormat(44100, 1, 16))
@@ -798,21 +798,24 @@ class RemixInjectionTests(unittest.TestCase):
         self.assertEqual([(2, 1)], calls)
         self.assertEqual(bytes((75, 0)), bytes(inner.data))
 
-    def test_audiodev_core_imports_no_audioif(self):
+    def test_audiodev_core_imports_no_audiodsp(self):
         """The layering rule, asserted rather than trusted.
 
         PR #31 added ``from audiomath import remix_s16`` to this module and
         nothing caught it. audiodev/__init__.py and every transport backend
         must be importable with no DSP package present -- that is what lets
         a headless Connect speaker or USB audio pump run on firmware without
-        one. Only sample_out.py and accel.py may reach for audioif.
+        one. Only sample_out.py and accel.py may reach for audiodsp.
         """
         import ast
         import pathlib
 
-        audioif_names = {
+        audiodsp_names = {
             "audiocore", "audiomath", "audiomixer", "audiofilters",
-            "synthio", "_audioif", "audioeffects", "audioinstruments",
+            "synthio", "_audiodsp", "audioeffects", "audioinstruments",
+            # The pump's platform driver. Not a DSP package, but the same
+            # rule for the same reason: stock firmware does not have it.
+            "_audioif",
         }
         allowed = {"sample_out.py", "accel.py"}
         root = pathlib.Path(__file__).resolve().parent.parent / "lib" / "audiodev"
@@ -838,7 +841,7 @@ class RemixInjectionTests(unittest.TestCase):
                 else:
                     continue
                 for name in names:
-                    if name in audioif_names:
+                    if name in audiodsp_names:
                         offenders.append("%s: %s" % (path.name, name))
         self.assertEqual([], offenders)
 
@@ -892,7 +895,7 @@ for name in names:
         bad.append("%%s: %%s: %%s" %% (name, type(failure).__name__, failure))
 for line in bad:
     print(line)
-""" % (sorted(audioif_names), str(root), sorted(allowed))
+""" % (sorted(audiodsp_names), str(root), sorted(allowed))
         proof = subprocess.run([sys.executable, "-c", prove],
                                capture_output=True, text=True)
         self.assertEqual(0, proof.returncode, proof.stderr)
@@ -912,7 +915,7 @@ class RemixRoundingTests(unittest.TestCase):
 
     @staticmethod
     def _reference(a, b):
-        """What audioif_remix_s16 does: average, truncating toward zero."""
+        """What audiodsp_remix_s16 does: average, truncating toward zero."""
         total = a + b
         return total // 2 if total >= 0 else -((-total) // 2)
 

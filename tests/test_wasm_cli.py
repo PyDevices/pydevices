@@ -51,7 +51,7 @@ class TestWasmCli(unittest.TestCase):
         # new first-party package belongs in both this list and the table.
         first_party = [
             "audioeffects",
-            "audioif",
+            "audiodsp",
             "audioinstruments",
             "lvgl",
             "palettes",

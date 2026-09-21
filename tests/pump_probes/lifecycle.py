@@ -14,7 +14,7 @@
 # The sitting that wrote it: live-audio-path-audiodev.md in the anchor.
 #
 # Run by tests/test_pump_interpreter.py under a MicroPython or CircuitPython
-# build carrying the audioif usermod. It is a probe and not a unittest on
+# build carrying the audiodsp usermod. It is a probe and not a unittest on
 # purpose: what it measures needs a real pump, and there is none under the
 # CPython the rest of this suite runs on. The platform driver is optional --
 # without one the same loop runs on the interpreter's thread and everything

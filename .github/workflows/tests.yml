@@ -73,8 +73,8 @@ jobs:
   # whether a hundred play/stop rounds leave it clean, needs the real engine
   # on a real interpreter. So this job builds one.
   #
-  # It needs audioif and nothing else: `audiopump` the engine ships with
-  # audioif on every port, and the platform driver (a private repo today) is
+  # It needs audiodsp and nothing else: `audiopump` the engine ships with
+  # audiodsp on every port, and the platform driver (a private repo today) is
   # optional -- without it `threaded()` is False and the same loop runs on
   # the interpreter's own thread, which both probes pass on. That is what
   # makes this job possible in a public repository at all.
@@ -83,7 +83,7 @@ jobs:
   # skip, loudly but greenly, which is what they do in the unittest job
   # above on a runner with no interpreter.
   #
-  # ORDERING: audioif has to carry the pump on its default branch before
+  # ORDERING: audiodsp has to carry the pump on its default branch before
   # this can go green -- it arrives with the live-audio-path line.
   pump:
     runs-on: ubuntu-latest
@@ -99,11 +99,11 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          repository: PyDevices/audioif
-          path: audioif
+          repository: PyDevices/audiodsp
+          path: audiodsp
 
-      - name: Fetch audioif's pinned dependencies
-        working-directory: audioif
+      - name: Fetch audiodsp's pinned dependencies
+        working-directory: audiodsp
         run: ./scripts/fetch_deps.sh
 
       - uses: actions/checkout@v7
@@ -114,8 +114,8 @@ jobs:
 
       # USER_C_MODULES is the PARENT directory: py.mk globs
       # $(USER_C_MODULES)/*/micropython.mk exactly one level down, which is
-      # how audioif's own clean-build workflow does it too.
-      - name: Build the unix port with the audioif usermod
+      # how audiodsp's own clean-build workflow does it too.
+      - name: Build the unix port with the audiodsp usermod
         run: |
           make -C micropython/mpy-cross -j2
           make -C micropython/ports/unix submodules
