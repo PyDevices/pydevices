@@ -38,9 +38,9 @@ whether there is a thread to land them from:
     esp32. The pump owns the I2S channel outright (``_audioif.i2s_start``
     from the board's :class:`~audiodev.I2SWire`, never ``machine.I2S``) and
     writes each block into the DMA on its own thread, with no Python in the
-    path at all. **Unrun**: no board has executed this. See
-    ``docs/spikes/live-audio-path-audiodev.md`` in the workspace anchor for
-    what a board session has to check.
+    path at all. An ESP32-P4 has played through it; see
+    ``docs/spikes/live-audio-path-notes.md`` in the workspace anchor for what
+    that sitting measured and the three defects it gave up.
 
 A fault in the pump is a sentence, not a traceback and not a dead speaker:
 :meth:`Pump.died` turns the status block's error and fault words into one,
@@ -563,8 +563,11 @@ class SinkDriver(_Driver):
     opened here from the board's :class:`~audiodev.I2SWire`, with the codec
     powered through the board's ``audio_power`` role.
 
-    **Nothing here has run.** It is written from the P4's board config and
-    ``audiolive``'s proven sequence, and every line of it is owed a board.
+    An ESP32-P4 has played through this. What the sitting cost: the volume
+    knob and the mute button were reaching nothing, because
+    ``PCMOutput.set_volume`` was guarded on ``is_open`` and nothing opens the
+    transport on this path -- :meth:`open` calls ``hardware_live()`` now, and
+    that is the whole of the fix.
     """
 
     needs_service = False

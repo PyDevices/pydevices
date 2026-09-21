@@ -326,24 +326,30 @@ between about 2 and 10 blocks. On a board that lead is the DMA ring, which is
   Anything that opens `machine.I2S` for itself collides with the pump. That is
   what `pump.attach_stream()` and the root mixer are for.
 
-### The esp32 path is written and has never run
+### The esp32 path, on a board
 
-<!-- BOARD-AGENT: delete this section once SinkDriver has played on a board. -->
-**`SinkDriver` has not executed on any hardware.** It is written from the P4's
-board config and from a proven playing sequence, and the unix and WebAssembly
-drivers above are measured, but nothing here has opened an I2S channel on a
-board. A board session should check, in this order: that it plays at all and
-that `audio_out.transport.i2s is None`; that the codec comes up at the volume
-asked for, since `PCMOutput.open()` never runs on this path and the driver
-calls `audio_power(True, volume=…)` instead; that `set_volume()` and `mute()`
-still reach the codec while it plays; a hundred `stop()`/`play()` cycles, each
-of which is a codec power cycle here; a WAV off flash through `Prefetch`; two
-clients on one channel; the fault path; and what `service()` costs against the
-old path's 88–160 ms.
+`SinkDriver` has run: an ESP32-P4 played through it on 2026-09-21, and the
+checklist that used to live here is answered in
+`docs/spikes/live-audio-path-notes.md` (the "`audiodev` on silicon" table) in
+the workspace anchor. `play()` in 8 ms with every `i2s` in the stack `None`;
+the codec at the volume asked for, read back off the ES8311 over I2C; 100 of
+100 stop/play cycles with no client left behind; and `service()` at 95 µs
+mean against the old path's 234 µs.
+
+Three things it found, all fixed here. `set_volume()` and `mute()` were
+guarded on `is_open` — and on this path nothing ever opens the transport,
+because the pump owns the peripheral — so the knob stored a number and never
+reached the codec. `PCMOutput.hardware_live()` is the answer: `SinkDriver`
+tells the transport its codec is powered by someone else. Releasing a node
+under the pump gave the right sentence and then a traceback out of the next
+`service()`; the release path drops the sample now, on both the sink and the
+desktop ring. And a board whose config predated `wire=` fell back to
+`machine.I2S` *in silence*, which looks exactly like a working board; it says
+so once.
 
 A board publishes what the pump needs by handing `wire=` and `audio_power=` to
 `I2SPCMOutput`; the P4's `board_peripherals.py` does, in three lines. **A
-board that passes neither keeps the old path, with no error.**
+board that passes neither keeps the old path** — and now says so.
 
 ## `sdl2_audio.py`
 

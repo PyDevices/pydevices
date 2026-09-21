@@ -591,7 +591,18 @@ class AudioOut:
                 self._sample = None
                 break
             if result != _GET_BUFFER_MORE_DATA:
-                if self._loop and result == _GET_BUFFER_DONE:
+                # `self._sample` is the test for "is this graph still ours",
+                # and on a looping player it is the whole of the difference
+                # between a lap and a release. `_pump_block` drops the sample
+                # when the pump died of a release and then has to answer
+                # DONE, because there is no other terminal result -- and DONE
+                # on a loop means rewind, so this rewound a Mixer that had
+                # just been deinited and raised ValueError out of service().
+                # The sentence printed first, which made it look like the
+                # release was handled. It was, on the esp32 sink path, where
+                # `_watch_sink` returns before ever reaching here.
+                if (self._loop and result == _GET_BUFFER_DONE
+                        and self._sample is not None):
                     self._audiocore.reset_buffer(sample)
                     if self._engine is not None:
                         # The pump left its loop when the source ran out, and
