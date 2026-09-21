@@ -272,7 +272,24 @@ class AudioOut:
                 # silence.
                 self._attach_pump(sample)
                 if not self._sinking:
-                    self.open()
+                    try:
+                        self.open()
+                    except Exception:
+                        # AND PUT THE PLAYER BACK, because `_sample` is
+                        # already set above and `service()` is already on
+                        # the app's shared timer. Before `open()` moved to
+                        # the end of this method it could not fail here at
+                        # all; now a transport that refuses -- a browser
+                        # AudioContext the visitor has not unlocked yet is
+                        # the ordinary case, not an edge -- leaves a player
+                        # that looks like it is playing, and every tick
+                        # raises the same error out of the app's timer
+                        # callback for as long as the page is open. Seen on
+                        # the gallery's piano: one traceback per tick until
+                        # the first click.
+                        self._detach_pump()
+                        self._sample = None
+                        raise
             finally:
                 self._pumping = False
         self._pump()  # kick an immediate chunk: lowest note-to-sound latency,

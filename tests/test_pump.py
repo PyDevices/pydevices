@@ -756,6 +756,51 @@ class AFaultIsASentence(PumpFixture):
         self.assertIn("error 99", owner.died())
 
 
+class ATransportThatRefusesToOpenLeavesNothingBehind(PumpFixture):
+    """``play()`` opens the transport LAST, and a refusal has to unwind.
+
+    A browser ``AudioContext`` the visitor has not unlocked yet refuses
+    ``open()``, and on a gallery page that is the ORDINARY first call, not an
+    edge: the example opens its audio at import, before anybody has clicked.
+    ``open()`` used to be the first line of ``play()``, where it could not
+    leave anything behind; the pump moved it after ``_attach_pump`` so a
+    board's transport can never open ``machine.I2S`` on the port the pump is
+    holding. The cost of that move is this: when the refusal came out,
+    ``_sample`` and the engine were already set, so the player read as
+    healthy and every ``service()`` on the app's shared timer opened the
+    transport again and raised the same error -- one traceback per tick, for
+    as long as the page was open. Watched happening on the gallery's piano.
+    """
+
+    class Refuses(Recorder):
+        def _open(self):
+            raise RuntimeError("audio output is disabled")
+
+    def refused(self):
+        out = sample_out.AudioOut(self.Refuses(), chunk_ms=10)
+        self.addCleanup(out.close)
+        with self.assertRaises(RuntimeError):
+            out.play(FakeSample())
+        return out
+
+    def test_the_player_is_not_playing_afterwards(self):
+        out = self.refused()
+        self.assertFalse(out.playing)
+
+    def test_the_pump_is_not_left_holding_the_graph(self):
+        out = self.refused()
+        self.assertFalse(out.pumped)
+
+    def test_a_tick_on_the_shared_timer_does_not_raise(self):
+        out = self.refused()
+        for _ in range(3):
+            out.service()
+
+    def test_the_pump_is_given_back_to_the_next_player(self):
+        self.refused()
+        self.assertEqual(pump_mod.owner().clients(), 0)
+
+
 class TheSinkPathReportsItsFaultsToo(PumpFixture):
     """esp32: the pump owns the I2S channel outright, so the fallback has a
     different driver under it and the same contract on top."""
