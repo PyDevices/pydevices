@@ -29,7 +29,7 @@ and the following are **not**, and must be installed:
 - `board_config` and `board_peripherals` for the specific board
 - the board's Python drivers (`ch422g`, `gt911`, ...)
 - `usbif` — the *Python* package. It does not ship with `pydevices`; it
-  belongs with the usbif module itself, the way audioif splits its Python and
+  belongs with the usbif module itself, the way audiodsp splits its Python and
   C halves.
 
 ```python

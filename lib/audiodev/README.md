@@ -14,7 +14,7 @@ still directly usable for raw `write()`/`readinto()`.
 | Module | Host | Role |
 |--------|------|------|
 | `audiodev` | all | `AudioFormat`, `PCMOutput` / `PCMInput` / `ToneOutput` bases, latency helpers |
-| `audiodev.sample_out` | MicroPython (`audioif` usermod) and CPython (`pydevices-audioif`) | `AudioOut` — pulls `audiocore.get_buffer` on a lookahead schedule, pushes into a transport |
+| `audiodev.sample_out` | MicroPython (`audiodsp` usermod) and CPython (`pydevices-audioif`) | `AudioOut` — pulls `audiocore.get_buffer` on a lookahead schedule, pushes into a transport |
 | `audiodev.pump` | any firmware carrying the `audiopump` module | Hands the graph to the C pump instead, off the interpreter thread. Used without being asked; absent, nothing here does anything |
 | `audiodev.sdl2_audio` | desktop MicroPython, CircuitPython, CPython, Jupyter | SDL2 queued PCM transport through `usdl2` |
 | `audiodev.pygame_audio` | CPython desktop with pygame-ce installed | Queued PCM transport on pygame-ce's bundled SDL |
@@ -660,7 +660,7 @@ profile vocabulary on its own. `tests/test_audio_playback_golden.py` runs a
 real `synthio`/`audiomixer` script through `AudioOut` over
 `emulated_audio.WavPCMOutput` and hash-compares the WAV output — the one test
 here that needs a `micropython`/`circuitpython` binary with the
-`audioif` usermod built in (skipped, not failed, when none is
+`audiodsp` usermod built in (skipped, not failed, when none is
 found; see its module docstring for how it locates one):
 
 ```bash

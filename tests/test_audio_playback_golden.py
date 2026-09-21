@@ -4,7 +4,7 @@
 """Run audio_playback_golden_probe.py under real interpreters and diff the WAV.
 
 The one test in this package that needs a real ``micropython``/
-``circuitpython`` binary with the ``audioif`` usermod built in
+``circuitpython`` binary with the ``audiodsp`` usermod built in
 (this repo's own on PATH already are). Skipped, not failed, when none is
 found -- see ``InterpreterProbeTests`` in ``test_portability.py`` for the
 same convention.
@@ -29,17 +29,17 @@ INTERPRETERS = ("micropython", "micropython.exe", "circuitpython")
 
 
 def _cpython_oracle_candidate():
-    """Return the workspace audioif source tree when its extension is built.
+    """Return the workspace audiodsp source tree when its extension is built.
 
     ``pydevices`` deliberately does not depend on ``pydevices-audioif``.  In
     the multi-repository workspace, though, include CPython in this integration
     parity test whenever the sibling checkout has an in-place extension for
     the running interpreter.
     """
-    audioif = ROOT.parent / "audioif"
+    audiodsp = ROOT.parent / "audiodsp"
     tag = "cpython-{}{}-".format(sys.version_info.major, sys.version_info.minor)
-    if audioif.is_dir() and any(tag in path.name for path in audioif.glob("_audioif*.so")):
-        return audioif
+    if audiodsp.is_dir() and any(tag in path.name for path in audiodsp.glob("_audiodsp*.so")):
+        return audiodsp
     return None
 
 
@@ -67,16 +67,16 @@ def _windows_temp_wav():
 class AudioPlaybackGoldenTests(unittest.TestCase):
     def test_render_matches_across_interpreters(self):
         found = [(name, [name], None) for name in INTERPRETERS if shutil.which(name)]
-        audioif = _cpython_oracle_candidate()
-        if audioif is not None:
+        audiodsp = _cpython_oracle_candidate()
+        if audiodsp is not None:
             env = dict(os.environ)
             old_path = env.get("PYTHONPATH")
-            env["PYTHONPATH"] = str(audioif) + (os.pathsep + old_path if old_path else "")
+            env["PYTHONPATH"] = str(audiodsp) + (os.pathsep + old_path if old_path else "")
             found.append(("cpython", [sys.executable], env))
         if not found:
             self.skipTest(
                 "no MicroPython or CircuitPython interpreter with the "
-                "audioif usermod on PATH"
+                "audiodsp usermod on PATH"
             )
 
         with tempfile.TemporaryDirectory() as tmpdir:

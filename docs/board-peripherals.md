@@ -59,7 +59,7 @@ asymmetry is intentional, not an oversight.
 
 `pcm_out` exists so a consumer that already has PCM bytes — a Spotify
 Connect speaker, a USB sound card — never constructs an `AudioOut` and so
-never needs audioif in firmware.
+never needs audiodsp in firmware.
 
 Boards with PWM/buzzer-only hardware expose a `ToneOutput` and declare
 `kind="tone"`; they take no format.

@@ -109,7 +109,7 @@ def pcm_out(format=None, **kwargs):
     """Raw :class:`~audiodev.PCMOutput` from board or host, same call.
 
     Push bytes at it with ``write()``; no sample graph is pulled, so this
-    needs no audioif in firmware.
+    needs no audiodsp in firmware.
     """
     return _role("pcm_out", format, kwargs)
 

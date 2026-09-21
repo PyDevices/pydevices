@@ -187,7 +187,7 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
 
 
 def _audio_out(format=None, **kwargs):
-    """``AudioOut`` sample player. Requires audioif; use ``pcm_out`` for raw
+    """``AudioOut`` sample player. Requires audiodsp; use ``pcm_out`` for raw
     PCM bytes, which has no DSP dependency."""
     from audiodev.sample_out import AudioOut
 

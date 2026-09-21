@@ -65,7 +65,7 @@ GET_BUFFER_DONE = 0
 GET_BUFFER_MORE_DATA = 1
 
 # What the pump publishes when it stops on its own. Word 5 is its own reason
-# for leaving the loop; word 24 is the code audioif's funnel left behind.
+# for leaving the loop; word 24 is the code audiodsp's funnel left behind.
 _ERRORS = {
     1: "a node in the graph returned no buffer",
     2: "a node in the graph returned a null buffer",
@@ -115,7 +115,7 @@ def driver():
     """The ``_audioif`` C module -- the pump's platform driver -- or None.
 
     The pump is two halves. ``audiopump`` is the portable engine and ships
-    with audioif on every port; ``_audioif`` is the hardware, and it exists
+    with audiodsp on every port; ``_audioif`` is the hardware, and it exists
     only where there is hardware to drive. The I2S channel, the microphone
     ``Input`` and the round-trip probe are ITS names, not the engine's.
 

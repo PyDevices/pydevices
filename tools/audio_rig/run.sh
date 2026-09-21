@@ -7,7 +7,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 MPFTP=$ROOT/../mpftp/scripts/mpftp
 OUT=${AUDIO_RIG_OUT:-/tmp/audio_rig}
-PY=${AUDIO_RIG_PY:-$ROOT/../audioif/.venv/bin/python3}
+PY=${AUDIO_RIG_PY:-$ROOT/../audiodsp/.venv/bin/python3}
 mkdir -p "$OUT"
 
 cat > "$OUT/rig_cfg.py" <<CFG

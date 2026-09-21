@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **The DSP repository is `audiodsp` now** (renamed 2026-09-21), and everything
+  here that named it follows. One thing you can notice: on CPython,
+  `audiodev.accel` looks for the core's extension under its new name,
+  `_audiodsp`, which arrives with the core's v0.5.0. With an older core
+  installed the C remix is not found and `audiodev` falls back to the Python
+  one — slower, same bytes. `_audioif` in `audiodev/pump.py` is a different
+  module, the pump's platform driver, and keeps its name.
+
 `audiodev` plays through the audio pump, and on a board it goes through
 `audiobusio.I2SOut`.
 
@@ -69,8 +77,8 @@ old path produced.
   skip loudly where there is no interpreter (`PYDEVICES_REQUIRE_PUMP=1` turns
   the skip into a failure). Sixteen planted faults, all caught.
 - **`.github/workflows/tests.yml` gains a `pump` job** that builds a unix
-  MicroPython with `PyDevices/audioif` as a user C module and runs the
-  interpreter tests against it. It needs audioif and nothing else: the
+  MicroPython with `PyDevices/audiodsp` as a user C module and runs the
+  interpreter tests against it. It needs audiodsp and nothing else: the
   platform driver is a separate repository and is optional, and without one
   the same loop runs on the interpreter's own thread.
 - `lib/audiodev/pump.py` was missing from the generated
@@ -113,8 +121,8 @@ Breaking: the audio roles are renamed, and `audio_in` is removed.
   that drives the peripheral itself stops reaching into board-private names.
 - `adapt_channels`/`ChannelAdapter` convert 1<->2 channels with an injectable
   implementation; `audiodev.accel.best_remix()` supplies the C one where
-  audioif is present. `audiodev/__init__.py` and every transport import no
-  audioif, and a test asserts it.
+  audiodsp is present. `audiodev/__init__.py` and every transport import no
+  audiodsp, and a test asserts it.
 - The portable remix indexes bytes directly instead of calling `struct` per
   sample: 2.9x faster with no allocation. Measured on an ESP32 at 240 MHz, a
   10 ms chunk of 44.1 kHz stereo went from 50.5 ms to 17.3 ms.
@@ -140,6 +148,6 @@ Breaking: the audio roles are renamed, and `audio_in` is removed.
 - Golden probe: prime the output before starting the mixer voice
 - Producer script and hardening for interpreter release assets
 - Record exec mode on fetch_interpreters.sh and wasm.py
-- Regenerate the ecosystem map (audioif blurb, micropython-pydevices)
+- Regenerate the ecosystem map (audiodsp blurb, micropython-pydevices)
 - Distribute interpreter binaries as release assets, not git content
 

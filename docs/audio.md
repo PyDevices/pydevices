@@ -12,7 +12,7 @@ object — on a board, on a desktop, everywhere:
 | `audio_out(format=None, …)` | `AudioOut` | a sample graph | to `play()` it |
 
 There is deliberately **no `audio_in`**. Playback has a player layer above raw
-PCM; capture has none, and audioif has no input-side node to give it one. A
+PCM; capture has none, and audiodsp has no input-side node to give it one. A
 name implying otherwise would be the vagueness that caused the bug below.
 
 This used to be inconsistent, and it cost real code. `audiodev.auto.audio_out`
@@ -26,7 +26,7 @@ pcm = getattr(pcm, "transport", pcm)     # which one did I get?
 ```
 
 Now it writes `pcm_out(FMT, latency="low")` and gets a `PCMOutput`. Note that
-`pcm_out` also needs no audioif in firmware — nothing pulls a sample graph —
+`pcm_out` also needs no audiodsp in firmware — nothing pulls a sample graph —
 which is what lets a headless Connect speaker or a USB sound card run on a
 build with no DSP package in it.
 
@@ -77,10 +77,10 @@ peripheral itself and wants no Python device at all. usbif's C FreeRTOS pump
 When a board's wire genuinely cannot take the requested channel count,
 `negotiate` says so and `adapt_channels()` bridges 1↔2. The conversion lives
 in `audiodev` — it is PCM byte work, the same kind `_scale_pcm` already does
-for software volume — but **`audiodev` imports no audioif**, so the default
+for software volume — but **`audiodev` imports no audiodsp**, so the default
 implementation is pure Python: correct everywhere, and slow.
 
-A caller with audioif passes the C one in:
+A caller with audiodsp passes the C one in:
 
 ```python
 from audiodev.accel import best_remix
@@ -89,12 +89,12 @@ pcm = adapt_channels(pcm, fmt, remix=best_remix())
 
 **"Slow" is measured, not hand-waved.** On a QT Py ESP32 Pico at 240 MHz, one
 10 ms chunk of stereo→mono costs 0.63× realtime at 16 kHz, 0.94× at 24 kHz and
-1.73× at 44.1 kHz. So `pcm_out` needing no audioif holds *while the format
+1.73× at 44.1 kHz. So `pcm_out` needing no audiodsp holds *while the format
 matches the wire* — the usual case, since a board whose wire takes two slots
 never remixes. A board that must genuinely mix down at a high rate needs
-audioif in firmware. That is a real constraint on board design, not a detail.
+audiodsp in firmware. That is a real constraint on board design, not a detail.
 
-`audiodev/__init__.py` and every transport backend import no audioif at all;
+`audiodev/__init__.py` and every transport backend import no audiodsp at all;
 only `sample_out.py` and `accel.py` may. A test asserts this by walking the
 AST, because the rule was broken once without anyone noticing.
 
@@ -108,7 +108,7 @@ satisfying CircuitPython's audiosample pull protocol — a
 `synthio.Synthesizer`, an `audiomixer.Mixer`, an `audiocore.RawSample` /
 `WaveFile`, or any effect chained on top of one (`audiofilters`,
 `audiodelays`, `audiofreeverb`, `audiospeed`), all provided by the
-`audioif` usermod on MicroPython or the separately installed
+`audiodsp` usermod on MicroPython or the separately installed
 `pydevices-audioif` CPython distribution (`import synthio`,
 `import audiomixer`, ...). CPython users install it from TestPyPI with:
 
@@ -148,7 +148,7 @@ Raw PCM streaming is a role of its own, not an escape hatch through this one:
 call `pcm_out()` and get a `PCMOutput` — `write`, `drain`, `awrite`, `adrain`,
 volume/mute, `codec`. `AudioOut.transport` still exposes the same object, but
 reaching through it means constructing an `AudioOut` (and therefore requiring
-audioif) for a path that never plays a sample.
+audiodsp) for a path that never plays a sample.
 
 ## The audio pump
 

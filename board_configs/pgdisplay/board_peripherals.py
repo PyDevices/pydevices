@@ -59,7 +59,7 @@ def _pcm_in(format=None, **kwargs):
 def _audio_out(format=None, **kwargs):
     """``AudioOut`` sample player: ``play(sample, loop=)``/``stop()``/
     ``pause()``/``resume()``/``playing`` over any CircuitPython-shaped
-    audiosample. Requires audioif; use ``pcm_out`` if you only have PCM."""
+    audiosample. Requires audiodsp; use ``pcm_out`` if you only have PCM."""
     from audiodev.sample_out import AudioOut
 
     pump = {}

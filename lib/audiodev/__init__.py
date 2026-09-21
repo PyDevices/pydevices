@@ -325,7 +325,7 @@ class AudioFactory:
 
 
 def _remix_s16_py(source, src_channels, dst_channels, dest=None):
-    """Portable channel remix. Matches ``audioif_remix_s16`` exactly.
+    """Portable channel remix. Matches ``audiodsp_remix_s16`` exactly.
 
     Indexes the bytes directly rather than calling ``struct`` per sample, and
     allocates nothing when ``dest`` is supplied. Both matter on an MCU:
@@ -393,8 +393,8 @@ def _remix_s16_py(source, src_channels, dst_channels, dest=None):
     return dest
 
 
-# NOTE: no audioif import here, deliberately. audiodev/__init__.py and every
-# transport backend are importable with no audioif present -- that is the
+# NOTE: no audiodsp import here, deliberately. audiodev/__init__.py and every
+# transport backend are importable with no audiodsp present -- that is the
 # layering rule the README's table states, and the reason a headless PCM
 # consumer (a Connect speaker, a USB audio pump) needs no DSP package in
 # firmware. The pure-Python remix below is correct but slow; a caller that
@@ -957,7 +957,7 @@ def adapt_channels(pcm, source_format, remix=None):
     ``remix`` is the conversion callable ``(src, src_ch, dst_ch, dest)``.
     Default is the pure-Python one in this module, which is correct
     everywhere and slow; pass ``audiodev.accel.best_remix()`` for the C
-    implementation when audioif is present.
+    implementation when audiodsp is present.
     """
     if not isinstance(source_format, AudioFormat):
         raise TypeError("source_format must be AudioFormat")
