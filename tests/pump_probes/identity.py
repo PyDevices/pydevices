@@ -15,16 +15,16 @@
 # The sitting that wrote it: live-audio-path-audiodev.md in the anchor.
 #
 # Run by tests/test_pump_interpreter.py under a MicroPython or CircuitPython
-# build carrying the audioif usermod AND the audiopump driver. It is a probe
-# and not a unittest on purpose: what it measures needs a real pump on a real
-# thread, and there is no such thing under the CPython the rest of the suite
-# runs on.
+# build carrying the audioif usermod. It is a probe and not a unittest on
+# purpose: what it measures needs a real pump, and there is none under the
+# CPython the rest of this suite runs on. The platform driver is optional --
+# without one the same loop runs on the interpreter's thread and everything
+# here still holds.
 #
 # It came from the live-audio-path spike, where it was
 # docs/spikes/probes/audiodev_identity.py in the workspace anchor.
 
 import os
-import os as _os
 import sys
 import time
 from array import array
@@ -38,7 +38,7 @@ from audiodev.sample_out import AudioOut
 RATE = 48000
 CHANNELS = 2
 FMT = audiodev.AudioFormat(RATE, CHANNELS, 16)
-TMP = _os.getenv("PUMP_PROBE_TMP", "/tmp")
+TMP = os.getenv("PUMP_PROBE_TMP", "/tmp")
 
 FNV_OFFSET = 0xCBF29CE484222325
 FNV_PRIME = 0x100000001B3
