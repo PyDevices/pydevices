@@ -117,4 +117,16 @@ def audio_out(format=None, **kwargs):
             # of the drum machine). Six chunks (60ms) measured 2, at a
             # note-to-sound cost that stays acceptable for live pads.
             pump_kwargs.setdefault("lookahead_chunks", 6)
+        elif host_kind() == "wasm":
+            # A browser is the same shape and for the same reason. The 10ms
+            # tick this profile asks for is not what a page delivers: the
+            # gallery's piano, measured buffer by buffer out of the page's
+            # own AudioContext, gets one every 23ms and sometimes 90
+            # (docs/spikes/live-audio-path-browser.md). A 2-chunk cushion is
+            # 20ms, so the sink is dry before the next tick BY CONSTRUCTION
+            # -- measured as ~10 gaps a second, 2-6% of the stream replaced
+            # by silence, which is a continuous granular crackle under the
+            # note. Six chunks is 60ms, past the median tick and past all
+            # but the worst.
+            pump_kwargs.setdefault("lookahead_chunks", 6)
     return AudioOut(pcm_out(format, **kwargs), **pump_kwargs)

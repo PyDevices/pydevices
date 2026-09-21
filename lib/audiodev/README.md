@@ -15,6 +15,7 @@ still directly usable for raw `write()`/`readinto()`.
 |--------|------|------|
 | `audiodev` | all | `AudioFormat`, `PCMOutput` / `PCMInput` / `ToneOutput` bases, latency helpers |
 | `audiodev.sample_out` | MicroPython (`audioif` usermod) and CPython (`pydevices-audioif`) | `AudioOut` — pulls `audiocore.get_buffer` on a lookahead schedule, pushes into a transport |
+| `audiodev.pump` | any firmware carrying the `audiopump` module | Hands the graph to the C pump instead, off the interpreter thread. Used without being asked; absent, nothing here does anything |
 | `audiodev.sdl2_audio` | desktop MicroPython, CircuitPython, CPython, Jupyter | SDL2 queued PCM transport through `usdl2` |
 | `audiodev.pygame_audio` | CPython desktop with pygame-ce installed | Queued PCM transport on pygame-ce's bundled SDL |
 | `audiodev.win_audio` | Windows | WASAPI shared-mode queued PCM transport through `uwin32` |
@@ -203,6 +204,229 @@ Consequences worth knowing:
   helper most `board_peripherals.audio_out()` factories use:
   `AudioOut(transport_module.audio_out(format, **kwargs))`.
   `auto.sample_audio_out()` is the same thing over `auto.select_backend()`.
+
+## `pump.py` — the audio pump
+
+**Your code does not change.** `AudioOut(transport)`, `play(sample)`,
+`stop()`, `pause()`, `resume()`, `playing` all keep their CircuitPython
+meaning. What changes is that on a firmware carrying the `audiopump` module,
+the graph is pulled by a C thread the interpreter is not on — a pinned
+FreeRTOS task on esp32, a `pthread` on a desktop — and your tick is no longer
+what keeps the sound alive. Nothing asks for it; no board config opts in.
+
+**On a build with no pump, nothing here does anything.** The old path runs
+untouched. Importability is not the test, either: MicroPython's unix port puts
+the working directory on `sys.path`, so `import audiopump` in a workspace
+checkout finds the *directory* as a namespace package and succeeds. This
+module checks for `spawn`.
+
+The proof it changes nothing audible is a digest. The same graph through the
+same `AudioOut` into `emulated_audio`'s recording transport, old path against
+pump, on the unix build:
+
+| graph | bytes | old | pump |
+|---|---|---|---|
+| `audiocore.RawSample` | 96 000 | `e0c42e66584d6178` | `e0c42e66584d6178` |
+| `RawSample → Overdrive` | 96 000 | `26e5bd8c0e8fc086` | `26e5bd8c0e8fc086` |
+| `synthio.Synthesizer`, three notes | 96 000 | `50ed7cc0ffce8279` | `50ed7cc0ffce8279` |
+| `audiocore.WaveFile`, 1.0 s | 192 000 | `aac53cd39e17dbdd` | `aac53cd39e17dbdd` |
+
+The two middle digests are also what a build **without** `audiopump` produces,
+so the same audio comes out of both firmwares.
+
+### One pump, several players
+
+There is one C task and one I2S channel, so there is one `pump.Pump`, reached
+through `pump.owner()`. The first client is the pump's tail directly — which
+is why a single player's PCM is byte-identical to the old path's. A second
+client gets a root `audiomixer.Mixer` built for it, a voice each at level 1.0,
+and the pump is retargeted onto it. **The mixer sums**: two loud clients clip,
+which is the arithmetic two CircuitPython `AudioOut`s into one DAC would do,
+and it is said out loud rather than quietly halved. `stop()` on one rebuilds
+the root without it and leaves the other sounding; the last one out shuts the
+pump down.
+
+`loop` belongs to the client, and it travels **with** every swap of the tail.
+One client is the tail, so its `loop` is the pump's; a Mixer never says DONE,
+so a mixer tail never wants one and each voice carries its own instead. For as
+long as that flag was hardcoded, a looping player stopped at the end of its
+first lap the moment anything else started sounding.
+
+`pump.attach_stream(fmt)` registers a raw PCM stream beside whatever is
+already sounding. **On a desktop host a pushed stream does not go through the
+pump at all**, and that is the answer rather than an omission: the transport
+there is already a push queue with a thread behind it, so the pump would copy
+every byte into a ring and out again to reach the same queue. It earns its
+place where it owns the peripheral or pulls a graph.
+
+### Files go through a prefetcher
+
+A `WaveFile` or an `MP3Decoder` reads the filesystem inside `get_buffer`, and
+the pump's thread may not: it has no interpreter on it. `spawn()` refuses such
+a tail outright, so `AudioOut.play()` puts `pump.Prefetch` in front instead —
+it pulls the file on the interpreter thread and writes what it yields into a
+ring the pump drains. A WAV through it is byte-identical to the same file
+pulled directly (768 000 bytes), and `Prefetch` pads the last block, because a
+ring hands out whole blocks and a file that is not a whole number of them
+would otherwise lose its tail in silence.
+
+A file source **deep inside** a graph is still caught at the first block as a
+fault rather than at `play()`. The pull protocol has no way to walk backwards.
+
+### What a fault looks like
+
+The pump breaks out of its loop rather than raising — there is no interpreter
+thread to raise on — so a failure arrives as a status word. `Pump.died()`
+turns it into one sentence on stdout, and `AudioOut` falls back to the old
+pull-on-the-interpreter path for the rest of the process. A pump that will not
+start, will not take a graph, or dies under a player is the same sentence and
+the same fallback. Nothing an app did not ask for can raise at it.
+
+### Three drivers, because the ports differ
+
+| driver | where | how the bytes land |
+|---|---|---|
+| `RingDriver` | unix, and any port whose driver has no `i2s_start` | The pump fills a RAM ring and `service()` drains it into the existing push transport. |
+| `ServiceDriver` | WebAssembly, which has no threads | `audiopump.service()` runs the same C loop on the interpreter thread into the same ring. The ring is look-ahead rather than slack: a tick of T ms needs a ring longer than T. |
+| `BusioDriver` | esp32 | The graph goes to **`audiobusio.I2SOut`** — CircuitPython's own class, with the pump under it — built from the board's `I2SWire`. It owns the channel, converts what is not signed 16-bit, retunes the bus to the sample's rate and sizes the DMA descriptor in time. `audiodev` writes no PCM and never opens `machine.I2S`. |
+
+**The output ring makes the pump wait, so the desktop pump gives the
+interpreter its time back.** A full ring is back-pressure now, as a DMA write
+is on a board, and the driver has stopped parking the pump between ticks — a
+parked pump is a pump the interpreter waits for. Ten seconds of a synth
+through an Overdrive and a TapeDelay on the **desktop unix build**, timed
+inside `service()`, with an app doing 3.5 ms of work a tick: **52 ms against
+862 ms on the old path**, where the parked pump cost 923. With no app work at
+all the two are level — 758 ms against 713 — which is the honest shape of it:
+the pump buys you the time your app was spending, and buys nothing if your app
+spends none.
+
+It does not pay for that in audio. A WAV plays back **byte-identically 10
+times out of 10 with all eight cores of this box in a busy loop**, overflow
+count 0 by construction; with the drop planted back, 0 of 10. And a parked
+pump used to spin **94 % of one core** for as long as it was parked, where it
+now sleeps at 1 %.
+
+`audiopump.backpressure()` is the question the driver asks, and it is True in
+two ways: a threaded port whose driver can wait and be woken, and service
+mode, where the loop hands the thread back on a full ring. On esp32 none of
+this applies — the pump writes into the DMA and `service()` does nothing at
+all.
+
+One thing that follows and is easy to get wrong: **the prefetcher feeding the
+pump has to be deeper than the output ring.** A pump that is no longer parked
+empties a shallow prefetcher between two ticks, and the push ring's underrun
+rule pastes silence into the middle of the file — a 1 s WAV diverged at byte
+30720, which is the prefetcher's own length.
+
+**A live press lands later on the desktop pump path**, because the pump has
+already rendered ahead. That lead is now the ring depth and nothing else:
+**32.0 ms, as a ceiling**, where the parked pump averaged 26.7 ms and spread
+as far as 69. A ceiling you can name beats a mean you cannot. On a board the
+lead is the DMA ring, which is 0.85–3.5 ms on the Waveshare ESP32-P4.
+
+### On an ESP32, three rules
+
+- **Nothing writes to flash while the pump plays.** A flash erase IPCs the
+  pump's core into `vTaskSuspendAll()` until it finishes, so no priority, no
+  `IRAM_ATTR` and no internal RAM protects it. A 512-byte write costs
+  **27–37 ms of stopped audio on the Waveshare ESP32-P4 and 43–48 ms on the
+  LilyGO T-Embed S3**, against a 5.3 ms block; on the S3 a 4 KB write cost
+  661 ms of silence. **A read is free** — 5.9 ms worst block on the S3 and
+  zero starved bytes — and a first `import` is a read, because this port
+  caches no `.pyc`. What a user trips over is `print()` redirected to a file,
+  saving a preset, `mip.install`, and anything that writes a log.
+- **Size the ring for the board, not for the app.** Measured with a GUI
+  pedalboard playing: on the P4, whose 720 × 720 panel is a megabyte read out
+  of PSRAM for every frame it clocks, a lit panel is a standing cost of about
+  eleven points of a block and the ring wants **12 × 128** (32 ms) — 4 × 128
+  was silent all the way through and 6 × 128 lost 381 ms, all of it at patch
+  changes. On the T-Embed's SPI panel a lit screen costs nothing measurable
+  and the knee is **4 × 128** (10.7 ms), with depth buying nothing after it.
+  Drawing *often* is dearer than drawing *big* on both: an eight-row moving
+  bar at 237 blits a second cost the S3 27 points, where whole-screen repaints
+  at 31 a second cost 12.
+- **Two owners of one peripheral is the failure that sounds like silence.**
+  Anything that opens `machine.I2S` for itself collides with the pump. That is
+  what `pump.attach_stream()` and the root mixer are for.
+- **A scheduled tick cannot land in the middle of a rearrangement.** On this
+  port a service tick arrives through `micropython.schedule`, between the
+  interpreter's own bytecodes — so it can land *inside* `stop()`, find a
+  player that reads like a healthy old-path player, and open `machine.I2S` on
+  the port the pump has just let go of. That is the drum machine's kit change
+  falling off the audio clock with "Peripheral in use". Both halves of the
+  race were seen, which is what makes it a race: the tick winning leaves the
+  pump refused, and the pump winning leaves the tick's own `open()` throwing
+  `ESP_ERR_NOT_FOUND` out of the app's dispatch, once per tick, for ever. Two
+  guards hold it — a per-player `_pumping` flag across `play()` and `stop()`,
+  and a pump-level latch around the global rearrangement — and a service tick
+  was injected at **every one of the 427 lines of a `play()`**, and at every
+  line of `stop`, `close`, `pause` and `attach_stream`, to prove it. If you
+  add a method that rearranges the graph, it goes inside those guards.
+
+### The esp32 path is `audiobusio.I2SOut`
+
+**There is one way this firmware plays a sample**, and on a board `audiodev`
+joins it rather than going round it. The whole path is four names:
+
+```
+AudioOut → Pump → BusioDriver → audiobusio.I2SOut
+```
+
+`BusioDriver` builds an `audiobusio.I2SOut(bit_clock, word_select, data,
+main_clock=..., port=..., main_clock_fs=...)` from the board's `I2SWire` and
+calls `play`, `retarget`, `stop`, `pause` and `resume` on it. No channel
+opened, no DMA size named, no `machine.I2S`. What stays in `audiodev` is the
+policy nothing below the line knows about: the codec rails and volume, two
+clients through a root mixer, a file through `Prefetch`, and the fault
+sentence.
+
+**That path has run on the desktop build only.** Every ESP32 claim in this
+section is a desktop run, a link map, or the sink path it replaced. Its C does
+compile and link for an ESP32-P4 and an ESP32-S3, and two images are staged
+and unflashed.
+
+That closes a defect by deletion. `audiodev` used to open the channel itself
+with `dma_frame=128` **fixed at every rate** — 16 ms of descriptor at 8 kHz
+against 2.7 ms at 48 kHz — which is the bug `audiobusio` measured on the P4 as
+67 starved blocks in two seconds at 8 kHz and none at 48. `I2SOut` sizes it as
+`rate / 200`, five milliseconds at every rate, and there is no such keyword in
+`audiodev` to get wrong any more.
+
+Two of `I2SOut`'s keywords are ours rather than CircuitPython's and `audiodev`
+uses both: `port=` (a board can have the codec on one port and a microphone on
+another) and `main_clock_fs=` (the wire has carried the ratio since before
+`audiobusio` existed). `I2SOut.retarget(sample, loop=...)` and `I2SOut.status`
+are ours too, and they are what a policy layer needs that a program calling
+`audiobusio` directly does not: a tail swapped **without a gap** when a client
+arrives or leaves, and the two words that say why the pump stopped.
+
+### What a board proved, on the path this replaced
+
+The **previous** backend — `SinkDriver`, which opened the channel itself —
+has been on silicon. On the **Waveshare ESP32-P4 panel**, 2026-09-21:
+`play()` in 8 ms with every `i2s` in the stack `None`; the codec at the volume
+asked for, read back off the ES8311 over I2C; **100 of 100** stop/play cycles
+with no client left behind; and `service()` at **95 µs mean against the old
+pull-on-the-interpreter path's 234 µs**.
+
+Those numbers are the reason to believe the shape, not the code above them.
+`BusioDriver` is what a board runs now, and nothing has run it on a board.
+
+Three things it found, all fixed here. `set_volume()` and `mute()` were
+guarded on `is_open` — and on this path nothing ever opens the transport,
+because the pump owns the peripheral — so the knob stored a number and never
+reached the codec. `PCMOutput.hardware_live()` is the answer: `SinkDriver`
+tells the transport its codec is powered by someone else. Releasing a node
+under the pump gave the right sentence and then a traceback out of the next
+`service()`; the release path drops the sample now, on both the sink and the
+desktop ring. And a board whose config predated `wire=` fell back to
+`machine.I2S` *in silence*, which looks exactly like a working board; it says
+so once.
+
+A board publishes what the pump needs by handing `wire=` and `audio_power=` to
+`I2SPCMOutput`; the P4's `board_peripherals.py` does, in three lines. **A
+board that passes neither keeps the old path** — and now says so.
 
 ## `sdl2_audio.py`
 

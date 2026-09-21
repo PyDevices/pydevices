@@ -66,3 +66,66 @@ jobs:
 
       - name: Validate direct-GitHub board installers
         run: python scripts/validate_board_mip_installers.py
+
+  # The audio pump's C half. `lib/audiodev/pump.py` decides things CPython
+  # can be shown deciding (tests/test_pump.py, with stand-ins), but whether
+  # the pump's own thread produces the SAME BYTES as the old pull, and
+  # whether a hundred play/stop rounds leave it clean, needs the real engine
+  # on a real interpreter. So this job builds one.
+  #
+  # It needs audioif and nothing else: `audiopump` the engine ships with
+  # audioif on every port, and the platform driver (a private repo today) is
+  # optional -- without it `threaded()` is False and the same loop runs on
+  # the interpreter's own thread, which both probes pass on. That is what
+  # makes this job possible in a public repository at all.
+  #
+  # PYDEVICES_REQUIRE_PUMP=1 is the point of the job: without it the tests
+  # skip, loudly but greenly, which is what they do in the unittest job
+  # above on a runner with no interpreter.
+  #
+  # ORDERING: audioif has to carry the pump on its default branch before
+  # this can go green -- it arrives with the live-audio-path line.
+  pump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: pydevices
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - uses: actions/checkout@v7
+        with:
+          repository: PyDevices/audioif
+          path: audioif
+
+      - name: Fetch audioif's pinned dependencies
+        working-directory: audioif
+        run: ./scripts/fetch_deps.sh
+
+      - uses: actions/checkout@v7
+        with:
+          repository: micropython/micropython
+          ref: v1.29.0
+          path: micropython
+
+      # USER_C_MODULES is the PARENT directory: py.mk globs
+      # $(USER_C_MODULES)/*/micropython.mk exactly one level down, which is
+      # how audioif's own clean-build workflow does it too.
+      - name: Build the unix port with the audioif usermod
+        run: |
+          make -C micropython/mpy-cross -j2
+          make -C micropython/ports/unix submodules
+          make -C micropython/ports/unix -j2 \
+            USER_C_MODULES=$GITHUB_WORKSPACE
+
+      - name: The pump probes, with their planted faults
+        working-directory: pydevices
+        env:
+          PYDEVICES_PUMP_INTERPRETER: >-
+            ${{ github.workspace }}/micropython/ports/unix/build-standard/micropython
+          PYDEVICES_REQUIRE_PUMP: '1'
+        run: python -m unittest tests.test_pump_interpreter -v

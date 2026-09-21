@@ -816,12 +816,21 @@ class RemixInjectionTests(unittest.TestCase):
         }
         allowed = {"sample_out.py", "accel.py"}
         root = pathlib.Path(__file__).resolve().parent.parent / "lib" / "audiodev"
+        # `tree.body`, not `ast.walk`: what breaks importability is an import
+        # at MODULE level. pump.py reaches for `_audioif` inside `driver()`,
+        # for `audiocore` in a constructor that has already refused a
+        # firmware with no `audiopump.Ring`, and for `audiomixer` in a method
+        # only a running pump calls -- none of which runs on a board with no
+        # DSP package, which is why the blockade below imports it clean. A
+        # walk counted all three and made the rule unstatable rather than
+        # strict. The rule's own words are "must be importable"; that is what
+        # is asserted now, twice.
         offenders = []
         for path in sorted(root.glob("*.py")):
             if path.name in allowed:
                 continue
             tree = ast.parse(path.read_text())
-            for node in ast.walk(tree):
+            for node in tree.body:
                 if isinstance(node, ast.Import):
                     names = [a.name.split(".")[0] for a in node.names]
                 elif isinstance(node, ast.ImportFrom):
@@ -832,6 +841,62 @@ class RemixInjectionTests(unittest.TestCase):
                     if name in audioif_names:
                         offenders.append("%s: %s" % (path.name, name))
         self.assertEqual([], offenders)
+
+        # And the property itself, not a reading of the source: import every
+        # module with all eight DSP names unimportable. A deferred import is
+        # a free pass only if it is genuinely never reached at import time,
+        # and this is what says so -- it catches what a walk of the source
+        # cannot, a deferred import on a path that runs anyway.
+        #
+        # In a subprocess, because the blockade means deleting and
+        # re-importing every `audiodev` module, and doing that in this
+        # interpreter left I2SAdapterTests bound to a different copy of
+        # audiodev.i2s_audio than the one it patches. A test that breaks its
+        # neighbours is worse than the rule it enforces.
+        #
+        # An ImportError for anything else -- usdl2, uwin32, _wasm_bridge --
+        # is a missing desktop backend, not a layering breach, so only the
+        # eight count.
+        import subprocess
+        import sys
+
+        prove = """
+import importlib, pathlib, sys
+DSP = %r
+root = pathlib.Path(%r)
+allowed = %r
+
+
+class Blockade:
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] in DSP:
+            raise ImportError("no DSP package on this board: %%s" %% name)
+        return None
+
+
+sys.path.insert(0, str(root.parent))
+sys.meta_path.insert(0, Blockade())
+bad = []
+names = ["audiodev"] + ["audiodev." + p.stem for p in sorted(root.glob("*.py"))
+                        if p.name not in allowed and p.name != "__init__.py"]
+for name in names:
+    for loaded in [k for k in sys.modules
+                   if k == "audiodev" or k.startswith("audiodev.")]:
+        del sys.modules[loaded]
+    try:
+        importlib.import_module(name)
+    except ImportError as failure:
+        if any(dsp in str(failure) for dsp in DSP):
+            bad.append("%%s: %%s" %% (name, failure))
+    except Exception as failure:
+        bad.append("%%s: %%s: %%s" %% (name, type(failure).__name__, failure))
+for line in bad:
+    print(line)
+""" % (sorted(audioif_names), str(root), sorted(allowed))
+        proof = subprocess.run([sys.executable, "-c", prove],
+                               capture_output=True, text=True)
+        self.assertEqual(0, proof.returncode, proof.stderr)
+        self.assertEqual([], proof.stdout.splitlines())
 
 
 class RemixRoundingTests(unittest.TestCase):

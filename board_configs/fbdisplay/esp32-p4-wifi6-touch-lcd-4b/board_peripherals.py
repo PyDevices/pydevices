@@ -275,6 +275,13 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
         set_hardware_volume=lambda value: _codec_call("set_dac_volume", value),
         set_hardware_mute=lambda value: _codec_call("dac_mute", value),
         power=lambda enable: _output_power(enable, wire.rate),
+        # For a consumer that drives the peripheral in C: the pin map, and a
+        # way to bring the codec up without opening a stream. On a firmware
+        # carrying `audiopump`, audiodev's sample player uses both and never
+        # opens machine.I2S on this port -- the pump's own I2S channel is the
+        # only owner. On a firmware without it these two are inert.
+        wire=AUDIO_OUT.wire,
+        audio_power=_audio_power,
     )
     device.set_volume(_DEFAULT_VOLUME)
     if source is not wire:
