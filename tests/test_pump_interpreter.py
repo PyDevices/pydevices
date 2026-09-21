@@ -52,11 +52,15 @@ RUNS = (
      ("drop", "flip", "short")),
 )
 
-#: Faults that need the pump on a thread of its own. `drop` lets it
-#: free-run so its ring overruns -- and a build with no platform driver has
-#: no other thread to free-run on, so unparking it changes nothing and the
-#: plant quietly passes. Not run there, and counted when it is not.
-THREADED_ONLY = ("drop",)
+#: Faults that need the pump on a thread of its own.
+#:
+#: `drop` used to be one. It planted a free-running pump, which only drops on
+#: a build that HAS a second thread -- so on a driverless one the plant quietly
+#: passed and had to be left out. It does not plant that any more, because a
+#: free-running pump is now the healthy shape: the output ring blocks it. It
+#: shrinks the output ring below one block of the graph instead, which is the
+#: one loss no wait can prevent, and that lands on both builds.
+THREADED_ONLY = ()
 
 #: What the probes could not be run against, filled in by the finder so the
 #: banner can say it once rather than once per test.
@@ -121,13 +125,16 @@ def _run(interpreter, arguments, tmpdir):
 def _ring_note(output):
     """Say so when the desktop ring dropped blocks under the comparison.
 
-    On a board the pump is paced by the I2S write. On a desktop nothing
-    paces it, so the driver parks it between drains -- and a runner busy
-    enough to widen that window lets the C ring *drop* whole blocks, which
-    makes the two renders differ for a reason that is not a regression in
-    anything being tested. ``STATUS_RING_OVF`` is the number that says so,
-    and the fix is audiopump.c's output ring blocking instead of dropping
-    (live-audio-path-audiodev.md, "what is different, and by how much").
+    This used to be the common flake: nothing paced the pump on a desktop, so
+    the driver parked it between drains, and a runner busy enough to widen
+    that window let the C ring drop whole blocks. The two renders then
+    differed for a reason that was not a regression in anything being tested.
+
+    The output ring blocks the pump now, so on a build that has back-pressure
+    this note should never fire -- ``ovf`` is 0 by construction and a non-zero
+    one means the ring is genuinely too small for a block of the graph
+    (live-audio-path-backpressure.md). It stays because the same probes run on
+    older interpreters, where the old reading is still the right one.
     """
     dropped = 0
     for line in output.splitlines():

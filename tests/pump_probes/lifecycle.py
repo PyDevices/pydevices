@@ -334,7 +334,21 @@ def two_clients(fault):
     took = stream.write(push)
     if fault == "silent":
         took = 0
-    tick(out, 8)
+    # Tick past the pump's RUN-AHEAD, not a fixed eight. A pump the output ring
+    # paces keeps that ring full, so everything already in it was rendered
+    # before this stream existed and the sum cannot show up until it has been
+    # handed out. Here that is 100 ms, because the riff is an audiocore
+    # RawSample and its "block" is the whole 50 ms buffer -- the ring's floor
+    # is two of those. Eight ticks is 80 ms and the square wave never arrived:
+    # the check read as a silent mixer voice and was measuring its own window.
+    ahead = 0
+    engine = out._engine
+    driver = getattr(engine, "_driver", None) if engine is not None else None
+    ring = getattr(driver, "_ring", None)
+    if ring is not None:
+        ahead = len(ring)
+    ticks = 8 + (ahead + out._chunk_bytes() - 1) // max(1, out._chunk_bytes())
+    tick(out, ticks)
     both = out.transport._data_length - alone
     # After close(), not before: WavPCMOutput only writes the real data length
     # into the header on close, so an early read parses a 0-byte data chunk
@@ -360,7 +374,8 @@ def two_clients(fault):
     ok = clients == 2 and took > 0 and both > 0 and mixed > solo
     return say("two", ok,
                "%d clients; %d bytes pushed; peak %d alone, %d with the "
-               "stream mixed in" % (clients, took, solo, mixed))
+               "stream mixed in over %d ticks (%d B of run-ahead)"
+               % (clients, took, solo, mixed, ticks, ahead))
 
 
 def released(fault):
