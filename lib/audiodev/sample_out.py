@@ -202,21 +202,28 @@ class AudioOut:
 
     def play(self, sample, *, loop=False):
         """Start playing ``sample``. Replaces whatever was already playing."""
-        self._detach_pump()
-        self._check_format(sample)
-        self._audiocore.reset_buffer(sample)
-        self._sample = sample
-        self._loop = bool(loop)
-        self._paused = False
-        self._sched_start_ms = None
-        self._played_frames = 0
-        self._buf_len_scale = None  # recalibrate per sample source
-        # Before open(), on purpose. Where the pump drives I2S itself, the
-        # transport must never open machine.I2S on the same port: two owners
-        # of one peripheral is the failure that sounds like silence.
-        self._attach_pump(sample)
-        if not self._sinking:
-            self.open()
+        # `_pumping` is held across the whole rearrangement, and that is the
+        # fix for the kit change. See stop() for what happens without it.
+        self._pumping = True
+        try:
+            self._detach_pump()
+            self._check_format(sample)
+            self._audiocore.reset_buffer(sample)
+            self._sample = sample
+            self._loop = bool(loop)
+            self._paused = False
+            self._sched_start_ms = None
+            self._played_frames = 0
+            self._buf_len_scale = None  # recalibrate per sample source
+            # Before open(), on purpose. Where the pump drives I2S itself, the
+            # transport must never open machine.I2S on the same port: two
+            # owners of one peripheral is the failure that sounds like
+            # silence.
+            self._attach_pump(sample)
+            if not self._sinking:
+                self.open()
+        finally:
+            self._pumping = False
         self._pump()  # kick an immediate chunk: lowest note-to-sound latency,
         #                same reason AudioEngine.note_on() does this
 
@@ -389,10 +396,38 @@ class AudioOut:
             )
 
     def stop(self):
-        self._detach_pump()
-        self._sample = None
-        self._paused = False
-        self._sched_start_ms = None
+        # THE TICK MUST NOT SEE THE MIDDLE OF THIS. `service()` is on the
+        # app's shared timer, which arrives through `micropython.schedule` --
+        # between this method's own bytecodes. Between `_detach_pump()` and
+        # `_sample = None` the player reads exactly like a healthy old-path
+        # player: a sample, no engine, `_sinking` False. One tick landing
+        # there pulls a block and writes it, and `PCMOutput.write()` opens
+        # the transport, which on a board is `machine.I2S` on the port the
+        # pump has just let go of. The next `play()` then asks the IDF for a
+        # peripheral the interpreter is holding:
+        #
+        #     ESP_ERR_NOT_FOUND -> RuntimeError("Peripheral in use")
+        #
+        # and `_attach_pump` reports "the audio pump would not take this
+        # graph" and plays on the interpreter instead. That is the whole of
+        # the shipped drum machine falling off the audio clock on every KIT
+        # CHANGE (`CLK AUDIO` -> `CLK TIMER!`), and both halves of the race
+        # were seen on a P4: the tick winning it leaves machine.I2S open and
+        # the pump refused; the pump winning it leaves the tick's own open()
+        # raising ESP_ERR_NOT_FOUND out of the app's timer callback.
+        #
+        # `_pumping` already means "the pull path is busy, do not re-enter",
+        # and `_pump()` honours it on entry. Holding it across the two
+        # methods that REARRANGE the player -- this one and play() -- is the
+        # whole fix. It costs one attribute write on each.
+        self._pumping = True
+        try:
+            self._detach_pump()
+            self._sample = None
+            self._paused = False
+            self._sched_start_ms = None
+        finally:
+            self._pumping = False
 
     def pause(self):
         if self._sample is not None:
