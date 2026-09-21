@@ -297,8 +297,27 @@ class RingDriver(_Driver):
     again before returning. The window is one drain, the ring only has to
     absorb what the pump makes while the interpreter is copying bytes out of
     it, and the stream is exact -- ``STATUS_RING_OVF`` stays at 0, which is the
-    number that says so. The DSP still happens on the pump's thread, which is
-    the whole point and is what the interpreter stops paying for.
+    number that says so.
+
+    **What that costs, and what it would be worth not to.** A parked pump is a
+    pump the interpreter *waits* for, so on the desktop the DSP is back on the
+    app's timeline however many threads it runs on: 5 s of a synth through two
+    effects cost an idle app 817 ms on the old path and 866 ms on this one, and
+    96 % of the pump path's time is inside produce(), waiting. Letting the pump
+    run between ticks instead was tried, with a policy that stopped the moment
+    the ring reported a drop. An app doing 3.5 ms of its own work per tick went
+    from 1811 ms to 1028 ms -- **1.8x**, the DSP genuinely overlapping the
+    drawing -- and the audio lost 71 to 5657 blocks and diverged 160 ms in,
+    every time. The policy cannot work: by the time ``STATUS_RING_OVF`` says a
+    block was dropped, the block is gone.
+
+    The one change that wins it properly is in C, and it is small:
+    ``audiopump.c``'s **output ring drops on overflow rather than making the
+    pump wait**. A ring that blocked the pump would pace it exactly as an I2S
+    write paces it on a board, no park would be needed, and the desktop would
+    get the 1.8x with no byte at risk. That ring is the board agent's file and
+    its 64-bit cross-thread counters are already owed a fix; this belongs in
+    the same pass.
     """
 
     def __init__(self, frame_size, *, chunk_bytes=0, max_block=0):
@@ -312,9 +331,11 @@ class RingDriver(_Driver):
                    64 * int(frame_size))
         self._ring = bytearray(want)
         self._parked = False
+        self._status = None
 
     def spawn(self, sample, status):
         mod = module()
+        self._status = status
         mod.spawn(sample, _BLOCKS_FOREVER, status, ring=self._ring, timeout_ms=200)
         # Park immediately: from here on the pump runs only inside produce().
         # park() returns True once the thread is at a block boundary, so this
@@ -326,6 +347,15 @@ class RingDriver(_Driver):
             mod.shutdown()
             raise RuntimeError("the pump would not start")
         self._parked = True
+
+    def dropped(self):
+        """Blocks the ring had no room for. Must be 0; it is the byte stream."""
+        status = self._status
+        if status is None:
+            return 0
+        import struct
+
+        return struct.unpack_from("<Q", status, 10 * 8)[0]
 
     def produce(self, into):
         mod = module()
@@ -385,11 +415,12 @@ class SinkDriver(_Driver):
 
     needs_service = False
 
-    def __init__(self, wire, fmt, *, power=None, dma_desc=4, dma_frame=128,
-                 din=-1):
+    def __init__(self, wire, fmt, *, power=None, volume=100, dma_desc=4,
+                 dma_frame=128, din=-1):
         self.wire = wire
         self.fmt = fmt
         self._power = power
+        self.volume = int(volume)
         self.dma_desc = int(dma_desc)
         self.dma_frame = int(dma_frame)
         self.din = int(din)
@@ -401,7 +432,14 @@ class SinkDriver(_Driver):
             return
         mod = module()
         if self._power is not None:
-            self._power(True)
+            # With the volume where the board will take it. Nothing opens the
+            # transport on this path, so PCMOutput.open()'s "apply the
+            # hardware volume and mute" never runs and the codec would come up
+            # at whatever the last thing to touch it left behind.
+            try:
+                self._power(True, volume=self.volume)
+            except TypeError:
+                self._power(True)
         w = self.wire
         self.cushion = mod.i2s_start(
             w.port, w.sck, w.ws, w.sd, self.fmt.rate,
@@ -425,6 +463,76 @@ class SinkDriver(_Driver):
         self._open = False
         if self._power is not None:
             self._power(False)
+
+
+class PumpOutput:
+    """A push stream on the pump: ``PCMOutput``'s ``_write``, over a Ring.
+
+    On **esp32** this is what a ``PCMOutput`` has to become, because the pump
+    owns the I2S channel and ``machine.I2S`` cannot be opened beside it. The
+    contract lines up exactly: ``audiopump.Ring.write()`` takes whole frames
+    and returns bytes accepted, which is ``try_write()``'s, and ``space()`` is
+    bytes, which is what the fill-to-space rule counts in.
+
+    On a **desktop host it is not used, and that is the answer rather than an
+    omission**: the transport there is already a push queue with its own
+    thread behind it, so putting the pump in the middle would copy every byte
+    into a ring and out again to reach the same queue, for nothing. The pump
+    earns its place where it owns the peripheral or pulls a graph.
+
+    Mix it into audiodev with::
+
+        class MyOut(PCMOutput):
+            def _write(self, buf):  return self._ring.write(buf)
+            def space(self):        return self._ring.space()
+
+    which is what :func:`attach_stream` builds.
+    """
+
+    def __init__(self, fmt, *, frames=256, capacity=6):
+        mod = module()
+        if mod is None or not hasattr(mod, "Ring"):
+            raise RuntimeError("this firmware has no audiopump.Ring")
+        self.format = fmt
+        self.ring = mod.Ring(sample_rate=fmt.rate, channel_count=fmt.channels,
+                             frames=frames, capacity=capacity)
+
+    def write(self, buf):
+        return self.ring.write(buf)
+
+    def space(self):
+        return self.ring.space()
+
+    def level(self):
+        return self.ring.level()
+
+    def drain(self):
+        """Nothing to do: the pump is the consumer and it never blocks."""
+        return None
+
+    def deinit(self):
+        # Off the pump FIRST. A deinited Ring left registered as a client is
+        # rebuilt into the next root Mixer, and audiomixer raises on it -- from
+        # inside an unrelated player's close().
+        ring = self.ring
+        self.ring = None
+        owner().stop(self)
+        if ring is not None:
+            ring.deinit()
+
+
+def attach_stream(fmt, *, driver=None, frames=256, capacity=6):
+    """Put a push stream on the pump beside whatever else is sounding.
+
+    Returns a :class:`PumpOutput` the caller writes PCM into, already
+    registered as a pump client -- so an ``AudioOut`` graph and this stream
+    are summed by a root Mixer and come out of one peripheral.
+    """
+    stream = PumpOutput(fmt, frames=frames, capacity=capacity)
+    if not owner().play(stream, stream.ring, driver=driver):
+        stream.deinit()
+        raise RuntimeError(owner().fault() or "the pump would not take it")
+    return stream
 
 
 class _Client:
@@ -500,7 +608,13 @@ class Pump:
         if not self._clients:
             self.shutdown()
             return
-        self._retarget()
+        try:
+            self._retarget()
+        except Exception as exc:    # noqa: BLE001 - a client leaving must not
+            # take the others' audio out with it, and it must not raise inside
+            # somebody else's close().
+            self._fault = str(exc)
+            self.shutdown()
 
     def pause(self, owner):
         client = self._find(owner)
@@ -560,6 +674,13 @@ class Pump:
             self._release_retired()
             self._retired = old_root
             return
+        if self._spawned:
+            # A pump that stopped by itself still holds its task and its I2S
+            # channel, and spawn() refuses it with "a pump is already spawned".
+            # Between the laps of a looping sample that window is wide open,
+            # and a second client arriving in it hit exactly that.
+            mod.shutdown()
+            self._spawned = False
         self._release_retired()
         self._retired = old_root
         for i in range(len(self._status)):

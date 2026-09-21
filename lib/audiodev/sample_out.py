@@ -295,7 +295,8 @@ class AudioOut:
                 if wire is not None:
                     return pump_mod.SinkDriver(
                         wire, inner.format,
-                        power=getattr(inner, "audio_power", None))
+                        power=getattr(inner, "audio_power", None),
+                        volume=self.transport.volume)
                 inner = getattr(inner, "_inner", None)
                 if inner is None:
                     break

@@ -75,7 +75,7 @@ class I2SPCMOutput(PCMOutput):
     room. ``PaceOutput`` keeps the remainder.
     """
 
-    def __init__(self, i2s, format, **kwargs):
+    def __init__(self, i2s, format, *, wire=None, audio_power=None, **kwargs):
         super().__init__(format, **kwargs)
         self._i2s_factory = i2s
         self._i2s = None
@@ -83,6 +83,16 @@ class I2SPCMOutput(PCMOutput):
         self._poll = None
         self._clock_start_ms = None
         self._written_bytes = 0
+        # Published, not used here. A consumer that means to drive the
+        # peripheral itself -- the audio pump does, in C, on its own task --
+        # needs the port and pin numbers and a way to power the codec WITHOUT
+        # a stream being opened, because two owners of one I2S channel is the
+        # failure that sounds like silence. `audiodev.pump` reads both off
+        # this object rather than importing board_peripherals, which it must
+        # not: audiodev sits under the board, not beside it. A board that
+        # passes neither simply keeps the old path.
+        self.wire = wire
+        self.audio_power = audio_power
 
     @property
     def i2s(self):
@@ -206,7 +216,12 @@ class I2SPCMInput(PCMInput):
 
 
 def pcm_out(i2s, format, **kwargs):
-    """Build an :class:`I2SPCMOutput` around *i2s* (instance or factory)."""
+    """Build an :class:`I2SPCMOutput` around *i2s* (instance or factory).
+
+    ``wire=`` (the board's :class:`~audiodev.I2SWire`) and ``audio_power=``
+    (its power role) are what let the audio pump take the peripheral over on
+    esp32. Leave them out and the board plays the old way.
+    """
     return I2SPCMOutput(i2s, format, **kwargs)
 
 
