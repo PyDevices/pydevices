@@ -173,6 +173,25 @@ def threaded():
     return bool(mod.threaded())
 
 
+def backpressure():
+    """True where a full output ring makes the pump wait instead of dropping.
+
+    The one question a desktop driver has to ask before it decides whether to
+    park the pump between ticks. With back-pressure the ring *is* the pace --
+    exactly as an I2S write is the pace on a board -- so parking is pure cost
+    and the pump is left to run. Without it a free-running pump fills the ring
+    in milliseconds and loses whole blocks, which is not a glitch you can hear
+    past on a recording; it is a hole in the bytes.
+
+    A build too old to answer does **not** have it: every build that had the
+    pump before this question existed dropped.
+    """
+    mod = module()
+    if mod is None or not hasattr(mod, "backpressure"):
+        return False
+    return bool(mod.backpressure())
+
+
 def now():
     """Frames the pump has pulled since it started, or 0 without one.
 
@@ -194,6 +213,32 @@ def events(capacity=96):
     app that asked for it.
     """
     return owner().events(capacity)
+
+
+def ring_bytes(frame_size, chunk_bytes=0, max_block=0):
+    """How deep the desktop output ring is, for *frame_size*-byte frames.
+
+    One rule in one place, because three things have to agree on it: the ring
+    :class:`RingDriver` allocates, how far ahead of the interpreter a
+    free-running pump therefore gets, and how deep anything **feeding** that
+    pump has to be -- a :class:`Prefetch`, above all, which the pump would
+    otherwise empty between two ticks.
+
+    **This number is the latency of a live event**, and that is why it is two
+    drain windows and not eight. A pump the ring paces keeps the ring full, so
+    a note pressed now is heard after everything already in it has been handed
+    out. Eight chunks is 160 ms at a 20 ms tick, which is a delay you can play
+    against a metronome and hear. Two chunks plus a block is 26 ms at a 10 ms
+    tick, which is what the parked pump used to give -- the same latency, with
+    the pump off the interpreter's timeline instead of on it.
+
+    The floor is two blocks of the graph, because a graph's block is whatever
+    its tail offers -- an ``audiocore.RawSample`` offers its entire buffer, so
+    a half-second tone is a 96 kB block -- and a ring that cannot hold one is
+    the one case back-pressure cannot rescue: it drops, and counts it.
+    """
+    return max(2 * int(chunk_bytes or 0) + int(max_block or 0),
+               2 * int(max_block or 0), 64 * int(frame_size))
 
 
 def block_size(sample):
@@ -376,63 +421,83 @@ class _Driver:
 class RingDriver(_Driver):
     """Desktop: the pump fills a RAM ring, the interpreter drains it.
 
-    Nothing on a desktop paces the pump -- there is no DMA to block on -- so a
-    free-running pump fills the ring in a few milliseconds and the C ring then
-    *drops* whole blocks (``STATUS_RING_OVF``) rather than overwriting what has
-    not been taken. A dropped block is not a glitch you can hear past on a WAV
-    recording; it is a hole in the bytes.
+    **The ring is the pace.** There is no DMA on a desktop to block the pump,
+    so the ring does it: when it has no room for another block the pump thread
+    *sleeps*, and this driver's next drain wakes it. Nothing is dropped,
+    ``STATUS_RING_OVF`` is 0 by construction, and the pump runs freely between
+    ticks -- which is where the DSP finally leaves the app's timeline.
 
-    So this driver unparks the pump only *inside* :meth:`produce` and parks it
-    again before returning. The window is one drain, the ring only has to
-    absorb what the pump makes while the interpreter is copying bytes out of
-    it, and the stream is exact -- ``STATUS_RING_OVF`` stays at 0, which is the
-    number that says so.
+    It did not always. Until back-pressure landed the C ring dropped whole
+    blocks rather than overwriting what had not been taken, so this driver had
+    to unpark the pump only *inside* produce() and park it again before
+    returning. That kept the bytes exact and cost the whole point of a thread:
+    a parked pump is a pump the interpreter waits for, and 96 % of the pump
+    path's time was inside produce(), waiting. Letting it free-run instead was
+    tried, with a policy that stopped the moment the ring reported a drop --
+    an app doing 3.5 ms of its own work per tick went from 1811 ms to 1028 ms,
+    **1.8x** -- and the audio lost 71 to 5657 blocks every time. That policy
+    cannot work: by the time the counter says a block was dropped, the block is
+    gone. Making the ring *wait* is the same win with no byte at risk.
 
-    **What that costs, and what it would be worth not to.** A parked pump is a
-    pump the interpreter *waits* for, so on the desktop the DSP is back on the
-    app's timeline however many threads it runs on: 5 s of a synth through two
-    effects cost an idle app 817 ms on the old path and 866 ms on this one, and
-    96 % of the pump path's time is inside produce(), waiting. Letting the pump
-    run between ticks instead was tried, with a policy that stopped the moment
-    the ring reported a drop. An app doing 3.5 ms of its own work per tick went
-    from 1811 ms to 1028 ms -- **1.8x**, the DSP genuinely overlapping the
-    drawing -- and the audio lost 71 to 5657 blocks and diverged 160 ms in,
-    every time. The policy cannot work: by the time ``STATUS_RING_OVF`` says a
-    block was dropped, the block is gone.
-
-    The one change that wins it properly is in C, and it is small:
-    ``audiopump.c``'s **output ring drops on overflow rather than making the
-    pump wait**. A ring that blocked the pump would pace it exactly as an I2S
-    write paces it on a board, no park would be needed, and the desktop would
-    get the 1.8x with no byte at risk. That ring is the board agent's file and
-    its 64-bit cross-thread counters are already owed a fix; this belongs in
-    the same pass.
+    The park path is still here, and it is not dead code: it is what a build
+    whose driver has no wait hook gets, and :func:`backpressure` is the
+    question that chooses between them. **Latency is the ring**: with
+    back-pressure the pump keeps it full, so what is between a live event and
+    the speaker is the ring's own depth plus whatever the host transport holds.
+    :meth:`ahead_ms` says what this one's is.
     """
 
     def __init__(self, frame_size, *, chunk_bytes=0, max_block=0):
         # The floor is one block of the graph, and a graph's block is whatever
         # its tail offers: an audiocore.RawSample hands back its ENTIRE buffer
         # in one call, so a half-second tone is a 96 kB "block". A ring shorter
-        # than that can never hold one, and the C ring DROPS what it cannot
-        # hold -- silent, total loss of that block, not a glitch you can hear
-        # past. Four blocks, or four drains, whichever is larger.
-        want = max(4 * int(max_block or 0), 8 * int(chunk_bytes or 0),
-                   64 * int(frame_size))
-        self._ring = bytearray(want)
+        # than that can never hold one -- and a ring that can never hold one
+        # cannot be waited on, so the C side drops it and counts it, which is
+        # the one case where STATUS_RING_OVF still moves. Four blocks, or four
+        # drains, whichever is larger.
+        self._ring = bytearray(ring_bytes(frame_size, chunk_bytes, max_block))
+        self._frame_size = int(frame_size) or 1
         self._parked = False
         self._status = None
+        # Decided once, at spawn: the pump either paces itself or has to be
+        # parked, and it cannot change under a running graph.
+        self._paced_by_ring = False
+
+    def ahead_ms(self, rate=48000):
+        """How much audio the ring holds when full, in milliseconds.
+
+        The bound on a live event's latency through this driver, and the one
+        number to state rather than discover: with back-pressure the pump keeps
+        the ring full, so a note pressed now is heard after what is already in
+        it has been handed out.
+        """
+        frames = len(self._ring) // self._frame_size
+        return frames * 1000.0 / float(rate or 48000)
 
     def spawn(self, sample, status, loop=False):
         mod = module()
         self._status = status
+        self._paced_by_ring = backpressure()
         mod.spawn(sample, _BLOCKS_FOREVER, status, ring=self._ring,
                   loop=loop, timeout_ms=200)
-        # Park immediately: from here on the pump runs only inside produce().
-        # park() returns True once the thread is at a block boundary, so this
-        # is also the handshake that says it STARTED -- spawn() returns before
-        # the thread has run a line, and a produce() that arrives first reads
-        # running() as False and concludes the pump is dead. That was one
-        # silent round in a hundred play-stop cycles.
+        if self._paced_by_ring:
+            # Nothing to park. The pump runs until the ring is full and then
+            # sleeps in the C loop, so it is already doing the only thing this
+            # driver ever wanted it to do. spawn() sets the engine's "a pump is
+            # live" flag on THIS thread before it returns, so running() is
+            # already True and the first produce() cannot mistake a pump that
+            # has not finished its first block for a dead one.
+            self._parked = False
+            if not mod.running():
+                mod.shutdown()
+                raise RuntimeError("the pump would not start")
+            return
+        # No back-pressure on this build: the pump would free-run and drop, so
+        # it runs only inside produce(). park() returns True once the thread is
+        # at a block boundary, which is also the handshake that says it
+        # STARTED -- a produce() that arrived first used to read running() as
+        # False and conclude the pump was dead, one silent round in a hundred
+        # play-stop cycles.
         if not mod.park(200000):
             mod.shutdown()
             raise RuntimeError("the pump would not start")
@@ -447,10 +512,26 @@ class RingDriver(_Driver):
 
         return struct.unpack_from("<Q", status, 10 * 8)[0]
 
+    def waited(self):
+        """(times, microseconds) the pump waited for this driver to drain.
+
+        Zero on a build with no back-pressure, and zero on one whose consumer
+        is always slower than the ring is deep. It is the number that says the
+        ring really is the pace: a pump that never waits is a pump nothing is
+        holding back, and on a desktop that means it was dropping.
+        """
+        status = self._status
+        if status is None or len(status) < 34 * 8:
+            return (0, 0)
+        import struct
+
+        return struct.unpack_from("<QQ", status, 32 * 8)
+
     def produce(self, into):
         mod = module()
-        mod.unpark()
-        self._parked = False
+        if not self._paced_by_ring:
+            mod.unpark()
+            self._parked = False
         view = memoryview(into)
         at = 0
         idle = 0
@@ -480,7 +561,15 @@ class RingDriver(_Driver):
         return at
 
     def rest(self):
-        """Stop the pump running ahead until the next produce()."""
+        """Stop the pump running ahead until the next produce().
+
+        A no-op where the ring is the pace: running ahead is exactly what the
+        pump is supposed to do there, and it stops on its own when the ring is
+        full. Parking it here would put the DSP back on the app's timeline,
+        which is the cost this whole change exists to remove.
+        """
+        if self._paced_by_ring:
+            return
         mod = module()
         if not self._parked and mod.running():
             mod.park(200000)

@@ -249,9 +249,26 @@ class AudioOut:
                 # get_buffer and the pump thread has no interpreter to do
                 # that on. It becomes a producer into a ring instead, and
                 # the ring is what the pump pulls.
+                # How deep it has to be is not a taste. A pump the OUTPUT ring
+                # paces runs on between this player's ticks, and every byte it
+                # pulls comes out of THIS ring -- so it can be a whole output
+                # ring ahead before it sleeps. A prefetcher shallower than that
+                # is emptied between two ticks, and the push ring's underrun
+                # rule then pastes a block of SILENCE into the middle of the
+                # file and keeps the real frames for later. It did exactly
+                # that: a 1 s WAV diverged at byte 30720, which was this ring's
+                # own length to the byte. Prefetch doubles min_bytes into its
+                # capacity, so asking for the output ring's length gives twice
+                # it -- room for the run-ahead and for the drain that frees it.
+                ahead = self._chunk_bytes() * 4
+                if (not _pump_mod.on_board() and _pump_mod.threaded()
+                        and _pump_mod.backpressure()):
+                    frame = (sample.channel_count
+                             * sample.bits_per_sample // 8) or 1
+                    ahead = max(ahead, _pump_mod.ring_bytes(
+                        frame, self._chunk_bytes(), 256 * frame))
                 self._prefetch = _pump_mod.Prefetch(
-                    sample, loop=self._loop,
-                    min_bytes=self._chunk_bytes() * 4)
+                    sample, loop=self._loop, min_bytes=ahead)
                 self._prefetch.service()
                 tail = self._prefetch.ring
             driver = self._driver_for(_pump_mod, tail)

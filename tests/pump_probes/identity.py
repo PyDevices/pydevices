@@ -9,7 +9,8 @@
 #   <interpreter> tests/pump_probes/identity.py [case] [--fault WHICH]
 #
 # Cases: raw, chain, synth, wav (all by default).
-# Faults: drop (the pump loses a block), flip (one byte of the pump's output),
+# Faults: drop (the output ring cannot hold a block, so one is lost),
+#         flip (one byte of the pump's output),
 #         short (the comparison is handed nothing and must not say "same").
 #
 # The sitting that wrote it: live-audio-path-audiodev.md in the anchor.
@@ -137,30 +138,52 @@ def render(case, path, on_pump, fault=None, budget=None):
     sample = GRAPHS[case](state)
     transport = emulated_audio.WavPCMOutput(path, FMT)
     out = AudioOut(transport, chunk_ms=20, pump=on_pump)
+    restore = None
     if fault == "drop" and on_pump:
-        # Plant the fault the desktop driver exists to prevent: let the pump
-        # free-run between ticks so its ring overruns and whole blocks are
-        # dropped. Nothing else changes.
-        out._planted = True
-        engine = None
-    out.play(sample)
-    if fault == "drop" and on_pump and out._engine is not None:
-        out._engine._driver.rest = lambda: None   # never park it again
-        import audiopump
+        # Plant the fault this whole path exists to prevent: a block of audio
+        # thrown away on the way out.
+        #
+        # It used to be planted by unparking the pump and letting it free-run
+        # between ticks -- and it CANNOT be planted that way any more, because
+        # a free-running pump is now what a healthy one does: the output ring
+        # blocks it instead of dropping. That plant went green, which is the
+        # right answer to the wrong question and is why this comment is long.
+        #
+        # What still drops is a ring that cannot hold one block of the graph.
+        # No wait can fix that one -- the room it is waiting for can never
+        # arrive -- so the engine drops it and counts it, and it is the only
+        # remaining door to STATUS_RING_OVF. Shrink the OUTPUT ring and nothing
+        # else: the prefetcher that feeds the pump keeps its own size, so what
+        # this measures is still the ring on the way out.
+        cls = pump_mod.RingDriver
+        original = cls.__init__
 
-        audiopump.unpark()
+        def tiny(self, frame_size, **kw):
+            original(self, frame_size, **kw)
+            self._ring = bytearray(256)
+
+        cls.__init__ = tiny
+        restore = (cls, original)
+    try:
+        out.play(sample)
+    finally:
+        if restore is not None:
+            restore[0].__init__ = restore[1]
     ovf = 0
     t0 = time.time()
-    deadline = t0 + 20.0
+    # A planted famine renders nothing at all, so do not sit out the full
+    # twenty seconds three times over waiting for bytes that cannot come.
+    deadline = t0 + (3.0 if fault == "drop" and on_pump else 20.0)
     wrote = 0
     while time.time() < deadline:
         out.service()
-        if fault == "drop" and on_pump:
-            time.sleep(0.02)          # let the unparked pump outrun the ring
         if out._engine is not None:
             import struct
 
-            words = struct.unpack("<%dQ" % 32, out._engine.status())
+            import audiopump
+
+            words = struct.unpack("<%dQ" % audiopump.STATUS_WORDS,
+                                  out._engine.status())
             ovf = words[10]
         if budget is not None and os.stat(path)[6] - 44 >= budget:
             break
@@ -196,7 +219,15 @@ def compare(name, old, new, ovf):
              "SAME" if same else "DIFFER"))
     if not same:
         if len(old) == 0 or len(new) == 0:
-            print("       nothing was rendered: the comparison is vacuous")
+            if ovf:
+                # Not "vacuous" -- this is the whole stream gone. A ring that
+                # cannot hold one block of the graph is the one case the pump
+                # cannot wait its way out of, so it drops every block and says
+                # how many.
+                print("       %d blocks DROPPED: the output ring could not "
+                      "hold one block of this graph" % ovf)
+            else:
+                print("       nothing was rendered: the comparison is vacuous")
         elif where >= 0:
             print("       first difference at byte %d (frame %d, %.3f s)"
                   % (where, where // 4, where / (RATE * 4.0)))
