@@ -150,6 +150,53 @@ volume/mute, `codec`. `AudioOut.transport` still exposes the same object, but
 reaching through it means constructing an `AudioOut` (and therefore requiring
 audioif) for a path that never plays a sample.
 
+## The audio pump
+
+**Nothing changes for you.** `audio_out(...)` still hands back an `AudioOut`,
+`play(sample)` still plays it, `pcm_out(...)` still hands back a `PCMOutput`
+you `write()` to. The code you already have runs unchanged.
+
+What changes is where the pulling happens. On a firmware built with the
+`audiopump` module, `AudioOut` hands your graph to a C thread the interpreter
+is not on — a pinned FreeRTOS task on esp32, a `pthread` on a desktop — which
+pulls every block and writes it straight into I2S. Nothing asks for it and no
+board config opts in; where the module is absent, every byte is the one the
+old path produced.
+
+What it buys is that your app keeps running while the sound keeps its clock.
+On the Waveshare ESP32-P4 panel, an LVGL pedalboard with a riff through two
+effects ran ten minutes with 11 828 slider moves and 29 patch changes at a
+12 × 128 ring and lost **no audio at all**, with the REPL alive beside it.
+
+Three things to know before you rely on that on an ESP32:
+
+- **Nothing writes to flash while the pump plays.** A flash erase suspends the
+  pump's core until it finishes — no priority and no IRAM placement reaches
+  it. Measured for a 512-byte write: **27–37 ms of stopped audio on the P4,
+  43–48 ms on the LilyGO T-Embed S3**, against a 5.3 ms block. So no log line,
+  no saved preset and no `mip install` while something is playing. **A read
+  costs nothing** (5.9 ms worst on the S3, zero starved bytes), and a first
+  `import` is a read.
+- **A screen costs you ring depth, and the number is per board.** On the P4,
+  lighting a 720 × 720 panel is a standing PSRAM-bandwidth cost of about
+  eleven points of a block before a finger touches it, and a GUI app wants
+  **12 × 128** (32 ms). On the T-Embed's SPI panel a lit screen costs nothing
+  measurable and **4 × 128** (10.7 ms) is the knee — depth buys nothing after
+  it. Drawing *often* is dearer than drawing *big* on both.
+- **Two players share one I2S.** The first client is pulled with nothing in
+  the way; a second gets a root `audiomixer.Mixer` built for it, a voice each
+  at level 1.0. The mixer **sums**, so two loud clients clip — the same
+  arithmetic two CircuitPython `AudioOut`s into one DAC would do.
+
+A `WaveFile` or an `MP3Decoder` cannot be pulled from that thread at all,
+because its `get_buffer` reads the filesystem; `AudioOut.play()` puts a
+prefetcher in front of it and the pump pulls a ring instead. And a fault is a
+sentence on stdout and playback on the old path, never a traceback from
+nowhere.
+
+The mechanism, the driver per port, what a fault says and what is still
+unproven: [`lib/audiodev/README.md`](../lib/audiodev/README.md#pumppy--the-audio-pump).
+
 ## Capture and tones
 
 `pcm_in` returns a `PCMInput` (`readinto`/`areadinto`); tone/buzzer roles
