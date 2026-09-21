@@ -54,13 +54,23 @@ RUNS = (
 
 #: Faults that need the pump on a thread of its own.
 #:
-#: `drop` used to be one. It planted a free-running pump, which only drops on
-#: a build that HAS a second thread -- so on a driverless one the plant quietly
-#: passed and had to be left out. It does not plant that any more, because a
-#: free-running pump is now the healthy shape: the output ring blocks it. It
-#: shrinks the output ring below one block of the graph instead, which is the
-#: one loss no wait can prevent, and that lands on both builds.
-THREADED_ONLY = ()
+#: `drop` plants a ring too short to hold one block of the graph, which is the
+#: one loss no wait can prevent: the room the engine is waiting for can never
+#: arrive, so it drops the block and counts it. That is the last remaining
+#: door to ``STATUS_RING_OVF`` and it is a door only a THREADED build has.
+#:
+#: Driverless, `AudioOut` builds a `ServiceDriver`, and two things there
+#: defeat the plant. The loop asks whether the ring has room BEFORE it pulls,
+#: so a short ring makes it do less work rather than throw anything away --
+#: there is no drop to plant. And `ServiceDriver.__init__` sizes its
+#: look-ahead from `ahead_ms` AFTER calling `RingDriver.__init__`, so it grows
+#: the planted 256 bytes straight back to 10 kB. Measured on
+#: `build-land3nodrv`: ovf 0, all three digests SAME, plant green.
+#:
+#: Left in rather than made to land, because making it land would prove the
+#: wrong thing: what would fail there is "no audio came out", not "a block was
+#: thrown away". The banner below says it was not run and counts it.
+THREADED_ONLY = ("drop",)
 
 #: What the probes could not be run against, filled in by the finder so the
 #: banner can say it once rather than once per test.
@@ -191,7 +201,8 @@ class ThePumpProbesRunOnARealInterpreter(unittest.TestCase):
                 for fault in faults:
                     if fault in THREADED_ONLY and not threaded:
                         why = ("the %s plant on %s needs the pump on its own "
-                               "thread; this build has no platform driver"
+                               "thread; driverless, the service loop checks "
+                               "for room before it pulls and so never drops"
                                % (fault, name))
                         if why not in _MISSED:
                             _MISSED.append(why)
