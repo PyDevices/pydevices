@@ -63,6 +63,7 @@ EXPECTED = {
             "audio_out",
             "pcm_out",
             "pcm_in",
+            "audio_power",
             "sdcard",
             "battery",
             "i2c",
