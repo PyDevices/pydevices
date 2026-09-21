@@ -246,6 +246,12 @@ and it is said out loud rather than quietly halved. `stop()` on one rebuilds
 the root without it and leaves the other sounding; the last one out shuts the
 pump down.
 
+`loop` belongs to the client, and it travels **with** every swap of the tail.
+One client is the tail, so its `loop` is the pump's; a Mixer never says DONE,
+so a mixer tail never wants one and each voice carries its own instead. For as
+long as that flag was hardcoded, a looping player stopped at the end of its
+first lap the moment anything else started sounding.
+
 `pump.attach_stream(fmt)` registers a raw PCM stream beside whatever is
 already sounding. **On a desktop host a pushed stream does not go through the
 pump at all**, and that is the answer rather than an omission: the transport
@@ -284,22 +290,40 @@ the same fallback. Nothing an app did not ask for can raise at it.
 | `ServiceDriver` | WebAssembly, which has no threads | `audiopump.service()` runs the same C loop on the interpreter thread into the same ring. The ring is look-ahead rather than slack: a tick of T ms needs a ring longer than T. |
 | `BusioDriver` | esp32 | The graph goes to **`audiobusio.I2SOut`** — CircuitPython's own class, with the pump under it — built from the board's `I2SWire`. It owns the channel, converts what is not signed 16-bit, retunes the bus to the sample's rate and sizes the DMA descriptor in time. `audiodev` writes no PCM and never opens `machine.I2S`. |
 
-**The desktop pump costs the interpreter more, not less.** Ten seconds of a
-synth through an Overdrive and a TapeDelay, timed inside `service()`: 864 ms
-on the old path against 1017 ms on the pump, and 96 % of that is spent
-waiting. The reason is that the engine's output ring drops on overflow rather
-than making the pump wait, and nothing on a desktop paces it — so the driver
-has to park it between ticks, and a parked pump is a pump the interpreter
-waits for. Letting it free-run was tried: an app doing 3.5 ms of work per tick
-went from 1811 ms to 1028 ms, **and lost 71 to 5657 blocks every time**. The
-fix is to make that ring block the pump, as a DMA write does on a board, and
-it is not written. On esp32 none of this applies: the pump writes into the
-DMA and `service()` does nothing at all.
+**The output ring makes the pump wait, so the desktop pump gives the
+interpreter its time back.** A full ring is back-pressure now, as a DMA write
+is on a board, and the driver has stopped parking the pump between ticks — a
+parked pump is a pump the interpreter waits for. Ten seconds of a synth
+through an Overdrive and a TapeDelay on the **desktop unix build**, timed
+inside `service()`, with an app doing 3.5 ms of work a tick: **52 ms against
+862 ms on the old path**, where the parked pump cost 923. With no app work at
+all the two are level — 758 ms against 713 — which is the honest shape of it:
+the pump buys you the time your app was spending, and buys nothing if your app
+spends none.
+
+It does not pay for that in audio. A WAV plays back **byte-identically 10
+times out of 10 with all eight cores of this box in a busy loop**, overflow
+count 0 by construction; with the drop planted back, 0 of 10. And a parked
+pump used to spin **94 % of one core** for as long as it was parked, where it
+now sleeps at 1 %.
+
+`audiopump.backpressure()` is the question the driver asks, and it is True in
+two ways: a threaded port whose driver can wait and be woken, and service
+mode, where the loop hands the thread back on a full ring. On esp32 none of
+this applies — the pump writes into the DMA and `service()` does nothing at
+all.
+
+One thing that follows and is easy to get wrong: **the prefetcher feeding the
+pump has to be deeper than the output ring.** A pump that is no longer parked
+empties a shallow prefetcher between two ticks, and the push ring's underrun
+rule pastes silence into the middle of the file — a 1 s WAV diverged at byte
+30720, which is the prefetcher's own length.
 
 **A live press lands later on the desktop pump path**, because the pump has
-already rendered ahead — 5120 bytes, 26.7 ms at a 10 ms chunk, jittering
-between about 2 and 10 blocks. On a board that lead is the DMA ring, which is
-0.85–3.5 ms on the P4.
+already rendered ahead. That lead is now the ring depth and nothing else:
+**32.0 ms, as a ceiling**, where the parked pump averaged 26.7 ms and spread
+as far as 69. A ceiling you can name beats a mean you cannot. On a board the
+lead is the DMA ring, which is 0.85–3.5 ms on the Waveshare ESP32-P4.
 
 ### On an ESP32, three rules
 
@@ -325,16 +349,42 @@ between about 2 and 10 blocks. On a board that lead is the DMA ring, which is
 - **Two owners of one peripheral is the failure that sounds like silence.**
   Anything that opens `machine.I2S` for itself collides with the pump. That is
   what `pump.attach_stream()` and the root mixer are for.
+- **A scheduled tick cannot land in the middle of a rearrangement.** On this
+  port a service tick arrives through `micropython.schedule`, between the
+  interpreter's own bytecodes — so it can land *inside* `stop()`, find a
+  player that reads like a healthy old-path player, and open `machine.I2S` on
+  the port the pump has just let go of. That is the drum machine's kit change
+  falling off the audio clock with "Peripheral in use". Both halves of the
+  race were seen, which is what makes it a race: the tick winning leaves the
+  pump refused, and the pump winning leaves the tick's own `open()` throwing
+  `ESP_ERR_NOT_FOUND` out of the app's dispatch, once per tick, for ever. Two
+  guards hold it — a per-player `_pumping` flag across `play()` and `stop()`,
+  and a pump-level latch around the global rearrangement — and a service tick
+  was injected at **every one of the 427 lines of a `play()`**, and at every
+  line of `stop`, `close`, `pause` and `attach_stream`, to prove it. If you
+  add a method that rearranges the graph, it goes inside those guards.
 
 ### The esp32 path is `audiobusio.I2SOut`
 
 **There is one way this firmware plays a sample**, and on a board `audiodev`
-joins it rather than going round it. `BusioDriver` builds an
-`audiobusio.I2SOut(bit_clock, word_select, data, main_clock=..., port=...,
-main_clock_fs=...)` from the board's `I2SWire` and calls `play`, `retarget`,
-`stop`, `pause` and `resume` on it. What stays in `audiodev` is the policy
-nothing below the line knows about: the codec rails and volume, two clients
-through a root mixer, a file through `Prefetch`, and the fault sentence.
+joins it rather than going round it. The whole path is four names:
+
+```
+AudioOut → Pump → BusioDriver → audiobusio.I2SOut
+```
+
+`BusioDriver` builds an `audiobusio.I2SOut(bit_clock, word_select, data,
+main_clock=..., port=..., main_clock_fs=...)` from the board's `I2SWire` and
+calls `play`, `retarget`, `stop`, `pause` and `resume` on it. No channel
+opened, no DMA size named, no `machine.I2S`. What stays in `audiodev` is the
+policy nothing below the line knows about: the codec rails and volume, two
+clients through a root mixer, a file through `Prefetch`, and the fault
+sentence.
+
+**That path has run on the desktop build only.** Every ESP32 claim in this
+section is a desktop run, a link map, or the sink path it replaced. Its C does
+compile and link for an ESP32-P4 and an ESP32-S3, and two images are staged
+and unflashed.
 
 That closes a defect by deletion. `audiodev` used to open the channel itself
 with `dma_frame=128` **fixed at every rate** — 16 ms of descriptor at 8 kHz
@@ -351,15 +401,17 @@ are ours too, and they are what a policy layer needs that a program calling
 `audiobusio` directly does not: a tail swapped **without a gap** when a client
 arrives or leaves, and the two words that say why the pump stopped.
 
-### What a board proved, before the move
+### What a board proved, on the path this replaced
 
-`SinkDriver`, which this replaced, has run: an ESP32-P4 played through it on 2026-09-21, and the
-checklist that used to live here is answered in
-`docs/spikes/live-audio-path-notes.md` (the "`audiodev` on silicon" table) in
-the workspace anchor. `play()` in 8 ms with every `i2s` in the stack `None`;
-the codec at the volume asked for, read back off the ES8311 over I2C; 100 of
-100 stop/play cycles with no client left behind; and `service()` at 95 µs
-mean against the old path's 234 µs.
+The **previous** backend — `SinkDriver`, which opened the channel itself —
+has been on silicon. On the **Waveshare ESP32-P4 panel**, 2026-09-21:
+`play()` in 8 ms with every `i2s` in the stack `None`; the codec at the volume
+asked for, read back off the ES8311 over I2C; **100 of 100** stop/play cycles
+with no client left behind; and `service()` at **95 µs mean against the old
+pull-on-the-interpreter path's 234 µs**.
+
+Those numbers are the reason to believe the shape, not the code above them.
+`BusioDriver` is what a board runs now, and nothing has run it on a board.
 
 Three things it found, all fixed here. `set_volume()` and `mute()` were
 guarded on `is_open` — and on this path nothing ever opens the transport,

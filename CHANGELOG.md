@@ -1,3 +1,93 @@
+## Unreleased
+
+`audiodev` plays through the audio pump, and on a board it goes through
+`audiobusio.I2SOut`.
+
+**Nothing changes for you.** `audio_out(...)` still hands back an `AudioOut`,
+`play(sample)` still plays it, `pcm_out(...)` still hands back a `PCMOutput`
+you `write()` to. On a firmware without the pump every byte is the one the
+old path produced.
+
+- **`AudioOut` hands the graph to the pump where the firmware carries one.**
+  A C thread the interpreter is not on pulls every block — a pinned FreeRTOS
+  task on esp32, a `pthread` on a desktop — so your tick stops being what
+  keeps the sound alive. Nothing asks for it and no board config opts in. A
+  RawSample, a RawSample through an Overdrive, a Synthesizer and a WaveFile
+  give the same digest on the old path, on the pump, and on a build with no
+  `audiopump` at all: `e0c42e66584d6178`, `26e5bd8c0e8fc086`,
+  `50ed7cc0ffce8279`, `aac53cd39e17dbdd`.
+- **`lib/audiodev/pump.py` is new** — one module-level `Pump` reached through
+  `pump.owner()`, three drivers (`BusioDriver` on esp32, `RingDriver` on unix,
+  `ServiceDriver` where there are no threads), `Prefetch` for file-backed
+  samples, and `attach_stream()` for raw PCM beside whatever is sounding. One
+  client is the pump's tail directly; a second gets a root `audiomixer.Mixer`,
+  a voice each at level 1.0, and a retarget. The mixer **sums**, so two loud
+  clients clip. `loop` belongs to the client and travels with every swap.
+- **On a board there is one way this firmware plays a sample:**
+  `AudioOut → Pump → BusioDriver → audiobusio.I2SOut`. `audiodev`'s ESP32
+  backend opens no channel, names no DMA size and never touches
+  `machine.I2S`. That closes a defect by deletion: it used to open with
+  `dma_frame=128` **fixed at every rate**, 16 ms of descriptor at 8 kHz
+  against 2.7 ms at 48 kHz, and `I2SOut` sizes it `rate / 200`. What stays
+  here is the policy — codec rails and volume, the root mixer, `Prefetch`,
+  and the fault sentence.
+- **A scheduled tick cannot land in the middle of a rearrangement.** On esp32
+  a service tick arrives through `micropython.schedule`, between the
+  interpreter's own bytecodes; landing one inside `stop()` finds a player
+  that reads like a healthy old-path player and opens `machine.I2S` on the
+  port the pump has just released — the drum machine's kit change falling off
+  the audio clock with "Peripheral in use". Two guards, both live: a
+  per-player `_pumping` flag across `play()` and `stop()`, and a pump-level
+  latch around the global rearrangement. Proved by injecting a service tick at
+  **every one of the 427 lines of a `play()`**, and at every line of `stop`,
+  `close`, `pause` and `attach_stream`.
+- **The desktop pump gives the interpreter its time back.** The engine's
+  output ring makes the pump wait instead of dropping a block, so the driver
+  has stopped parking it. On the **desktop unix build**, with an app doing
+  3.5 ms of work a tick: **52 ms per 10 s on audio against 862 ms on the old
+  path**, where the parked pump cost 923. With no app work the two are level
+  (758 against 713). A live event lands **32.0 ms** later as a ceiling —
+  exactly the ring depth — where the parked pump averaged 26.7 ms and spread
+  to 69. A WAV plays back byte-identically 10 times out of 10 with all eight
+  cores busy, overflow 0 by construction; with the drop planted back, 0 of 10.
+  A parked pump used to spin 94 % of a core and now sleeps at 1 %.
+- **A fault is a sentence**, not a traceback: `audiodev: the audio pump would
+  not start — …`, and playback continues on the old path. A board whose
+  config predates `wire=` used to fall back to `machine.I2S` in silence, which
+  looks exactly like a working board; it says so once now.
+- **`board_peripherals.py` for the Waveshare ESP32-P4 publishes `wire=` and
+  `audio_power=`** on its PCM device, so the pump can bring the codec up
+  without opening a stream. On a firmware without the pump both are inert.
+  **It is the only board config that does**; every other I2S board keeps the
+  old path and says so once.
+- **Tests, where there were none.** `pump.py` had no test in this repository
+  at all — CI's only contact with it was a layering rule and a line in a
+  manifest. 35 now: 32 in `tests/test_pump.py` against stand-ins and 3 in
+  `tests/test_pump_interpreter.py` that drive a real MicroPython build, which
+  skip loudly where there is no interpreter (`PYDEVICES_REQUIRE_PUMP=1` turns
+  the skip into a failure). Sixteen planted faults, all caught.
+- **`.github/workflows/tests.yml` gains a `pump` job** that builds a unix
+  MicroPython with `PyDevices/audioif` as a user C module and runs the
+  interpreter tests against it. It needs audioif and nothing else: the
+  platform driver is a separate repository and is optional, and without one
+  the same loop runs on the interpreter's own thread.
+- `lib/audiodev/pump.py` was missing from the generated
+  `pydevices-desktop.toml`, which failed the unit suite and the whole
+  `validate-pyscript-filesystem-toml` workflow at once — a PyScript desktop
+  install fetched every `audiodev` module except the pump. Regenerated with
+  the org generator, not hand-edited.
+
+**What has not run on a board.** `audiodev` on `audiobusio` is a desktop
+build, a link map, and the sink path it replaced; two ESP32 images are staged
+and unflashed. `MP3Decoder` has never been through the pump. Nothing has
+measured what a retarget costs. `Pump._retarget()`'s live branch has no test
+of its own, and `AudioOut.play`'s latch and `Pump.play`'s `try`/`finally`
+survived their planted faults, so they are argued rather than proved.
+
+The **previous** ESP32 backend did run, on the Waveshare ESP32-P4 panel:
+`play()` in 8 ms, 100 of 100 stop/play cycles, and `service()` at 95 µs mean
+against the old path's 234 µs.
+
 ## v0.4.0 (2026-09-16)
 
 Breaking: the audio roles are renamed, and `audio_in` is removed.
