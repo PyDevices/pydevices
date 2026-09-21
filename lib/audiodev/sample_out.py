@@ -62,6 +62,50 @@ except ImportError:  # pragma: no cover - CPython fallback, no multimer
 #: than a global so the check costs no `global` statement on the play path.
 _WARNED = []
 
+#: `audiodev.pump`, imported once, lazily. Lazily because importing it from
+#: module scope re-enters `audiodev/__init__` while THIS module is halfway
+#: through being imported by it; once because the latch below is read on
+#: every service tick.
+_PUMP = []
+
+
+def _pump_module():
+    if not _PUMP:
+        try:
+            from audiodev import pump as mod
+        except ImportError:                  # pragma: no cover - not shipped
+            mod = None
+        _PUMP.append(mod)
+    return _PUMP[0]
+
+
+class _Rearranging:
+    """Hold the pump's "do not pull" latch across a whole method.
+
+    A service tick arrives between bytecodes (`micropython.schedule`), so it
+    lands wherever it lands. `AudioOut._pumping` stops it re-entering THIS
+    player; the latch stops it pulling while ANY player, or a pushed stream,
+    is rearranging who is sounding -- which is the case the P4 race was in
+    and which one player's own flag cannot see. See
+    `audiodev.pump.rearranging`.
+    """
+
+    __slots__ = ()
+
+    def __enter__(self):
+        mod = _pump_module()
+        if mod is not None:
+            mod._enter()
+
+    def __exit__(self, exc_type, exc, tb):
+        mod = _pump_module()
+        if mod is not None:
+            mod._leave()
+        return False
+
+
+_REARRANGING = _Rearranging()
+
 
 def _load_audiocore():
     try:
@@ -149,8 +193,13 @@ class AudioOut:
         return self
 
     def close(self):
-        self.stop()
-        self.transport.close()
+        # Under the latch as one action: between `stop()` and the transport's
+        # own close a tick would find a player with no sample, call
+        # `transport.service()` on a transport that is about to go, and on a
+        # board reopen the very peripheral this is giving back.
+        with _REARRANGING:
+            self.stop()
+            self.transport.close()
 
     deinit = close
 
@@ -204,26 +253,28 @@ class AudioOut:
         """Start playing ``sample``. Replaces whatever was already playing."""
         # `_pumping` is held across the whole rearrangement, and that is the
         # fix for the kit change. See stop() for what happens without it.
+        # The latch beside it is the same fix for every OTHER player's tick.
         self._pumping = True
-        try:
-            self._detach_pump()
-            self._check_format(sample)
-            self._audiocore.reset_buffer(sample)
-            self._sample = sample
-            self._loop = bool(loop)
-            self._paused = False
-            self._sched_start_ms = None
-            self._played_frames = 0
-            self._buf_len_scale = None  # recalibrate per sample source
-            # Before open(), on purpose. Where the pump drives I2S itself, the
-            # transport must never open machine.I2S on the same port: two
-            # owners of one peripheral is the failure that sounds like
-            # silence.
-            self._attach_pump(sample)
-            if not self._sinking:
-                self.open()
-        finally:
-            self._pumping = False
+        with _REARRANGING:
+            try:
+                self._detach_pump()
+                self._check_format(sample)
+                self._audiocore.reset_buffer(sample)
+                self._sample = sample
+                self._loop = bool(loop)
+                self._paused = False
+                self._sched_start_ms = None
+                self._played_frames = 0
+                self._buf_len_scale = None   # recalibrate per sample source
+                # Before open(), on purpose. Where the pump drives I2S itself,
+                # the transport must never open machine.I2S on the same port:
+                # two owners of one peripheral is the failure that sounds like
+                # silence.
+                self._attach_pump(sample)
+                if not self._sinking:
+                    self.open()
+            finally:
+                self._pumping = False
         self._pump()  # kick an immediate chunk: lowest note-to-sound latency,
         #                same reason AudioEngine.note_on() does this
 
@@ -256,6 +307,28 @@ class AudioOut:
                 # get_buffer and the pump thread has no interpreter to do
                 # that on. It becomes a producer into a ring instead, and
                 # the ring is what the pump pulls.
+                #
+                # `audiobusio.I2SOut` has a feeder of its own and it is a
+                # better one -- a static scheduler node, no allocation, a fill
+                # on every read of `playing`. `audiodev` uses this one anyway,
+                # on every backend, and the reason is not duplication:
+                #
+                #  * `I2SOut` only ever feeds the TAIL. The moment a second
+                #    client arrives the tail is a root `audiomixer.Mixer` and
+                #    the file is one voice of it, where nothing feeds it and
+                #    the pump faults on the first block -- "a file-backed
+                #    source cannot be pulled by the pump".
+                #  * `playing` here is the PLAYER's, not the output's. With
+                #    two clients the output is still playing when this file
+                #    ends, so `audiodev` has to know the byte at which its own
+                #    sample ran out, which is what `Prefetch.fed()` is.
+                #  * `loop=` on a file is the file's lap, not the tail's. The
+                #    prefetcher rewinds the file; looping the tail would loop
+                #    whatever the mixer is, which is not the same sound.
+                #
+                # A lone file with nothing else sounding could go straight to
+                # `I2SOut.play()` and be fed by it. It is not worth a second
+                # shape: a second client can arrive on the next line.
                 # How deep it has to be is not a taste. A pump the OUTPUT ring
                 # paces runs on between this player's ticks, and every byte it
                 # pulls comes out of THIS ring -- so it can be a whole output
@@ -333,14 +406,14 @@ class AudioOut:
     def _driver_for(self, pump_mod, tail):
         """The driver this transport wants, or None to stay on the old path."""
         if pump_mod.on_board():
-            # esp32: the pump owns the I2S peripheral outright. It needs the
-            # board's pin map, which travels on the transport because
-            # audiodev must not import board_peripherals.
+            # esp32: `audiobusio.I2SOut` owns the I2S peripheral outright. It
+            # needs the board's pin map, which travels on the transport
+            # because audiodev must not import board_peripherals.
             inner = self.transport
             for _ in range(4):
                 wire = getattr(inner, "wire", None)
                 if wire is not None:
-                    return pump_mod.SinkDriver(
+                    return pump_mod.BusioDriver(
                         wire, inner.format,
                         power=getattr(inner, "audio_power", None),
                         volume=self.transport.volume,
@@ -438,15 +511,20 @@ class AudioOut:
         # methods that REARRANGE the player -- this one and play() -- is the
         # whole fix. It costs one attribute write on each.
         self._pumping = True
-        try:
-            self._detach_pump()
-            self._sample = None
-            self._paused = False
-            self._sched_start_ms = None
-        finally:
-            self._pumping = False
+        with _REARRANGING:
+            try:
+                self._detach_pump()
+                self._sample = None
+                self._paused = False
+                self._sched_start_ms = None
+            finally:
+                self._pumping = False
 
     def pause(self):
+        with _REARRANGING:
+            self._pause()
+
+    def _pause(self):
         if self._sample is not None:
             self._paused = True
             if self._engine is not None:
@@ -456,6 +534,10 @@ class AudioOut:
                 self._engine.pause(self)
 
     def resume(self):
+        with _REARRANGING:
+            self._resume()
+
+    def _resume(self):
         if self._sample is not None and self._paused:
             self._paused = False
             self._sched_start_ms = None  # re-baseline the lookahead from now
@@ -478,6 +560,15 @@ class AudioOut:
 
     def _pump(self):
         if self._pumping:
+            return
+        mod = _pump_module()
+        if mod is not None and mod.rearranging():
+            # Somebody is rearranging who is sounding. Doing nothing is never
+            # a hole -- the buffer under this is hundreds of milliseconds deep
+            # and the next tick tops it up -- whereas pulling here is the race
+            # the P4 caught, with `machine.I2S` opened on the port the pump
+            # had just let go of.
+            mod._turned_away()
             return
         self._pumping = True
         try:
@@ -504,6 +595,26 @@ class AudioOut:
             self._pumping = False
 
     def _watch_sink(self):
+        prefetch = self._prefetch
+        if prefetch is not None:
+            # THE FILE IS READ HERE, on the thread that is allowed to read it,
+            # and until this line existed it was read nowhere at all on this
+            # path. `_next_block` services the prefetcher, and `_next_block`
+            # is only reached from `_pump_locked`, which a sinking player
+            # never enters -- so a WaveFile on a board went into a ring that
+            # was primed once at play() and never topped up again. The ring
+            # never ends either, so `playing` stayed True for ever after the
+            # first few blocks of silence. Nothing had run it: the esp32 half
+            # has never played a file on a board.
+            # `Prefetch` owns the loop for a file -- it rewinds inside its own
+            # service() -- so `finished()` only ever comes True on a
+            # non-looping one, and it means the last real frame has been
+            # handed to the pump.
+            prefetch.service()
+            if prefetch.finished():
+                self._detach_pump()
+                self._sample = None
+                return
         why = self._engine.died() if self._engine is not None else None
         if why is None:
             return

@@ -282,7 +282,7 @@ the same fallback. Nothing an app did not ask for can raise at it.
 |---|---|---|
 | `RingDriver` | unix, and any port whose driver has no `i2s_start` | The pump fills a RAM ring and `service()` drains it into the existing push transport. |
 | `ServiceDriver` | WebAssembly, which has no threads | `audiopump.service()` runs the same C loop on the interpreter thread into the same ring. The ring is look-ahead rather than slack: a tick of T ms needs a ring longer than T. |
-| `SinkDriver` | esp32 | The pump owns the I2S channel outright (`_audioif.i2s_start` from the board's `I2SWire`, never `machine.I2S`) and writes each block into the DMA on its own thread, with no Python in the path. |
+| `BusioDriver` | esp32 | The graph goes to **`audiobusio.I2SOut`** — CircuitPython's own class, with the pump under it — built from the board's `I2SWire`. It owns the channel, converts what is not signed 16-bit, retunes the bus to the sample's rate and sizes the DMA descriptor in time. `audiodev` writes no PCM and never opens `machine.I2S`. |
 
 **The desktop pump costs the interpreter more, not less.** Ten seconds of a
 synth through an Overdrive and a TapeDelay, timed inside `service()`: 864 ms
@@ -326,9 +326,34 @@ between about 2 and 10 blocks. On a board that lead is the DMA ring, which is
   Anything that opens `machine.I2S` for itself collides with the pump. That is
   what `pump.attach_stream()` and the root mixer are for.
 
-### The esp32 path, on a board
+### The esp32 path is `audiobusio.I2SOut`
 
-`SinkDriver` has run: an ESP32-P4 played through it on 2026-09-21, and the
+**There is one way this firmware plays a sample**, and on a board `audiodev`
+joins it rather than going round it. `BusioDriver` builds an
+`audiobusio.I2SOut(bit_clock, word_select, data, main_clock=..., port=...,
+main_clock_fs=...)` from the board's `I2SWire` and calls `play`, `retarget`,
+`stop`, `pause` and `resume` on it. What stays in `audiodev` is the policy
+nothing below the line knows about: the codec rails and volume, two clients
+through a root mixer, a file through `Prefetch`, and the fault sentence.
+
+That closes a defect by deletion. `audiodev` used to open the channel itself
+with `dma_frame=128` **fixed at every rate** — 16 ms of descriptor at 8 kHz
+against 2.7 ms at 48 kHz — which is the bug `audiobusio` measured on the P4 as
+67 starved blocks in two seconds at 8 kHz and none at 48. `I2SOut` sizes it as
+`rate / 200`, five milliseconds at every rate, and there is no such keyword in
+`audiodev` to get wrong any more.
+
+Two of `I2SOut`'s keywords are ours rather than CircuitPython's and `audiodev`
+uses both: `port=` (a board can have the codec on one port and a microphone on
+another) and `main_clock_fs=` (the wire has carried the ratio since before
+`audiobusio` existed). `I2SOut.retarget(sample, loop=...)` and `I2SOut.status`
+are ours too, and they are what a policy layer needs that a program calling
+`audiobusio` directly does not: a tail swapped **without a gap** when a client
+arrives or leaves, and the two words that say why the pump stopped.
+
+### What a board proved, before the move
+
+`SinkDriver`, which this replaced, has run: an ESP32-P4 played through it on 2026-09-21, and the
 checklist that used to live here is answered in
 `docs/spikes/live-audio-path-notes.md` (the "`audiodev` on silicon" table) in
 the workspace anchor. `play()` in 8 ms with every `i2s` in the stack `None`;

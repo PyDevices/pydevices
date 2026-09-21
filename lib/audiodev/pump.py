@@ -34,13 +34,15 @@ whether there is a thread to land them from:
     look-ahead rather than slack: a tick of T milliseconds needs a ring
     longer than T.
 
-``SinkDriver``
-    esp32. The pump owns the I2S channel outright (``_audioif.i2s_start``
-    from the board's :class:`~audiodev.I2SWire`, never ``machine.I2S``) and
-    writes each block into the DMA on its own thread, with no Python in the
-    path at all. An ESP32-P4 has played through it; see
-    ``docs/spikes/live-audio-path-notes.md`` in the workspace anchor for what
-    that sitting measured and the three defects it gave up.
+``BusioDriver``
+    esp32. The graph goes to ``audiobusio.I2SOut`` -- CircuitPython's own
+    class, with this same pump under it -- built from the board's
+    :class:`~audiodev.I2SWire`. **There is one way this firmware plays a
+    sample**, and that is it: the output owns the channel, converts anything
+    that is not signed 16-bit on the pump's thread, retunes the bus to the
+    sample's rate and sizes the DMA descriptor in time. ``audiodev`` writes no
+    PCM, opens no peripheral, and is left holding the policy -- the codec, two
+    clients, a file, the fault sentence.
 
 A fault in the pump is a sentence, not a traceback and not a dead speaker:
 :meth:`Pump.died` turns the status block's error and fault words into one,
@@ -88,6 +90,8 @@ _audiopump = None
 _looked = False
 _driver = None
 _driver_looked = False
+_busio = None
+_busio_looked = False
 
 
 def module():
@@ -128,6 +132,34 @@ def driver():
     except ImportError:
         return None
     _driver = mod
+    return mod
+
+
+def busio():
+    """The ``audiobusio`` C module -- ``I2SOut`` -- or None.
+
+    The *public* face of the audio hardware layer, and CircuitPython's own
+    spelling: ``audiobusio.I2SOut(bit_clock, word_select, data).play(sample)``
+    runs CircuitPython's own docstring example on this firmware unchanged.
+    Everything :mod:`audiodev` does on a board goes through it, so there is
+    one way the firmware plays a sample and ``audiodev`` is the policy layer
+    over it -- format negotiation, volume, the codec session, two clients,
+    files.
+
+    It is checked for ``I2SOut``, not merely imported, for the same reason
+    :func:`module` is checked for ``spawn``.
+    """
+    global _busio, _busio_looked
+    if _busio_looked:
+        return _busio
+    _busio_looked = True
+    try:
+        import audiobusio as mod
+    except ImportError:
+        return None
+    if not hasattr(mod, "I2SOut"):
+        return None
+    _busio = mod
     return mod
 
 
@@ -261,6 +293,84 @@ def block_size(sample):
         return 0
 
 
+#: How deep we are inside a method that REARRANGES who is sounding, and how
+#: many ticks were turned away because of it. A list rather than two globals
+#: so the check on the hot path costs no ``global`` statement.
+_BUSY = [0, 0]
+
+
+def rearranging():
+    """True while something is rearranging the pump. A tick must not pull.
+
+    **A service tick arrives between bytecodes.** On a board it rides the
+    app's shared timer and is delivered by ``micropython.schedule``, so it
+    lands wherever it lands -- including halfway through the method that is
+    taking one client off the pump and putting another on. The P4 found the
+    first instance of this the hard way: a tick inside
+    :meth:`~audiodev.sample_out.AudioOut.stop` saw a player that read exactly
+    like a healthy old-path player, pulled a block, wrote it, and opened
+    ``machine.I2S`` on the port the pump had just let go of. Both halves of
+    that race were seen on silicon.
+
+    `AudioOut._pumping` closed it for **one player's own** methods. It cannot
+    close the rest, because the thing being rearranged is *global*: one pump,
+    one graph, one peripheral. A tick that services player B while player A
+    is inside :meth:`Pump._retarget` reaches the same C module through a
+    different Python object, and ``spawn()`` answers the second one with "a
+    pump is already spawned".
+
+    So this is the flag, and it is the pump's rather than any player's. It
+    nests, because `AudioOut.play` -> `Pump.play` -> `Pump._retarget` is
+    three of these deep on one call.
+    """
+    return _BUSY[0] > 0
+
+
+def reentered():
+    """Ticks turned away because something was rearranging the pump.
+
+    Never a hole: the tick's whole job is to top a buffer up, the buffer is
+    hundreds of milliseconds deep, and the next tick does what this one did
+    not. A number that climbs says the app's timer is faster than its own
+    rearrangement, which is worth knowing and is not worth an exception.
+    """
+    return _BUSY[1]
+
+
+def _enter():
+    _BUSY[0] += 1
+
+
+def _leave():
+    _BUSY[0] -= 1
+    if _BUSY[0] < 0:            # a teardown that unwound past the top
+        _BUSY[0] = 0
+
+
+def _turned_away():
+    _BUSY[1] += 1
+
+
+def retarget(mod, sample, loop=False):
+    """Swap a live pump's tail, carrying the OUTPUT's loop flag with it.
+
+    The flag belongs to the tail, not to the pump's whole lifetime. A root
+    ``audiomixer.Mixer`` replaced by the one client still sounding is a tail
+    whose loop is *that client's*, and for as long as ``retarget()`` took one
+    argument it kept whatever ``spawn()`` was called with -- so a looping
+    client left alone on a **live** pump stopped at the end of its first lap,
+    silently, exactly as a mixed one did before ``_tail()`` learned ``loop=``.
+
+    An engine too old for the keyword still swaps the graph; it just cannot
+    carry the flag, which is the bug, so say nothing and let the caller's own
+    gate report it rather than losing the audio.
+    """
+    try:
+        mod.retarget(sample, loop=loop)
+    except TypeError:
+        mod.retarget(sample)
+
+
 def pumpable(sample):
     """True when the pump can pull *sample* itself.
 
@@ -308,6 +418,7 @@ class Prefetch:
         self.wrote = 0
         self._held = None          # bytes pulled but not yet accepted
         self._at = 0
+        self._feeding = False      # see service(): a tick lands inside it
         # The ring has to outlast one of the player's drain windows. Nothing
         # tops it up while the interpreter is inside produce(), so a ring
         # shallower than that window is emptied by the pump every tick and
@@ -328,7 +439,25 @@ class Prefetch:
         audiocore.reset_buffer(sample)
 
     def service(self, limit=None):
-        """Top the ring up. Returns bytes written this call."""
+        """Top the ring up. Returns bytes written this call.
+
+        **Not re-entrant, and a tick can land inside it.** The block pulled
+        from the file lives in ``self._held`` until the ring has taken all of
+        it; a second call arriving in the middle pulls the NEXT block over the
+        top of it and the frames in between are gone -- a gap in the file that
+        nothing counts, because ``wrote`` is only told about what reached the
+        ring. A tick that finds this busy does nothing and the next one tops
+        the ring up instead; the ring is deeper than a tick by construction.
+        """
+        if self._feeding:
+            return 0
+        self._feeding = True
+        try:
+            return self._service(limit)
+        finally:
+            self._feeding = False
+
+    def _service(self, limit=None):
         wrote = 0
         while True:
             if self._held is None:
@@ -400,12 +529,32 @@ class Prefetch:
 
 
 class _Driver:
-    """Where the pump's blocks go. Subclassed per port."""
+    """Where the pump's blocks go. Subclassed per port.
+
+    Four verbs, because :class:`Pump` rearranges a live output and each port
+    answers differently: :meth:`spawn` starts one, :meth:`retarget` swaps the
+    tail *without a gap*, :meth:`halt` gives the pump back and :meth:`close`
+    gives the peripheral back. The desktop drivers below drive the engine
+    directly; the board's drives :class:`~audiobusio.I2SOut`, which owns the
+    engine on its side of the line.
+    """
 
     needs_service = True
 
     def spawn(self, sample, status, loop=False):
         raise NotImplementedError
+
+    def retarget(self, sample, loop=False):
+        """Point a running pump at *sample*. No gap, no re-open."""
+        retarget(module(), sample, loop)
+
+    def halt(self):
+        """Stop the pump. The peripheral, if any, stays open."""
+        module().shutdown()
+
+    def status(self):
+        """The status block the loop writes, or None to use the caller's."""
+        return None
 
     def produce(self, into):
         """Fill *into* with what the pump has made. Returns bytes."""
@@ -644,26 +793,39 @@ class ServiceDriver(RingDriver):
         """Nothing to rest. The pump only runs inside produce()."""
 
 
-class SinkDriver(_Driver):
-    """esp32: the pump writes each block straight into the I2S DMA.
+class BusioDriver(_Driver):
+    """esp32: the graph goes to ``audiobusio.I2SOut``, and it owns the bus.
 
-    The pump owns the peripheral. ``machine.I2S`` must never be opened on the
-    same port -- two owners of one I2S channel is the failure that sounds like
-    silence -- so the transport's own ``open()`` is bypassed and the port is
-    opened here from the board's :class:`~audiodev.I2SWire`, with the codec
-    powered through the board's ``audio_power`` role.
+    **There is one way this firmware plays a sample**, and this is where
+    :mod:`audiodev` joins it. ``I2SOut`` opens the channel, spawns the pump,
+    converts anything that is not already signed 16-bit on the pump's thread,
+    reads a file through a ring of its own, retunes the bus to the sample's
+    rate on every ``play()``, sizes the DMA descriptor **in time** and refuses
+    a second output with CircuitPython's own "Peripheral in use". None of that
+    is ``audiodev``'s to reimplement, and all of it used to be: this class
+    opened the channel with ``_audioif.i2s_start`` and a ``dma_frame=128``
+    fixed at every rate, which is the descriptor bug ``audiobusio`` already
+    measured and fixed (67 starved blocks in 2 s at 8 kHz; zero at ``rate/200``).
 
-    An ESP32-P4 has played through this. What the sitting cost: the volume
-    knob and the mute button were reaching nothing, because
-    ``PCMOutput.set_volume`` was guarded on ``is_open`` and nothing opens the
-    transport on this path -- :meth:`open` calls ``hardware_live()`` now, and
-    that is the whole of the fix.
+    What stays here is the policy nothing below the line knows about: the
+    codec. ``I2SOut`` does not know a codec exists -- CircuitPython's does not
+    either -- so the board's ``audio_power`` role is raised here, with the
+    volume the transport is holding, and the transport is told its hardware is
+    live so ``set_volume()`` and ``mute()`` reach the codec while the pump
+    plays. That was measured on the P4 as a volume knob that stored a number
+    and reached nothing.
+
+    Two keywords of ``I2SOut``'s are ours rather than CircuitPython's and both
+    are used here: ``port=`` (a board can have the codec on one port and a
+    microphone on another) and ``main_clock_fs=`` (the board's ``I2SWire``
+    has carried it since before this module existed). ``sink=`` is the third,
+    and on a desktop it is what makes this class testable at all -- see
+    :meth:`open`.
     """
 
     needs_service = False
 
-    def __init__(self, wire, fmt, *, power=None, volume=100, dma_desc=4,
-                 dma_frame=128, din=-1, transport=None):
+    def __init__(self, wire, fmt, *, power=None, volume=100, transport=None):
         self.wire = wire
         self.fmt = fmt
         # The transport that published the wire. Nothing opens it on this
@@ -672,16 +834,14 @@ class SinkDriver(_Driver):
         self.transport = transport
         self._power = power
         self.volume = int(volume)
-        self.dma_desc = int(dma_desc)
-        self.dma_frame = int(dma_frame)
-        self.din = int(din)
-        self.cushion = 0
-        self._open = False
+        self.out = None
 
     def open(self):
-        if self._open:
+        if self.out is not None:
             return
-        mod = module()
+        mod = busio()
+        if mod is None:
+            raise RuntimeError("this firmware has no audiobusio.I2SOut")
         if self._power is not None:
             # With the volume where the board will take it. Nothing opens the
             # transport on this path, so PCMOutput.open()'s "apply the
@@ -692,13 +852,31 @@ class SinkDriver(_Driver):
             except TypeError:
                 self._power(True)
         w = self.wire
-        self.cushion = driver().i2s_start(
-            w.port, w.sck, w.ws, w.sd, self.fmt.rate,
-            bits=self.fmt.bits, channels=self.fmt.channels,
-            mclk=-1 if w.mck is None else w.mck, mclk_fs=w.mck_fs,
-            dma_desc=self.dma_desc, dma_frame=self.dma_frame, din=self.din,
-        )
-        self._open = True
+        kwargs = {"sample_rate": self.fmt.rate}
+        port = getattr(w, "port", -1)
+        if port is not None and int(port) >= 0:
+            kwargs["port"] = int(port)
+        mck_fs = getattr(w, "mck_fs", None)
+        if mck_fs:
+            kwargs["main_clock_fs"] = int(mck_fs)
+        # A wire that names a file is a DESKTOP wire, and it is the whole of
+        # how this class is proved without a board: `audiobusio` on unix is
+        # the same object with the same lifecycle, paced off the wall clock,
+        # writing where it is told. A board's I2SWire has no `sink` and this
+        # never fires.
+        sink = getattr(w, "sink", None)
+        if sink is not None:
+            kwargs["sink"] = sink
+        try:
+            self.out = mod.I2SOut(w.sck, w.ws, w.sd, main_clock=w.mck,
+                                  **kwargs)
+        except Exception:
+            # The codec is up and nothing is going to play through it. Put it
+            # back rather than leaving a board humming at whatever the rails
+            # do with no clock on them.
+            if self._power is not None:
+                self._power(False)
+            raise
         self._mark_transport(True)
 
     def _mark_transport(self, live):
@@ -707,37 +885,46 @@ class SinkDriver(_Driver):
             t.hardware_live(live)
 
     def opened(self):
-        return self._open
+        return self.out is not None
 
     def spawn(self, sample, status, loop=False):
         self.open()
-        module().spawn(sample, _BLOCKS_FOREVER, status, sink=True,
-                       loop=loop, timeout_ms=500)
+        self.out.play(sample, loop=loop)
+
+    def retarget(self, sample, loop=False):
+        # `I2SOut.retarget` rather than `audiopump.retarget` behind its back:
+        # the output roots the graph it is playing, so swapping the tail
+        # underneath it would leave `I2SOut` holding the OLD one and the new
+        # one unrooted while a thread pulls it.
+        self.out.retarget(sample, loop=loop)
+
+    def halt(self):
+        out = self.out
+        if out is not None:
+            out.stop()
+
+    def playing(self):
+        out = self.out
+        return out is not None and out.playing
+
+    def starved(self):
+        """Blocks the DMA could not be given in time. ``I2SOut``'s own word."""
+        out = self.out
+        return 0 if out is None else out.starved()
+
+    def status(self):
+        out = self.out
+        return None if out is None else out.status
 
     def close(self):
-        # It does NOT close with the task. The esp32 driver publishes no
-        # `sink_close` at all (`_audioif.c`, the port ops table: `sink_open`
-        # and `sink_close` are `#if !AUDIOIF_DRV_ESP`), because the channel
-        # here belongs to `i2s_start`/`i2s_stop` and not to the sink. So a
-        # shutdown left the channel OPEN, and the next open() asked the IDF
-        # for a peripheral it was already holding:
-        #
-        #     ESP_ERR_NOT_FOUND -> RuntimeError("Peripheral in use")
-        #
-        # which audiodev reports as "the audio pump would not take this
-        # graph" and then plays on the interpreter instead. The shipped drum
-        # machine hit it on every KIT CHANGE -- stop, then play -- and fell
-        # off the audio clock in silence. Found by the clock indicator this
-        # sitting added to its screen.
-        self._open = False
+        out = self.out
+        self.out = None
         self._mark_transport(False)
-        mod = driver()
-        stop = getattr(mod, "i2s_stop", None) if mod is not None else None
-        if stop is not None:
+        if out is not None:
             try:
-                stop()
-            except Exception:    # noqa: BLE001 - a close must not raise into
-                pass             # somebody else's teardown
+                out.deinit()      # stops, joins, and gives the channel back
+            except Exception:     # noqa: BLE001 - a close must not raise into
+                pass              # somebody else's teardown
         if self._power is not None:
             self._power(False)
 
@@ -774,14 +961,22 @@ class PumpOutput:
         self.ring = mod.Ring(sample_rate=fmt.rate, channel_count=fmt.channels,
                              frames=frames, capacity=capacity)
 
+    # A tick can land between `deinit()`'s first two lines, and an app whose
+    # tick writes PCM would then find `self.ring` None and get an
+    # AttributeError out of its own timer callback. A stream that has been
+    # closed accepts nothing and holds nothing, which is what a caller can
+    # act on; raising out of somebody's teardown is not.
     def write(self, buf):
-        return self.ring.write(buf)
+        ring = self.ring
+        return 0 if ring is None else ring.write(buf)
 
     def space(self):
-        return self.ring.space()
+        ring = self.ring
+        return 0 if ring is None else ring.space()
 
     def level(self):
-        return self.ring.level()
+        ring = self.ring
+        return 0 if ring is None else ring.level()
 
     def drain(self):
         """Nothing to do: the pump is the consumer and it never blocks."""
@@ -791,9 +986,13 @@ class PumpOutput:
         # Off the pump FIRST. A deinited Ring left registered as a client is
         # rebuilt into the next root Mixer, and audiomixer raises on it -- from
         # inside an unrelated player's close().
-        ring = self.ring
-        self.ring = None
-        owner().stop(self)
+        _enter()
+        try:
+            ring = self.ring
+            self.ring = None
+            owner().stop(self)
+        finally:
+            _leave()
         if ring is not None:
             ring.deinit()
 
@@ -806,7 +1005,12 @@ def attach_stream(fmt, *, driver=None, frames=256, capacity=6):
     are summed by a root Mixer and come out of one peripheral.
     """
     stream = PumpOutput(fmt, frames=frames, capacity=capacity)
-    if not owner().play(stream, stream.ring, driver=driver):
+    _enter()
+    try:
+        took = owner().play(stream, stream.ring, driver=driver)
+    finally:
+        _leave()
+    if not took:
         stream.deinit()
         raise RuntimeError(owner().fault() or "the pump would not take it")
     return stream
@@ -904,6 +1108,13 @@ class Pump:
 
     def play(self, owner, sample, driver=None, loop=False):
         """Put *owner*'s *sample* on the pump. Returns True when it sounds."""
+        _enter()
+        try:
+            return self._play(owner, sample, driver, loop)
+        finally:
+            _leave()
+
+    def _play(self, owner, sample, driver, loop):
         if self._fault is not None:
             return False
         client = self._find(owner)
@@ -925,6 +1136,13 @@ class Pump:
         return True
 
     def stop(self, owner):
+        _enter()
+        try:
+            self._stop(owner)
+        finally:
+            _leave()
+
+    def _stop(self, owner):
         client = self._find(owner)
         if client is None:
             return
@@ -941,16 +1159,24 @@ class Pump:
             self.shutdown()
 
     def pause(self, owner):
-        client = self._find(owner)
-        if client is not None:
-            client.paused = True
-        self._settle()
+        _enter()
+        try:
+            client = self._find(owner)
+            if client is not None:
+                client.paused = True
+            self._settle()
+        finally:
+            _leave()
 
     def resume(self, owner):
-        client = self._find(owner)
-        if client is not None:
-            client.paused = False
-        self._settle()
+        _enter()
+        try:
+            client = self._find(owner)
+            if client is not None:
+                client.paused = False
+            self._settle()
+        finally:
+            _leave()
 
     def paused(self):
         return bool(self._clients) and all(c.paused for c in self._clients)
@@ -998,7 +1224,15 @@ class Pump:
         # its own instead.
         loop = self._root is None and self._clients[0].loop
         if self._spawned and mod.running():
-            mod.retarget(tail)
+            # The LIVE branch: a client arriving at, or leaving, a pump that
+            # is still sounding. No gap, no re-open, and on a board no codec
+            # power cycle -- which is the whole reason a kit change does not
+            # click. `loop` travels with the tail; for as long as it did not,
+            # a looping client left alone here stopped at the end of its lap.
+            if self._driver is not None:
+                self._driver.retarget(tail, loop=loop)
+            else:
+                retarget(mod, tail, loop)
             self._release_retired()
             self._retired = old_root
             return
@@ -1007,7 +1241,10 @@ class Pump:
             # channel, and spawn() refuses it with "a pump is already spawned".
             # Between the laps of a looping sample that window is wide open,
             # and a second client arriving in it hit exactly that.
-            mod.shutdown()
+            if self._driver is not None:
+                self._driver.halt()
+            else:
+                mod.shutdown()
             self._spawned = False
         self._release_retired()
         self._retired = old_root
@@ -1047,6 +1284,18 @@ class Pump:
             driver.rest()
 
     def status(self):
+        """The block the loop writes. The DRIVER's, where it owns one.
+
+        ``audiobusio.I2SOut`` spawns with a status bytearray of its own, so on
+        a board the one this object allocated is never written to. Reading it
+        anyway is the shape of bug that reports a healthy pump as
+        ``error 0, fault 0`` for ever -- silence with a reassuring sentence.
+        """
+        driver = self._driver
+        if driver is not None:
+            owned = driver.status()
+            if owned is not None:
+                return owned
         return self._status
 
     def died(self):
@@ -1056,7 +1305,8 @@ class Pump:
             return None
         import struct
 
-        w = struct.unpack("<%dQ" % mod.STATUS_WORDS, self._status)
+        status = self.status()
+        w = struct.unpack("<%dQ" % mod.STATUS_WORDS, status)
         why = _FAULTS.get(w[24]) or _ERRORS.get(w[5])
         return why or "the pump stopped (error %d, fault %d)" % (w[5], w[24])
 
@@ -1068,14 +1318,27 @@ class Pump:
         self._fault = why
 
     def shutdown(self):
+        _enter()
+        try:
+            self._shutdown()
+        finally:
+            _leave()
+
+    def _shutdown(self):
         mod = module()
         self._clients = []
         self._root = None
         self._release_retired()
-        if self._spawned and mod is not None:
-            mod.shutdown()
-        self._spawned = False
         driver = self._driver
+        if self._spawned and mod is not None:
+            # Through the driver: on a board the pump belongs to the I2SOut,
+            # and calling audiopump.shutdown() behind it leaves that object
+            # believing it is still playing until something reads `playing`.
+            if driver is not None:
+                driver.halt()
+            else:
+                mod.shutdown()
+        self._spawned = False
         self._driver = None
         if driver is not None:
             driver.close()
