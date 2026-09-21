@@ -579,6 +579,11 @@ class PCMOutput(_Device):
         self._power = power
         self._volume = 100
         self._muted = False
+        # True when somebody else has the codec powered -- the esp32 pump owns
+        # the I2S peripheral and brings the codec up itself, so this transport
+        # is never open()ed and `is_open` is not the question to ask before
+        # writing a codec register. See `hardware_live`.
+        self._hw_live = False
         self._scratch = bytearray()
         capabilities = {"pcm", "playback", "volume", "mute"}
         capabilities.add("hardware-volume" if set_hardware_volume else "software-volume")
@@ -606,15 +611,41 @@ class PCMOutput(_Device):
             self._set_hardware_mute(self._muted)
         return self
 
+    def hardware_live(self, value=True):
+        """Say whether this transport's codec is powered by someone else.
+
+        The esp32 audio pump owns the I2S peripheral outright, so nothing
+        ever calls `open()` on this transport -- and `set_volume()` and
+        `mute()` were guarded on `is_open`, which meant that on a board
+        playing through the pump the volume knob and the mute button stored a
+        number and never reached the codec. Measured on the P4: the ES8311's
+        register 0x32 sat at 127 through `set_volume(20)`, `set_volume(50)`,
+        `mute(True)` and `mute(False)`.
+
+        Turning it on applies the volume and mute this transport is holding,
+        which is the same thing `open()` does and for the same reason: the
+        codec must not be left at whatever the last owner set.
+        """
+        self._hw_live = bool(value)
+        if not self._hw_live:
+            return
+        if self._set_hardware_volume is not None:
+            self._set_hardware_volume(self._volume)
+        if self._set_hardware_mute is not None:
+            self._set_hardware_mute(self._muted)
+
+    def _hw_reachable(self):
+        return self.is_open or self._hw_live
+
     def set_volume(self, percent):
         self._volume = _clamp_percent(percent)
-        if self.is_open and self._set_hardware_volume is not None:
+        if self._hw_reachable() and self._set_hardware_volume is not None:
             self._set_hardware_volume(self._volume)
         return self._volume
 
     def mute(self, value=True):
         self._muted = bool(value)
-        if self.is_open and self._set_hardware_mute is not None:
+        if self._hw_reachable() and self._set_hardware_mute is not None:
             self._set_hardware_mute(self._muted)
         return self._muted
 

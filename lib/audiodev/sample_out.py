@@ -58,6 +58,11 @@ except ImportError:  # pragma: no cover - CPython fallback, no multimer
         return a - b
 
 
+#: One-shot latch for the "this board publishes no wire" note. A list rather
+#: than a global so the check costs no `global` statement on the play path.
+_WARNED = []
+
+
 def _load_audiocore():
     try:
         import audiocore
@@ -296,12 +301,22 @@ class AudioOut:
                     return pump_mod.SinkDriver(
                         wire, inner.format,
                         power=getattr(inner, "audio_power", None),
-                        volume=self.transport.volume)
+                        volume=self.transport.volume,
+                        transport=inner)
                 inner = getattr(inner, "_inner", None)
                 if inner is None:
                     break
             # No wire published: this board has not been taught the pump.
-            # Play the old way rather than guessing at pins.
+            # Play the old way rather than guessing at pins -- but say so
+            # once. A firmware carrying the pump beside a board_peripherals
+            # that predates `wire=` looks exactly like a working board: it
+            # plays, on machine.I2S, and nothing anywhere says why the pump
+            # is idle. That silence cost a board session an hour.
+            if not _WARNED:
+                _WARNED.append(1)
+                print("audiodev: this firmware has the audio pump but this "
+                      "board's board_peripherals publishes no `wire=` on its "
+                      "audio transport - playing on machine.I2S instead")
             return None
         if not pump_mod.threaded():
             # WebAssembly: no thread, so the loop runs inside this player's
@@ -432,7 +447,19 @@ class AudioOut:
             self._sample = None
             return
         sample = self._sample
+        released = "released" in why
         self._pump_died(why)
+        if released:
+            # Do NOT carry on with this sample. The reason the pump stopped is
+            # that the graph was freed under it, so falling back to pulling it
+            # on the interpreter thread raises `Object has been deinitialized`
+            # out of the next service() -- a sentence AND a traceback, which
+            # is worse than either. Measured on the P4: releasing the Mixer
+            # under a playing pump printed the sentence and then threw from
+            # `_next_block`. The speaker goes quiet and `playing` goes False,
+            # which is what an app can actually act on.
+            self._sample = None
+            return
         self._sample = sample
 
     # Where the bytes come from, on either path. Everything above and below
@@ -474,7 +501,13 @@ class AudioOut:
             return _STARVED, None      # running, just nothing ready yet
         if "ran out" in why:
             return _GET_BUFFER_DONE, None
+        released = "released" in why
         self._pump_died(why)
+        if released:
+            # Same reason as in `_watch_sink`: the graph is gone, so there is
+            # nothing to carry on with and pulling it would raise.
+            self._sample = None
+            return _GET_BUFFER_DONE, None
         return _STARVED, None
 
     def _pump_locked(self):
