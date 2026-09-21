@@ -128,6 +128,7 @@ class AudioOut:
         # it does not.
         self._want_pump = bool(pump)
         self._engine = None      # audiodev.pump.Pump while this is on it
+        self._pump_refused = None  # why it is not, in one sentence
         self._prefetch = None    # a file-backed source's producer, if any
         self._drain = None       # where the ring's bytes land
         self._pumped = 0         # bytes a prefetcher's file has handed over
@@ -163,6 +164,17 @@ class AudioOut:
     def pumped(self):
         """True while this player's audio is being pulled by the pump."""
         return self._engine is not None
+
+    @property
+    def pump_refused(self):
+        """Why the pump would not take this graph, or None.
+
+        A console line is not enough. An app that keeps time off the audio
+        clock when the pump takes it, and off a timer when it does not, is a
+        DIFFERENT app either way -- and on a board the only thing that says
+        which is one print nobody is watching. This is what a UI shows.
+        """
+        return self._pump_refused
 
     # --- volume / codec passthrough --------------------------------------
     # AudioOut adds no volume model of its own -- the transport already has
@@ -245,15 +257,20 @@ class AudioOut:
             driver = self._driver_for(_pump_mod, tail)
             if driver is None:
                 return
-            if not engine.play(self, tail, driver=driver):
+            # A Prefetch ring never ends, so the file's loop lives in the
+            # Prefetch; a direct sample's loop is the pump's and has to be
+            # handed over or `play(sample, loop=True)` sounds once.
+            if not engine.play(self, tail, driver=driver,
+                               loop=bool(self._loop) and self._prefetch is None):
                 # Pump.play() catches its own exception so that a refusal can
                 # never reach an app that did not ask for the pump. Saying
                 # nothing at all is the other failure: two play() calls in a
                 # hundred went silently back to the old path and only a byte
                 # count noticed.
                 self._release_prefetch()
+                self._pump_refused = str(engine.fault())
                 print("audiodev: the audio pump would not take this graph -",
-                      engine.fault(),
+                      self._pump_refused,
                       "- playing on the interpreter thread instead")
                 return
         except Exception as exc:          # noqa: BLE001 - reported, not raised
@@ -264,6 +281,7 @@ class AudioOut:
             return
         self._engine = engine
         self._engine_seen = True
+        self._pump_refused = None
         self._pumped = 0
         self._sinking = not driver.needs_service
         if driver.needs_service:

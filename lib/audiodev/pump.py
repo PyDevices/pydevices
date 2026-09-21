@@ -359,7 +359,7 @@ class _Driver:
 
     needs_service = True
 
-    def spawn(self, sample, status):
+    def spawn(self, sample, status, loop=False):
         raise NotImplementedError
 
     def produce(self, into):
@@ -422,10 +422,11 @@ class RingDriver(_Driver):
         self._parked = False
         self._status = None
 
-    def spawn(self, sample, status):
+    def spawn(self, sample, status, loop=False):
         mod = module()
         self._status = status
-        mod.spawn(sample, _BLOCKS_FOREVER, status, ring=self._ring, timeout_ms=200)
+        mod.spawn(sample, _BLOCKS_FOREVER, status, ring=self._ring,
+                  loop=loop, timeout_ms=200)
         # Park immediately: from here on the pump runs only inside produce().
         # park() returns True once the thread is at a block boundary, so this
         # is also the handshake that says it STARTED -- spawn() returns before
@@ -520,11 +521,11 @@ class ServiceDriver(RingDriver):
             if want > len(self._ring):
                 self._ring = bytearray(want)
 
-    def spawn(self, sample, status):
+    def spawn(self, sample, status, loop=False):
         mod = module()
         self._status = status
         mod.spawn(sample, _BLOCKS_FOREVER, status, ring=self._ring,
-                  timeout_ms=200)
+                  loop=loop, timeout_ms=200)
         # No park handshake: spawn() on this port adopts the tail and returns
         # without pulling a block, so there is nothing to wait for and
         # nothing to catch. The first service() below is the first audio.
@@ -619,16 +620,35 @@ class SinkDriver(_Driver):
     def opened(self):
         return self._open
 
-    def spawn(self, sample, status):
+    def spawn(self, sample, status, loop=False):
         self.open()
         module().spawn(sample, _BLOCKS_FOREVER, status, sink=True,
-                       timeout_ms=500)
+                       loop=loop, timeout_ms=500)
 
     def close(self):
-        # shutdown() closes the channel with the task, so this only has to
-        # undo what open() did that shutdown does not.
+        # It does NOT close with the task. The esp32 driver publishes no
+        # `sink_close` at all (`_audioif.c`, the port ops table: `sink_open`
+        # and `sink_close` are `#if !AUDIOIF_DRV_ESP`), because the channel
+        # here belongs to `i2s_start`/`i2s_stop` and not to the sink. So a
+        # shutdown left the channel OPEN, and the next open() asked the IDF
+        # for a peripheral it was already holding:
+        #
+        #     ESP_ERR_NOT_FOUND -> RuntimeError("Peripheral in use")
+        #
+        # which audiodev reports as "the audio pump would not take this
+        # graph" and then plays on the interpreter instead. The shipped drum
+        # machine hit it on every KIT CHANGE -- stop, then play -- and fell
+        # off the audio clock in silence. Found by the clock indicator this
+        # sitting added to its screen.
         self._open = False
         self._mark_transport(False)
+        mod = driver()
+        stop = getattr(mod, "i2s_stop", None) if mod is not None else None
+        if stop is not None:
+            try:
+                stop()
+            except Exception:    # noqa: BLE001 - a close must not raise into
+                pass             # somebody else's teardown
         if self._power is not None:
             self._power(False)
 
@@ -706,12 +726,18 @@ def attach_stream(fmt, *, driver=None, frames=256, capacity=6):
 class _Client:
     """One thing sounding through the pump, and whether it is paused."""
 
-    __slots__ = ("owner", "sample", "paused")
+    __slots__ = ("owner", "sample", "paused", "loop")
 
-    def __init__(self, owner, sample):
+    def __init__(self, owner, sample, loop=False):
         self.owner = owner
         self.sample = sample
         self.paused = False
+        # Whose loop this is. A RawSample has no idea it is being looped --
+        # CircuitPython puts the flag on the OUTPUT, and so does the pump --
+        # so the client has to carry it or a looping sample plays one buffer
+        # and stops. Which is exactly what a second client used to do to the
+        # first: every mixer voice was hardcoded loop=False.
+        self.loop = bool(loop)
 
 
 class Pump:
@@ -787,17 +813,18 @@ class Pump:
     def clients(self):
         return len(self._clients)
 
-    def play(self, owner, sample, driver=None):
+    def play(self, owner, sample, driver=None, loop=False):
         """Put *owner*'s *sample* on the pump. Returns True when it sounds."""
         if self._fault is not None:
             return False
         client = self._find(owner)
         if client is None:
-            client = _Client(owner, sample)
+            client = _Client(owner, sample, loop=loop)
             self._clients.append(client)
         else:
             client.sample = sample
             client.paused = False
+            client.loop = bool(loop)
         if self._driver is None:
             self._driver = driver
         try:
@@ -869,7 +896,7 @@ class Pump:
         )
         for voice, client in enumerate(self._clients):
             mixer.voice[voice].level = 1.0
-            mixer.play(client.sample, voice=voice, loop=False)
+            mixer.play(client.sample, voice=voice, loop=client.loop)
         return mixer
 
     def _retarget(self):
@@ -877,6 +904,10 @@ class Pump:
         old_root = self._root
         tail = self._tail()
         self._root = tail if tail is not self._clients[0].sample else None
+        # One client IS the tail, so its loop is the pump's; a Mixer never
+        # says DONE, so a mixer tail never wants one and each voice carries
+        # its own instead.
+        loop = self._root is None and self._clients[0].loop
         if self._spawned and mod.running():
             mod.retarget(tail)
             self._release_retired()
@@ -894,9 +925,10 @@ class Pump:
         for i in range(len(self._status)):
             self._status[i] = 0
         if self._driver is not None:
-            self._driver.spawn(tail, self._status)
+            self._driver.spawn(tail, self._status, loop=loop)
         else:
-            mod.spawn(tail, _BLOCKS_FOREVER, self._status, timeout_ms=200)
+            mod.spawn(tail, _BLOCKS_FOREVER, self._status, loop=loop,
+                      timeout_ms=200)
         self._spawned = True
         # The teardown above took the queue with it. See Pump.events().
         self._attach_events()
