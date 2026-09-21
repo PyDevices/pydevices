@@ -91,8 +91,12 @@ def _run(interpreter, arguments, tmpdir):
     for name in ("MICROPYPATH", "PYTHONPATH"):
         if env.get(name):
             path.append(env[name])
-    env["MICROPYPATH"] = os.pathsep.join(path) if "win" in sys.platform \
-        else ":".join(path)
+    # MicroPython's MICROPYPATH is ':'-separated everywhere except Windows,
+    # where it is ';'. Not os.pathsep on its own: `"win" in sys.platform` is
+    # true of "darwin" too, which is the kind of thing that works by luck
+    # until the separator differs.
+    env["MICROPYPATH"] = (";" if sys.platform.startswith("win")
+                          else ":").join(path)
     env["PYTHONPATH"] = os.pathsep.join(path)
     command = [interpreter]
     if "micropython" in Path(interpreter).name:
