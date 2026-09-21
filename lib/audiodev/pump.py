@@ -173,6 +173,29 @@ def threaded():
     return bool(mod.threaded())
 
 
+def now():
+    """Frames the pump has pulled since it started, or 0 without one.
+
+    The number an event's frame is compared against, so it is the one to
+    schedule from. It is not what a listener has *heard*: subtract whatever
+    the sink is holding for that. It wraps every 2^32 frames -- 24.9 hours at
+    48 kHz -- and the comparisons inside the queue are wrap-aware, so nothing
+    out here has to be.
+    """
+    mod = module()
+    return mod.now() if mod is not None and hasattr(mod, "now") else 0
+
+
+def events(capacity=96):
+    """The pump's event queue, or None on a build with no pump.
+
+    ``audiodev.pump.events()`` is how an app reaches the clock; see
+    :meth:`Pump.events` for why the queue belongs to the pump and not to the
+    app that asked for it.
+    """
+    return owner().events(capacity)
+
+
 def block_size(sample):
     """Bytes in one pull of *sample*, or 0 if it cannot be asked.
 
@@ -709,6 +732,46 @@ class Pump:
         self._retired = None
         self._spawned = False
         self._fault = None
+        self._events = None
+
+    # --- the clock -------------------------------------------------------
+
+    def events(self, capacity=96):
+        """The pump's event queue, or None on a build without a pump.
+
+        One queue, for the same reason there is one pump: it is the pump that
+        applies it, at the top of each block, on its own thread. An app puts
+        notes on it with a frame number -- see ``Instrument.scheduled()`` in
+        audioinstruments -- and the groove then stops caring what the
+        interpreter thread is doing.
+
+        **It is re-attached here rather than by the app**, because
+        ``audiopump.shutdown()`` drops the queue along with the thread, and a
+        player calling ``play()`` a second time goes through a shutdown.
+        An app that attached its own queue once would find it quietly stopped
+        being applied on the next kit change, with no error anywhere. It is
+        also emptied at that point: every frame in it was stamped against a
+        clock that has just gone back to zero.
+        """
+        mod = module()
+        if mod is None or not hasattr(mod, "Events"):
+            return None
+        if self._events is None:
+            self._events = mod.Events(capacity=capacity)
+            self._attach_events()
+        return self._events
+
+    def _attach_events(self):
+        """Hand the queue to the pump. Safe before spawn and after one."""
+        mod = module()
+        if mod is None or self._events is None:
+            return
+        try:
+            self._events.clear()
+            mod.events(self._events)
+        except Exception:    # noqa: BLE001 - an app that never asked for a
+            # queue must not lose its audio because one could not be attached
+            pass
 
     # --- clients ---------------------------------------------------------
 
@@ -832,6 +895,8 @@ class Pump:
         else:
             mod.spawn(tail, _BLOCKS_FOREVER, self._status, timeout_ms=200)
         self._spawned = True
+        # The teardown above took the queue with it. See Pump.events().
+        self._attach_events()
 
     def _release_retired(self):
         retired = self._retired
