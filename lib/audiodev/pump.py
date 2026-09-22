@@ -80,6 +80,53 @@ _FAULTS = {
     4: "a read that would have raised inside the pull",
 }
 
+#: `_ERRORS` code 3. Not a failure: it is the loop saying the graph ended,
+#: which is what a short sample does the moment it has been pulled.
+_ERROR_SOURCE_RAN_OUT = 3
+
+
+class StartFailed(RuntimeError):
+    """The pump did not take a graph THIS TIME.
+
+    Separate from every other refusal on purpose. "This build cannot pump a
+    file-backed source" is a property of the graph and will be true again in a
+    millisecond; "the thread lost a race with a busy CPU" is a property of the
+    afternoon, and making the second one sticky turns a transient loss into a
+    process that never uses the pump again (pydevices#52).
+    """
+
+
+def _why_not_running(mod, status):
+    """Why a just-spawned pump is not running, as a sentence, or None.
+
+    **"Not running" is not the same as "did not start", and the difference is
+    the whole of pydevices#52.** `audiopump.running()` is
+    `live && !finished`, and `live` is set on the CALLING thread before
+    `spawn()` returns -- so what this can catch is a pump that has already
+    *finished*. Under load that is exactly what happens: a 0.05 s RawSample is
+    one block, and the pump thread can pull it, reach the end of the source
+    and leave the loop before the interpreter is scheduled again. Measured
+    2026-09-22 under seven busy loops sharing one core: `blocks 1, bytes 9600,
+    error 3` -- the pump did the entire job, and the check called it a failure
+    and fell back to the interpreter thread.
+
+    So ask the status block rather than the clock. A fault or a real error is
+    a failure; a loop that pulled something, or that ran out of source, did
+    its job; only a pump that left no trace at all never started.
+    """
+    import struct
+
+    w = struct.unpack("<%dQ" % mod.STATUS_WORDS, status)
+    blocks, error, fault = w[0], w[5], w[24]
+    if fault:
+        return _FAULTS.get(fault) or "the pump faulted (%d)" % fault
+    if error and error != _ERROR_SOURCE_RAN_OUT:
+        return _ERRORS.get(error) or "the pump stopped (error %d)" % error
+    if blocks or error == _ERROR_SOURCE_RAN_OUT:
+        return None
+    return "the pump would not start"
+
+
 # Sources that read through the VFS or a stream inside get_buffer(). The pump
 # refuses them by type name in C (spawn() raises); the same names are here so
 # a caller can ask *before* it builds anything, and so AudioOut knows to put a
@@ -636,10 +683,29 @@ class RingDriver(_Driver):
             # live" flag on THIS thread before it returns, so running() is
             # already True and the first produce() cannot mistake a pump that
             # has not finished its first block for a dead one.
+            #
+            # What running() CAN report here is a pump that has already
+            # finished, and a short sample under load does that before the
+            # interpreter gets its next slice. Asking it as a bare boolean
+            # read that as "would not start" and threw away a pump that had
+            # just done the whole job (pydevices#52), so ask the status.
             self._parked = False
             if not mod.running():
+                # It did not fail to start. It started, and it has already
+                # FINISHED -- read the status before falling back, because
+                # "the pump would not start" was the wrong sentence and sent
+                # three sessions looking at thread creation (pydevices#52).
+                #
+                # Accepting the finished pump instead of tearing it down was
+                # tried and is NOT here: it lifts "took the pump" from 98.9 to
+                # 99.7 out of 100 under load, and costs a whole round's audio
+                # two or three times in ten runs. Falling back to the
+                # interpreter thread is slower and always sounds, which is the
+                # better trade until the lost round is understood. The
+                # measurements are on the issue.
                 mod.shutdown()
-                raise RuntimeError("the pump would not start")
+                raise StartFailed(_why_not_running(mod, status)
+                                  or "the pump had already finished")
             return
         # No back-pressure on this build: the pump would free-run and drop, so
         # it runs only inside produce(). park() returns True once the thread is
@@ -649,7 +715,7 @@ class RingDriver(_Driver):
         # play-stop cycles.
         if not mod.park(200000):
             mod.shutdown()
-            raise RuntimeError("the pump would not start")
+            raise StartFailed("the pump would not start")
         self._parked = True
 
     def dropped(self):
@@ -1399,10 +1465,18 @@ class Pump:
         self._refusal = exc
         self._blocked = True
 
-    def note_fault(self, why):
+    def note_fault(self, why, blocking=True):
+        """Record a refusal somebody else caught.
+
+        `blocking=False` records it WITHOUT closing the door: the sentence is
+        on `fault()` for whoever reports it, and the next `play()` tries
+        again. That is what a transient loss wants -- a pump that lost one
+        race with a busy CPU is not a pump that cannot pump this graph, and
+        nothing else ever clears `_blocked` on this path (pydevices#52).
+        """
         self._fault = why
         self._refusal = None
-        self._blocked = True
+        self._blocked = bool(blocking)
 
     def shutdown(self):
         _enter()

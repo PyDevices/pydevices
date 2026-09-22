@@ -406,9 +406,17 @@ class AudioOut:
                 return
         except Exception as exc:          # noqa: BLE001 - reported, not raised
             self._release_prefetch()
-            engine.note_fault(str(exc))
+            # A transient loss must not become permanent. Nothing clears
+            # `_blocked` on this path -- `_play`'s own teardown is the repair
+            # for everything that goes through `Pump.play`, and this except is
+            # what catches the rest -- so recording a lost race as blocking
+            # meant the process never reached for the pump again, on any
+            # player, until it exited (pydevices#52).
+            transient = isinstance(exc, _pump_mod.StartFailed)
+            engine.note_fault(str(exc), blocking=not transient)
             print("audiodev: the audio pump would not start -", exc,
-                  "- playing on the interpreter thread instead")
+                  "- playing on the interpreter thread instead"
+                  + ("; the next play will try again" if transient else ""))
             return
         self._engine = engine
         self._engine_seen = True
