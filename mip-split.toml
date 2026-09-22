@@ -1,0 +1,68 @@
+# Which modules in lib/ cannot run on a microcontroller.
+#
+# `displaydev`, `audiodev` and `multimer` each carry a full set of platform
+# backends and pick one at import time through their `auto` module. That design
+# is right and is not what this file is about: the question here is only what
+# gets *shipped* to a device. Installing a board config onto an ESP32-S3 used to
+# pull `windisplay`, `jndisplay`, `wasmdisplay`, `pgdisplay`, `sdldisplay`,
+# `androidsdl`, `win_audio`, `pygame_audio`, `wasm_audio`, `web_audio`,
+# `sdl2_audio`, `android_audio`, `win32`, `sdl2`, `threading` and `wasm` — about
+# half of what landed, none of it able to execute, all of it minutes of install
+# time over WiFi and flash that could hold something (pydevices#30).
+#
+# Every module named here ships in **pydevices-desktop** instead, which already
+# `require("pydevices")`, so a desktop, browser or Android host gets exactly what
+# it got before, in one install, at the same import paths. An MCU gets the rest.
+#
+# `auto.py` stays in the MCU package in every case. Its host branches import
+# inside the function, never at module scope, so importing it on a board is fine;
+# calling `AutoDisplay()` there was never the intent ("board configs stay
+# MCU-shaped wiring only" — displaydev/auto.py).
+#
+# **The rules the publisher enforces**, so this file cannot rot quietly:
+# a name here that no longer exists fails the sync, and a new module in one of
+# these packages ships to the MCU unless it is added here — so the failure mode
+# of forgetting is a device carrying one file too many, never a host missing one.
+# It also refuses to publish if an MCU-side module imports a host-only one at
+# module scope.
+
+[displaydev]
+# SDL, pygame, Windows GDI, Jupyter, PyScript, the browser canvas, Android.
+# `_desktop` and `_domkeys` are shared helpers for those and nothing else.
+host-only = [
+    "_desktop",
+    "_domkeys",
+    "androidsdl",
+    "jndisplay",
+    "pgdisplay",
+    "psdisplay",
+    "sdldisplay",
+    "wasmdisplay",
+    "windisplay",
+]
+
+[audiodev]
+# Host mixers and the two browser backends. `i2s_audio`, `pwm_tone`,
+# `sample_out`, `accel` and `pump` are the MCU's, and `emulated_audio` stays
+# with them: it is never selected by `auto`, is imported explicitly, and builds
+# on audiodev's own PCM classes with no host dependency.
+host-only = [
+    "android_audio",
+    "pygame_audio",
+    "sdl2_audio",
+    "wasm_audio",
+    "web_audio",
+    "win_audio",
+]
+
+[multimer]
+# `librt` is `timer_create` through ctypes/ffi, i.e. Linux. The asyncio pieces
+# (`_async_timer`, `_asyncio_loader`, `_mpasyncio`, `_schedule`) are portable and
+# stay with `machine`, `polling`, `_ticks` and `_core`.
+host-only = [
+    "librt",
+    "sdl2",
+    "threading",
+    "wasm",
+    "win32",
+]
