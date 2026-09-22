@@ -30,9 +30,9 @@ Standard hardware driver engine and companion reference code.
 
 Zero external native dependencies — runs on any Python 3 host.
 
-- [`pygraphics`](https://github.com/PyDevices/pygraphics) — Pure-Python 2D graphics library with drawing primitives, anti-aliased font rendering, paletted surface blitting, and area-dirtying pipelines.
+- [`pygraphics`](https://github.com/PyDevices/pygraphics) — Native C and pure-Python 2D graphics library with drawing primitives, bitmap font rendering, paletted surface blitting, and area-dirtying pipelines.
 - [`pdwidgets`](https://github.com/PyDevices/pdwidgets) — Lightweight object-oriented UI widget framework including buttons, sliders, progress bars, labels, and event routing for PyDevices screens.
-- [`palettes`](https://github.com/PyDevices/palettes) — Color management library with RGB565 / RGB888 conversion, HSL / HSV color spaces, palette swatches, and smooth gradient generators.
+- [`palettes`](https://github.com/PyDevices/palettes) — Color management library with RGB565 / RGB888 output, an HSV color wheel, RGB color cubes, Material Design swatches, and Win16 color names.
 
 ### Tier 3: LVGL Native Extensions & Binding Generator
 
