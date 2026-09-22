@@ -10,7 +10,9 @@ For installing PyDevices anywhere else, including desktop, see
 **Read §1 and §2 before you install anything.** Between them they are most of
 the time a first bring-up costs: half of what you might install is already in
 the firmware, and installing over serial when the board has Wi-Fi turns minutes
-into an afternoon.
+into an afternoon. Over Wi-Fi the whole of §2 is about a minute even at a
+marginal signal: measured on an ESP32-P4 at RSSI −85 dBm, connect 9.8 s,
+`mip.install("pydevices")` 49.3 s, the board package 8.5 s.
 
 ---
 
@@ -33,19 +35,24 @@ and the following are **not**, and must be installed:
   C halves.
 
 ```python
-for m in ("lvgl", "display_driver", "dotclockframebuffer", "displaydev",
-          "board_config", "usbif", "appdev", "multimer"):
+for m in ("lvgl", "display_driver", "dotclockframebuffer", "mipidsi",
+          "displaydev", "board_config", "usbif", "appdev", "multimer"):
     try:
         __import__(m); print("OK  ", m)
     except Exception as e:
-        print("MISS", m, type(e).__name__)
+        print("MISS", m, type(e).__name__, e)
 ```
 
+(`mipidsi` is the panel interface on the ESP32-P4 boards, `dotclockframebuffer`
+on the RGB-panel S3 boards; whichever is not yours will simply be missing.)
+
 **Trap.** `import display_driver` fails with `ImportError` on a bare board even
-though it is frozen — because `display_driver` imports `board_config`, and it
-is *that* import failing. The probe above will tell you `display_driver` is
-missing when it is present and fine. Install `board_config` first, then
-re-probe.
+though it is frozen — because `display_driver` imports `appdev`, and it is
+*that* import failing (`no module named 'appdev'`). The same shape hides
+behind `usbif`, which trips on `events`. The probe prints the exception text
+so you can see which module is really absent; a frozen module that reports
+`MISS` with somebody else's name in the message is present and fine. Install
+`pydevices` (which carries `appdev` and `events`), then re-probe.
 
 ## 2. Installing, over Wi-Fi
 
@@ -86,6 +93,25 @@ The board installer pulls its own drivers and depends on `pydevices`, so the
 second call alone is usually enough. Board installers live in the `pydevices`
 repo, not in the MIP index — hence the `github:` prefix with `index=` for the
 dependency.
+
+**Take both halves from the same place.** The pair above mixes the *released*
+`pydevices` (the index) with the board config from `main` (`github:`). That
+is fine when the two agree, and wrong the moment `main`'s board configs pass
+something the release's library does not know: on 2026-09-22 the release was
+one step behind the audio pump, so a board built exactly this way came up with
+a working panel and touch and **no audio** — `pcm_out()` raised
+`TypeError: unexpected keyword argument 'wire'`
+([#50](https://github.com/PyDevices/pydevices/issues/50)). If the board
+config you install is from `main`, install `pydevices` from `main` too:
+
+```python
+mip.install("github:PyDevices/pydevices", index=INDEX)
+```
+
+Note that this does **not** replace files a release already put in `/lib`
+with different names — mip adds and overwrites, it never removes — and that a
+`.py` beside a `.mpy` is the one that loads, so a source install over a
+bytecode one takes effect without deleting anything first.
 
 When it finishes, reset the board (`machine.reset()`, or the button) before you
 `import board_config`. On a panel like this one the display will not start
