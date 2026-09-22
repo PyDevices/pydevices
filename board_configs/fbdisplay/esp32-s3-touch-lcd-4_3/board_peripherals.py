@@ -8,11 +8,18 @@ _SD_MOSI = 11
 _SD_SCK = 12
 _SD_MISO = 13
 _SD_CS_EXIO = 4  # CH422G
-_CAN_TX = 15
-_CAN_RX = 16
+# CAN rides the ESP32-S3's own USB pins: the FSUSB42UMX (U13) has ESP_USB_N/P
+# on its common side and throws them either to the second USB-C connector or to
+# the TJA1051, with EXIO5 choosing. So CAN TX/RX are GPIO20/19 -- the D+/D- pair
+# -- not a separate pair.
+_CAN_TX = 20
+_CAN_RX = 19
 _CAN_SEL_EXIO = 5  # CH422G: high = CAN mode
-_RS485_TX = 44
-_RS485_RX = 43
+# RS485 is the SP3485 (U7) on GPIO15/16. Waveshare's net names are
+# transceiver-centric and read backwards from the MCU: RS485_TXD is what the
+# transceiver transmits *to* the ESP32, so it is our RX.
+_RS485_TX = 16
+_RS485_RX = 15
 
 
 def load_peripherals(ns):
@@ -37,7 +44,12 @@ def sdcard():
 
 
 def can():
-    """TJA1051 on GPIO15/16; EXIO5 selects CAN vs USB."""
+    """TJA1051 on GPIO20/19; EXIO5 selects CAN vs USB.
+
+    Driving EXIO5 high hands the second USB-C connector to the CAN transceiver,
+    so the board's native USB goes away for as long as CAN is selected. Do not
+    call this on a board being used as a USB host or reached over native USB.
+    """
     import board_config as bc
     import canbus
 
@@ -46,7 +58,14 @@ def can():
 
 
 def rs485():
-    """SP3485 auto-direction UART (TX=44, RX=43 on this panel family)."""
+    """SP3485 auto-direction UART (TX=16, RX=15 on this panel family).
+
+    There is no DE pin to pass: the SP3485's DI is tied to ground and our TX
+    drives DE/RE through an inverter, so the transceiver keys itself. Because
+    RE is strapped to DE it stops receiving while it transmits, which means a
+    loopback test sees no echo of what it just sent -- that is the circuit, not
+    a fault.
+    """
     from rs485 import RS485
 
     return RS485(1, tx=_RS485_TX, rx=_RS485_RX, baudrate=115200)
