@@ -1168,7 +1168,15 @@ class Pump:
                 # protect: tear the pump down, which is also what clears the
                 # block. The next play() gets a fresh driver and a fresh
                 # channel rather than a refusal it cannot see.
-                self._shutdown()
+                #
+                # Guarded, because a teardown that raises here would replace
+                # the refusal the caller actually needs to see with whatever
+                # went wrong on the way out -- and under `raises=True` that is
+                # the exception they would get.
+                try:
+                    self._shutdown()
+                except Exception:    # noqa: BLE001 - the refusal outranks it
+                    pass
             if raises:
                 raise
             return False
