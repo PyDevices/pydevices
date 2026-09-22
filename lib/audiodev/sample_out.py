@@ -62,6 +62,11 @@ except ImportError:  # pragma: no cover - CPython fallback, no multimer
 #: than a global so the check costs no `global` statement on the play path.
 _WARNED = []
 
+#: The fault sentence the "the pump is still down" note was last said about.
+#: Once per fault rather than once per boot: a second, different fault later
+#: in the same boot is news, and the same one said on every play() is not.
+_SAID = []
+
 #: `audiodev.pump`, imported once, lazily. Lazily because importing it from
 #: module scope re-enters `audiodev/__init__` while THIS module is halfway
 #: through being imported by it; once because the latch below is read on
@@ -315,7 +320,19 @@ class AudioOut:
         if not _pump_mod.available():
             return
         engine = _pump_mod.owner()
-        if engine.fault() is not None:
+        if engine.blocked():
+            # The pump is still holding whatever broke. Falling back is
+            # right; falling back SILENTLY is what cost a board sitting an
+            # hour -- the speaker works, `pumped` is False, the DMA counter
+            # never moves and nothing anywhere says why (pydevices#45). Same
+            # shape as the no-`wire=` note below, said once per fault.
+            self._pump_refused = engine.fault()
+            if not _SAID or _SAID[-1] != self._pump_refused:
+                del _SAID[:]
+                _SAID.append(self._pump_refused)
+                print("audiodev: the audio pump is still down -",
+                      self._pump_refused,
+                      "- playing on the interpreter thread instead")
             return
         try:
             tail = sample

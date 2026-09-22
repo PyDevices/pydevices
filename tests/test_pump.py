@@ -1042,6 +1042,90 @@ class TheBoardPlaysThroughAudiobusio(PumpFixture):
         self.assertEqual(prefetch.wrote, 40 * 1024,
                          "the file stopped being read part way through")
 
+    # --- a fault that has been torn down is over (pydevices#45) ----------
+
+    def test_the_next_player_gets_the_pump_back_once_the_fault_is_torn_down(
+            self):
+        """The fault sentence used to outlive the repair, so every later
+        `AudioOut` in that boot played on `machine.I2S` -- `pumped` False,
+        the DMA counter still, and nothing anywhere saying why."""
+        out, _transport = self.board()
+        self.assertTrue(out.pumped, "the first player never got the pump")
+        out.stop()
+        engine = pump_mod.owner()
+        engine.note_fault("something in the chain was released")  # the fault
+        engine.shutdown()                                         # the repair
+        self.assertIsNotNone(engine.fault(),
+                             "the sentence went with the teardown")
+        self.assertFalse(engine.blocked(),
+                         "the teardown left the refusal behind it")
+
+        out2, _ = self.board()
+        self.assertTrue(out2.pumped, "the speaker came back on machine.I2S")
+        self.assertIsNone(out2.pump_refused)
+
+    def test_a_pump_still_holding_a_fault_refuses_and_says_so_once(self):
+        """The control, and the reason `blocked()` is not just `fault()`:
+        a fault that has NOT been torn down still turns players away -- but
+        out loud, and only once for that fault."""
+        del sample_out._SAID[:]
+        engine = pump_mod.owner()
+        engine.note_fault("a node was released while it was playing")
+
+        said = io.StringIO()
+        with mock.patch("sys.stdout", said):
+            out, transport = self.board()
+        self.assertFalse(out.pumped, "a blocked pump took a client")
+        self.assertIn("the audio pump is still down", said.getvalue())
+        self.assertEqual(out.pump_refused,
+                         "a node was released while it was playing")
+        self.assertTrue(transport.data, "the audio stopped as well")
+
+        again = io.StringIO()
+        with mock.patch("sys.stdout", again):
+            out2, _ = self.board()
+        self.assertFalse(out2.pumped)
+        self.assertNotIn("still down", again.getvalue(),
+                         "it said the same thing twice")
+
+    # --- the refusal is an object, not a line of stdout (audioif#2) ------
+
+    def test_a_caller_that_asked_for_the_pump_gets_the_refusal_itself(self):
+        """`I2SOut.retarget` raises a `ValueError` naming WHICH refusal it
+        is -- a rate change, or a sample that is not signed 16-bit -- and
+        until `raises=` existed only its wording came out."""
+        out, _transport = self.board()
+        i2s = FakeI2SOut.built[-1]
+
+        def refuse(sample, *, loop=False):
+            raise ValueError(
+                "retarget cannot retune the bus; call play() instead")
+
+        i2s.retarget = refuse
+        engine = pump_mod.owner()
+        with self.assertRaises(ValueError) as caught:
+            engine.play(object(), FakeSample(), raises=True)
+        self.assertIn("retune the bus", str(caught.exception))
+        self.assertIs(engine.refusal(), caught.exception,
+                      "the exception itself was thrown away")
+        self.assertEqual(engine.clients(), 1,
+                         "the client that could not sound was kept")
+
+    def test_the_default_caller_still_gets_False_and_the_sentence(self):
+        """The control for the one above: a player that never asked for the
+        pump must not be handed the pump's exceptions."""
+        out, _transport = self.board()
+        i2s = FakeI2SOut.built[-1]
+
+        def refuse(sample, *, loop=False):
+            raise ValueError("retarget takes a signed 16-bit sample")
+
+        i2s.retarget = refuse
+        engine = pump_mod.owner()
+        self.assertFalse(engine.play(object(), FakeSample()))
+        self.assertIn("signed 16-bit", engine.fault())
+        self.assertIsInstance(engine.refusal(), ValueError)
+
 
 class ASecondClientJoinsAPumpThatIsSTILLRUNNING(PumpFixture):
     """`Pump._retarget()`'s live branch, which had no test of its own.
