@@ -60,6 +60,11 @@ RUNS = (
     # reported as a loud skip (exit 2), not a pass, because "no device" and
     # "the bytes arrived" must never look the same (PyDevices/audioif#7).
     ("device", ["device.py", "raw", "wav"], ("flip", "short", "nodev")),
+    # The two re-entrancy guards. Both plants have to land in the window that
+    # belongs to the guard under test and nowhere else -- planting them where
+    # a second guard is already holding is what made them both look like guards
+    # nothing needed (pydevices#37).
+    ("guards", ["guards.py"], ("no-finally", "no-latch")),
 )
 
 #: Faults that need the pump on a thread of its own.
