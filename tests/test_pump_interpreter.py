@@ -19,6 +19,11 @@ such a binary today, so without the banner below this file would report
 nothing at all, for ever, and read as coverage. It prints what it did not
 run and why, and ``PYDEVICES_REQUIRE_PUMP=1`` turns the skip into a failure
 -- which is what a CI job that *does* build an interpreter must set.
+
+``device.py`` needs one thing more than an interpreter: a machine with a
+sound device. A hosted runner has none and never will, so that skip has its
+own switch, ``PYDEVICES_REQUIRE_DEVICE=1``, for a bench that does. It is the
+only probe here that opens a real one; the rest record to a WAV.
 """
 
 from pathlib import Path
@@ -50,6 +55,11 @@ RUNS = (
     # `chain` wants audioeffects, which this package does not depend on.
     ("identity", ["identity.py", "raw", "synth", "wav"],
      ("drop", "flip", "short")),
+    # The one probe that opens a real sound device rather than recording to a
+    # WAV. It needs a host with an output device; a host without one is
+    # reported as a loud skip (exit 2), not a pass, because "no device" and
+    # "the bytes arrived" must never look the same (PyDevices/audioif#7).
+    ("device", ["device.py", "raw", "wav"], ("flip", "short", "nodev")),
 )
 
 #: Faults that need the pump on a thread of its own.
@@ -71,6 +81,10 @@ RUNS = (
 #: wrong thing: what would fail there is "no audio came out", not "a block was
 #: thrown away". The banner below says it was not run and counts it.
 THREADED_ONLY = ("drop",)
+
+#: A probe's way of saying "this host has no sound device". Distinct from 1,
+#: which means the probe ran and the answer was no.
+_NO_DEVICE = 2
 
 #: What the probes could not be run against, filled in by the finder so the
 #: banner can say it once rather than once per test.
@@ -176,6 +190,25 @@ class ThePumpProbesRunOnARealInterpreter(unittest.TestCase):
                 self.fail("PYDEVICES_REQUIRE_PUMP=1 and " + self.why_not)
             self.skipTest("no interpreter with the pump: " + self.why_not)
 
+    def _no_device(self, what, result):
+        """A probe that could not open a sound device on this host.
+
+        Not a failure -- a headless runner has none -- and emphatically not a
+        pass: it goes in the banner, and PYDEVICES_REQUIRE_PUMP=1 turns it
+        into a failure, the same way a missing interpreter does.
+        """
+        why = ("%s found no output device on this host, so nothing here has "
+               "reached a real one" % what)
+        if why not in _MISSED:
+            _MISSED.append(why)
+        # Deliberately NOT PYDEVICES_REQUIRE_PUMP. "This build has no pump" and
+        # "this machine has no sound card" are different facts, and a hosted CI
+        # runner has the second one for ever -- tying them together would mean
+        # either a permanently red job or quietly dropping the probe. A bench
+        # with speakers sets PYDEVICES_REQUIRE_DEVICE=1 and gets a failure.
+        if os.getenv("PYDEVICES_REQUIRE_DEVICE") == "1":
+            self.fail(why + ":\n" + result.stdout)
+
     def test_the_probes_are_where_the_runner_looks(self):
         """Independent of any interpreter: a probe that was moved or renamed
         must not turn into a silent skip."""
@@ -188,6 +221,9 @@ class ThePumpProbesRunOnARealInterpreter(unittest.TestCase):
             for name, arguments, _faults in RUNS:
                 with self.subTest(probe=name):
                     result = _run(self.interpreter, arguments, tmpdir)
+                    if result.returncode == _NO_DEVICE:
+                        self._no_device(name, result)
+                        continue
                     self.assertEqual(
                         result.returncode, 0,
                         "%s failed:\n%s\n%s%s"
@@ -210,6 +246,14 @@ class ThePumpProbesRunOnARealInterpreter(unittest.TestCase):
                     with self.subTest(probe=name, fault=fault):
                         result = _run(self.interpreter,
                                       arguments + ["--fault", fault], tmpdir)
+                        if result.returncode == _NO_DEVICE:
+                            # A probe that exits 2 for every fault would sail
+                            # through the assertion below without testing one
+                            # of them. "There is no device" is not "the fault
+                            # was caught".
+                            self._no_device("%s --fault %s" % (name, fault),
+                                            result)
+                            continue
                         self.assertNotEqual(
                             result.returncode, 0,
                             "%s passed with the %s fault planted, so it "
