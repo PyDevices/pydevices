@@ -1,4 +1,4 @@
-## Unreleased
+## v0.5.0 (2026-09-22)
 
 - **The DSP repository is `audiodsp` now** (renamed 2026-09-21), and everything
   here that named it follows. One thing you can notice: on CPython,
@@ -98,6 +98,35 @@ The **previous** ESP32 backend did run, on the Waveshare ESP32-P4 panel:
 `play()` in 8 ms, 100 of 100 stop/play cycles, and `service()` at 95 µs mean
 against the old path's 234 µs.
 
+- ci: every reusable call moves from publishing-v6 to publishing-v10 (#57)
+- What the pump hands a transport when the app stops draining, measured and pinned
+- A transport's priming threshold is part of the interface, and a queue that stops moving is not full
+- An interpreter with no provenance stamp says so when the renders disagree
+- board-bringup: the five corrections from the P4 sittings
+- The golden probe's virtual clock cannot pace a pump on a real thread
+- pump.health(): one dict, with the counter nothing read beside the one that is bad news
+- Both re-entrancy guards, re-planted where each one is the only thing holding
+- The pump does not fail to start; it finishes first, and the guard said the wrong thing
+- A probe that opens a real sound device, because every desktop claim so far has been a digest of a file
+- Ignore the interpreter provenance stamps beside the binaries
+- A fault the pump has been torn down for stops turning players away (#49)
+- Declare which lib/ modules cannot run on a microcontroller
+- S3 touch boards: CAN is GPIO20/19 and RS485 is GPIO16/15, and RS485 was holding the console pins
+- Regenerate the ecosystem map: the pygraphics and palettes descriptions
+- Regenerate the ecosystem map: lvgl-python no longer claims macOS wheels
+- tests: the pump job checks out audiodsp at v0.5.1, not its default branch (#48)
+- The core's distribution is pydevices-audiodsp (#47)
+- audioif is audiodsp: links, names and the CPython extension follow the core's rename (#46)
+- t-embed: publish wire= and audio_power= so the pump owns I2S(1) (#41) (#44)
+- board-bringup: reset after installing, and bring the display up before Wi-Fi (#43)
+- audiodev plays through the audio pump, and on a board it goes through audiobusio.I2SOut (#35)
+- A board bring-up guide, out of the notes that were written for us
+- tests.yml: run the suite when a board's board_config/board_peripherals changes
+- t-embed board_peripherals: guard the import-time rail power for host binding
+- sdl2_audio: make service() re-entrancy-safe against a scheduled pump
+- t-embed: power the peripheral rail from board_peripherals, not only board_config
+- Regenerate pydevices-desktop.toml
+
 ## v0.4.0 (2026-09-16)
 
 Breaking: the audio roles are renamed, and `audio_in` is removed.
@@ -150,4 +179,3 @@ Breaking: the audio roles are renamed, and `audio_in` is removed.
 - Record exec mode on fetch_interpreters.sh and wasm.py
 - Regenerate the ecosystem map (audiodsp blurb, micropython-pydevices)
 - Distribute interpreter binaries as release assets, not git content
-
