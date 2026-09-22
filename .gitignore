@@ -35,3 +35,7 @@ bin/circuitpython
 bin/micropython.mjs
 bin/micropython.wasm
 bin/interpreters.json
+# Written beside each interpreter by cmods/build_interpreters.sh: which usermod
+# commits it was built from, so a gate can refuse a stale binary (cmods#27).
+# A build artifact like the binaries above, not source.
+bin/*.provenance
