@@ -40,7 +40,7 @@ Single-source LVGL C header binding generator and native interpreter modules.
 
 - [`lvgl-bindings`](https://github.com/PyDevices/lvgl-bindings) — Automated binding generator parsing LVGL C headers into native CPython extensions, MicroPython usermods, and CircuitPython modules.
 - [`lvgl-micropython`](https://github.com/PyDevices/lvgl-micropython) — Native MicroPython C module integrating LVGL v9 graphics engine with displayif bus drivers across ESP32, RP2040, and i.MX RT targets.
-- [`lvgl-python`](https://github.com/PyDevices/lvgl-python) — Pre-built CPython extension wheels and Pyodide WASM packages bringing LVGL v9 to desktop Linux, macOS, Windows, and web browsers.
+- [`lvgl-python`](https://github.com/PyDevices/lvgl-python) — Pre-built CPython extension wheels and Pyodide WASM packages bringing LVGL v9 to Linux, Windows, Android, and web browsers.
 - [`lvgl-circuitpython`](https://github.com/PyDevices/lvgl-circuitpython) — CircuitPython native C module providing LVGL v9 bindings and displayif integration for Adafruit Feather and SAMD51 / RP2040 boards.
 
 ### Tier 4: App Hosts & Mobile
