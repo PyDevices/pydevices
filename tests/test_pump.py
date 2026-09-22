@@ -1444,6 +1444,38 @@ class ATickInsideAnyOfThem(PumpFixture):
                            "no tick was ever refused, so the latch is not "
                            "being held across anything")
 
+    def test_health_carries_the_counter_that_had_no_reader(self):
+        """`reentered()` was a number nothing surfaced (pydevices#38).
+
+        Same answer audiocomponents#97 reached one layer up: not dropped, and
+        not shown as a missed step either -- a refused tick costs nothing --
+        but put on one health dict beside the counter that IS bad news, with
+        each entry's meaning on the docstring so a reader does not have to
+        guess which of them to worry about.
+        """
+        engine = pump_mod.owner()
+        before = engine.health()
+        for key in ("clients", "reentered", "dropped", "waited", "waited_us",
+                    "blocks", "bytes", "running", "ahead_ms", "fault",
+                    "blocked"):
+            self.assertIn(key, before, "health() lost " + key)
+        for at in range(1, self.POINTS + 1):
+            self.outcome(at, "play")
+        after = pump_mod.owner().health()
+        self.assertGreater(after["reentered"], before["reentered"],
+                           "the counter moved and health() did not carry it")
+        self.assertEqual(after["dropped"], 0,
+                         "a turned-away tick is not a dropped block, and "
+                         "health() must not let them look the same")
+
+    def test_health_never_raises_on_a_pump_that_has_nothing(self):
+        """A status screen asks unconditionally, so this has to answer."""
+        pump_mod.forget()
+        report = pump_mod.owner().health()
+        self.assertEqual(report["clients"], 0)
+        self.assertFalse(report["running"])
+        self.assertIsNone(report["fault"])
+
     def test_the_latch_unwinds_even_when_the_call_raises(self):
         """A rearrangement that throws must not leave the audio latched off.
 

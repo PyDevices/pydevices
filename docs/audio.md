@@ -195,6 +195,28 @@ prefetcher in front of it and the pump pulls a ring instead. And a fault is a
 sentence on stdout and playback on the old path, never a traceback from
 nowhere.
 
+### Asking how it is doing
+
+`audiodev.pump.health()` returns one dict, or `None` on a firmware with no
+pump, so a status screen can ask unconditionally:
+
+```python
+from audiodev import pump
+print(pump.health())
+# {'clients': 1, 'reentered': 0, 'dropped': 0, 'waited': 0, 'waited_us': 0,
+#  'blocks': 1, 'bytes': 38400, 'running': True, 'ahead_ms': 400.0,
+#  'fault': None, 'blocked': False}
+```
+
+`dropped` is the one that means **audio was not heard**. `reentered` is not:
+it counts service ticks that arrived while something was rearranging who is
+sounding, and a refused tick costs nothing — the buffer under it is hundreds
+of milliseconds deep and the next tick does what this one did not. A number
+that climbs there says your timer is faster than your own rearrangements.
+`blocked` True is the state where every `play()` goes to the interpreter
+thread, and `fault` says why. Each entry's meaning is on `Pump.health()`'s
+docstring.
+
 The mechanism, the driver per port, what a fault says and what is still
 unproven: [`lib/audiodev/README.md`](../lib/audiodev/README.md#pumppy--the-audio-pump).
 

@@ -384,6 +384,17 @@ def reentered():
     return _BUSY[1]
 
 
+def health():
+    """The process pump's :meth:`Pump.health`, without building one.
+
+    Returns None when this firmware has no pump, so a status screen can ask
+    unconditionally.
+    """
+    if not available():
+        return None
+    return owner().health()
+
+
 def _enter():
     _BUSY[0] += 1
 
@@ -1410,6 +1421,94 @@ class Pump:
             if owned is not None:
                 return owned
         return self._status
+
+    def health(self):
+        """One dict an app can put on a screen. Nothing here raises.
+
+        The counters underneath this were each readable on their own and none
+        of them had a reader, which is how `reentered()` came to be a number
+        nobody could see (pydevices#38; audiocomponents#97 is the same shape
+        one layer up and chose this surface first).
+
+        The entries, and which of them is bad news:
+
+        ``dropped``
+            Blocks the output ring had no room for. **This is the one that
+            means audio was not heard.** It is 0 by construction on a build
+            whose ring can hold one block of the graph; a number here says the
+            ring is shorter than the graph's own block.
+        ``reentered``
+            Ticks that arrived while something was rearranging who is
+            sounding, and were turned away. **Not a hole.** The buffer under
+            it is hundreds of milliseconds deep and the next tick does what
+            this one did not. A number that climbs says the app's timer is
+            faster than its own rearrangement, which is worth knowing and is
+            not worth an exception.
+        ``waited`` / ``waited_us``
+            Times the pump slept because the ring was full, and how long in
+            total. On a desktop this is the number that says the ring really
+            is the pace: **a pump that never waits is a pump nothing is
+            holding back**, which on a desktop meant it was dropping.
+        ``blocks`` / ``bytes``
+            What it has pulled since it was spawned.
+        ``clients``
+            Players and streams sharing the pump. Two means a root Mixer.
+        ``running``
+            Whether the loop is live. False with ``fault`` None just means
+            nothing is playing.
+        ``ahead_ms``
+            How much audio the ring holds when full: the floor under
+            note-to-sound latency on this driver.
+        ``fault`` / ``blocked``
+            The last refusal as a sentence, and whether it is still refusing.
+            ``blocked`` True is the state where every ``play()`` goes to the
+            interpreter thread.
+        """
+        mod = module()
+        driver = self._driver
+        report = {
+            "clients": len(self._clients),
+            "reentered": reentered(),
+            "dropped": 0,
+            "waited": 0,
+            "waited_us": 0,
+            "blocks": 0,
+            "bytes": 0,
+            "running": bool(mod is not None and self._spawned
+                            and mod.running()),
+            "ahead_ms": None,
+            "fault": self._fault,
+            "blocked": self._blocked,
+        }
+        if driver is not None:
+            getter = getattr(driver, "dropped", None)
+            if getter is not None:
+                try:
+                    report["dropped"] = getter()
+                except Exception:    # noqa: BLE001 - a health call never raises
+                    pass
+            getter = getattr(driver, "waited", None)
+            if getter is not None:
+                try:
+                    report["waited"], report["waited_us"] = getter()
+                except Exception:    # noqa: BLE001
+                    pass
+            getter = getattr(driver, "ahead_ms", None)
+            if getter is not None:
+                try:
+                    report["ahead_ms"] = getter()
+                except Exception:    # noqa: BLE001
+                    pass
+        if mod is not None and self._spawned:
+            try:
+                import struct
+
+                w = struct.unpack("<%dQ" % mod.STATUS_WORDS, self.status())
+                report["blocks"] = w[0]
+                report["bytes"] = w[1]
+            except Exception:        # noqa: BLE001
+                pass
+        return report
 
     def died(self):
         """The reason the pump stopped by itself, as a sentence, or None."""
