@@ -1003,12 +1003,21 @@ def attach_stream(fmt, *, driver=None, frames=256, capacity=6):
     Returns a :class:`PumpOutput` the caller writes PCM into, already
     registered as a pump client -- so an ``AudioOut`` graph and this stream
     are summed by a root Mixer and come out of one peripheral.
+
+    This caller DID ask for the pump, so it plays with ``raises=True`` and a
+    refusal arrives as the driver's own exception -- the ``ValueError`` that
+    says whether it was the rate or the sample width -- rather than as a
+    ``RuntimeError`` carrying a copy of its wording.
     """
     stream = PumpOutput(fmt, frames=frames, capacity=capacity)
     _enter()
     try:
-        took = owner().play(stream, stream.ring, driver=driver)
-    finally:
+        took = owner().play(stream, stream.ring, driver=driver, raises=True)
+    except Exception:
+        _leave()
+        stream.deinit()
+        raise
+    else:
         _leave()
     if not took:
         stream.deinit()
@@ -1054,6 +1063,15 @@ class Pump:
         self._retired = None
         self._spawned = False
         self._fault = None
+        # The sentence is what happened; this is whether it is still in the
+        # way. They came apart because a fault that had already been torn
+        # down went on refusing every later `play()` for the rest of the
+        # boot, silently, and the speaker came back on `machine.I2S`
+        # (pydevices#45). A pump with no clients, no thread and no driver has
+        # nothing broken left to carry, so `_shutdown` clears this and keeps
+        # the sentence for whoever wants to report it.
+        self._blocked = False
+        self._refusal = None
         self._events = None
 
     # --- the clock -------------------------------------------------------
@@ -1106,16 +1124,29 @@ class Pump:
     def clients(self):
         return len(self._clients)
 
-    def play(self, owner, sample, driver=None, loop=False):
-        """Put *owner*'s *sample* on the pump. Returns True when it sounds."""
+    def play(self, owner, sample, driver=None, loop=False, raises=False):
+        """Put *owner*'s *sample* on the pump. Returns True when it sounds.
+
+        A refusal is ``False`` and a sentence on :meth:`fault`, because the
+        usual caller is a player that never asked for the pump and cannot be
+        made to handle its problems.
+
+        ``raises=True`` is for the caller that DID ask. The driver's own
+        exception comes out instead of being flattened into that sentence --
+        `audiobusio.I2SOut.retarget` raises a ``ValueError`` naming *which*
+        refusal it is, a rate change or a sample that is not signed 16-bit,
+        and until this keyword existed there was no way to catch it
+        (audioif#2). :meth:`refusal` is the same object for the callers that
+        take the ``False``.
+        """
         _enter()
         try:
-            return self._play(owner, sample, driver, loop)
+            return self._play(owner, sample, driver, loop, raises)
         finally:
             _leave()
 
-    def _play(self, owner, sample, driver, loop):
-        if self._fault is not None:
+    def _play(self, owner, sample, driver, loop, raises=False):
+        if self._blocked:
             return False
         client = self._find(owner)
         if client is None:
@@ -1131,7 +1162,23 @@ class Pump:
             self._retarget()
         except Exception as exc:          # noqa: BLE001 - reported, not raised
             self._clients.remove(client)
-            self._fault = str(exc)
+            self._note(exc)
+            if not self._clients:
+                # Nothing is sounding, so there is nothing half-swapped to
+                # protect: tear the pump down, which is also what clears the
+                # block. The next play() gets a fresh driver and a fresh
+                # channel rather than a refusal it cannot see.
+                #
+                # Guarded, because a teardown that raises here would replace
+                # the refusal the caller actually needs to see with whatever
+                # went wrong on the way out -- and under `raises=True` that is
+                # the exception they would get.
+                try:
+                    self._shutdown()
+                except Exception:    # noqa: BLE001 - the refusal outranks it
+                    pass
+            if raises:
+                raise
             return False
         return True
 
@@ -1155,7 +1202,7 @@ class Pump:
         except Exception as exc:    # noqa: BLE001 - a client leaving must not
             # take the others' audio out with it, and it must not raise inside
             # somebody else's close().
-            self._fault = str(exc)
+            self._note(exc)
             self.shutdown()
 
     def pause(self, owner):
@@ -1311,11 +1358,51 @@ class Pump:
         return why or "the pump stopped (error %d, fault %d)" % (w[5], w[24])
 
     def fault(self):
-        """The reason the pump is not usable for the rest of this process."""
+        """The last reason the pump stopped or refused a graph, or None.
+
+        It is a record, not a verdict: it survives the teardown that repairs
+        the pump, so an app can still say what happened after the speaker has
+        come back. :meth:`blocked` is the one to ask before deciding whether
+        to reach for the pump at all.
+        """
         return self._fault
+
+    def refusal(self):
+        """The exception behind :meth:`fault`, or None.
+
+        `audiobusio.I2SOut.retarget` raises a ``ValueError`` naming which
+        refusal it is; flattening it to `str()` was the whole of what a
+        caller could see (audioif#2). A caller that took the ``False`` can
+        re-raise this or test its type.
+        """
+        return self._refusal
+
+    def blocked(self):
+        """True while the pump will refuse every :meth:`play`.
+
+        Set when a fault lands on a pump that is still holding something --
+        a thread, a channel, a half-swapped tail. Cleared by the teardown,
+        which is the repair, or by :meth:`clear_fault`.
+        """
+        return self._blocked
+
+    def clear_fault(self):
+        """Forget the last fault and let the next :meth:`play` try again."""
+        was = self._fault
+        self._fault = None
+        self._refusal = None
+        self._blocked = False
+        return was
+
+    def _note(self, exc):
+        self._fault = str(exc)
+        self._refusal = exc
+        self._blocked = True
 
     def note_fault(self, why):
         self._fault = why
+        self._refusal = None
+        self._blocked = True
 
     def shutdown(self):
         _enter()
@@ -1340,6 +1427,12 @@ class Pump:
                 mod.shutdown()
         self._spawned = False
         self._driver = None
+        # The teardown IS the repair. Whatever the fault was, what is left
+        # after this has no clients, no thread, no driver and no channel, so
+        # there is nothing for the next play() to trip over. The sentence
+        # stays on `fault()` for whoever wants to report it; what goes is the
+        # refusal that used to outlive it (pydevices#45).
+        self._blocked = False
         if driver is not None:
             driver.close()
 
