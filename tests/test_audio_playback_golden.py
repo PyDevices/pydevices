@@ -27,6 +27,34 @@ ROOT = _env.ROOT
 
 INTERPRETERS = ("micropython", "micropython.exe", "circuitpython")
 
+#: cmods' provenance stamp, when this checkout sits in the workspace.
+PROVENANCE = ROOT.parent / "cmods" / "scripts" / "provenance.py"
+
+#: The sources that decide what a render sounds like. Two interpreters built
+#: from different ones are not two ports of the same thing, and diffing them
+#: says nothing about either.
+RENDER_SOURCES = ("audiodsp", "audioif")
+
+
+def _built_from(binary):
+    """{source: commit} for an interpreter, or None when it carries no stamp.
+
+    The stamp is `cmods/scripts/provenance.py write`'s, beside the binary.
+    """
+    import json
+
+    resolved_binary = Path(binary).resolve()
+    stamp = resolved_binary.with_name(resolved_binary.name + ".provenance")
+    if not stamp.is_file():
+        return None
+    try:
+        record = json.loads(stamp.read_text(encoding="utf-8"))
+    except Exception:                    # noqa: BLE001 - unreadable is unknown
+        return None
+    return {name: info.get("head")
+            for name, info in record.get("sources", {}).items()
+            if name in RENDER_SOURCES}
+
 
 def _cpython_oracle_candidate():
     """Return the workspace audiodsp source tree when its extension is built.
@@ -66,7 +94,13 @@ def _windows_temp_wav():
 
 class AudioPlaybackGoldenTests(unittest.TestCase):
     def test_render_matches_across_interpreters(self):
-        found = [(name, [name], None) for name in INTERPRETERS if shutil.which(name)]
+        found = []
+        resolved = {}
+        for name in INTERPRETERS:
+            where = shutil.which(name)
+            if where:
+                found.append((name, [name], None))
+                resolved[name] = where
         audiodsp = _cpython_oracle_candidate()
         if audiodsp is not None:
             env = dict(os.environ)
@@ -111,6 +145,35 @@ class AudioPlaybackGoldenTests(unittest.TestCase):
 
             if len(renders) < 2:
                 return  # only one interpreter available; nothing to diff
+
+            # This test's PREMISE is that the interpreters are two builds of
+            # the same sources. Nothing checked it, and on 2026-09-22 that
+            # cost a filed bug: `bin/micropython` and `bin/micropython.exe`
+            # carried audiodsp c5513a0 and 32d7131, nineteen commits apart,
+            # and the diff between their renders was read as a fault in the
+            # win32 pump driver (pydevices#53). A difference between two
+            # different DSP cores is not a port difference; say so instead of
+            # asserting, because the assertion would be about the wrong thing.
+            built = {name: _built_from(path)
+                     for name, path in resolved.items()}
+            known = {name: what for name, what in built.items() if what}
+            if len(known) > 1:
+                reference = None
+                for name, what in sorted(known.items()):
+                    if reference is None:
+                        reference, reference_name = what, name
+                        continue
+                    for source in RENDER_SOURCES:
+                        if what.get(source) != reference.get(source):
+                            self.skipTest(
+                                "%s and %s were built from different %s "
+                                "(%s vs %s), so a difference between their "
+                                "renders would not be a port difference. "
+                                "Rebuild both: cd ../cmods && "
+                                "./build_interpreters.sh"
+                                % (reference_name, name, source,
+                                   str(reference.get(source))[:7],
+                                   str(what.get(source))[:7]))
 
             names = list(renders)
             first = renders[names[0]]

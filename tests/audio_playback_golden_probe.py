@@ -8,7 +8,11 @@
 WAV files when more than one is present -- this is the DSP-parity discipline
 from ``audiodsp/docs/upstream-diff.md`` applied to the
 audiodev side of the bridge: a real ``synthio``/``audiomixer`` script,
-rendered through the real ``AudioOut`` pump, over a real (WAV-file) transport.
+rendered through the real ``AudioOut``, over a real (WAV-file) transport.
+It renders on the interpreter thread (``pump=False``) because a virtual clock
+cannot pace a pump that runs in real time on a thread of its own -- see the
+comment beside the ``AudioOut`` below, which is worth reading before changing
+it.
 
 Needs the ``audiodsp`` usermod (``synthio``, ``audiomixer``,
 ``audiocore``) built into the interpreter -- this repo's own
@@ -77,7 +81,30 @@ mixer = audiomixer.Mixer(sample_rate=RATE, channel_count=1, buffer_size=1024)
 synth = synthio.Synthesizer(sample_rate=RATE, channel_count=1)
 
 transport = _wav_audio_out(_FORMAT, path=OUT_PATH)
-audio_out = AudioOut(transport, chunk_ms=40)
+# `pump=False` on purpose, and it is the whole reason this probe is
+# comparable at all.
+#
+# The fake clock above controls how many virtual milliseconds this script
+# advances, which used to be the only thing that decided how much audio came
+# out -- the renderer was synchronous, on this thread, and a fixed number of
+# ticks pulled a fixed number of blocks. The audio pump is not on this thread.
+# It produces in REAL time on a thread of its own, so a fixed number of
+# virtual ticks stops at an arbitrary point in its production, and what has
+# reached the transport by then is a race.
+#
+# Measured 2026-09-22 on this script: with the pump on, three consecutive unix
+# runs of the same file differed from each other in 13 352 of 21 504 PCM bytes,
+# whole blocks of silence landing in different places each time, while the
+# windows build was byte-identical run to run. That difference was read as a
+# fault in the win32 driver (pydevices#53); it is this. With the pump off all
+# three unix runs, all three windows runs and the two ports agree byte for
+# byte, which is the parity claim this probe exists to make.
+#
+# The pump's own byte-identity is a different question and has its own gate:
+# `tests/pump_probes/identity.py` renders the same graph both ways INSIDE one
+# interpreter and to a byte budget, so it waits for the pump instead of racing
+# it.
+audio_out = AudioOut(transport, chunk_ms=40, pump=False)
 
 # Order matters: prime the output BEFORE starting the voice. AudioOut.play()
 # resets the mixer, and stock CircuitPython's Mixer.reset_buffer *stops* its
