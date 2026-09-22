@@ -65,6 +65,10 @@ RUNS = (
     # a second guard is already holding is what made them both look like guards
     # nothing needed (pydevices#37).
     ("guards", ["guards.py"], ("no-finally", "no-latch")),
+    # What the pump hands a transport when the APP stops draining
+    # (pydevices#55) -- the question `identity.py` cannot ask, because it
+    # waits for the pump rather than racing it.
+    ("stopped", ["stopped.py"], ("hole", "extra", "short")),
 )
 
 #: Faults that need the pump on a thread of its own.

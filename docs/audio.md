@@ -220,6 +220,36 @@ docstring.
 The mechanism, the driver per port, what a fault says and what is still
 unproven: [`lib/audiodev/README.md`](../lib/audiodev/README.md#pumppy--the-audio-pump).
 
+### Stopping in the middle
+
+Close a player mid-sample, or let a UI move on and stop draining, and what
+the transport was handed is **the beginning of the render it would have got
+if nobody had stopped**: the same bytes, in order, just fewer of them.
+Nothing is inserted, nothing skipped, and no zeroed block ever stands in for
+one that was not ready.
+
+*How much* you get is not a promise and cannot be. The pump's schedule is
+paced by the wall clock, so the stream ends on a block boundary somewhere
+near where you stopped, and two runs that stop after the same number of ticks
+can end at different bytes. Ask for the audio up to the moment you stopped;
+do not ask for a frame.
+
+Measured by [`tests/pump_probes/stopped.py`](../tests/pump_probes/stopped.py),
+which also says why a recording transport cannot ask this question.
+
+### A transport that stops consuming
+
+`AudioOut` caps how far ahead it pulls, and that cap has to clear whatever
+the device needs queued before it starts playing — `prebuffer_bytes` on the
+device, which a wrapper forwards like `queued_size`. A wrapper that answers 0
+there used to wedge the stream in silence.
+
+It no longer can. The cap is only believed while the queue is **moving**: a
+queue that has not fallen for eight consecutive skips is fed anyway, until it
+does or until a second of audio is waiting, which is a dead sink rather than a
+priming one. `AudioOut.stalls` counts those episodes, and a number above 0
+means the sink was not draining.
+
 ## Capture and tones
 
 `pcm_in` returns a `PCMInput` (`readinto`/`areadinto`); tone/buzzer roles
