@@ -390,7 +390,7 @@ class AudioOutTests(unittest.TestCase):
         with mock.patch("builtins.__import__", side_effect=import_without_audiocore):
             with self.assertRaisesRegex(
                 ImportError,
-                r"python -m pip install --index-url https://test\.pypi\.org/simple/ pydevices-audioif",
+                r"python -m pip install --index-url https://test\.pypi\.org/simple/ pydevices-audiodsp",
             ):
                 sample_out.AudioOut(FakePCMOutput(AudioFormat(8000, 1, 16)))
 

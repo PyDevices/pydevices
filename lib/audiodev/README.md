@@ -14,7 +14,7 @@ still directly usable for raw `write()`/`readinto()`.
 | Module | Host | Role |
 |--------|------|------|
 | `audiodev` | all | `AudioFormat`, `PCMOutput` / `PCMInput` / `ToneOutput` bases, latency helpers |
-| `audiodev.sample_out` | MicroPython (`audiodsp` usermod) and CPython (`pydevices-audioif`) | `AudioOut` — pulls `audiocore.get_buffer` on a lookahead schedule, pushes into a transport |
+| `audiodev.sample_out` | MicroPython (`audiodsp` usermod) and CPython (`pydevices-audiodsp`) | `AudioOut` — pulls `audiocore.get_buffer` on a lookahead schedule, pushes into a transport |
 | `audiodev.pump` | any firmware carrying the `audiopump` module | Hands the graph to the C pump instead, off the interpreter thread. Used without being asked; absent, nothing here does anything |
 | `audiodev.sdl2_audio` | desktop MicroPython, CircuitPython, CPython, Jupyter | SDL2 queued PCM transport through `usdl2` |
 | `audiodev.pygame_audio` | CPython desktop with pygame-ce installed | Queued PCM transport on pygame-ce's bundled SDL |
@@ -197,7 +197,7 @@ Consequences worth knowing:
   different rate plays at the wrong pitch, never raises. `bits_per_sample`/
   `channel_count` mismatches *do* raise (`_check_format`), because those
   corrupt every byte a software queue reads, unlike a rate mismatch.
-- **CPython needs a separate package.** Install `pydevices-audioif` from
+- **CPython needs a separate package.** Install `pydevices-audiodsp` from
   TestPyPI before constructing `AudioOut`; raw PCM (`write()`/`readinto()`)
   remains usable without it.
 - `sample_out.sample_out(transport_module, format, **kwargs)` is the one-line

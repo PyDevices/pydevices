@@ -3,7 +3,7 @@
 - **The DSP repository is `audiodsp` now** (renamed 2026-09-21), and everything
   here that named it follows. One thing you can notice: on CPython,
   `audiodev.accel` looks for the core's extension under its new name,
-  `_audiodsp`, which arrives with the core's v0.5.0. With an older core
+  `_audiodsp`, which arrives with the core's first release under its new name. With an older core
   installed the C remix is not found and `audiodev` falls back to the Python
   one — slower, same bytes. `_audioif` in `audiodev/pump.py` is a different
   module, the pump's platform driver, and keeps its name.
