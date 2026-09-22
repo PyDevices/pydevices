@@ -175,14 +175,36 @@ class AudioPlaybackGoldenTests(unittest.TestCase):
                                    str(reference.get(source))[:7],
                                    str(what.get(source))[:7]))
 
+            # An interpreter with no stamp cannot answer the question above,
+            # and silence is not agreement: `bin/circuitpython` predates the
+            # stamping in cmods' build_interpreters.sh, so it reaches the diff
+            # carrying whatever audiodsp was current when it was last built.
+            # It is still compared -- a real port difference is worth knowing
+            # -- but a failure says which participants could not be checked,
+            # so the next reader does not spend the evening in the win32 pump
+            # driver again.
+            unverified = sorted(name for name in renders
+                                if name in resolved and not built.get(name))
+            caveat = ""
+            if unverified:
+                caveat = (
+                    "\n\nNOTE: {} carr{} no provenance stamp, so this may not "
+                    "be a port difference at all -- it may be two different "
+                    "audiodsp trees. Rebuild every interpreter from one pass: "
+                    "cd ../cmods && ./build_interpreters.sh".format(
+                        ", ".join(unverified),
+                        "ies" if len(unverified) == 1 else "y",
+                    )
+                )
+
             names = list(renders)
             first = renders[names[0]]
             for other in names[1:]:
                 self.assertEqual(
                     first,
                     renders[other],
-                    "{} and {} rendered different PCM for the same script".format(
-                        names[0], other
+                    "{} and {} rendered different PCM for the same script{}".format(
+                        names[0], other, caveat
                     ),
                 )
 
