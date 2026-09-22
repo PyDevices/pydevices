@@ -583,6 +583,177 @@ class AudioOutTests(unittest.TestCase):
             len(transport.data), transport._prebuffer_bytes,
             "pump stopped feeding a still-priming transport (deadlock)")
 
+    def test_a_wrapper_that_forwards_the_interface_does_not_deadlock(self):
+        # pydevices#54. Put anything between AudioOut and a queued transport
+        # -- a tee, a logger, a volume shim -- and the audio used to stop
+        # after about a tenth of a second, with no exception and no message,
+        # because the backpressure cap read the priming threshold off a
+        # PRIVATE attribute the wrapper had no reason to know about.
+        #
+        # `prebuffer_bytes` is part of the interface now, so a wrapper that
+        # forwards what it is documented to forward gets this right without
+        # knowing why it matters.
+        class PrimingTransport(FakePCMOutput):
+            _prebuffer_bytes = 4000
+
+            def queued_size(self):
+                return len(self.data)      # priming: nothing consumed yet
+
+        class Wrapper:
+            """Forwards the documented PCMOutput interface and nothing else."""
+
+            def __init__(self, inner):
+                self.inner = inner
+
+            format = property(lambda self: self.inner.format)
+            codec = property(lambda self: self.inner.codec)
+            volume = property(lambda self: self.inner.volume)
+            muted = property(lambda self: self.inner.muted)
+            prebuffer_bytes = property(lambda self: self.inner.prebuffer_bytes)
+
+            def set_volume(self, percent):
+                return self.inner.set_volume(percent)
+
+            def mute(self, value=True):
+                return self.inner.mute(value)
+
+            def open(self):
+                return self.inner.open()
+
+            def close(self):
+                return self.inner.close()
+
+            def service(self):
+                return self.inner.service()
+
+            def queued_size(self):
+                return self.inner.queued_size()
+
+            def write(self, buf):
+                return self.inner.write(buf)
+
+        inner = PrimingTransport(self.fmt)
+        out = self.sample_out.AudioOut(Wrapper(inner), chunk_ms=40,
+                                       lookahead_chunks=2)
+        out.play(FakeSample([bytes(200) for _ in range(200)]))
+        for _ in range(10):
+            self.clock.advance(40)
+            out.service()
+        self.assertGreater(
+            len(inner.data), inner._prebuffer_bytes,
+            "a wrapper forwarding the whole interface still deadlocked")
+        self.assertEqual(0, out.stalls,
+                         "it should not have needed the stall guard")
+
+    def test_a_transport_that_stops_consuming_is_pushed_past_the_cap(self):
+        # The other half of pydevices#54, and the more valuable one: a cap is
+        # a latency guard, not a fact about the device. A wrapper that cannot
+        # say what it needs to prime -- every wrapper written before
+        # `prebuffer_bytes` existed -- still caps below the threshold and
+        # still wedges. So the skip is only believed while the queue is
+        # MOVING, and a queue that has not fallen for `_stall_ticks` skips
+        # gets fed anyway. That also catches a sink that has died for reasons
+        # nobody wrote a guard for, which is the same observable signature.
+        class PrimingTransport(FakePCMOutput):
+            _prebuffer_bytes = 4000
+
+            def queued_size(self):
+                return len(self.data)
+
+        class Deaf:
+            """A wrapper that hides the threshold: the old, naive shape."""
+
+            def __init__(self, inner):
+                self.inner = inner
+
+            format = property(lambda self: self.inner.format)
+            codec = property(lambda self: self.inner.codec)
+            volume = property(lambda self: self.inner.volume)
+            muted = property(lambda self: self.inner.muted)
+
+            def set_volume(self, percent):
+                return self.inner.set_volume(percent)
+
+            def mute(self, value=True):
+                return self.inner.mute(value)
+
+            def open(self):
+                return self.inner.open()
+
+            def close(self):
+                return self.inner.close()
+
+            def service(self):
+                return self.inner.service()
+
+            def queued_size(self):
+                return self.inner.queued_size()
+
+            def write(self, buf):
+                return self.inner.write(buf)
+
+        inner = PrimingTransport(self.fmt)
+        out = self.sample_out.AudioOut(Deaf(inner), chunk_ms=40,
+                                       lookahead_chunks=2)
+        out.play(FakeSample([bytes(200) for _ in range(200)]))
+        wedged = len(inner.data)
+        for _ in range(30):
+            self.clock.advance(40)
+            out.service()
+        self.assertGreater(out.stalls, 0,
+                           "the pump never noticed the queue had stopped")
+        self.assertGreater(
+            len(inner.data), wedged,
+            "a transport that stopped consuming was never fed again")
+        self.assertGreater(
+            len(inner.data), inner._prebuffer_bytes,
+            "the stall guard did not push it past its priming threshold")
+
+    def test_the_stall_guard_leaves_a_draining_queue_alone(self):
+        # The control. A suite of only failures proves a guard always fires:
+        # a transport whose queue actually falls must never be pushed past
+        # the cap, however long it stays above it.
+        class Draining(FakePCMOutput):
+            def __init__(self, fmt):
+                super().__init__(fmt)
+                self.backlog = 20000
+
+            def queued_size(self):
+                return self.backlog
+
+            def service(self):
+                self.backlog -= 200      # a real device consumes
+
+        transport = Draining(self.fmt)
+        out = self.sample_out.AudioOut(transport, chunk_ms=40,
+                                       lookahead_chunks=2)
+        out.play(FakeSample([bytes(200) for _ in range(200)]))
+        written = len(transport.data)
+        for _ in range(30):
+            self.clock.advance(40)
+            out.service()
+        self.assertEqual(0, out.stalls,
+                         "a draining queue was mistaken for a stalled one")
+        self.assertEqual(written, len(transport.data),
+                         "the pump pulled against a draining backlog")
+
+    def test_channel_adapter_forwards_the_priming_threshold(self):
+        # `ChannelAdapter` is not hypothetical: this repository ships it and
+        # calls it "the producer-facing PCMOutput". It is what a mono graph
+        # on a stereo device gets, and before pydevices#54 it answered 0.
+        stereo = AudioFormat(rate=48000, channels=2, bits=16)
+        mono = AudioFormat(rate=48000, channels=1, bits=16)
+
+        class PrimingTransport(FakePCMOutput):
+            _prebuffer_bytes = 4000
+
+        inner = PrimingTransport(stereo)
+        adapter = audiodev.adapt_channels(inner, mono)
+        self.assertIsNot(adapter, inner, "no wrapper was built at all")
+        # Counted in the wrapper's own frames, like queued_size: a mono
+        # writer needs half the bytes to fill the same wire.
+        self.assertEqual(2000, adapter.prebuffer_bytes)
+
     def test_attach_callback_tolerates_timer_arg(self):
         # appdev.App._dispatch_tick always calls a subscribed callback with
         # one positional arg (the timer object) -- attach() must adapt

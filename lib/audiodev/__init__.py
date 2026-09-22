@@ -534,6 +534,27 @@ class _Device:
         """Bytes still waiting to play or capture. Default 0."""
         return 0
 
+    @property
+    def prebuffer_bytes(self):
+        """Bytes that must be queued before this device starts consuming.
+
+        Part of the interface, not an implementation detail, because a
+        producer has to clear it or the two mechanisms deadlock: a freshly
+        primed device stays paused until this many bytes are queued, while a
+        producer that caps itself lower has already decided the queue is full
+        enough. Each waits on the other and the audio stops without an
+        exception (pydevices#54).
+
+        It used to be readable only as ``_prebuffer_bytes``, by ``getattr``
+        with a default of 0 -- so a wrapper that forwarded every *documented*
+        part of this interface still missed it, and 0 is the value that
+        wedges. A wrapper forwards this the way it forwards `queued_size`.
+
+        0 means the device starts on the first byte, which is the honest
+        answer for a device with no queue at all.
+        """
+        return getattr(self, "_prebuffer_bytes", 0)
+
     def is_active(self):
         """True while PCM remains queued. Default False."""
         return False
@@ -912,6 +933,26 @@ class ChannelAdapter(PCMOutput):
             return 0
         return inner_q * self.format.frame_size // inner_frame
 
+    @property
+    def prebuffer_bytes(self):
+        """The inner device's threshold, in this wrapper's frames.
+
+        Scaled exactly like `queued_size`, and for the same reason: the
+        producer compares the two, so they have to be counted in the same
+        bytes. A mono graph on a stereo device writes half the bytes the
+        wire does, and an unscaled threshold would be twice what the
+        producer has to clear.
+
+        Not forwarding this at all is pydevices#54: the pump capped itself
+        below the inner device's priming threshold, the device stayed
+        paused, and the audio stopped after about a tenth of a second with
+        no exception and no message.
+        """
+        inner_frame = self._inner.format.frame_size
+        if inner_frame <= 0:
+            return 0
+        return self._inner.prebuffer_bytes * self.format.frame_size // inner_frame
+
     def is_active(self):
         return self._inner.is_active()
 
@@ -1084,6 +1125,16 @@ class PaceOutput(PCMOutput):
 
     def queued_size(self):
         return self._inner.queued_size() + self._held
+
+    @property
+    def prebuffer_bytes(self):
+        """The inner device's threshold, unscaled: same format either side.
+
+        Forwarded rather than inherited, for pydevices#54's reason -- a
+        wrapper that answers 0 here caps the producer below what the device
+        needs to start, and both sides wait.
+        """
+        return self._inner.prebuffer_bytes
 
     def is_active(self):
         return self._held > 0 or self._inner.is_active()

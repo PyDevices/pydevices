@@ -95,14 +95,22 @@ class Tee:
         self.seen = bytearray()
         self.calls = 0
         self.short_writes = 0
-        # AudioOut's backpressure cap reads this off the transport, and a
-        # wrapper that hides it DEADLOCKS: the cap stays at one lookahead
-        # (11 520 B here) while the SDL device waits for 96 000 B before it
-        # unpauses, so each side waits for the other and the stream stops
-        # after 12 writes. Found the hard way by this probe's first run --
-        # the instrument planted the fault, which is also the clearest
-        # demonstration that the guard in `_pump_locked` is load-bearing.
-        self._prebuffer_bytes = getattr(inner, "_prebuffer_bytes", 0)
+
+    # AudioOut's backpressure cap has to clear this, and a wrapper that hides
+    # it DEADLOCKS: the cap stays at one lookahead (11 520 B here) while the
+    # SDL device waits for 96 000 B before it unpauses, so each side waits for
+    # the other and the stream stops after 12 writes. Found the hard way by
+    # this probe's first run -- the instrument planted the fault, and it was
+    # filed as pydevices#54.
+    #
+    # It was `self._prebuffer_bytes = getattr(inner, "_prebuffer_bytes", 0)`
+    # here: a wrapper reaching for a private attribute because the public
+    # interface did not carry one. It does now, so this is an ordinary
+    # forward like `queued_size` below, and a wrapper that forwards what it
+    # is documented to forward no longer has to know why this one matters.
+    @property
+    def prebuffer_bytes(self):
+        return self.inner.prebuffer_bytes
 
     # -- what AudioOut asks of a transport ---------------------------------
     @property

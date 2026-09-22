@@ -170,6 +170,29 @@ class AudioOut:
         # bytes-per-len(buf) unit for the current sample's get_buffer()
         # results; calibrated on the first pull (see _pump_locked).
         self._buf_len_scale = None
+        #: How many consecutive backpressure skips with a queue that has not
+        #: fallen before the cap stops being believed. See `_pump_locked`.
+        #:
+        #: Eight is a judgement about which way to be wrong, not a
+        #: measurement. A false positive costs one chunk of extra latency;
+        #: a false negative costs the whole stream, silently. It is set
+        #: above the five ticks `test_backpressure_skips_pull_and_drains_
+        #: backlog` holds a queue saturated deliberately, so an ordinary
+        #: full queue is never mistaken for a stall and nothing that
+        #: worked before behaves differently -- a real backlogged transport
+        #: drains, and this only fires for one that does not.
+        self._stall_ticks = 8
+        #: The queued size at the last skip, how many skips have seen it not
+        #: fall, and whether we are currently feeding past the cap. -1 means
+        #: "not skipping".
+        self._stall_queued = -1
+        self._stalled = 0
+        self._pushing = False
+        #: How many times the pump started feeding past the cap because the
+        #: transport had stopped consuming -- episodes, not ticks. A number
+        #: above 0 means the sink was not draining: a wrapper that does not
+        #: forward `prebuffer_bytes` (pydevices#54), or a device that died.
+        self.stalls = 0
         # --- the audio pump, if this firmware has one --------------------
         # ``pump=False`` is for a caller that has a reason (a test proving
         # the two paths agree, a board whose peripheral someone else owns).
@@ -776,14 +799,61 @@ class AudioOut:
         # each side waiting on the other, measured as exactly that.
         chunk_bytes = chunk_frames * frame_size
         cap = (self._lookahead_chunks + 1) * chunk_bytes
-        prebuffer = getattr(self.transport, "_prebuffer_bytes", 0)
+        # The PUBLIC name, because a wrapper can only forward what it can see.
+        # `_prebuffer_bytes` stays as a fallback for a transport written
+        # before `prebuffer_bytes` existed, but a wrapper that forwards the
+        # documented interface now gets this right by doing nothing special.
+        prebuffer = getattr(self.transport, "prebuffer_bytes", None)
+        if prebuffer is None:
+            prebuffer = getattr(self.transport, "_prebuffer_bytes", 0)
         if prebuffer and prebuffer + chunk_bytes > cap:
             cap = prebuffer + chunk_bytes
         queued = self.transport.queued_size()
         if queued > cap:
-            self._played_frames = target_frames
-            self.transport.service()
-            return
+            # The cap is a latency guard, not a fact about the device, and
+            # believing it forever is how the audio stops in silence. A
+            # transport that cannot say what it needs to prime gets capped
+            # below its own threshold, stays paused, and never consumes --
+            # so `queued` never falls and every later tick skips too.
+            #
+            # So the skip is only trusted while the queue is MOVING. When it
+            # has not fallen for `_stall_ticks` consecutive skips, feed it on
+            # the ordinary schedule instead: more bytes is exactly what a
+            # device waiting to prime needs, and for a sink that has genuinely
+            # stopped it is the one observable difference between "full" and
+            # "dead". `stalls` counts the episodes, so an app can see it.
+            #
+            # A CHUNK a tick is not enough, and that was measured rather than
+            # reasoned: SDL wants 96 000 B before it unpauses, which at one
+            # 1 920 B chunk per eight ticks is sixteen seconds of trickle --
+            # long enough that the probe ran the SDL queue out of memory
+            # before the device ever started. Feeding the normal schedule is
+            # bounded by `max_catchup_chunks` and primes it in about ten
+            # ticks.
+            if queued < self._stall_queued or self._stall_queued < 0:
+                self._stall_queued = queued
+                self._stalled = 0
+                self._pushing = False
+            else:
+                self._stalled += 1
+            # One second of audio queued with nothing consumed is a dead sink,
+            # not a priming one -- no device on this bench asks for more than
+            # that -- so stop feeding rather than filling a board's memory.
+            # Derived from the format rather than picked, and it sits above
+            # every priming threshold this repository ships.
+            if queued >= int(rate) * frame_size:
+                self._pushing = False
+            elif self._stalled >= self._stall_ticks and not self._pushing:
+                self._pushing = True
+                self.stalls += 1
+            if not self._pushing:
+                self._played_frames = target_frames
+                self.transport.service()
+                return
+        else:
+            self._stall_queued = -1
+            self._stalled = 0
+            self._pushing = False
 
         bytes_needed = frames_needed * frame_size
         pulled = 0
