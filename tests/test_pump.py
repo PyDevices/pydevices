@@ -22,6 +22,7 @@ a real interpreter, and they are ``tests/pump_probes/`` run by
 
 from pathlib import Path
 import io
+import struct
 import sys
 import unittest
 from unittest import mock
@@ -297,6 +298,67 @@ class FakeEngine:
                 if name in ("spawn", "retarget")]
 
 
+class FinishesUnwatched(FakeEngine):
+    """The pump that does the whole job before the interpreter looks again.
+
+    ``spawn()`` returns with the loop already over -- the status block says
+    "the source ran out" and ``running()`` is False -- and the first drain
+    still comes back empty, because the player looked before the bytes were
+    there. The second hands the sample over.
+
+    Those two looks are the whole of pydevices#52. Between them the player
+    decides twice whether it has a pump and whether the sample is finished,
+    and both readings used to be wrong.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.looks = 0
+
+    def backpressure(self):
+        # The ring paces the pump on this build, which is the only branch of
+        # `RingDriver.spawn` that reads `running()` at all.
+        return True
+
+    def spawn(self, sample, blocks, status, ring=None, loop=False,
+              timeout_ms=0):
+        got = super().spawn(sample, blocks, status, ring=ring, loop=loop,
+                            timeout_ms=timeout_ms)
+        # Word 5 is the pump's own reason for leaving its loop, and 3 is "the
+        # source ran out" -- the end of a short sample, not a failure.
+        struct.pack_into("<Q", status, 5 * 8, 3)
+        self.alive = False
+        return got
+
+    def drain(self, into):
+        self.looks += 1
+        if self.looks == 1:
+            return 0
+        self.alive = True
+        try:
+            return super().drain(into)
+        finally:
+            self.alive = False
+
+
+class NeverStarts(FakeEngine):
+    """A pump that really did not run: no blocks, no error, no trace at all.
+
+    The other side of `FinishesUnwatched`, and the reason the two cannot be
+    told apart by `running()` alone.
+    """
+
+    def backpressure(self):
+        return True
+
+    def spawn(self, sample, blocks, status, ring=None, loop=False,
+              timeout_ms=0):
+        got = super().spawn(sample, blocks, status, ring=ring, loop=loop,
+                            timeout_ms=timeout_ms)
+        self.alive = False
+        return got
+
+
 class FakeI2SOut:
     """``audiobusio.I2SOut``: the surface ``audiodev`` drives it through.
 
@@ -453,8 +515,12 @@ class PumpFixture(unittest.TestCase):
 
     THREADS = True
 
+    #: The engine this fixture installs. A subclass names another to stand for
+    #: a build, or a moment, that the plain one cannot.
+    ENGINE = FakeEngine
+
     def setUp(self):
-        self.engine = FakeEngine(threads=self.THREADS)
+        self.engine = self.ENGINE(threads=self.THREADS)
         self.audiomixer = FakeAudiomixer()
         self.audiocore = FakeAudiocore()
         self._install(self.engine)
@@ -662,6 +728,86 @@ class PauseParksTheThread(PumpFixture):
         one.pause()
         self.assertFalse(pump_mod.owner().paused(),
                          "one player pausing silenced the other")
+
+
+class AStartTheInterpreterMissedCostsNoAudio(PumpFixture):
+    """pydevices#52: a pump can finish the job before the player looks.
+
+    A short sample is one block. On a busy core the pump can spawn, pull the
+    whole thing into the ring, reach the end of the source and leave its loop
+    before the interpreter is scheduled again -- and then two readings look
+    like failure and neither is one. `running()` is False when `spawn()`
+    returns, and the player's first `produce()` comes back empty because the
+    bytes had not landed when it looked.
+
+    Measured on the unix port under seven busy loops sharing one core with
+    the interpreter: tearing the pump down for the first reading lost it on 1
+    to 2 rounds in 100, and calling the sample finished on the second wrote a
+    round of silence once in ten runs of a hundred.
+    """
+
+    ENGINE = FinishesUnwatched
+
+    def play(self, blocks):
+        transport = Recorder()
+        out = sample_out.AudioOut(transport, chunk_ms=10)
+        self.addCleanup(out.close)
+        said = io.StringIO()
+        with mock.patch("sys.stdout", said):
+            out.play(FakeSample(blocks=blocks, block=1024))
+        return out, transport, said.getvalue()
+
+    def test_a_pump_that_had_already_finished_is_kept(self):
+        # Eight blocks, so the sample outlives the first tick and "is this
+        # player on the pump" is still a question worth asking afterwards.
+        out, _transport, said = self.play(8)
+        self.assertTrue(out.pumped,
+                        "a pump that had done the whole job was torn down")
+        self.assertNotIn("interpreter thread", said)
+
+    def test_the_bytes_it_made_are_not_stranded_in_the_ring(self):
+        # One block: the whole sample is in the ring at the moment the player
+        # is deciding whether the sample is over.
+        _out, transport, _said = self.play(1)
+        self.assertEqual(bytes(transport.data), b"\x01" * 1024,
+                         "the sample the pump had already pulled never "
+                         "reached the transport")
+
+
+class AStartThatReallyFailedIsNotSticky(PumpFixture):
+    """The other half of pydevices#52, and why the two need telling apart.
+
+    A pump that left no trace at all did not start, so the player falls back
+    -- and the loss is this afternoon's CPU, not this graph, so it must not
+    close the door on every later `play()` in the process.
+    """
+
+    ENGINE = NeverStarts
+
+    def test_it_falls_back_says_so_and_tries_again_next_time(self):
+        transport = Recorder()
+        out = sample_out.AudioOut(transport, chunk_ms=10)
+        self.addCleanup(out.close)
+        said = io.StringIO()
+        with mock.patch("sys.stdout", said):
+            out.play(FakeSample())
+
+        self.assertFalse(out.pumped, "it thinks it is on the pump")
+        self.assertTrue(transport.data, "the audio stopped as well")
+        self.assertIn("would not start", said.getvalue())
+        self.assertFalse(pump_mod.owner().blocked(),
+                         "one lost race shut the pump for the process")
+        self.assertIsNotNone(out.pump_refused,
+                             "nothing a UI can show says why")
+
+    def test_the_next_play_reaches_for_the_pump_again(self):
+        out = self.player()
+        with mock.patch("sys.stdout", io.StringIO()):
+            out.play(FakeSample())
+            out.play(FakeSample())
+        spawns = [name for name, _ in self.engine.calls if name == "spawn"]
+        self.assertGreaterEqual(len(spawns), 3,
+                                "a later play() did not even try the pump")
 
 
 # --- when it goes wrong ----------------------------------------------------

@@ -746,6 +746,24 @@ class AudioOut:
         if why is None:
             return _STARVED, None      # running, just nothing ready yet
         if "ran out" in why:
+            # ONE MORE DRAIN BEFORE THE VERDICT. `produce()` above can come
+            # back empty because it gave up waiting for a pump that had not
+            # been given the CPU yet -- and by the time `died()` is asked
+            # here, that same pump has run, pulled the whole sample into the
+            # ring and left. Calling the sample finished on that reading
+            # strands every byte it made: measured under seven busy loops on
+            # one core as a round that wrote nothing at all while the pump's
+            # own counter said it had pulled 9600 of 9600 bytes
+            # (pydevices#52). The pump has stopped, so this drain empties the
+            # ring and cannot wait on anything.
+            self._drain_at = 0
+            self._drain_len = got = self._engine.produce(self._drain)
+            if got:
+                if self._block and got > self._block:
+                    got = self._block
+                self._drain_at = got
+                return (_GET_BUFFER_MORE_DATA,
+                        memoryview(self._drain)[:got])
             return _GET_BUFFER_DONE, None
         released = "released" in why
         self._pump_died(why)

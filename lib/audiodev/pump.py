@@ -703,20 +703,27 @@ class RingDriver(_Driver):
             self._parked = False
             if not mod.running():
                 # It did not fail to start. It started, and it has already
-                # FINISHED -- read the status before falling back, because
-                # "the pump would not start" was the wrong sentence and sent
-                # three sessions looking at thread creation (pydevices#52).
-                #
-                # Accepting the finished pump instead of tearing it down was
-                # tried and is NOT here: it lifts "took the pump" from 98.9 to
-                # 99.7 out of 100 under load, and costs a whole round's audio
-                # two or three times in ten runs. Falling back to the
-                # interpreter thread is slower and always sounds, which is the
-                # better trade until the lost round is understood. The
-                # measurements are on the issue.
+                # FINISHED -- so ask the status, not the clock. "The pump
+                # would not start" was the wrong sentence and sent three
+                # sessions looking at thread creation (pydevices#52).
+                why = _why_not_running(mod, status)
+                if why is None:
+                    # The pump pulled the whole graph before this thread was
+                    # scheduled again. Its bytes are in the ring and the only
+                    # thing left to do is drain them, so this IS a successful
+                    # start: tearing it down here threw away a pump that had
+                    # done the entire job and fell back to the interpreter
+                    # thread, 1 to 2 rounds in 100 under contention.
+                    #
+                    # Accepting it was tried once before and cost a round's
+                    # audio 2 or 3 times in ten runs. That loss was never
+                    # this branch: it is `AudioOut._next_block` calling a
+                    # sample finished on a ring it has not drained, which is
+                    # fixed there and which this branch merely makes more
+                    # likely to be reached.
+                    return
                 mod.shutdown()
-                raise StartFailed(_why_not_running(mod, status)
-                                  or "the pump had already finished")
+                raise StartFailed(why)
             return
         # No back-pressure on this build: the pump would free-run and drop, so
         # it runs only inside produce(). park() returns True once the thread is
