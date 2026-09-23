@@ -18,21 +18,21 @@ marginal signal: measured on an ESP32-P4 at RSSI −85 dBm, connect 9.8 s,
 
 ## 1. What the firmware already has, and what it does not
 
-Check before installing anything. On a `cmods`-built ESP32-S3 image the
-following are **frozen or built in** — installing them is wasted effort:
+Check before installing anything. On an image built with the kitchen-sink
+preset (micropython-pydevices' `manifests/kitchen-sink.py`) the following are
+**frozen or built in** — installing them is wasted effort:
 
 - `lvgl` and `display_driver` (from lvgl-bindings)
 - `dotclockframebuffer` (from displayif) — the RGB panel interface
-- `_usbif`, `ulab`, `pygraphics`
+- `_usbif` and the `usbif` Python package: usbif's manifest freezes its
+  Python half beside its C half, because the two version together
+- `ulab`, `pygraphics`, and audiodsp's modules
 
 and the following are **not**, and must be installed:
 
 - `displaydev`, `appdev`, `multimer`, `audiodev`, `boarddev`, `events`, `keys`
 - `board_config` and `board_peripherals` for the specific board
 - the board's Python drivers (`ch422g`, `gt911`, ...)
-- `usbif` — the *Python* package. It does not ship with `pydevices`; it
-  belongs with the usbif module itself, the way audiodsp splits its Python and
-  C halves.
 
 ```python
 for m in ("lvgl", "display_driver", "dotclockframebuffer", "mipidsi",
