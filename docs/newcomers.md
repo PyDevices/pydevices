@@ -4,22 +4,7 @@ pydevices is the core PyDevices product repository. It publishes portable displa
 
 ## Start with a supported installation
 
-For desktop development, install the complete desktop stack:
-
-```bash
-pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple pydevices-desktop
-```
-
-For a MicroPython board, install that board's board_config package with mip. The [installation workflows](install-workflows.md) document every supported channel, including desktop prerequisites and offline board transfer.
-
-A minimal desktop drawing program is:
-
-```python
-from board_config import display_drv
-
-display_drv.fill_rect(50, 50, 100, 100, 0xF800)
-display_drv.show()
-```
+Install `pydevices-desktop` for desktop work, or a board's `board_config` package with mip, as the [README's installation section](../README.md#installation) shows; the [README's quickstart](../README.md#quickstart) draws your first rectangle. The [installation workflows](install-workflows.md) cover every other channel.
 
 ## Mental model
 
@@ -43,7 +28,7 @@ A board config exposes neutral hardware capabilities; it does not create an appl
 | Path | Purpose |
 |---|---|
 | board_configs/ | MicroPython board configurations; CircuitPython boards are under board_configs/cp/. |
-| drivers/ | Board, bus, display, touch, and input driver implementations. |
+| drivers/ | Bus, display, touch, input, codec, sensor, power, and storage drivers. |
 | lib/displaydev/ | Portable display interfaces and concrete display backends. |
 | lib/audiodev/ | Portable audio interfaces and backends. |
 | lib/appdev/ | Optional application event dispatcher and coordinator. |
@@ -65,17 +50,13 @@ Read [the board contract](board-peripherals.md) before adding a board and [app a
 
 - Use displaydev and pygraphics for direct drawing.
 - Use [pdwidgets](https://github.com/PyDevices/pdwidgets) for a pure-Python widget toolkit.
-- Use [LVGL](https://github.com/PyDevices/lvgl-bindings) when firmware includes its C-native bindings.
+- Use [LVGL](https://github.com/PyDevices/lvgl-bindings) when the firmware or the pydevices-lvgl wheel provides the lvgl module.
 
 The hardware configuration remains the same whichever layer you choose. Ready-to-run programs live in [pydevices-examples](https://github.com/PyDevices/pydevices-examples), not this product repository.
 
 ## A safe first contribution
 
-Keep board wiring, reusable product libraries, and application code separate. Run the headless unit suite after changing core libraries:
-
-```bash
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m unittest discover -s tests -v
-```
+Keep board wiring, reusable product libraries, and application code separate. Run the headless unit suite from the [README's tests section](../README.md#tests) after changing core libraries.
 
 AGENTS.md contains the source and release invariants; the [architecture guide](architecture.md) and [documentation index](README.md) provide the next level of detail.
 
