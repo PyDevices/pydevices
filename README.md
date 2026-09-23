@@ -57,6 +57,7 @@ landing page.
 - [Display Boards](docs/display-boards.md) — panel, touch, and bring-up notes per board
 - [Cross-Platform Architecture](docs/architecture.md)
 - [Direct MicroPython WebAssembly](docs/wasm.md)
+- [Newcomer's guide](docs/newcomers.md) — installation, board contract, architecture, and repository map
 
 ## Installation
 
