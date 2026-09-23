@@ -52,7 +52,7 @@ MANIFEST="$HERE/interpreters.json"
 {
     echo "{"
     echo "  \"tag\": \"$TAG\","
-    echo "  \"provenance\": \"built by cmods/build_interpreters.sh on the maintainer workstation\","
+    echo "  \"provenance\": \"built by the workspace anchor's tools/build_interpreters.sh on the maintainer workstation\","
     echo "  \"files\": {"
 
     declare -A PLATFORMS=(

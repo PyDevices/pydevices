@@ -27,8 +27,8 @@ ROOT = _env.ROOT
 
 INTERPRETERS = ("micropython", "micropython.exe", "circuitpython")
 
-#: cmods' provenance stamp, when this checkout sits in the workspace.
-PROVENANCE = ROOT.parent / "cmods" / "scripts" / "provenance.py"
+#: The workspace anchor's provenance stamper, when this checkout sits there.
+PROVENANCE = ROOT.parent / "tools" / "provenance.py"
 
 #: The sources that decide what a render sounds like. Two interpreters built
 #: from different ones are not two ports of the same thing, and diffing them
@@ -39,7 +39,7 @@ RENDER_SOURCES = ("audiodsp", "audioif")
 def _built_from(binary):
     """{source: commit} for an interpreter, or None when it carries no stamp.
 
-    The stamp is `cmods/scripts/provenance.py write`'s, beside the binary.
+    The stamp is `tools/provenance.py write`'s, beside the binary.
     """
     import json
 
@@ -169,15 +169,15 @@ class AudioPlaybackGoldenTests(unittest.TestCase):
                                 "%s and %s were built from different %s "
                                 "(%s vs %s), so a difference between their "
                                 "renders would not be a port difference. "
-                                "Rebuild both: cd ../cmods && "
-                                "./build_interpreters.sh"
+                                "Rebuild both: "
+                                "../tools/build_interpreters.sh"
                                 % (reference_name, name, source,
                                    str(reference.get(source))[:7],
                                    str(what.get(source))[:7]))
 
             # An interpreter with no stamp cannot answer the question above,
             # and silence is not agreement: `bin/circuitpython` predates the
-            # stamping in cmods' build_interpreters.sh, so it reaches the diff
+            # stamping in the anchor's tools/build_interpreters.sh, so it reaches the diff
             # carrying whatever audiodsp was current when it was last built.
             # It is still compared -- a real port difference is worth knowing
             # -- but a failure says which participants could not be checked,
@@ -191,7 +191,7 @@ class AudioPlaybackGoldenTests(unittest.TestCase):
                     "\n\nNOTE: {} carr{} no provenance stamp, so this may not "
                     "be a port difference at all -- it may be two different "
                     "audiodsp trees. Rebuild every interpreter from one pass: "
-                    "cd ../cmods && ./build_interpreters.sh".format(
+                    "../tools/build_interpreters.sh".format(
                         ", ".join(unverified),
                         "ies" if len(unverified) == 1 else "y",
                     )
