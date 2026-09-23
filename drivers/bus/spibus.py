@@ -3,7 +3,6 @@
 spibus
 """
 
-import struct
 import sys
 from time import sleep_us
 
@@ -14,7 +13,6 @@ try:
 except ImportError:  # pragma: no cover
     SoftSPI = None  # type: ignore[assignment, misc]
 
-import micropython
 from micropython import const
 
 DC_CMD = const(0)
@@ -144,6 +142,24 @@ class SPIBus:
             sleep_us(1000)
 
         self._buf1: bytearray = bytearray(1)
+        # send() re-issues SPI.init() before every transfer so that another
+        # user of the same host (the T-Embed's SD card on SPI(2), say) cannot
+        # leave the peripheral with its settings: on the esp32 port SPI(2) is
+        # one object per host, and the port compares and returns at once when
+        # nothing changed. Only the settings another user could alter are
+        # passed; the pins persist in the port's object across init() calls
+        # (checked against 1.29's machine_hw_spi.c) and passing them cost 57 us
+        # of the 83 us the no-op call used to take. Built once, not per call.
+        self._init_kw = {
+            "baudrate": self._baudrate,
+            "polarity": self._polarity,
+            "phase": self._phase,
+            "bits": self._bits,
+        }
+        # Bound methods resolved once: an attribute walk per transfer was a
+        # measurable part of a 300 us command send.
+        self._spi_init = self._spi.init
+        self._spi_write = self._spi.write
         print("SPIBus loaded (Python)")
 
     def reset(self) -> None:
@@ -190,7 +206,6 @@ class SPIBus:
         if self._has_cs:
             self._cs(level)
 
-    @micropython.native
     def send(
         self,
         command=None,
@@ -205,46 +220,66 @@ class SPIBus:
 
         Returns:
             None
+
+        Plain Python on purpose. With ``@micropython.native`` on this method,
+        MicroPython 1.29 on the ESP32-S3 (LilyGO T-Embed, 2026-09-23) delivered
+        nothing to the panel from a cold start -- no command, no data, no
+        error -- while the identical code compiled as bytecode drove it. Found
+        by bisecting cold starts one change at a time; the cause inside the
+        native emitter was not chased. Do not put the decorator back without
+        a cold-start test on a board.
         """
+        if not self._soft:
+            # SoftSPI: reinit every transfer corrupts window/pixel streams.
+            self._spi_init(**self._init_kw)
 
-        # SoftSPI: reinit every transfer corrupts window/pixel streams.
-        if self._soft:
-            pass
-        else:
-            # Re-pass pins only on ESP hardware SPI: SPI.init(baudrate=...) without
-            # sck/mosi clears the GPIO matrix there. rp2 rejects pin kwargs.
-            init_kw = {
-                "baudrate": self._baudrate,
-                "polarity": self._polarity,
-                "phase": self._phase,
-                "bits": self._bits,
-                "firstbit": self._firstbit,
-            }
-            if self._sck is not None and sys.platform.startswith("esp"):
-                init_kw["sck"] = self._sck
-                init_kw["mosi"] = self._mosi
-                init_kw["miso"] = self._miso
-            self._spi.init(**init_kw)
+        cs = self._cs
+        if cs is not None:
+            cs(CS_ACTIVE)
 
-        self._cs_set(CS_ACTIVE)
-
-        if not self._has_dc:
+        dc = self._dc
+        if dc is None:
             if command is not None:
                 self._buf1[0] = command & 0xFF
                 self._write_9bit(DC_CMD, self._buf1)
-            if data and len(data):
+            if data:
                 self._write_9bit(DC_DATA, data)
         else:
+            write = self._spi_write
             if command is not None:
-                struct.pack_into("B", self._buf1, 0, command)
-                self._dc(DC_CMD)
-                self._spi.write(self._buf1)
+                self._buf1[0] = command
+                dc(DC_CMD)
+                write(self._buf1)
+            if data:
+                dc(DC_DATA)
+                write(data)
 
-            if data and len(data):
-                self._dc(DC_DATA)
-                self._spi.write(data)
+        if cs is not None:
+            cs(CS_INACTIVE)
 
-        self._cs_set(CS_INACTIVE)
+    def send_color(self, command, data) -> None:
+        """
+        Sends a command followed by pixel data. What ``displaydev.BusDisplay``
+        calls for every strip of a fill or blit when the bus offers it: the
+        same transfer as ``send`` without its optional-argument checks, and
+        only for a bus with a D/C pin (a 9-bit bus falls back to ``send``).
+        """
+        dc = self._dc
+        if dc is None:
+            return self.send(command, data)
+        if not self._soft:
+            self._spi_init(**self._init_kw)
+        cs = self._cs
+        if cs is not None:
+            cs(CS_ACTIVE)
+        write = self._spi_write
+        self._buf1[0] = command
+        dc(DC_CMD)
+        write(self._buf1)
+        dc(DC_DATA)
+        write(data)
+        if cs is not None:
+            cs(CS_INACTIVE)
 
     def deinit(self) -> None:
         """
