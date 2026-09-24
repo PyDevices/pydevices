@@ -31,8 +31,13 @@ _LRCK = 29
 _DOUT = 26
 _DIN = 28
 _RATE = 16000
+# Panel I2C: the same bus as board_config.i2c (port 0). Hooks hand drivers
+# that bus object, never these pins; the pins are only for opening port 0
+# when board_config isn't loaded. See docs/board-peripherals.md.
+_I2C_PORT = 0
 _I2C_SCL = 32
 _I2C_SDA = 31
+_i2c_own = None
 
 # I2S ring buffer. The default is the value this board was brought up with;
 # leave it. A caller asking for latency="low" gets a shorter one instead (see
@@ -86,14 +91,21 @@ def _i2c_bus():
     Never ``import board_config`` from here: a non-graphics app importing
     this module must not start a display. That import is what the previous
     version of this file did, on every audio call.
+
+    Without board_config, open the port board_config uses, once, and hand
+    out that object after -- never a second controller on these pins.
     """
+    global _i2c_own
+
     bc = sys.modules.get("board_config")
     bus = getattr(bc, "i2c", None) if bc is not None else None
     if bus is not None:
         return bus
-    from machine import I2C, Pin
+    if _i2c_own is None:
+        from machine import I2C, Pin
 
-    return I2C(0, scl=Pin(_I2C_SCL), sda=Pin(_I2C_SDA), freq=400_000)
+        _i2c_own = I2C(_I2C_PORT, scl=Pin(_I2C_SCL), sda=Pin(_I2C_SDA), freq=400_000)
+    return _i2c_own
 
 
 def _stream(mode, sd_pin, ibuf, fmt):

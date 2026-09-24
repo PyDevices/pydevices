@@ -38,8 +38,13 @@ _DOUT = 13
 _DIN = 14
 _BMI270_ADDR = 0x69
 _RATE = 16000
+# Internal I2C: the same bus as board_config.i2c (port 0). Hooks hand
+# drivers that bus object; the pins only open port 0 when board_config
+# isn't loaded. See docs/board-peripherals.md.
+_I2C_PORT = 0
 _I2C_SDA = 12
 _I2C_SCL = 11
+_i2c_own = None
 _IBUF = 20000
 _MIN_IBUF = 4096
 
@@ -96,14 +101,21 @@ def _i2c_bus():
     Never ``import board_config`` from here: a non-graphics app importing
     this module must not start a display. That import is what the previous
     version of this file did, on every audio call.
+
+    Without board_config, open that port once and hand out the same object
+    after -- never a second controller on these pins.
     """
+    global _i2c_own
+
     bc = sys.modules.get("board_config")
     bus = getattr(bc, "i2c", None) if bc is not None else None
     if bus is not None:
         return bus
-    from machine import I2C, Pin
+    if _i2c_own is None:
+        from machine import I2C, Pin
 
-    return I2C(0, sda=Pin(_I2C_SDA), scl=Pin(_I2C_SCL), freq=100_000)
+        _i2c_own = I2C(_I2C_PORT, sda=Pin(_I2C_SDA), scl=Pin(_I2C_SCL), freq=100_000)
+    return _i2c_own
 
 
 def _pcm_in(format=None, *, latency=None, queue_ms=None):
