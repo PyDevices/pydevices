@@ -215,8 +215,8 @@ Board to board over nus (16 KB each way, verified byte for byte), with Wi-Fi off
 | Direction | Default interval | 7.5-15 ms interval |
 |---|---|---|
 | Central to peripheral (writes) | 80-87 KB/s | 69-79 KB/s |
-| Peripheral to central (notifications) | 36-41 KB/s | 37-39 KB/s |
-| Echo round trip, each way | 24-25 KB/s | 44 KB/s |
+| Peripheral to central (notifications) | 31-41 KB/s | 37-39 KB/s |
+| Echo round trip, each way | 24-30 KB/s | 44 KB/s |
 
 A single GATT read or write takes two connection intervals: a median of 100 ms
 at the default interval, and 30 ms at 7.5-15 ms, with nothing over 100 ms in

@@ -158,6 +158,7 @@ off, 2026-09-24.
 |---|---|---|---|
 | default interval | 81.2 KB/s | 35.9 KB/s | 25.1 KB/s |
 | default interval | 86.5 KB/s | 40.7 KB/s | 23.6 KB/s |
+| default interval, final code | 87.0 KB/s | 31.4 KB/s | 29.7 KB/s |
 | 7.5-15 ms interval | 69.0 KB/s | 38.6 KB/s | 43.5 KB/s |
 | 7.5-15 ms interval | 78.8 KB/s | 37.0 KB/s | 44.0 KB/s |
 | planted bit flip at offset 5000 | FAIL, 1 mismatch at 5000 | FAIL, same | FAIL, same |
