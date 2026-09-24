@@ -25,6 +25,8 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/bleak.py" = "/lib/bledev/bleak.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/fake.py" = "/lib/bledev/fake.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/filetransfer.py" = "/lib/bledev/filetransfer.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/hid.py" = "/lib/bledev/hid.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/hidreport.py" = "/lib/bledev/hidreport.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/improv.py" = "/lib/bledev/improv.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/midi.py" = "/lib/bledev/midi.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/midi_codec.py" = "/lib/bledev/midi_codec.py"

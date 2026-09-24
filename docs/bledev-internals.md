@@ -22,6 +22,9 @@ standalone module per backend, and an optional selector.
 | `midi.py` | BLE-MIDI as a usbif-style MIDI port, both sides, built only on the contract. |
 | `midi_codec.py` | The BLE-MIDI packet codec. Pure, no imports, shared by every host. |
 | `filetransfer.py` | CircuitPython's BLE file-transfer protocol: `FileServer` (pure, no radio), served on the board through `repl`'s server, and a client built on the contract. |
+
+| `hidreport.py` | HID report descriptors and reports to `events`. No Bluetooth in it. |
+| `hid.py` | HID over GATT, host and device, built on the contract and `hidreport`. |
 | `auto.py` | Picks a backend. Nothing imports it, and backends must not. |
 
 A backend module imports `bledev` and whatever its host provides, and nothing
@@ -74,6 +77,13 @@ returning a list of your `ClientService` in handle order.
 
 **`ClientService`**: `_discover_characteristics(uuid, timeout_ms)`, a list of
 your `ClientCharacteristic` in handle order.
+
+**Pairing and descriptors** (for HID): `Connection.encrypted` and
+`Connection.pair(bond, timeout_ms)`; `ClientCharacteristic._discover_descriptors(uuid, timeout_ms)`
+returning your `ClientDescriptor`s, whose `read()` you fill in; and on the
+server, each `Characteristic`'s `descriptors` (fixed values) and `encrypted`
+flag. Report `long_read` in `capabilities()`: False if a read returns only
+one packet. A backend without pairing leaves the base's `UnsupportedError`.
 
 **`ClientCharacteristic`**: `read`, `write`, `subscribe`, `notified`,
 `indicated`. `self._want_response(response)` resolves `response=None` and
@@ -146,6 +156,18 @@ The laptop found two more (2026-09-24):
   19 to 49 KB/s. Upstream's own order is worth an issue; the board-to-board
   case never showed it because the central there asks for the MTU after
   connecting.
+
+The bless probe found two more on the P4 (2026-09-24), with the board as the
+central and Windows as the peripheral:
+
+- **The same early MTU, the other way round.** Windows exchanges the MTU the
+  moment the board connects, before aioble has recorded the connection, so
+  the board believed 23 on a 256 link. mpble's IRQ now keeps that value too,
+  and the connection's `mtu` picks it up.
+- **`exchange_mtu()` after the peer already exchanged** raised `EALREADY`.
+  NimBLE exchanges once per link, so mpble now returns the settled MTU.
+  `bledev.hid`'s host exchanges before reading the Report Map, so any
+  peripheral that exchanges first (a real keyboard may) would have failed.
 
 **Code that uses the raw API.** A board config's `ble` is now an `MPBLE`,
 and `MPBLE.__getattr__` hands every name it doesn't define to the raw
@@ -296,6 +318,66 @@ a one-off check, not a test in the tree. No CircuitPython board has been
 tried with bledev's client: CircuitPython's service needs pairing, which
 bledev doesn't do yet.
 
+## How HID gets there
+
+`bledev.hid` is two halves over one parser. `bledev.hidreport` reads a report
+descriptor into `Report`s of `Field`s (bit offset, size, count, flags,
+usages, logical range) and a `Decoder` diffs successive input reports into
+events. It imports `events` and `keys` and nothing from Bluetooth.
+
+**The keyboard decoder is usbif's, event for event.** Same order (modifier
+releases, key releases, key presses, modifier presses, the new modifier mask
+on all of them), same fields (`scancode` is the HID usage, `window` is
+`None`), same rollover rule. `tests/test_bledev_hid.py` feeds 3,000 random
+boot reports through both decoders when usbif's checkout is beside this one,
+and they must agree. It found one difference on its first run: the ISO "# ~"
+key (usage 0x32), which SDL calls `#` and usbif leaves unmapped. hidreport
+now leaves it unmapped too; the two tables should become one.
+
+**Axes, hats and buttons** come only from joystick, gamepad and multi-axis
+collections, so a mouse's X, Y and buttons produce nothing yet. Axes are
+numbered by usage (desktop X to wheel, then the simulation page), so an Xbox
+controller's sticks are 0 to 3 and its triggers 4 and 5. Every axis starts
+at 0.0 and moves only when its value changes, as SDL's do.
+
+**Descriptors, encryption and pairing** were added to the contract for HID.
+A Report characteristic says which report it carries in its Report Reference
+descriptor (0x2908), and HOGP gives the report ID nowhere else, so the host
+needs `ClientCharacteristic.descriptor()`. A `Characteristic` can be
+`encrypted=True`, and `Connection.pair()` encrypts a link. The host pairs
+only after a read fails with insufficient encryption or authentication,
+which is how a real keyboard asks. mpble pairs through aioble's security
+module ("just works", `io=3`); `ble.enable_bonding()` loads aioble's
+`ble_secrets.json` and turns bonding on, and it has to run on both sides,
+because the side that didn't start pairing stores keys too.
+
+**MicroPython has no long read.** `gattc_read()` is one ATT Read, so a board
+central gets at most `mtu - 1` bytes of any value. The host exchanges the MTU
+up to 247 before reading the Report Map (246 bytes fit), and a map that fails
+to parse at that length raises an error that says why. Our own map is 162
+bytes; an Xbox Series controller's is 283, so a board can't host one until
+MicroPython grows a long read. bleak reads long values itself, and the
+fake's `long_reads=False` models the board.
+
+**The peripheral's identity comes from its functions.** Name, appearance and
+PnP product ID are derived from which of keyboard, consumer control and
+gamepad it serves, so a host that cached one set never sees another set
+under the same identity. The PnP vendor is the Bluetooth SIG's test company
+ID (0xFFFF), because we have no vendor ID of our own.
+
+**A laptop can't see a HID service.** Windows hides 0x1812 from apps: bleak
+lists the board's GAP, GATT, Battery and Device Information services and a
+22-handle gap where the HID service sits (measured against the P4,
+2026-09-24). Chrome's Web Bluetooth blocklist hides it too. So
+`Peripheral(service_uuid=hid.INSPECT_SERVICE)` serves the same
+characteristics under a vendor UUID, and `Host(service_uuid=...)` reads them
+there; that is how the laptop checks a board's HID side, with the same code
+a board host runs. No host treats a board serving that UUID as a keyboard.
+
+The host writes the keyboard's LED report once it has subscribed, as Windows
+does. `Peripheral.leds()` returns those writes, which is how the gate knows
+the host is listening, and how it times a round trip.
+
 ## The checks
 
 **The file-transfer protocol**, on both interpreters:
@@ -332,6 +414,9 @@ The serving scripts have a `PLANT` switch, and a planted run must fail:
 | `improv_server.py` + `improv_client.py` | Improv: `--wrong` must get "unable to connect" and a return to "authorized"; without it, on a board, the network comes from that board's own `secrets.py` and must end "provisioned" with a URL |
 | `coex_server.py` + `tcp_pull.py` + `nus_client.py` | Wi-Fi and BLE on one S3: a TCP source on Wi-Fi beside the nus gate |
 | `files_server.py` + `files_client.py` | File transfer: no password and a wrong one refused; 20 KB up and down byte for byte and timed (`--runs N`, `--fast` for throughput parameters), a read at an offset, mkdir, listdir, move, a recursive delete. `--plant` on the client, or `PLANT = "flip"` on the server, must FAIL. `files_server.py` runs from `/main.py` |
+
+| `hid_peripheral.py` + `hid_central.py` | HID: the device types `hid_script.py`'s text, chords, media keys and gamepad moves; the host's events must equal `hid_script.expected()` and spell the text. Then key-press round trips. `PLANT` drops one Shift. The host also runs on a laptop, where it refuses to pair |
+| `bless_peripheral.py` + `bless_probe.py` | The laptop as a peripheral, through bless, probed by a board |
 
 `gatt_peripheral.py` is also the peripheral to point a host backend at: it
 advertises as `bledev-radio`, and a central steers it by writing commands.
@@ -371,6 +456,42 @@ off, 2026-09-24.
 | the same, as .py source | none | 98.8 KB |
 | registering nus, then advertising | 0.2 KB | 1.8 KB |
 | `active(False)` | all returned | |
+
+### HID, board to board and from the laptop
+
+`hid_peripheral.py` typed `hid_script.py` (30 characters with Shift, Ctrl+C,
+Right Alt + Shift + F5, two media keys, five gamepad reports: 112 events) and
+`hid_central.py` compared every event and the text they spell. MicroPython
+1.29, aioble from mip, 2026-09-24. The planted run drops Shift from the first
+character.
+
+| Device | Host | Plain | Planted | 7.5-15 ms interval | Round trip, default (median / max) | Round trip, 7.5-15 ms |
+|---|---|---|---|---|---|---|
+| LCD-7 (S3) | T-Embed (S3) | PASS, 112/112 | FAIL, event 0 | PASS | 69 / 119 ms | 29 / 49 ms |
+| T-Embed (S3) | LCD-7 (S3) | PASS | FAIL, event 0 | PASS | 68 / 118 ms | 30 / 69 ms |
+| P4 | LCD-7 (S3) | PASS | FAIL, event 0 | PASS | 70 / 220 ms | 30 / 80 ms |
+| LCD-7 (S3) | P4 | PASS 2 of 5 | FAIL, event 0 | FAIL 6 of 6 | 68 / 178 ms | 29 / 69 ms |
+| P4, vendor UUID | laptop (bleak) | PASS | FAIL, event 0 | PASS | 90 / 270 ms | 60 / 90 ms |
+
+The round trip is a key press on the device to the host's LED write arriving
+back, so one way is roughly half: 35 ms at the default interval, 15 ms at
+7.5-15 ms. Decoding on the host adds 1.7 ms (P4) to 2.8 ms (S3) from the
+report's arrival to the app's `events()`, with a p99 of 10 to 23 ms.
+
+**The P4 as host loses reports** below Python, always from around the 26th
+report on (pydevices#87). The S3 never did. `burst_source.py` and
+`burst_sink.py` reproduce it without HID.
+
+**Pairing and bonding** (`ENCRYPTED = True`: every HID characteristic
+encrypted, both sides call `enable_bonding()`), each direction between the S3s
+and with the P4 as device:
+
+| Run | Result |
+|---|---|
+| First connect, no keys on either side | The Report Map read fails, the host pairs "just works" (encrypted, not authenticated, 16-byte key, bonded), 112/112 |
+| Both boards reset, then reconnect | Encryption from the stored keys: the key store's checksum unchanged, connect-to-started 0.8 to 1.4 s faster, 112/112 |
+| The host's `ble_secrets.json` deleted (as an erase would) | The device accepts a fresh pairing (NimBLE's repeat-pairing path drops the old bond), new keys, 112/112 |
+| A host that refuses to pair (planted) | Fails: the device's encrypted Report Map can't be read |
 
 ### The laptop to an S3
 

@@ -25,6 +25,12 @@ raises, so a bug shows up in a test rather than as corruption on a board:
   ``notified()`` or ``written()`` raise instead of dropping data silently.
 * The name only reaches a *passive* scan when it fits in the 31-byte
   advertisement; otherwise it is in the scan response, as on real hardware.
+* An ``encrypted`` characteristic refuses an unpaired central with
+  ``GattError(INSUFFICIENT_ENCRYPTION)``. ``pair()`` encrypts the link, and
+  with ``bond`` both adapters remember each other (``bonds``) until
+  ``forget()``.
+* ``long_reads=False`` makes a central read at most ``mtu - 1`` bytes, as
+  MicroPython does (it has no long read).
 """
 
 try:
@@ -37,6 +43,7 @@ from . import (
     BLEError,
     BusyError,
     ClientCharacteristic,
+    ClientDescriptor,
     ClientService,
     Connection,
     DEFAULT_MTU,
@@ -47,7 +54,10 @@ from . import (
     FLAG_READ,
     FLAG_WRITE,
     FLAG_WRITE_NO_RESPONSE,
+    GattError,
+    INSUFFICIENT_ENCRYPTION,
     MAX_MTU,
+    UUID,
     ScanResult,
     Scanner,
     UnsupportedError,
@@ -153,6 +163,7 @@ class FakeBLE(BLE):
         notify_buffers=8,
         queue_limit=128,
         gap_name="fake",
+        long_reads=True,
     ):
         self._air = air if air is not None else _default_air
         self._central = central
@@ -163,6 +174,9 @@ class FakeBLE(BLE):
         self.notify_buffers = notify_buffers
         self.queue_limit = queue_limit
         self._gap_name = gap_name
+        self._long_reads = long_reads
+        #: Addresses of the peers this adapter has bonded with.
+        self.bonds = set()
         self._services = ()
         self._adverts = []
         self._links = []
@@ -175,8 +189,17 @@ class FakeBLE(BLE):
             mtu=self._mtu,
             max_mtu=MAX_MTU,
             indicate=True,
+            pairing=True,
+            long_read=self._long_reads,
         )
         return caps
+
+    def forget(self, address=None):
+        """Drop the bond with ``address``, or every bond (a board's filesystem erased)."""
+        if address is None:
+            self.bonds.clear()
+        else:
+            self.bonds.discard(address)
 
     def config(self, *names, **settings):
         for key, value in settings.items():
@@ -333,6 +356,7 @@ class _Link:
         self.subscribed = {}
         self.in_flight = []
         self._drain_task = None
+        self.encrypted = False
         central_ble._links.append(self)
         peripheral_ble._links.append(self)
 
@@ -403,6 +427,20 @@ class _FakeConnection(Connection):
         if self._link.connected:
             await wait_ms(self._link.dropped.wait(), timeout_ms, "disconnected")
 
+    @property
+    def encrypted(self):
+        return self._link.encrypted
+
+    async def pair(self, bond=True, timeout_ms=20000):
+        link = self._link
+        link.check()
+        await asyncio.sleep(0)
+        link.check()
+        link.encrypted = True
+        if bond:
+            link.central_ble.bonds.add(link.peripheral_ble.address)
+            link.peripheral_ble.bonds.add(link.central_ble.address)
+
     async def exchange_mtu(self, mtu=None, timeout_ms=1000):
         self._link.check()
         if mtu:
@@ -450,14 +488,29 @@ class _FakeClientCharacteristic(ClientCharacteristic):
     def _link(self):
         link = self.connection._link
         link.check()
+        if self._server.encrypted and not link.encrypted:
+            raise GattError(INSUFFICIENT_ENCRYPTION, "{} needs an encrypted link; pair() first".format(self.uuid))
         return link
 
     async def read(self, timeout_ms=1000):
         self._check(FLAG_READ, "read")
         self._link()
         await asyncio.sleep(0)
-        self._link()
-        return self._server.read()
+        link = self._link()
+        value = self._server.read()
+        if not link.central_ble._long_reads:
+            value = value[: self.connection.mtu - 1]
+        return value
+
+    async def _discover_descriptors(self, uuid, timeout_ms):
+        self.connection._link.check()
+        await asyncio.sleep(0)
+        found = []
+        if self._server.flags & (FLAG_NOTIFY | FLAG_INDICATE):
+            found.append(_FakeClientDescriptor(self, UUID(0x2902), None))
+        for d in self._server.descriptors:
+            found.append(_FakeClientDescriptor(self, d.uuid, d))
+        return [d for d in found if uuid is None or d.uuid == uuid]
 
     async def write(self, data, response=None, timeout_ms=1000):
         data = bytes(data)
@@ -496,6 +549,22 @@ class _FakeClientCharacteristic(ClientCharacteristic):
         self._check(FLAG_INDICATE, "indicate")
         link = self.connection._link
         return await link.inbox(self._server, "indicate", link.central_ble.queue_limit).get(timeout_ms)
+
+
+class _FakeClientDescriptor(ClientDescriptor):
+    def __init__(self, characteristic, uuid, server):
+        ClientDescriptor.__init__(self, characteristic, uuid)
+        self._server = server
+
+    async def read(self, timeout_ms=1000):
+        link = self.connection._link
+        link.check()
+        await asyncio.sleep(0)
+        link.check()
+        if self._server is None:  # the CCCD
+            notify, indicate = link.subscribed.get(id(self.characteristic._server), (False, False))
+            return bytes((notify | (indicate << 1), 0))
+        return self._server.value
 
 
 class _ServerCharacteristic:
