@@ -410,6 +410,10 @@ class _BleakConnection(Connection):
         token = custom.add_pairing_requested(handler)
         try:
             result = await custom.pair_with_protection_level_async(kinds, level)
+            if result.status == DevicePairingResultStatus.PROTECTION_LEVEL_COULD_NOT_BE_MET and passkey is not None:
+                # A board without a display pairs just works; the board, not
+                # this side, decides whether that's enough.
+                result = await custom.pair_with_protection_level_async(kinds, DevicePairingProtectionLevel.ENCRYPTION)
         finally:
             custom.remove_pairing_requested(token)
         status = result.status
@@ -598,3 +602,45 @@ async def unpair(address):
         await BleakClient(address).unpair()
     except (BleakError, OSError) as e:
         raise BLEError("unpair {}: {}".format(address, e))
+
+
+async def _main(argv):
+    """``python -m bledev.bleak pair NAME`` / ``unpair NAME``: pair this computer
+    with a board once, typing in the passkey its display shows. mpftp, bledev
+    and anything else on this computer then use the bond."""
+    if len(argv) != 2 or argv[0] not in ("pair", "unpair"):
+        print("usage: python -m bledev.bleak pair|unpair NAME")
+        return 2
+    what, name = argv
+    ble = BleakBLE()
+    try:
+        device = await ble.find(name=name, timeout_ms=15000)
+        if what == "unpair":
+            await unpair(device.address)
+            print("unpaired", name, device.address)
+            return 0
+        connection = await device.connect(timeout_ms=15000)
+
+        async def ask():
+            loop = asyncio.get_running_loop()
+            text = await loop.run_in_executor(None, input, "Passkey shown on {}: ".format(name))
+            return int(text.replace(" ", "")) if text.strip() else None
+
+        try:
+            await connection.pair(passkey=ask)
+        except PairingError as e:
+            print("not paired:", e)
+            return 1
+        finally:
+            if connection.is_connected():
+                await connection.disconnect()
+        print("paired", name, device.address, "(passkey)" if connection.authenticated else "(just works)")
+        return 0
+    finally:
+        await ble.aclose()
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(asyncio.run(_main(sys.argv[1:])))

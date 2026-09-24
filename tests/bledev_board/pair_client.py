@@ -194,7 +194,9 @@ async def step_wrong(ble):
         link = await repl.connect(ble, None, name=NAME, device=device, pair=True, passkey=one_off, timeout_ms=20000)
         check(False, "the wrong passkey is refused", "it logged in")
         await link.close()
-    except (bledev.PairingError, repl.AuthError) as e:
+    except bledev.PairingError as e:
+        # The pairing itself must fail: a password refusal afterwards would
+        # mean the wrong passkey paired.
         check(True, "the wrong passkey is refused", "{} after {:.2f} s".format(str(e)[:70], time.monotonic() - t))
     finally:
         console.close()
@@ -219,7 +221,7 @@ async def step_unpaired(ble):
         auth = await files.characteristic(ft.AUTH)
         version = await files.characteristic(ft.VERSION)
         ops = [
-            ("REPL write", lambda: rx.write(b"import os; os.mkdir('/pwned')\r", response=True)),
+            ("REPL write", lambda: rx.write(b"import os\r", response=True)),
             ("file transfer write", lambda: transfer.write(b"\x50\x00\x01\x00/", response=True)),
             ("file transfer read", lambda: transfer.read()),
             ("password read", lambda: auth.read()),

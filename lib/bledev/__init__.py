@@ -1056,9 +1056,16 @@ async def connect_and_set_up(
             await connection.disconnect()
         except BLEError:
             pass
+        # Give a dead link time to be noticed before the next try.
+        await sleep_ms(500 * (_ + 1))
     if stale:
         # Every attempt encrypted with keys this host already had, and every
-        # link fell: Windows hangs up when the board refuses those keys. (One
-        # dropped link can be the radio; all of them is the bond.)
-        raise PairingError(STALE_BOND)
+        # link fell. Windows hangs up when the board refuses those keys, but
+        # it also hands out links the board never saw, for a while after the
+        # board resets; from here the two look the same.
+        raise PairingError(
+            "every link dropped right after connecting with this host's stored keys. Try again in "
+            "a few seconds (after a board reset Windows can hold a dead link); if it keeps "
+            "happening, " + STALE_BOND
+        )
     raise error

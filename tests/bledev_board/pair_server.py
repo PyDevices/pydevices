@@ -17,8 +17,9 @@ Plants, each of which a client check must catch:
 
 * ``start(..., plant="forget")``: forget every bond, as a chip erase would,
   so a bonded host can't reconnect without pairing.
-* ``start(..., plant="justworks")``: say passkey but pair "just works", so
-  a host with the wrong passkey (or none) gets in.
+* ``start(..., plant="justworks")``: say passkey but pair "just works"
+  (no MITM, encryption-only characteristics), so a host with the wrong
+  passkey gets in.
 * ``start(..., plant="open")``: serve without protecting the
   characteristics, so an unpaired host can use them.
 """
@@ -72,10 +73,17 @@ def start(mode="passkey", password=False, plant=None, name=NAME, debug=False):
         repl._Server.secure = lambda self, conn: True
     configured = mode
     if plant == "justworks":
-        # Declared a passkey, paired without one: the characteristics still
-        # ask for encryption only, the way a misconfigured board would.
-        configured = "justworks"
-        password = PASSWORD if password is False else password
+        # Declared a passkey, paired without one: no MITM, encryption-only
+        # characteristics, and no password, the way a misconfigured board would.
+        real = security.configure
+
+        def configure(_mode, **options):
+            real("justworks", **options)
+            return "passkey"
+
+        security.configure = configure
+        repl._F_READ_AUTHN = repl._F_WRITE_AUTHN = 0
+        repl._Server.secure = lambda self, conn: security.state(conn)[0]
     if password == "gate":
         password = PASSWORD
     t0 = time.ticks_ms()
