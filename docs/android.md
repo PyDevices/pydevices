@@ -36,20 +36,46 @@ Two APKs are in play:
 
 ## Staging a script with `android.py`
 
+To run an example on your phone, you need USB debugging on, `adb` on your
+computer, and two clones side by side: this repo (for `bin/android.py`) and
+[pydevices-examples](https://github.com/PyDevices/pydevices-examples) with its
+venv set up as its README says. Then, from `pydevices-examples/lib`:
+
+```bash
+../.venv/bin/python ../../pydevices/bin/android.py --install-apk   # once
+../.venv/bin/python ../../pydevices/bin/android.py examples/piano.py
+```
+
+The rest of this page writes that as plain `android.py`.
+
 [`bin/android.py`](../bin/android.py) stages a **cwd-relative path** onto the
 installed Runner APK and relaunches it — the same shape as the CLI `python` /
-`micropython` entry points.
+`micropython` entry points. Options go **before** the script: anything after
+it is passed to the script as `sys.argv`.
 
 ```bash
 android.py examples/paint.py
 android.py --clear
 ```
 
+An example that is more than one file, or needs a library the Runner does not
+carry, names them. `--modules` stages example modules or packages that sit
+beside the entry; `--deps` copies a pure-Python package from the Python you run
+`android.py` with. The drum machine needs both:
+
+```bash
+android.py --modules drum_seq --deps audioinstruments examples/drum_machine/drum_machine.py
+```
+
+The Runner carries pydevices, pydevices-desktop, audiodsp, pygraphics,
+palettes, pdwidgets and LVGL. A package with native code that is not on that
+list cannot be staged; it has to be built into an APK.
+
 It can also fetch and install the Runner APK itself, so users never have to build
 one:
 
 ```bash
-android.py --install-apk     # download the latest release APK and adb install it
+android.py --install-apk     # download the latest release APK, adb install it, stop
 android.py --update-apk      # replace an installed Runner with the latest
 android.py --apk-path ./my.apk --install-apk
 ```

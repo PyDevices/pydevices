@@ -622,9 +622,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("-y", "--yes", action="store_true", help="automatic yes to prompts (for CI/automation)")
     parser.add_argument("--port", type=int, default=STDIO_PORT_DEFAULT, help=f"stdio sidecar port (default: {STDIO_PORT_DEFAULT})")
     parser.add_argument("--kit", action="store_true", help="run the entry in example_test_kit mode (run_argv=kit; stages quit_inject.py)")
-    parser.add_argument("--modules", help="comma-separated pydevices-examples lib/examples modules to stage beside the entry")
+    parser.add_argument("--modules", help="comma-separated example modules or packages to stage beside the entry (looked up beside the entry, then in lib/examples)")
     parser.add_argument("--manifests", help="comma-separated pydevices-examples packages/*.json manifests to stage")
-    parser.add_argument("--deps", help="comma-separated dependency names (informational; the APK bakes the core stack)")
+    parser.add_argument("--deps", help="comma-separated pure-Python packages installed on this computer to stage for an app that needs more than the APK bakes in")
 
     # Positional script and its arguments
     parser.add_argument("script", nargs="?", help="Python script file to execute")
@@ -662,18 +662,55 @@ def _csv(value: Optional[str]) -> List[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def _stage_companions(adb, package_id: str, args) -> None:
-    """Stage the extra example modules and MIP manifests named on the CLI.
+def _module_dirs(args) -> List[pathlib.Path]:
+    """Where --modules names are looked up, nearest the entry script first.
 
-    Mirrors --modules / --manifests / --deps from the older android.sh, with the
-    example path corrected: sources moved from src/examples/ to lib/examples/.
+    The entry's own directory and its parent come first, so a multi-file
+    example such as ``examples/drum_machine/drum_machine.py`` finds a sibling
+    package like ``examples/drum_seq/`` from any checkout. The sibling
+    pydevices-examples checkout's ``lib/examples`` is the fallback.
+    """
+    dirs = []
+    script = getattr(args, "script", None)
+    if script:
+        entry_dir = pathlib.Path(script).resolve().parent
+        dirs += [entry_dir, entry_dir.parent]
+    dirs += [root / "lib" / "examples" for root in _examples_roots()]
+    return dirs
+
+
+def _package_files(pkg_dir: pathlib.Path, dest_prefix: str) -> List[Tuple[str, str]]:
+    """Every file of a package directory as (host, device) pairs, minus caches."""
+    files = []
+    for path in sorted(pkg_dir.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo"):
+            continue
+        rel = path.relative_to(pkg_dir).as_posix()
+        files.append((str(path), "{}/{}".format(dest_prefix, rel)))
+    return files
+
+
+def _stage_companions(adb, package_id: str, args) -> None:
+    """Stage the extra modules, manifests, and pure-Python packages named on the CLI.
+
+    ``--modules`` takes example modules or packages (``name.py`` or ``name/``).
+    ``--deps`` copies a pure-Python package installed on this computer (in the
+    Python running android.py) into ``run/``, for libraries the Runner APK does
+    not bake in. Native packages cannot be staged; they must be in the APK.
     """
     for name in _csv(getattr(args, "modules", None)):
-        found = _find_in_examples("lib", "examples", name + ".py")
-        if found is not None:
-            adb.stage_file(package_id, str(found), "run/{}.py".format(name))
-            print("android.py: staged module {}".format(name), file=sys.stderr)
-        else:
+        staged = False
+        for base in _module_dirs(args):
+            if (base / (name + ".py")).is_file():
+                adb.stage_file(package_id, str(base / (name + ".py")), "run/{}.py".format(name))
+                staged = True
+            elif (base / name / "__init__.py").is_file():
+                adb.stage_files(package_id, _package_files(base / name, "run/" + name))
+                staged = True
+            if staged:
+                print("android.py: staged module {}".format(name), file=sys.stderr)
+                break
+        if not staged:
             print("android.py: warning: module not found: {}".format(name), file=sys.stderr)
 
     for name in _csv(getattr(args, "manifests", None)):
@@ -685,11 +722,32 @@ def _stage_companions(adb, package_id: str, args) -> None:
             print("android.py: warning: manifest not found: {}".format(name), file=sys.stderr)
 
     for name in _csv(getattr(args, "deps", None)):
-        # Documentation only: the core stack is baked into the Runner APK.
-        print(
-            "android.py: note: --deps {} (the APK should already provide it)".format(name),
-            file=sys.stderr,
-        )
+        import importlib.util
+
+        try:
+            spec = importlib.util.find_spec(name)
+        except (ImportError, ValueError):
+            spec = None
+        if spec is None or not spec.submodule_search_locations:
+            where = "is not a package" if spec is not None else "is not installed"
+            print(
+                "android.py: warning: --deps {}: {} for {} -- pip install it into "
+                "the Python you run android.py with".format(name, where, sys.executable),
+                file=sys.stderr,
+            )
+            continue
+        pkg_dir = pathlib.Path(list(spec.submodule_search_locations)[0])
+        native = [p for p in pkg_dir.rglob("*") if p.suffix in (".so", ".pyd")]
+        if native:
+            print(
+                "android.py: warning: --deps {} has native code ({}); the APK must "
+                "provide it".format(name, native[0].name),
+                file=sys.stderr,
+            )
+            continue
+        adb.stage_files(package_id, _package_files(pkg_dir, "run/" + name))
+        print("android.py: staged package {} from {}".format(name, pkg_dir), file=sys.stderr)
+
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -742,6 +800,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
 
     adb.ensure_unpacked(package_id, ACTIVITY_DEFAULT, args.port)
+
+    # `--install-apk` / `--update-apk` on their own install and stop: nothing
+    # was asked to run, so do not launch the app and sit attached to it.
+    nothing_to_run = not (args.script or args.command is not None or args.module or args.repl or args.clear)
+    if (args.install_apk or args.update_apk) and nothing_to_run:
+        adb.force_stop(package_id)
+        print(f"android.py: {package_id} is installed; stage a script with `android.py path/to/script.py`.", file=sys.stderr)
+        return 0
 
     if args.clear:
         print(f"android.py: clearing staged run/ and restoring default entry on {package_id}...", file=sys.stderr)
