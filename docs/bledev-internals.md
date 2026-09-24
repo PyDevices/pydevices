@@ -346,9 +346,11 @@ descriptor (0x2908), and HOGP gives the report ID nowhere else, so the host
 needs `ClientCharacteristic.descriptor()`. A `Characteristic` can be
 `encrypted=True`, and `Connection.pair()` encrypts a link. The host pairs
 only after a read fails with insufficient encryption or authentication,
-which is how a real keyboard asks. mpble pairs through aioble's security
-module ("just works", `io=3`); `ble.enable_bonding()` loads aioble's
-`ble_secrets.json` and turns bonding on, and it has to run on both sides,
+which is how a real keyboard asks. mpble pairs through `bledev.security`
+("just works", `io=3`, unless a passkey is given); `ble.enable_bonding()`
+loads the bond store (NVS on an ESP32, see
+[how pairing gets there](#how-pairing-gets-there)) and turns bonding on, and
+it has to run on both sides,
 because the side that didn't start pairing stores keys too.
 
 **MicroPython has no long read.** `gattc_read()` is one ATT Read, so a board
@@ -378,7 +380,83 @@ The host writes the keyboard's LED report once it has subscribed, as Windows
 does. `Peripheral.leds()` returns those writes, which is how the gate knows
 the host is listening, and how it times a round trip.
 
+## How pairing gets there
+
+`bledev.security` is the board side. aioble pairs, but it leaves three gaps,
+and all three bit on the LCD-7:
+
+- **The passkey step is unhandled.** aioble's `_IRQ_PASSKEY_ACTION` handler
+  only logs. bledev answers it from the IRQ itself, as NimBLE's own examples
+  do: a random six-digit passkey for `DISPLAY` (the board shows it), the
+  caller's passkey for `INPUT` (a board as central), and numeric comparison
+  through `confirm()`. Only the drawing waits for the main thread.
+- **Saving keys through the scheduler fails.** aioble stores a secret in the
+  IRQ and saves it with `micropython.schedule()`, which raises when the queue
+  is full. The queue *is* full whenever a scheduled callback runs long while
+  a timer keeps queueing: drawing the passkey (77 ms on the LCD-7) inside a
+  scheduled callback while the REPL server's 5 ms timer ticks did it. The
+  exception went back into NimBLE as a failed key store, and pairing stopped
+  after the first key, with the host believing it had paired. bledev now
+  handles `_IRQ_GET_SECRET` and `_IRQ_SET_SECRET` ahead of aioble and writes
+  the store inline when the queue is full (ESP-IDF's own NimBLE writes NVS
+  from its host task too). Anything else deferred from an IRQ goes through
+  `security.poll()` when the queue is full, which the REPL server calls every
+  tick.
+- **The store is a file.** bledev keeps the keys in NVS on an ESP32
+  (`NVSStore`, namespace `bledev`, one blob: type, key length, key, value
+  length, value, repeated) and in aioble's `ble_secrets.json` elsewhere.
+  It takes over aioble's `load_secrets` and `_save_secrets`, which aioble
+  looks up at call time. The store should be loaded before the radio starts,
+  because NimBLE reads the board's IRK then; `repl.start()` does that. When
+  the radio is already on, the board makes a new IRK, which costs nothing
+  while it advertises its public address.
+
+**Why NVS.** A filesystem reformat, a mip reinstall and "delete everything"
+are routine on these boards, and a board that silently forgets its bonds
+leaves every paired host with keys that no longer work. NVS survives all of
+those and is lost only to a full chip erase, which is rarer and already means
+setting the board up again. Not measured: an actual filesystem reformat with a
+bond in NVS (the LCD-7 carries the earful demo's files); what was shown is
+that the bond lives outside the filesystem (no file is written) and survives
+hard resets.
+
+**The server.** With `pairing=`, the REPL's RX and the file service's
+transfer and `AUTH` characteristics get `_ENC` flags (just works) or `_ENC`
+plus `_AUTHN` flags (passkey, numeric), so NimBLE refuses an unpaired host
+before bledev sees the request, answering ATT 0x05. bledev checks the link's
+state from `_IRQ_ENCRYPTION_UPDATE` as well. `AUTH` is served even without a
+password, so the table depends only on `console` and `files`, and reads 1
+once pairing has unlocked it. With the password gone, the REPL opens on the
+client's first line (`_Open`), so the client sees one `>>>`. A link not
+paired within `PAIR_WITHIN_MS` (30 s) is hung up on, so a host that never
+pairs can't hold the board's one connection. A failed pairing isn't hung up
+on at once: the host would only see a dropped link, not why.
+
+**The laptop.** bleak 3.0.2's WinRT `pair()` accepts only `CONFIRM_ONLY`,
+so bledev.bleak runs WinRT's custom pairing itself: `CONFIRM_ONLY` and
+`PROVIDE_PIN`, the PIN supplied behind a deferral so the passkey provider can
+be slow (a person, or the gate reading the board's console). No system dialog
+appears. WinRT reports `protection_level_used` as `NONE` even after a passkey
+ceremony, so bledev takes "a PIN was asked for and given" as the evidence of
+an authenticated link; the board's own state agrees (authenticated, 16-byte
+key). A device Windows already has paired is left alone: Windows encrypts with
+the stored keys when a protected characteristic is first used.
+
+**A lost bond, seen from the host.** When the board has forgotten the keys,
+Windows' encryption fails and the link drops two milliseconds later (the
+board's log: `GET_SECRET` misses, `ENCRYPTION_UPDATE` with encrypted 0,
+disconnect). After a board resets, Windows also hands out links the board
+never sees, for a few seconds. From the host the two look the same, so
+`connect_and_set_up` backs off between attempts and, when every attempt
+drops after encrypting with stored keys, says both.
+
 ## The checks
+
+**Pairing, without a radio**, on both interpreters: `tests/bledev_pairing.py`
+serves the file service over the fake the way CircuitPython does (encrypted,
+no `AUTH`) and the way a passkey board does, and checks that clients pair when
+they must, refuse what they must, and move 20 KB intact; plus the NVS blob
+codec. `tests/test_bledev_pairing.py` runs four plants, each of which must fail.
 
 **The file-transfer protocol**, on both interpreters:
 `tests/bledev_filetransfer.py` wires the client to a `FileServer` through a
@@ -417,6 +495,8 @@ The serving scripts have a `PLANT` switch, and a planted run must fail:
 
 | `hid_peripheral.py` + `hid_central.py` | HID: the device types `hid_script.py`'s text, chords, media keys and gamepad moves; the host's events must equal `hid_script.expected()` and spell the text. Then key-press round trips. `PLANT` drops one Shift. The host also runs on a laptop, where it refuses to pair |
 | `bless_peripheral.py` + `bless_probe.py` | The laptop as a peripheral, through bless, probed by a board |
+| `pair_server.py` + `pair_client.py` (laptop) | Pairing. `pair`: a passkey read off the board's console, then the REPL and 20 KB through the file service on the paired link. `reconnect`: from the bond, nobody asked for a passkey. `wrong`: a passkey one off must fail pairing and leave Windows unpaired. `unpaired`: every protected characteristic refuses reads and writes. Plants on the server: `forget`, `justworks`, `open`. `uart_say.py` reads the board's state without mpftp's soft reset |
+| `pair_server.py` + `files_pair_client.py` (board) | Board to board: the client pairs on its own, 20 KB both ways byte for byte, then reconnects from the bond. `plant="flip"` and `plant="nopair"` must FAIL |
 
 `gatt_peripheral.py` is also the peripheral to point a host backend at: it
 advertises as `bledev-radio`, and a central steers it by writing commands.
@@ -608,3 +688,30 @@ windows. Up got slower from run to run at Windows' defaults (25.8, 17.4, 14.5
 KB/s), overwriting the same file each time. The planted bit flip on the client
 failed the round-trip check. mpftp's `ble://` transport, and its gate, are in
 [PyDevices/mpftp](https://github.com/PyDevices/mpftp) `docs/plans/ble.md`.
+
+### Pairing
+
+The laptop (Windows 11, bleak 3.0.2, WinRT custom pairing) and the LCD-7
+(ESP32-S3, MicroPython 1.29, bledev as `.mpy`) one desk apart, 2026-09-24,
+with `pair_server.start("passkey")`: files and the REPL, the passkey the only
+lock. Every step below is `pair_client.py`.
+
+| Step | Result |
+|---|---|
+| `pair`, three fresh pairings | the passkey read off the board, the link authenticated on both sides (board: encrypted, authenticated, bonded, 16-byte key), `123 * 456` over the REPL and 20 KB through the file service byte for byte. Connect to prompt 8.1-11.1 s, most of it the passkey round trip |
+| `reconnect` after a hard reset of the board and a new laptop process, 10 runs | 10 of 10, no passkey asked, board and laptop both report the bonded, authenticated link. Connect to prompt median 2.1 s (1.43-6.28 s; the slow ones retried links Windows gave out that never reached the board). First command 0.05-0.30 s |
+| the same, 15 earlier runs before the retry backoff | 12 of 15. One failure the board's log settled: no connection ever reached it (a dead link after its reset). Two were before logging, one after with the bond intact |
+| `wrong`, three runs | pairing refused (`FAILED`) in 2.7-4.0 s; no bond on either side |
+| `unpaired` | the REPL's RX, the file transfer (read, write) and `AUTH` (read, write) each refused with ATT 0x05; no REPL output; version readable; Windows didn't pair on its own |
+| `forget` plant, then `reconnect` | fails as it must (the board's log: key lookup misses, encryption fails, link drops). Unpairing on the laptop and pairing again restores it |
+| `justworks` plant, then `wrong` | the wrong passkey gets in: FAIL, as it must |
+| `open` plant, then `unpaired` | every protected characteristic allowed: FAIL, as it must |
+
+The passkey on the panel, read back from the framebuffer: "Bluetooth passkey"
+over the six digits at 8x the 8-pixel font, drawn in 77 ms, present in both of
+the dot-clock panel's buffers while shown and gone from both after.
+
+mpftp's `ble://` (PyDevices/mpftp `ble-pairing`) used the bond with no password
+set: `exec` and 20 KB `put`/`get` byte for byte. Against a just-works board
+with a password it paired by itself; against a passkey board with the laptop
+unpaired it said to pair once and left no pairing behind.

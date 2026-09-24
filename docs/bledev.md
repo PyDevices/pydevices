@@ -192,7 +192,7 @@ Any terminal that speaks Nordic UART works too: send an empty line, and the
 board answers `Password: `. A wrong password gets `Access denied` and a
 disconnect, and nothing sent with it reaches the REPL. The link isn't
 encrypted, as with WebREPL, so someone nearby with a sniffer can read the
-password; pairing is the later fix.
+password, unless you [pair](#pairing-and-bonding).
 
 While it runs, the REPL owns the radio: it registers its own service and
 advertises whenever nobody is connected. Call `bledev.repl.stop()` to give the
@@ -227,7 +227,8 @@ await files.delete("/data")             # a directory and everything in it
 so it never receives more than it can hold.
 
 It's locked the way the REPL is. CircuitPython uses pairing; bledev uses the
-REPL's password, sent to one extra characteristic, and until it's right
+REPL's password by default (or [pairing](#pairing-and-bonding)), sent to one
+extra characteristic, and until it's right
 every command is refused. One attempt per connection, and a wrong one is hung
 up on. Logging in to the REPL over the same connection unlocks files too,
 which is what [mpftp](https://github.com/PyDevices/mpftp) does. The protocol
@@ -241,6 +242,71 @@ runs.
 How fast: 20 KB from the laptop to the T-Embed in about 0.8 s and back in
 0.3 s, against 16 s and 11 s through the raw REPL. The numbers are in
 [the internals](bledev-internals.md#file-transfer).
+
+## Pairing and bonding
+
+Pairing encrypts the link and, with a passkey, proves who's on the other end.
+It's off unless you ask; the password alone stays the default. On a board with
+a display, this is the one to use:
+
+```python
+import bledev.filetransfer
+bledev.filetransfer.start(password=False, name="rack", pairing="passkey")
+```
+
+The first time a computer connects, the board draws a six-digit passkey on its
+screen (and prints it to the console) and the computer asks for it. After that
+the two are bonded: they reconnect encrypted, with no passkey, until one of
+them forgets. `password=False` means the passkey is the only lock; keep a
+password as well if you like.
+
+From a laptop or another board, pair when you connect, and pass the passkey,
+or a function that asks for it:
+
+```python
+link = await bledev.repl.connect(ble, name="rack", pair=True, passkey=lambda: input("Passkey: "))
+files = await bledev.filetransfer.connect(ble, name="rack", passkey=ask)    # pairs when the board asks it to
+```
+
+On Windows that's WinRT's own pairing, with no system dialog. To pair a
+computer once for tools that don't pair themselves (mpftp),
+`python -m bledev.bleak pair rack` asks for the passkey in the terminal, and
+`python -m bledev.bleak unpair rack` undoes it. Windows Settings, Add device,
+works too.
+
+The other modes, for `bledev.repl.start()` and `bledev.filetransfer.start()`:
+
+| `pairing=` | What the board does | Password |
+|---|---|---|
+| `None` (the default) | no pairing | required |
+| `"passkey"` | shows a passkey the host types in | optional |
+| `"justworks"` | pairs with no passkey; encrypted, but anyone can pair | required |
+| `"numeric"` | shows a number both sides confirm; `confirm(number)` answers for the board (a button) | optional |
+| `"auto"` | `"passkey"` with a display, `"justworks"` without | as above |
+
+Just works on its own would let anyone in range pair and get a REPL, so it
+needs the password too; what it adds is that nobody sniffing can read the
+password or the session. A board draws the passkey on `board_config.display_drv`;
+pass `show(passkey)` and `hide()` to put it somewhere else.
+
+**Where the keys live.** On an ESP32 they're in NVS, not the filesystem, so
+reformatting the filesystem or deleting every file keeps them. A full chip
+erase (`mpftp firmware flash --erase`) loses them, and so does
+`bledev.security.forget()`. On other boards they're in `ble_secrets.json`.
+
+**When the board has lost its keys** and the computer still has its half, the
+computer's reconnect fails: it tries the old keys, the board doesn't know them,
+and the link drops. bledev says so (`PairingError`, "unpair it on this host").
+The fix is on the computer: unpair the board (`python -m bledev.bleak unpair
+rack`, or Settings > Bluetooth > Remove device), then pair again. A phone is the
+same: forget the device, then pair.
+
+A board's name, and the services it serves, follow from what you start: the
+same `console` and `files` give the same table every time, whatever the lock,
+because hosts cache a paired device's table. Serving something else on the same
+board (HID, say) changes it under the same address, and MicroPython doesn't tell
+bonded hosts, so a host that kept the old table may need the board unpaired and
+paired again.
 
 ## Wi-Fi setup with Improv
 
@@ -339,9 +405,10 @@ an `(x, y)` tuple with y up.
 A keyboard that wants an encrypted link gets one: the first read it refuses
 pairs the link ("just works", no passkey) and tries again. On a board, call
 `ble.enable_bonding()` once before connecting so the keys are kept, and the
-next connect doesn't pair from scratch. The keys live in `ble_secrets.json`
-on the board's filesystem, so erasing the board forgets them, and a keyboard
-that remembers the board may then need putting back into pairing mode.
+next connect doesn't pair from scratch. The keys live in NVS on an ESP32
+(see [where the keys live](#pairing-and-bonding)), so a full chip erase
+forgets them, and a keyboard that remembers the board may then need putting
+back into pairing mode.
 
 **A board can be the keyboard, too.** It advertises as a keyboard, media
 remote and gamepad (or any one or two of them) and sends what you tell it:
