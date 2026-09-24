@@ -2,7 +2,7 @@
 
 Canonical PyDevices product/source repository. Owns **board configs**,
 **hardware drivers**, portable libraries (`displaydev`, `audiodev`,
-`appdev`, `multimer`, `events`, `keys`), and pip/MIP publishing.
+`appdev`, `multimer`, `events`, `keys`, `bledev`), and pip/MIP publishing.
 Docs are markdown under `docs/`, published only via GitHub Pages
 ([docs/](docs/README.md); the Pages site is the landing page only)
 — not Read the Docs. Build locally with `./scripts/build_pages.sh` (needs
@@ -46,6 +46,9 @@ Docs are markdown under `docs/`, published only via GitHub Pages
   Every library component in `utils/` is bundled automatically into
   `pydevices-desktop` without becoming a separate package. The desktop package
   depends on `pydevices`.
+  `bledev` is the one `lib/` package declared to publish to MIP on its own
+  (`mip-split.toml`, `own-package`), requiring aioble; `bledev.auto` is
+  never imported by `bledev/__init__.py` or a backend.
   `AutoDisplay` is `displaydev.auto` only — never re-exported from
   `displaydev/__init__.py`. Backends must not import `.auto`.
   Likewise, synchronous `Timer` providers are explicit `multimer` modules
