@@ -1,3 +1,16 @@
+## v0.5.1 (2026-09-24)
+
+- appdev: micropython.exe can read its own command line (no utf-16-le codec there) (#63)
+- Four I2S boards hand audiodev the wire and a power hook, so the pump takes them (#62)
+- Board contract: hand a driver the bus, not its pins (#61)
+- docs: add pydevices newcomer guide (#60)
+- spibus: drop @micropython.native from send(), which delivered nothing on 1.29; cut the per-transfer overhead
+- board-bringup: usbif's Python half is frozen with its C half, not installed
+- docs: ecosystem map regenerated without cmods
+- The stamper and the installer live in the workspace anchor, not cmods
+- pydevices#52: a pump that finished before the player looked keeps its audio
+- ci: every reusable call moves from publishing-v10 to publishing-v11 (#59)
+
 ## v0.5.0 (2026-09-22)
 
 - **The DSP repository is `audiodsp` now** (renamed 2026-09-21), and everything
