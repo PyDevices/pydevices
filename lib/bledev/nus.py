@@ -63,9 +63,9 @@ def _adapter(ble):
     if is_adapter(ble):
         return ble
     if hasattr(ble, "gap_advertise"):
-        from .mpble import MPBLE
+        from . import mpble
 
-        return MPBLE(ble)
+        return mpble.get(ble)
     raise TypeError("expected a bledev adapter, not {!r}".format(ble))
 
 
