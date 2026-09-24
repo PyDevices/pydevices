@@ -3,12 +3,22 @@ import boarddev
 import sys
 
 PERIPHERALS = frozenset(
-    {"audio_out", "pcm_out", "pcm_in", "sdcard", "camera", "i2c", "wlan", "ble"}
+    {
+        "audio_out",
+        "pcm_out",
+        "pcm_in",
+        "audio_power",
+        "sdcard",
+        "camera",
+        "i2c",
+        "wlan",
+        "ble",
+    }
 )
 
 # Audio roles are factories: first attribute access must not construct, so a
 # caller can pass a format. See boarddev.bind_lazy.
-FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in"})
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in", "audio_power"})
 
 from audiodev import (
     AudioCapability,
@@ -38,6 +48,7 @@ _I2C_PORT = 0
 _I2C_SCL = 32
 _I2C_SDA = 31
 _i2c_own = None
+_out_codec = None
 
 # I2S ring buffer. The default is the value this board was brought up with;
 # leave it. A caller asking for latency="low" gets a shorter one instead (see
@@ -163,14 +174,13 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
     """
     from machine import I2S
 
-    from es8388 import ES8388
     from pi4ioe5v import tab5_set_amp
 
     from audiodev import pace_output
 
     wire, source = negotiate(AUDIO_OUT, format)
     bus = _i2c_bus()
-    codec = ES8388(bus)
+    codec = _output_codec()
     ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
 
     def power(enable):
@@ -185,6 +195,17 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
         set_hardware_volume=codec.set_dac_volume,
         set_hardware_mute=codec.dac_mute,
         power=power,
+        # For a consumer that drives the peripheral in C: the pin map, and a
+        # way to bring the codec and amp up without opening a stream. On a
+        # firmware carrying ``audiopump``, audiodev's sample player uses both
+        # and never opens ``machine.I2S`` on this port -- the pump's own I2S
+        # channel is the only owner. On a firmware without it these two are
+        # inert. Without them this board plays every sample on machine.I2S
+        # and the pump sits idle (PyDevices/pydevices#41).
+        # PUMP WIRING UNVERIFIED ON HARDWARE (2026-09-23): copied from the
+        # Waveshare P4 / T-Embed pattern; nobody here has a Tab5.
+        wire=AUDIO_OUT.wire,
+        audio_power=_audio_power,
     )
     if source is not wire:
         from audiodev.accel import best_remix
@@ -205,9 +226,47 @@ def _audio_out(format=None, **kwargs):
     return AudioOut(_pcm_out(format, **kwargs), **pump)
 
 
+def _output_codec():
+    """The one ES8388 instance, so the pump's power call and the transport's
+    volume and mute reach the same codec."""
+    global _out_codec
+    if _out_codec is None:
+        from es8388 import ES8388
+
+        _out_codec = ES8388(_i2c_bus())
+    return _out_codec
+
+
+def _audio_power(enable=True, *, volume=None):
+    """Bring the analog path up or down WITHOUT opening an I2S stream.
+
+    The audio pump's ``BusioDriver`` calls this before it opens its own I2S
+    channel and again when it closes it. The ES8388 takes its clock from
+    MCLK on GPIO30, which the pump drives from ``AUDIO_OUT.wire``
+    (``mck``, ``mck_fs=256``) once it starts; the register writes here are
+    I2C only and need no clock. The speaker amp is behind the PI4IOE
+    expander.
+    """
+    from pi4ioe5v import tab5_set_amp
+
+    codec = _output_codec()
+    bus = _i2c_bus()
+    if enable:
+        codec.enable_output(True)
+        codec.dac_mute(False)
+        if volume is not None:
+            codec.set_dac_volume(int(volume))
+        tab5_set_amp(bus, True)
+    else:
+        tab5_set_amp(bus, False)
+        codec.enable_output(False)
+    return enable
+
+
 pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
 pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
 audio_out = AudioFactory(_audio_out, AUDIO_OUT)
+audio_power = _audio_power
 
 
 def sdcard():

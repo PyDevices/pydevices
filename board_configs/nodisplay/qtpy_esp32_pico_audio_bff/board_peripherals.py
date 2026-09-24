@@ -45,7 +45,7 @@ from audiodev import (
 )
 from audiodev.i2s_audio import I2SPCMOutput
 
-PERIPHERALS = frozenset({"audio_out", "pcm_out"})
+PERIPHERALS = frozenset({"audio_out", "pcm_out", "audio_power"})
 
 # Audio roles are factories: first attribute access must not construct, so a
 # caller can pass a format. See boarddev.bind_lazy.
@@ -163,7 +163,21 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
     check_latency(latency)
     wire, source = negotiate(AUDIO_OUT, format)
     ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
-    device = I2SPCMOutput(lambda: _stream(ibuf, wire), wire)
+    device = I2SPCMOutput(
+        lambda: _stream(ibuf, wire),
+        wire,
+        # For a consumer that drives the peripheral in C: the pin map, and a
+        # way to bring the analog path up without opening a stream. On a
+        # firmware carrying ``audiopump``, audiodev's sample player uses both
+        # and never opens ``machine.I2S`` on this port -- the pump's own I2S
+        # channel is the only owner. On a firmware without it these two are
+        # inert. Without them this board plays every sample on machine.I2S
+        # and the pump sits idle (PyDevices/pydevices#41).
+        # PUMP WIRING UNVERIFIED ON HARDWARE (2026-09-23): the machine.I2S
+        # path was heard on 2026-09-15; the pump path has not been run here.
+        wire=AUDIO_OUT.wire,
+        audio_power=_audio_power,
+    )
     if source is not wire:
         device = adapt_channels(device, source, remix=best_remix())
     # Paced, and not optionally: I2SPCMOutput arms I2S into asyncio mode, so a
@@ -184,5 +198,20 @@ def _audio_out(format=None, **kwargs):
     return AudioOut(_pcm_out(format, **kwargs), **pump)
 
 
+def _audio_power(enable=True, *, volume=None):
+    """Bring the analog path up WITHOUT opening an I2S stream: here, nothing.
+
+    The same role the P4 panel and the T-Embed publish, on a board with less
+    to switch than either. The MAX98357A has no I2C, no registers and no
+    volume, and the BFF breaks out no shutdown pin: it is powered whenever
+    the QT Py is, and an idle I2S channel is already silent. So ``enable`` is
+    only reported back and ``volume=`` is ignored. The audio pump's
+    ``BusioDriver`` calls this before it opens the channel and when it closes
+    it; both calls are safe.
+    """
+    return enable
+
+
 pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
 audio_out = AudioFactory(_audio_out, AUDIO_OUT)
+audio_power = _audio_power
