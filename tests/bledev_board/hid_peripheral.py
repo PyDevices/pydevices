@@ -23,6 +23,7 @@ import hid_script
 
 PLANT = False
 ENCRYPTED = False
+INSPECT = False  # serve under hid.INSPECT_SERVICE, for a laptop (Windows hides 0x1812)
 LATENCY_N = 200
 NAME = "bledev-hid-gate"
 LOG = "/hid_peripheral.log"
@@ -82,9 +83,10 @@ async def main():
     ble = bledev.mpble.get()
     if ENCRYPTED:
         ble.enable_bonding()
-    per = hid.Peripheral(ble, name=NAME, encrypted=ENCRYPTED)
+    per = hid.Peripheral(ble, name=NAME, encrypted=ENCRYPTED,
+                         service_uuid=hid.INSPECT_SERVICE if INSPECT else hid.HID_SERVICE)
     log("advertising as", per.name, "appearance", hex(per.appearance), "plant", PLANT,
-        "encrypted", ENCRYPTED, "map", len(per.report_map), "bytes")
+        "encrypted", ENCRYPTED, "inspect", INSPECT, "map", len(per.report_map), "bytes")
     try:
         await one_host(per)
     finally:

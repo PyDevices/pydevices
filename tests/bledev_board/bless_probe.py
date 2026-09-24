@@ -28,7 +28,16 @@ async def main():
     try:
         device = await ble.find(service=SERVICE, timeout_ms=30000)
         log("found", device)
-        conn = await device.connect(timeout_ms=15000)
+        conn = None
+        for attempt in range(3):
+            await asyncio.sleep_ms(500)
+            try:
+                conn = await device.connect(timeout_ms=15000)
+                break
+            except OSError as e:
+                log("connect attempt", attempt, "failed:", e)
+        if conn is None:
+            raise RuntimeError("could not connect")
         log("connected, mtu", await conn.exchange_mtu(247))
         svc = await conn.service(SERVICE)
         log("service", svc)

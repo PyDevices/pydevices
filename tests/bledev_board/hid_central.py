@@ -36,6 +36,9 @@ else:
     LOG = None
     if "--fast" in sys.argv:
         CONN = {"priority": "throughput"}
+# Windows hides 0x1812 from apps: a laptop reads the board's HID
+# characteristics under hid.INSPECT_SERVICE (hid_peripheral.py's INSPECT).
+SERVICE = None
 NAME = "bledev-hid-gate"
 LATENCY_N = 200
 ENCRYPTED = False  # the harness sets it when the device pairs
@@ -75,7 +78,8 @@ async def main():
     t0 = time.ticks_ms() if MICROPYTHON else time.monotonic() * 1000
     device = await ble.find(name=NAME, timeout_ms=30000)
     connection = await device.connect(timeout_ms=15000, **CONN)
-    host = hid.Host(connection)
+    service = SERVICE or (hid.HID_SERVICE if MICROPYTHON or "--hid-service" in sys.argv else hid.INSPECT_SERVICE)
+    host = hid.Host(connection, service_uuid=service)
     if not MICROPYTHON:
         # Never let Windows pair with a board that is a keyboard.
         async def refuse(bond=True, timeout_ms=20000):
@@ -87,7 +91,7 @@ async def main():
     rmap = host.report_map
     log("connected and started in", int(now - t0), "ms; mtu", connection.mtu, "paired", host.paired,
         "map", len(rmap.descriptor), "bytes, applications", ["0x%08x" % a for a in rmap.applications],
-        "inputs", [(r.report_id, r.size) for r in rmap.inputs()], "conn", CONN)
+        "inputs", [(r.report_id, r.size) for r in rmap.inputs()], "conn", CONN, "service", service)
 
     want = hid_script.expected()
     got = []

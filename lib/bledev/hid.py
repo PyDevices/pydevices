@@ -84,6 +84,12 @@ DEVICE_INFORMATION = UUID(0x180A)
 PNP_ID = UUID(0x2A50)
 MANUFACTURER_NAME = UUID(0x2A29)
 
+#: The HID characteristics under a vendor UUID, for inspection from a laptop.
+#: Windows hides the HID service (0x1812) from apps entirely, and Chrome's
+#: Web Bluetooth blocklist does too, so a laptop can only see a board's HID
+#: characteristics if the board serves them under another UUID.
+INSPECT_SERVICE = UUID("b1ed0000-4849-4400-8000-00805f9b34fb")
+
 APPEARANCE_HID = 0x03C0
 APPEARANCE_KEYBOARD = 0x03C1
 APPEARANCE_GAMEPAD = 0x03C4
@@ -273,10 +279,15 @@ class Peripheral:
     ``encrypted=True`` serves the Report Map and reports only to a host that
     has paired, as real keyboards do; the host pairs "just works". Call
     ``ble.enable_bonding()`` first on MicroPython so the keys are kept.
+
+    ``service_uuid=INSPECT_SERVICE`` serves the same characteristics under a
+    vendor UUID instead of 0x1812, so a laptop can read them (no host will
+    treat the board as a keyboard then).
     """
 
     def __init__(self, ble, *, keyboard=True, consumer=True, gamepad=True,
-                 name=None, encrypted=False, battery=100, manufacturer="PyDevices"):
+                 name=None, encrypted=False, battery=100, manufacturer="PyDevices",
+                 service_uuid=HID_SERVICE):
         if not (keyboard or consumer or gamepad):
             raise ValueError("a HID peripheral needs at least one function")
         self.ble = ble
@@ -288,7 +299,8 @@ class Peripheral:
         self._leds = []
         self._leds_flag = asyncio.Event()
 
-        hid = Service(HID_SERVICE)
+        self.service_uuid = UUID(service_uuid)
+        hid = Service(self.service_uuid)
         # bcdHID 1.11, no country, normally connectable.
         Characteristic(hid, HID_INFORMATION, read=True, initial=b"\x11\x01\x00\x02")
         Characteristic(hid, REPORT_MAP, read=True, initial=self.report_map, encrypted=encrypted)
@@ -328,7 +340,7 @@ class Peripheral:
             self.ble.register_services(*self.services)
             self._registered = True
         self.connection = await self.ble.advertise(
-            name=self.name, services=[HID_SERVICE], appearance=self.appearance, timeout_ms=timeout_ms
+            name=self.name, services=[self.service_uuid], appearance=self.appearance, timeout_ms=timeout_ms
         )
         if self._led_char is not None and self._led_task is None:
             self._led_task = asyncio.create_task(self._watch_leds())
@@ -368,8 +380,9 @@ class Host:
     ``paired`` says whether it had to pair.
     """
 
-    def __init__(self, connection, *, bond=True, instance_id=0, queue_limit=256):
+    def __init__(self, connection, *, bond=True, instance_id=0, queue_limit=256, service_uuid=HID_SERVICE):
         self.connection = connection
+        self.service_uuid = UUID(service_uuid)
         self.bond = bond
         self.instance_id = instance_id
         self.report_map = None
@@ -403,7 +416,7 @@ class Host:
         if not caps.get("long_read", True):
             # One ATT read carries mtu - 1 bytes of the Report Map.
             await conn.exchange_mtu(247)
-        service = await conn.service(HID_SERVICE, timeout_ms)
+        service = await conn.service(self.service_uuid, timeout_ms)
         if service is None:
             raise BLEError("{} has no HID service".format(conn.device))
         chars = []
@@ -512,13 +525,14 @@ class Host:
             await self.connection.disconnect()
 
 
-async def connect(ble, name=None, *, device=None, timeout_ms=10000, bond=True, instance_id=0, **options):
+async def connect(ble, name=None, *, device=None, timeout_ms=10000, bond=True, instance_id=0,
+                  service_uuid=HID_SERVICE, **options):
     """Find a BLE HID device (by ``name``, or any advertising the HID service),
     connect, and return a started :class:`Host`."""
     if device is None:
-        device = await ble.find(name=name, service=None if name else HID_SERVICE, timeout_ms=timeout_ms)
+        device = await ble.find(name=name, service=None if name else service_uuid, timeout_ms=timeout_ms)
     connection = await device.connect(timeout_ms=timeout_ms, **options)
-    host = Host(connection, bond=bond, instance_id=instance_id)
+    host = Host(connection, bond=bond, instance_id=instance_id, service_uuid=service_uuid)
     try:
         await host.start()
     except BaseException:

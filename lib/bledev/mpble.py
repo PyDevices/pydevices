@@ -64,6 +64,7 @@ from . import (
 _IRQ_CENTRAL_CONNECT = 1
 _IRQ_CENTRAL_DISCONNECT = 2
 _IRQ_GATTS_WRITE = 3
+_IRQ_PERIPHERAL_DISCONNECT = 8
 _IRQ_MTU_EXCHANGED = 21
 
 _FLAG_READ_ENCRYPTED = 0x0200
@@ -72,6 +73,7 @@ _FLAG_WRITE_ENCRYPTED = 0x1000
 # errno values NimBLE uses when its buffers are full (ENOMEM, EAGAIN, EBUSY,
 # ENOBUFS). A send that sees one of these waits and tries again.
 _BUSY_ERRNOS = (12, 11, 16, 105)
+_EALREADY = 120
 
 # The largest ATT MTU MicroPython's NimBLE will negotiate.
 _MAX_MTU = 512
@@ -207,6 +209,8 @@ def _irq(event, data):
         aconn = _AioConnection._connected.get(conn_handle)
         if mtu and aconn is not None and not aconn.mtu:
             aconn.mtu = mtu
+    elif event == _IRQ_PERIPHERAL_DISCONNECT:
+        _early_mtu.pop(data[0], None)
     elif event == _IRQ_CENTRAL_DISCONNECT:
         conn_handle = data[0]
         _early_mtu.pop(conn_handle, None)
@@ -493,7 +497,15 @@ class _MPConnection(Connection):
 
     @property
     def mtu(self):
-        return self._aconn.mtu or DEFAULT_MTU
+        a = self._aconn
+        if not a.mtu and a._conn_handle is not None:
+            # The same race as a central's early exchange, with this board as
+            # the central: a peripheral that exchanges at once (Windows,
+            # through bless) is heard before aioble records the connection.
+            early = _early_mtu.pop(a._conn_handle, None)
+            if early:
+                a.mtu = early
+        return a.mtu or DEFAULT_MTU
 
     def is_connected(self):
         return self._aconn.is_connected()
@@ -507,8 +519,16 @@ class _MPConnection(Connection):
             await self._aconn.disconnected(timeout_ms)
 
     async def exchange_mtu(self, mtu=None, timeout_ms=1000):
-        with _Translate("exchange_mtu"):
-            return await self._aconn.exchange_mtu(mtu, timeout_ms)
+        try:
+            with _Translate("exchange_mtu"):
+                return await self._aconn.exchange_mtu(mtu, timeout_ms)
+        except OSError as e:
+            # NimBLE exchanges the MTU once per link. When the peer already
+            # did (Windows as a peripheral through bless does, at once), a
+            # second exchange is EALREADY: the MTU is settled, so return it.
+            if _errno(e) != _EALREADY:
+                raise
+            return self.mtu
 
     @property
     def encrypted(self):

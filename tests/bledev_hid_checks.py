@@ -124,7 +124,7 @@ async def c_unpaired_read_refused(air):
 
 
 async def c_short_read_host_says_why(air):
-    # MicroPython reads one packet. At MTU 23 the map (150 bytes) is cut to
+    # MicroPython reads one packet. At MTU 23 the map (162 bytes) is cut to
     # 22, and the host must say so instead of decoding garbage.
     board = FakeBLE(air=air, mtu=23)
     host_ble = FakeBLE(air=air, mtu=23, long_reads=False)

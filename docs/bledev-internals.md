@@ -153,6 +153,18 @@ The laptop found two more (2026-09-24):
   case never showed it because the central there asks for the MTU after
   connecting.
 
+The bless probe found two more on the P4 (2026-09-24), with the board as the
+central and Windows as the peripheral:
+
+- **The same early MTU, the other way round.** Windows exchanges the MTU the
+  moment the board connects, before aioble has recorded the connection, so
+  the board believed 23 on a 256 link. mpble's IRQ now keeps that value too,
+  and the connection's `mtu` picks it up.
+- **`exchange_mtu()` after the peer already exchanged** raised `EALREADY`.
+  NimBLE exchanges once per link, so mpble now returns the settled MTU.
+  `bledev.hid`'s host exchanges before reading the Report Map, so any
+  peripheral that exchanges first (a real keyboard may) would have failed.
+
 **Code that uses the raw API.** A board config's `ble` is now an `MPBLE`,
 and `MPBLE.__getattr__` hands every name it doesn't define to the raw
 `bluetooth.BLE`, so `ble.active()` or `ble.gap_advertise()` still work.
@@ -254,7 +266,7 @@ because the side that didn't start pairing stores keys too.
 **MicroPython has no long read.** `gattc_read()` is one ATT Read, so a board
 central gets at most `mtu - 1` bytes of any value. The host exchanges the MTU
 up to 247 before reading the Report Map (246 bytes fit), and a map that fails
-to parse at that length raises an error that says why. Our own map is 150
+to parse at that length raises an error that says why. Our own map is 162
 bytes; an Xbox Series controller's is 283, so a board can't host one until
 MicroPython grows a long read. bleak reads long values itself, and the
 fake's `long_reads=False` models the board.
@@ -264,6 +276,15 @@ PnP product ID are derived from which of keyboard, consumer control and
 gamepad it serves, so a host that cached one set never sees another set
 under the same identity. The PnP vendor is the Bluetooth SIG's test company
 ID (0xFFFF), because we have no vendor ID of our own.
+
+**A laptop can't see a HID service.** Windows hides 0x1812 from apps: bleak
+lists the board's GAP, GATT, Battery and Device Information services and a
+22-handle gap where the HID service sits (measured against the P4,
+2026-09-24). Chrome's Web Bluetooth blocklist hides it too. So
+`Peripheral(service_uuid=hid.INSPECT_SERVICE)` serves the same
+characteristics under a vendor UUID, and `Host(service_uuid=...)` reads them
+there; that is how the laptop checks a board's HID side, with the same code
+a board host runs. No host treats a board serving that UUID as a keyboard.
 
 The host writes the keyboard's LED report once it has subscribed, as Windows
 does. `Peripheral.leds()` returns those writes, which is how the gate knows
