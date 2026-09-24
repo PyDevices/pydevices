@@ -260,7 +260,52 @@ class AdbClient:
         self.run(["shell", "am", "force-stop", package_id], check=False)
 
     def start_activity(self, package_id: str, activity: str):
-        self.run(["shell", "am", "start", "-n", f"{package_id}/{activity}"], check=True)
+        # Retry once: adb.exe through WSL interop occasionally fails a call.
+        if self.run(["shell", "am", "start", "-n", f"{package_id}/{activity}"], check=False).returncode:
+            self.run(["shell", "am", "start", "-n", f"{package_id}/{activity}"], check=True)
+
+    def _apk_path(self, package_id: str) -> str:
+        out = self.run(["shell", "pm", "path", package_id], check=False).stdout or ""
+        return next((ln[len("package:"):].strip() for ln in out.splitlines() if ln.startswith("package:")), "")
+
+    def _listening(self, port: int) -> bool:
+        out = self.run(["shell", "cat /proc/net/tcp /proc/net/tcp6"], check=False).stdout or ""
+        want = ":%04X" % port
+        for line in out.splitlines():
+            fields = line.split()
+            if len(fields) > 3 and fields[1].endswith(want) and fields[3] == "0A":
+                return True
+        return False
+
+    def ensure_unpacked(self, package_id: str, activity: str, port: int, timeout_s: float = 30.0):
+        """After an install, start the app once and stop it before staging.
+
+        The first start after an install or update may unpack the APK over
+        ``files/app``, deleting whatever was staged there, so the default entry
+        runs instead. Once the stdio sidecar listens, boot.py is running and
+        any unpack is done. A marker holding the APK path skips this until the
+        next install.
+        """
+        apk = self._apk_path(package_id)
+        marker = "files/app/.android_py_apk"
+        seen = (self.run_as(package_id, f"cat {marker}").stdout or "").strip()
+        if not apk or seen == apk:
+            return
+        print("android.py: first run since install; letting the app unpack...", file=sys.stderr)
+        self.force_stop(package_id)
+        self.start_activity(package_id, activity)
+        deadline = time.time() + timeout_s
+        try:
+            while time.time() < deadline:
+                if self._listening(port):
+                    break
+                time.sleep(0.2)
+            else:
+                print("android.py: warning: app did not start its stdio sidecar", file=sys.stderr)
+                return
+        finally:
+            self.force_stop(package_id)
+        self.run_as(package_id, f"echo {apk} > {marker}")
 
 
 class ReleaseManager:
@@ -695,6 +740,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         force_update=args.update_apk or args.install_apk,
         custom_apk_path=args.apk_path,
     )
+
+    adb.ensure_unpacked(package_id, ACTIVITY_DEFAULT, args.port)
 
     if args.clear:
         print(f"android.py: clearing staged run/ and restoring default entry on {package_id}...", file=sys.stderr)
