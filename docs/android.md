@@ -36,15 +36,19 @@ Two APKs are in play:
 
 ## Staging a script with `android.py`
 
-To run an example on your phone, you need USB debugging on, `adb` and
-`python3` on your computer, and two clones side by side: this repo (for
-`bin/android.py`) and
+To run an example on your phone, you need USB debugging on, and `adb` and
+`python3` on your computer. `android.py` is a single file with no
+dependencies, so download it rather than cloning this repo. The examples come
+from a clone of
 [pydevices-examples](https://github.com/PyDevices/pydevices-examples). No venv
-is needed. From `pydevices-examples/lib`:
+is needed.
 
 ```bash
-python3 ../../pydevices/bin/android.py --install-apk   # once
-python3 ../../pydevices/bin/android.py examples/piano.py
+curl -LO https://raw.githubusercontent.com/PyDevices/pydevices/main/bin/android.py
+git clone https://github.com/PyDevices/pydevices-examples
+cd pydevices-examples/lib
+python3 ../../android.py --install-apk   # once: downloads and installs the Runner
+python3 ../../android.py examples/piano.py
 ```
 
 The rest of this page writes that as plain `android.py`.
