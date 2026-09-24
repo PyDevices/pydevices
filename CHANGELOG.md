@@ -1,3 +1,7 @@
+## v0.5.2 (2026-09-24)
+
+- Android: stop the SDLDisplay flicker; android.py fixes from the phone session (#65)
+
 ## v0.5.1 (2026-09-24)
 
 - appdev: micropython.exe can read its own command line (no utf-16-le codec there) (#63)
