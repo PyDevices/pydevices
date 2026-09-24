@@ -85,6 +85,14 @@ class PairingError(BLEError):
     """Pairing failed: a wrong passkey, a refusal, or a peer that lost its keys."""
 
 
+#: What to tell someone whose host kept a bond the board no longer has.
+STALE_BOND = (
+    "the board refused this host's keys: it has probably lost its bond (a chip "
+    "erase, or bledev.security.forget()). Unpair it on this host "
+    "(bledev.bleak.unpair(address), or Settings > Bluetooth > Remove device) "
+    "and pair again"
+)
+
 #: The GATT statuses that mean "pair first".
 NEEDS_PAIRING = (INSUFFICIENT_AUTHENTICATION, INSUFFICIENT_ENCRYPTION)
 
@@ -1016,6 +1024,7 @@ async def connect_and_set_up(
     pair = options.pop("pair", False)
     passkey = options.pop("passkey", None)
     error = None
+    stale = False
     for _ in range(attempts):
         target = device
         if target is None:
@@ -1031,10 +1040,14 @@ async def connect_and_set_up(
                 if connection.is_connected():
                     await connection.disconnect()
                 raise
+            reused = getattr(connection, "reused_bond", False)
+        else:
+            reused = False
         try:
             return connection, await wait_ms(setup(connection), setup_timeout_ms, "setting up the connection")
         except (DisconnectedError, BLETimeoutError) as e:
             error = e
+            stale = reused and isinstance(e, DisconnectedError)
         except BaseException:
             if connection.is_connected():
                 await connection.disconnect()
@@ -1043,4 +1056,9 @@ async def connect_and_set_up(
             await connection.disconnect()
         except BLEError:
             pass
+    if stale:
+        # Every attempt encrypted with keys this host already had, and every
+        # link fell: Windows hangs up when the board refuses those keys. (One
+        # dropped link can be the radio; all of them is the bond.)
+        raise PairingError(STALE_BOND)
     raise error

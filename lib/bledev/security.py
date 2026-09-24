@@ -35,6 +35,8 @@ except ImportError:  # CPython, for the store's tests
 _IRQ_CENTRAL_DISCONNECT = const(2)
 _IRQ_PERIPHERAL_DISCONNECT = const(8)
 _IRQ_ENCRYPTION_UPDATE = const(28)
+_IRQ_GET_SECRET = const(29)
+_IRQ_SET_SECRET = const(30)
 _IRQ_PASSKEY_ACTION = const(31)
 
 #: IO capabilities, as ``ble.config(io=...)`` takes them.
@@ -239,11 +241,12 @@ def _load(path=None):
 
 
 def _save(_arg=None):
+    global _save_pending
     from aioble import security as sec
 
+    _save_pending = False
     sec._modified = False
-    if _store is not None:
-        _store.save(sec._secrets)
+    (_store or default_store()).save(sec._secrets)
 
 
 def bonds():
@@ -361,8 +364,59 @@ def _install():
     from aioble import core
     from aioble import security  # noqa: F401  registers aioble's secret handlers
 
+    # Ahead of aioble's: its secret handler saves through micropython.schedule
+    # and raises when the queue is full, which fails the stack's key store in
+    # the middle of pairing. The queue is full whenever a scheduled callback
+    # runs long (drawing the passkey is one) while a timer keeps queueing.
+    core._irq_handlers.insert(0, _secret_irq)
     core.register_irq_handler(_irq, None)
     _installed = True
+
+
+def _secret_irq(event, data):
+    if event == _IRQ_SET_SECRET:
+        from aioble import security as sec
+
+        sec_type, key, value = data
+        key = sec_type, bytes(key)
+        if value is None:
+            if key not in sec._secrets:
+                return False
+            del sec._secrets[key]
+        else:
+            sec._secrets[key] = bytes(value)
+        _save_soon()
+        return True
+    if event == _IRQ_GET_SECRET:
+        from aioble import security as sec
+
+        sec_type, index, key = data
+        if key is None:
+            i = 0
+            for (t, _k), value in sec._secrets.items():
+                if t == sec_type:
+                    if i == index:
+                        return value
+                    i += 1
+            return None
+        return sec._secrets.get((sec_type, bytes(key)), None)
+    return None
+
+
+_save_pending = False
+
+
+def _save_soon():
+    global _save_pending
+    if _save_pending:
+        return
+    _save_pending = True
+    import micropython
+
+    try:
+        micropython.schedule(_save, None)
+    except RuntimeError:
+        _save()  # the queue is full: write now, from the stack's task
 
 
 def _irq(event, data):
@@ -370,30 +424,60 @@ def _irq(event, data):
         conn, encrypted, authenticated, bonded, key_size = data
         _links[conn] = (bool(encrypted), bool(authenticated), bool(bonded), key_size)
         if _hide is not None:
-            _schedule(_call_hide, None)
+            _defer(_call_hide, None)
         for callback in _listeners:
             callback(conn, bool(encrypted), bool(authenticated), bool(bonded), key_size)
     elif event == _IRQ_PASSKEY_ACTION:
         conn, action, number = data
-        # The display and the host's typing are slow: leave the IRQ first.
-        _schedule(_passkey_action, (conn, action, number))
+        from aioble import core
+
+        if action == _ACTION_DISPLAY:
+            # Answer the stack at once, from here, as NimBLE's own examples
+            # do; only the drawing waits for the main thread.
+            passkey = random_passkey()
+            core.ble.gap_passkey(conn, action, passkey)
+            if _show is not None:
+                _defer(_show, passkey)
+        elif action == _ACTION_INPUT and not callable(_inputs.get(conn)):
+            given = _inputs.get(conn)
+            # No passkey to give: answer with one that can't be relied on to
+            # match, so the pairing fails now rather than at a timeout.
+            core.ble.gap_passkey(conn, action, int(given) if given is not None else random_passkey())
+        else:
+            # Numeric comparison, or a passkey someone has to be asked for.
+            _defer(_passkey_action, (conn, action, number))
         return True
     elif event in (_IRQ_CENTRAL_DISCONNECT, _IRQ_PERIPHERAL_DISCONNECT):
         conn = data[0]
         had = _links.pop(conn, None)
         _inputs.pop(conn, None)
         if had is None and _hide is not None:
-            _schedule(_call_hide, None)
+            _defer(_call_hide, None)
     return None
 
 
-def _schedule(fn, arg):
+_deferred = []
+
+
+def _defer(fn, arg):
+    """Run ``fn(arg)`` on the main thread soon. If the scheduler's queue is
+    full, :func:`poll` (which bledev.repl's server calls every tick) runs it."""
     import micropython
 
     try:
         micropython.schedule(fn, arg)
     except RuntimeError:
-        fn(arg)  # the queue is full: do it here rather than drop it
+        _deferred.append((fn, arg))
+
+
+def poll():
+    """Run work the IRQ couldn't schedule. Cheap when there's none."""
+    while _deferred:
+        fn, arg = _deferred.pop(0)
+        try:
+            fn(arg)
+        except Exception as e:
+            sys.print_exception(e)
 
 
 def _call_hide(_arg=None):
@@ -410,12 +494,7 @@ def _passkey_action(args):
     conn, action, number = args
     ble = core.ble
     try:
-        if action == _ACTION_DISPLAY:
-            passkey = random_passkey()
-            ble.gap_passkey(conn, action, passkey)
-            if _show is not None:
-                _show(passkey)
-        elif action == _ACTION_NUMCMP:
+        if action == _ACTION_NUMCMP:
             if _show is not None:
                 _show(number)
             verdict = _confirm(number) if _confirm is not None else False

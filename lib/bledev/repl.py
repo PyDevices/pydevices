@@ -47,7 +47,7 @@ as it does over USB. ``stop()`` gives the radio back. It's MicroPython only;
 import struct
 import sys
 
-from . import BLEError, GattError, NEEDS_PAIRING, PairingError, pack_advertisement, wait_ms
+from . import BLEError, GattError, NEEDS_PAIRING, PairingError, STALE_BOND, pack_advertisement, wait_ms
 from . import nus
 
 # bluetooth.BLE characteristic flags for the protected characteristics.
@@ -60,6 +60,10 @@ PROMPT = b"Password: "
 
 # How often the server retries output the controller couldn't take yet.
 _TICK_MS = 5
+# With pairing on, how long a link may stay unpaired before the board hangs
+# up, so a host that never pairs can't hold the one connection. SMP's own
+# timeout is 30 s.
+PAIR_WITHIN_MS = 30000
 BANNER = b"\r\nbledev REPL connected\r\n>>> "
 DENIED = b"\r\nAccess denied\r\n"
 
@@ -430,7 +434,7 @@ class _Server:
         if self.early_mtu and self.early_mtu[0] == conn:
             self.mtu = self.early_mtu[1]
         self.early_mtu = None
-        self.login = _Gate(self.password) if self.password is not None else None
+        self.login = _Gate(self.password) if self.password is not None else _Open()
         self.hang_up_at = None
         self.authed = False
         self.rx = bytearray()
@@ -440,8 +444,11 @@ class _Server:
             self._ft_forget()
         if self.pairing is not None:
             # A bonded host may already be encrypting; on_security() takes over.
+            import time
+
             from . import security
 
+            self.hang_up_at = time.ticks_add(time.ticks_ms(), PAIR_WITHIN_MS)
             if self.secure(conn):
                 self.on_security(conn, *security.state(conn))
             return
@@ -468,19 +475,18 @@ class _Server:
         if conn != self.conn:
             return
         if not self.secure(conn):
-            # Failed pairing, or a weaker one than asked for: hang up.
-            import time
-
-            self.hang_up_at = time.ticks_add(time.ticks_ms(), 300)
+            # Failed pairing, a weaker one than asked for, or a host whose
+            # keys this board no longer has. Stay connected so the host sees
+            # its reads refused (and can say why); the pairing deadline set at
+            # connect still hangs up on a host that never gets there.
             return
+        self.hang_up_at = None  # the pairing deadline is met
         if self.password is None:
-            # The pairing was the lock: open both services at once.
+            # The pairing was the lock: the files open now, and the REPL on
+            # the client's first line (_Open).
             if self.files is not None and not self.files.authed:
                 self.files.authed = True
                 self.ble.gatts_write(self.auth_handle, b"\x01")
-            if self.console and not self.authed:
-                self._attach()
-                self.send(BANNER)
         elif self.console and not self.authed:
             self.notify_now(PROMPT)
 
@@ -503,8 +509,6 @@ class _Server:
         if conn != self.conn or not self.secure(conn):
             return
         if not self.authed:
-            if self.login is None:
-                return  # pairing is the lock and hasn't settled yet
             reply, verdict, rest = self.login.feed(data)
             if verdict is False:
                 self.notify_now(reply)
@@ -624,6 +628,10 @@ class _Server:
 
     def _tick(self, _timer=None):
         # Every _TICK_MS while the server runs, as a scheduled callback.
+        if self.pairing is not None:
+            from . import security
+
+            security.poll()
         if self.hang_up_at is not None:
             import time
 
@@ -724,6 +732,25 @@ class _Server:
             self.ft_flushing = False
 
 
+class _Open:
+    """The gate when pairing is the lock: the client's first line (the empty
+    one every client sends to ask for a prompt) gets the banner and ``>>>``,
+    and isn't passed to the REPL, so the client sees exactly one prompt."""
+
+    refused = False
+    verdict = None
+
+    def feed(self, data):
+        for i in range(len(data)):
+            if data[i] in (10, 13):
+                rest = bytes(data[i + 1 :])
+                if data[i] == 13 and rest[:1] == b"\n":
+                    rest = rest[1:]
+                self.verdict = True
+                return BANNER, True, rest
+        return b"", None, b""
+
+
 class _Gate(Login):
     refused = False
 
@@ -803,14 +830,6 @@ async def _expect(link, markers, buffer, timeout_ms):
         if not chunk:
             return None, buffer
         buffer.extend(chunk)
-
-
-STALE_BOND = (
-    "the board refused this host's keys: it has probably lost its bond (a chip "
-    "erase, or bledev.security.forget()). Unpair it on this host "
-    "(bledev.bleak.unpair(address), or Settings > Bluetooth > Remove device) "
-    "and pair again"
-)
 
 
 def refused(pair, passkey):

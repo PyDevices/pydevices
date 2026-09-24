@@ -280,6 +280,8 @@ class _BleakConnection(Connection):
         self._wwr = 0  # the largest write-without-response size seen in discovery
         self._paired = False
         self._authenticated = False
+        #: True when pair() found the OS already paired and paired nothing new.
+        self.reused_bond = False
 
     def _drop(self):
         if self._dropped.is_set():
@@ -367,6 +369,10 @@ class _BleakConnection(Connection):
         info = await DeviceInformation.create_from_id_async(requester.device_information.id)
         pairing = info.pairing
         if pairing.is_paired:
+            # Windows encrypts with the stored keys when a protected
+            # characteristic is first used; if the board lost its half, that
+            # fails and Windows drops the link (see connect_and_set_up).
+            self.reused_bond = True
             self._authenticated = pairing.protection_level == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
             return
         if not pairing.can_pair:
@@ -409,7 +415,15 @@ class _BleakConnection(Connection):
         status = result.status
         if status not in (DevicePairingResultStatus.PAIRED, DevicePairingResultStatus.ALREADY_PAIRED):
             raise PairingError("pair: {} ({})".format(status.name, ", ".join(str(a) for a in asked) or "no ceremony"))
-        self._authenticated = result.protection_level_used == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+        #: What Windows reported: the status, the protection level it used,
+        #: and the ceremonies it asked for.
+        self.pairing_result = (status.name, result.protection_level_used, [int(a) for a in asked if isinstance(a, int)])
+        # A passkey that was asked for and typed in is what authenticates;
+        # Windows' reported level is the second opinion.
+        self._authenticated = (
+            DevicePairingKinds.PROVIDE_PIN in asked
+            or result.protection_level_used == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+        )
 
     async def unpair(self):
         """Remove the OS's pairing with this board. Windows also drops the link."""
