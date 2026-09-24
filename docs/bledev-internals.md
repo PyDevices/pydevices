@@ -250,12 +250,12 @@ Windows 11 through the laptop's Intel radio. KB/s:
 | S21, MicroPython WebAssembly, 247 | 22.3 | 8.5 | 9.8 |
 | S21, Pyodide, 23 | 3.3-4.4 | 10.7-14.1 | 3.9 |
 | S21, Pyodide, 247, planted bit flips | FAIL, 1 at 5000 | FAIL, 1 at 5000 | FAIL, 1 at 5000 |
-| Windows, Pyodide, 247 | 37-62 | 4-7 | 3.7-4.8 |
+| Windows, Pyodide and PyScript MicroPython, 247 | 37-61 | 4-7 | 3.7-4.8 |
 | Windows, MicroPython WebAssembly, 247 | 50.6 | 3.6 | 3.6 |
 
 From Windows the P4 sends 20-byte notifications, because it never learns the
 MTU Windows negotiated ([#80](https://github.com/PyDevices/pydevices/issues/80)).
-Two ECHO runs of eight on the phone at MTU 23, and two of eleven from
-Windows, lost writes the P4 never received, always while it was notifying
+Two of three ECHO runs on the phone at MTU 23 (none of five at 247), and
+two of eleven from Windows, lost writes the P4 never received, always while it was notifying
 back ([#79](https://github.com/PyDevices/pydevices/issues/79)). The gate
 reports those as a stall, not a pass.
