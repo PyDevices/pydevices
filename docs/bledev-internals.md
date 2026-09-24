@@ -181,6 +181,27 @@ no difference to nus throughput.
 After a disconnect bleak sets `client.services` to `None`, so every client call
 checks the connection first and raises `DisconnectedError`.
 
+## Reconnecting fast
+
+The REPL gate once failed one run in five: bleak couldn't subscribe on a
+connection made 1.5 s after the last one closed. A loop of rapid reconnects
+from the laptop (`tests/bledev_board/reconnect_loop.py`: log in, run a line,
+close, wait 1.5 s) caught it at about one cycle in fifty, always the same
+way. bleak's connect returned in 70-440 ms where a real one takes 1.7 s or
+more, Windows reported the device connected and the GATT session active, the
+board never saw a connection (its IRQ log shows it advertising throughout),
+and the first GATT operation hung until Windows reported a drop about nine
+seconds later.
+
+It went away with the REPL's output fixes (below): against `bledev-host`'s
+`repl.py` the loop failed 7 times in 465 cycles; against the fixed one, 0 in
+270, 150 of them with the retry switched off. We haven't found how the
+board's old timer handling produced a connection Windows believed in and the
+board never saw, so `bledev.connect_and_set_up()` stays as the defence: it
+bounds the setup at 4 s and tries again, up to three times. `nus.connect()`
+and `midi.connect()` use it, and the contract checks both the retry and the
+giving up.
+
 ## How the REPL gets there
 
 The REPL has to work when nothing runs asyncio, at the `>>>` prompt, so the
