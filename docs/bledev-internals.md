@@ -700,8 +700,8 @@ lock. Every step below is `pair_client.py`.
 |---|---|
 | `pair`, three fresh pairings | the passkey read off the board, the link authenticated on both sides (board: encrypted, authenticated, bonded, 16-byte key), `123 * 456` over the REPL and 20 KB through the file service byte for byte. Connect to prompt 8.1-11.1 s, most of it the passkey round trip |
 | `reconnect` after a hard reset of the board and a new laptop process, 10 runs | 10 of 10, no passkey asked, board and laptop both report the bonded, authenticated link. Connect to prompt median 2.1 s (1.43-6.28 s; the slow ones retried links Windows gave out that never reached the board). First command 0.05-0.30 s |
-| the same, 15 earlier runs before the retry backoff | 12 of 15. One failure the board's log settled: no connection ever reached it (a dead link after its reset). Two were before logging, one after with the bond intact |
-| `wrong`, three runs | pairing refused (`FAILED`) in 2.7-4.0 s; no bond on either side |
+| the same, 21 earlier runs, before the retry backoff | 17 of 21, each failure a link dropped during discovery with the bond intact (the next run passed on the same keys). The one the board's log covered: no connection ever reached the board, so Windows' three attempts all went to a dead link |
+| `wrong`, six runs | pairing refused (`FAILED`) in 2.7-4.9 s; no bond on either side |
 | `unpaired` | the REPL's RX, the file transfer (read, write) and `AUTH` (read, write) each refused with ATT 0x05; no REPL output; version readable; Windows didn't pair on its own |
 | `forget` plant, then `reconnect` | fails as it must (the board's log: key lookup misses, encryption fails, link drops). Unpairing on the laptop and pairing again restores it |
 | `justworks` plant, then `wrong` | the wrong passkey gets in: FAIL, as it must |
