@@ -223,6 +223,52 @@ boot is up to you: pass `on_join=lambda ssid, password, ip: ...` to `serve()`.
 (from a button, say) before it accepts credentials. The credentials cross the
 air unencrypted; that's the standard.
 
+## MIDI
+
+`bledev.midi` is BLE-MIDI, the standard every Mac, iPhone, Android phone,
+DAW and Bluetooth MIDI controller speaks. The board advertises it; anything
+else connects:
+
+```python
+import bledev.midi as midi
+
+port = await midi.serve(ble, name="synth")      # on the board
+port = await midi.connect(ble, name="synth")    # on a laptop or another board
+```
+
+What you get is a MIDI port, the same one usbif gives you for a USB MIDI
+function: `port.write(b"\x90\x3c\x64")` sends a note, and `port.read(buf)`
+returns whatever MIDI bytes have arrived, without blocking. So the loop you
+wrote for a USB controller works on a BLE one:
+
+```python
+buf = bytearray(64)
+parser = usbif.MidiParser()                     # running status, SysEx, clock
+while True:
+    n = port.read(buf)
+    parser.feed(buf, n)
+    for status, data in parser.drain():
+        ...
+    await asyncio.sleep(0.001)
+```
+
+When usbif is installed, `port` is a `usbif.MidiPort`. If you'd rather have
+messages than bytes, with the sender's timestamp, use `ts, message = await
+port.receive()` or `async for ts, message in port`. Messages you write go out
+from a task, packed as many to a packet as fit, and `await port.drain()` waits
+for them.
+
+On a board, ask for the shortest connection interval when you connect:
+`midi.connect(ble, name="synth", min_conn_interval_us=7500,
+max_conn_interval_us=7500)`. The latency that buys is in
+[the measurements](#measured-on-two-esp32-s3s).
+
+The packet format lives in `bledev.midi_codec`, pure Python with no
+imports: timestamps, running status, SysEx split across packets, and clock
+slipped into a SysEx. Its test vectors (`tests/bledev_midi_vectors.json`) were
+worked out by hand from the specification, and every interpreter checks
+against the same file.
+
 ## The rules every backend keeps
 
 These hold on every backend. The fake enforces the strict version of each, so
@@ -309,6 +355,23 @@ at the default interval, and 30 ms at 7.5-15 ms, with nothing over 100 ms in
 two minutes. Turning the radio on costs about 64 KB of the S3's internal RAM;
 aioble and bledev together cost about 50 KB of Python heap. The details, and
 how these were measured, are in [bledev-internals.md](bledev-internals.md#measurements).
+
+**MIDI.** How long a note takes to cross the link, one way, as half a
+note-on's round trip through an echo (400 single notes at random moments,
+then 100 four-note chords, which came out the same):
+
+| Link | Median | p90 | p99 | Max |
+|---|---|---|---|---|
+| S3 to S3, default interval | 44.3 ms | 44.3 | 49.8 | 69.3 |
+| S3 to S3, 7.5 ms interval | 10.8 ms | 13.6 | 15.9 | 21.1 |
+| Laptop (bleak) to S3, Windows' defaults | 52.3 ms | 60.0 | 110.7 | 118.1 |
+| Laptop to S3, `priority="throughput"` | 13.4 ms | 16.7 | 23.1 | 24.7 |
+
+Players start to feel delay at about 10 ms, so a MIDI link wants the shortest
+interval, and even then BLE alone uses up that budget. This is BLE's own
+delay; the synth's comes on top. 1,000 mixed messages (notes, controllers,
+pitch bend, a 300-byte SysEx every hundred, clock in between) crossed both
+ways between the boards and to the laptop complete, in order and intact.
 
 ## Writing a backend
 
