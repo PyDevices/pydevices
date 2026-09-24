@@ -359,6 +359,42 @@ off, 2026-09-24.
 | registering nus, then advertising | 0.2 KB | 1.8 KB |
 | `active(False)` | all returned | |
 
+### HID, board to board and from the laptop
+
+`hid_peripheral.py` typed `hid_script.py` (30 characters with Shift, Ctrl+C,
+Right Alt + Shift + F5, two media keys, five gamepad reports: 112 events) and
+`hid_central.py` compared every event and the text they spell. MicroPython
+1.29, aioble from mip, 2026-09-24. The planted run drops Shift from the first
+character.
+
+| Device | Host | Plain | Planted | 7.5-15 ms interval | Round trip, default (median / max) | Round trip, 7.5-15 ms |
+|---|---|---|---|---|---|---|
+| LCD-7 (S3) | T-Embed (S3) | PASS, 112/112 | FAIL, event 0 | PASS | 69 / 119 ms | 29 / 49 ms |
+| T-Embed (S3) | LCD-7 (S3) | PASS | FAIL, event 0 | PASS | 68 / 118 ms | 30 / 69 ms |
+| P4 | LCD-7 (S3) | PASS | FAIL, event 0 | PASS | 70 / 220 ms | 30 / 80 ms |
+| LCD-7 (S3) | P4 | PASS 2 of 3 | FAIL, event 0 | FAIL 6 of 6 | 68 / 178 ms | 29 / 69 ms |
+| P4, vendor UUID | laptop (bleak) | PASS | FAIL, event 0 | PASS | 90 / 270 ms | 60 / 90 ms |
+
+The round trip is a key press on the device to the host's LED write arriving
+back, so one way is roughly half: 35 ms at the default interval, 15 ms at
+7.5-15 ms. Decoding on the host adds 1.7 ms (P4) to 2.8 ms (S3) from the
+report's arrival to the app's `events()`, with a p99 of 10 to 23 ms.
+
+**The P4 as host loses reports** below Python, always from around the 26th
+report on (pydevices#87). The S3 never did. `burst_source.py` and
+`burst_sink.py` reproduce it without HID.
+
+**Pairing and bonding** (`ENCRYPTED = True`: every HID characteristic
+encrypted, both sides call `enable_bonding()`), each direction between the S3s
+and with the P4 as device:
+
+| Run | Result |
+|---|---|
+| First connect, no keys on either side | The Report Map read fails, the host pairs "just works" (encrypted, not authenticated, 16-byte key, bonded), 112/112 |
+| Both boards reset, then reconnect | Encryption from the stored keys: the key store's checksum unchanged, connect-to-started 0.8 to 1.4 s faster, 112/112 |
+| The host's `ble_secrets.json` deleted (as an erase would) | The device accepts a fresh pairing (NimBLE's repeat-pairing path drops the old bond), new keys, 112/112 |
+| A host that refuses to pair (planted) | Fails: the device's encrypted Report Map can't be read |
+
 ### The laptop to an S3
 
 Windows 11, bleak 3.0.2, the laptop's Intel radio, to the LCD-7 running
