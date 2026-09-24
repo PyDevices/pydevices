@@ -66,11 +66,14 @@ android.py --clear
 An example that is more than one file, or needs a library the Runner does not
 carry, names them. `--modules` stages example modules or packages that sit
 beside the entry; `--deps` stages a pure-Python package. The drum machine
-needs both:
+brings its sequencer panel along:
 
 ```bash
-android.py --modules drum_seq --deps audioinstruments examples/drum_machine/drum_machine.py
+android.py --modules drum_seq examples/drum_machine/drum_machine.py
 ```
+
+On a Runner older than 0.2.2, which doesn't carry the audio libraries, add
+`--deps audioinstruments`.
 
 `--deps` takes the package from the Python you run `android.py` with if it is
 installed there (a developer's venv or checkout), and otherwise downloads it
@@ -79,8 +82,9 @@ from the [PyDevices MIP index](https://PyDevices.github.io/mip) into
 before anything is copied to the phone. `--index URL` or `PYDEVICES_MIP_INDEX`
 points it at another index.
 
-The Runner carries pydevices, pydevices-desktop, audiodsp, pygraphics,
-palettes, pdwidgets and LVGL. A package with native code that is not on that
+The Runner carries pydevices, pydevices-desktop, audiodsp, audioinstruments,
+audioeffects, pygraphics, palettes, pdwidgets and LVGL (the two audio
+libraries from 0.2.2). A package with native code that is not on that
 list cannot be staged; it has to be built into an APK.
 
 It can also fetch and install the Runner APK itself, so users never have to build
