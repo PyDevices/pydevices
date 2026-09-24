@@ -74,8 +74,12 @@ _SD_SCK = 40
 _SD_MOSI = 41
 _SD_MISO = 38
 _BAT_VOLT = 4
+# Panel/Qwiic I2C on port 0. Hooks hand drivers the one bus object
+# _i2c_bus() returns, never these pins. See docs/board-peripherals.md.
+_I2C_PORT = 0
 _IIC_SDA = 18
 _IIC_SCL = 8
+_i2c_own = None
 
 _OUT_PORT = 1
 _IN_PORT = 0
@@ -150,14 +154,21 @@ def _i2c_bus():
 
     Never ``import board_config`` from here: a non-graphics app importing
     this module must not start a display.
+
+    Without board_config, open that port once and hand out the same object
+    after -- never a second controller on these pins.
     """
+    global _i2c_own
+
     bc = sys.modules.get("board_config")
     bus = getattr(bc, "i2c", None) if bc is not None else None
     if bus is not None:
         return bus
-    from machine import I2C, Pin
+    if _i2c_own is None:
+        from machine import I2C, Pin
 
-    return I2C(0, sda=Pin(_IIC_SDA), scl=Pin(_IIC_SCL), freq=400_000)
+        _i2c_own = I2C(_I2C_PORT, sda=Pin(_IIC_SDA), scl=Pin(_IIC_SCL), freq=400_000)
+    return _i2c_own
 
 
 def _ensure_in_mclk(rate):
