@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en" data-runtime="wasm">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bledev.webble gate (wasm)</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./page.js"></script>
+  <script src="./mock_bluetooth.js"></script>
+</head>
+<body>
+  <button id="go" disabled>Loading wasm…</button>
+  <pre id="log"></pre>
+  <script type="module" src="./wasm.js"></script>
+</body>
+</html>

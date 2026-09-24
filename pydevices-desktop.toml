@@ -25,6 +25,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/fake.py" = "/lib/bledev/fake.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/mpble.py" = "/lib/bledev/mpble.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/nus.py" = "/lib/bledev/nus.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/webble.py" = "/lib/bledev/webble.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/board_configs/desktop/board_config.py" = "/lib/board_config.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/board_configs/desktop/board_peripherals.py" = "/lib/board_peripherals.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/boarddev.py" = "/lib/boarddev.py"

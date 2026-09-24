@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" data-runtime="mpy">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bledev.webble gate (mpy)</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./page.js"></script>
+  <script src="./mock_bluetooth.js"></script>
+  <link rel="stylesheet" href="/pyscript/core.css">
+  <script type="module" src="/pyscript/core.js"></script>
+</head>
+<body>
+  <button id="go" disabled>Loading mpy…</button>
+  <pre id="log"></pre>
+  <script type="mpy" config="./mpy.json">import gate</script>
+</body>
+</html>
