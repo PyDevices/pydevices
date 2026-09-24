@@ -38,6 +38,7 @@ from . import (
     Service,
     UnsupportedError,
     UUID,
+    connect_and_set_up,
     is_adapter,
     sleep_ms,
 )
@@ -351,24 +352,23 @@ async def connect(ble, name=None, *, device=None, timeout_ms=10000, mtu=MTU, **c
     """
     ble = _adapter(ble)
     _set_mtu(ble, mtu)
-    if device is None:
-        device = await ble.find(name=name, service=SERVICE, timeout_ms=timeout_ms)
-    connection = await device.connect(timeout_ms=timeout_ms, **connect_options)
-    try:
+
+    async def setup(connection):
         try:
             await connection.exchange_mtu(mtu)
         except (UnsupportedError, BLETimeoutError):
             pass
         service = await connection.service(SERVICE)
         if service is None:
-            raise BLEError("{!r} has no Nordic UART service".format(device))
+            raise BLEError("{!r} has no Nordic UART service".format(connection.device))
         rx = await service.characteristic(RX)
         tx = await service.characteristic(TX)
         if rx is None or tx is None:
-            raise BLEError("{!r}: Nordic UART service is missing RX or TX".format(device))
+            raise BLEError("{!r}: Nordic UART service is missing RX or TX".format(connection.device))
         await tx.subscribe(notify=True)
-    except BaseException:
-        if connection.is_connected():
-            await connection.disconnect()
-        raise
+        return rx, tx
+
+    connection, (rx, tx) = await connect_and_set_up(
+        ble, setup, name=name, service=SERVICE, device=device, timeout_ms=timeout_ms, **connect_options
+    )
     return _ClientLink(connection, rx, tx)
