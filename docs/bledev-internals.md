@@ -21,6 +21,7 @@ standalone module per backend, and an optional selector.
 | `improv.py` | Improv Wi-Fi setup, both sides, built only on the contract. |
 | `midi.py` | BLE-MIDI as a usbif-style MIDI port, both sides, built only on the contract. |
 | `midi_codec.py` | The BLE-MIDI packet codec. Pure, no imports, shared by every host. |
+| `filetransfer.py` | CircuitPython's BLE file-transfer protocol: `FileServer` (pure, no radio), served on the board through `repl`'s server, and a client built on the contract. |
 | `auto.py` | Picks a backend. Nothing imports it, and backends must not. |
 
 A backend module imports `bledev` and whatever its host provides, and nothing
@@ -249,7 +250,59 @@ without using up the attempt.
 The ESP32 has one dupterm slot. The REPL takes it on login and gives back
 whatever held it (WebREPL, say) on disconnect.
 
+## How file transfer gets there
+
+The protocol is Adafruit's (`supervisor/shared/bluetooth/file_transfer.c` in
+CircuitPython; the spec is in Adafruit_CircuitPython_BLE_File_Transfer):
+service `0xFEBB`, a version characteristic reading 4, and one transfer
+characteristic the client writes commands to and the board answers with
+notifications. bledev adds one characteristic, `ADAF0300-...`, for the
+password; CircuitPython has none, which is how a client tells the two apart.
+
+`FileServer` is the protocol without a radio. It takes the client's bytes in
+any split, handles every command whose bytes have all arrived (several may
+share a write), and queues answers. Its `packet(n)` never lets one
+notification carry the end of one answer and the start of the next, because
+Adafruit's client expects a header at the start of a notification. A read's
+data is streamed from the file one packet at a time rather than loaded.
+
+On the board it's a second service on `repl`'s raw-API server, registered
+in the same `gatts_register_services` call as NUS, because a registration
+replaces everything before it. What differs from CircuitPython, and why:
+
+- **File work runs on the main thread, not in the IRQ.** On the esp32 port
+  the BLE IRQ runs in NimBLE's host task (`MICROPY_PY_BLUETOOTH_USE_SYNC_EVENTS`),
+  whose stack is a few KB. The first build handled commands there, and a
+  recursive delete took the T-Embed down. Now the IRQ only appends the bytes
+  to an inbox and `micropython.schedule()`s the work; the REPL's 5 ms timer
+  picks up anything the schedule queue refused. A disconnect in the IRQ only
+  flags the reset, so the main thread never has a file closed under it.
+- **The window is 4 KB, not a 512-byte sector.** Each `WRITE_PACING` offers
+  `min(remaining, window)` bytes, so 20 KB is five round trips. The transfer
+  characteristic's append buffer is `2 * window + 64`, room for a window, its
+  header and the next command, and the board never offers more than that.
+- **Truncation.** MicroPython's files can't truncate, so a write at an offset
+  that leaves the file shorter copies the part that stays.
+- **Locked means answered.** Before the password, every command gets its own
+  answer shape with status `0x80`, so a client can parse the refusal rather
+  than time out.
+
+Adafruit's own client (`adafruit_ble_file_transfer.FileTransferClient`, with
+`_bleio` stubbed and a stand-in PacketBuffer that hands it one `packet()` per
+read) wrote, read, listed, moved and deleted against `FileServer` at MTU 247,
+and wrote and read at MTU 23; its `listdir` can't run at 23 against any
+server, because it reads a 28-byte header into one 20-byte packet. That was
+a one-off check, not a test in the tree. No CircuitPython board has been
+tried with bledev's client: CircuitPython's service needs pairing, which
+bledev doesn't do yet.
+
 ## The checks
+
+**The file-transfer protocol**, on both interpreters:
+`tests/bledev_filetransfer.py` wires the client to a `FileServer` through a
+loopback that splits both directions at the MTU (23, 185 and 247, windows
+from 512 to 4096), and `tests/test_bledev_filetransfer.py` runs it with a
+flipped bit and a lost packet, each of which must fail.
 
 **Against the fake**, on both interpreters: `tests/bledev_contract.py`.
 Its `pair()` and `nus_pair()` helpers build two fake adapters. A host backend
@@ -278,6 +331,7 @@ The serving scripts have a `PLANT` switch, and a planted run must fail:
 | `reconnect_loop.py` (laptop) against `repl_server.py` | Rapid reconnects: log in, run a line, close, wait 1.5 s, N times; `--no-retry` turns `connect_and_set_up`'s retry off |
 | `improv_server.py` + `improv_client.py` | Improv: `--wrong` must get "unable to connect" and a return to "authorized"; without it, on a board, the network comes from that board's own `secrets.py` and must end "provisioned" with a URL |
 | `coex_server.py` + `tcp_pull.py` + `nus_client.py` | Wi-Fi and BLE on one S3: a TCP source on Wi-Fi beside the nus gate |
+| `files_server.py` + `files_client.py` | File transfer: no password and a wrong one refused; 20 KB up and down byte for byte and timed (`--runs N`, `--fast` for throughput parameters), a read at an offset, mkdir, listdir, move, a recursive delete. `--plant` on the client, or `PLANT = "flip"` on the server, must FAIL. `files_server.py` runs from `/main.py` |
 
 `gatt_peripheral.py` is also the peripheral to point a host backend at: it
 advertises as `bledev-radio`, and a central steers it by writing commands.
@@ -410,3 +464,26 @@ the board. Pairing needs the board to bond (`ble.config(bond=True, ...)` with
 aioble's `security` module loaded); bledev doesn't do that for you yet.
 Before `midi.serve()` set the GAP name, Windows called the port `MPY ESP32`.
 
+### File transfer
+
+The laptop (Windows 11, bleak 3.0.2) to the T-Embed running `files_server.py`,
+one desk apart, Wi-Fi off, bledev as `.py` source, 2026-09-24. 20 KB each
+way, every run byte for byte:
+
+| Client | Up | Down |
+|---|---|---|
+| `files_client.py`, Windows' defaults, 5 runs in two sessions | 0.73-1.42 s (14.5-27.9 KB/s) | 0.80-0.98 s (20.8-25.5 KB/s) |
+| `files_client.py --fast` (throughput parameters), 3 runs | 0.72-0.82 s (24.9-28.4 KB/s) | 0.32-0.39 s (52.1-64.2 KB/s) |
+| mpftp's `ble_bench.py`, throughput parameters, median of 3 | 0.83 s (24.0 KB/s) | 0.30 s (67.5 KB/s) |
+| the same over mpremote's raw REPL (256-byte chunks) | 15.6 s (1.3 KB/s) | 10.6 s (1.9 KB/s) |
+| the same over the raw REPL, 4 KB chunks | 11.8 s (1.7 KB/s) | 6.3 s (3.2 KB/s) |
+| `ble_bench.py`, Windows' defaults, file transfer / raw REPL | 1.37 s / 43.6 s | 0.49 s / 26.6 s |
+
+So file transfer is the path for files: 19 times faster up and 35 times
+down than the raw REPL, which pays a round trip for every raw-paste window
+and prints what it reads as text. Downloads run near nus's own notification
+rate. Uploads are held to about 25 KB/s by the board writing flash between
+windows. Up got slower from run to run at Windows' defaults (25.8, 17.4, 14.5
+KB/s), overwriting the same file each time. The planted bit flip on the client
+failed the round-trip check. mpftp's `ble://` transport, and its gate, are in
+[PyDevices/mpftp](https://github.com/PyDevices/mpftp) `docs/plans/ble.md`.
