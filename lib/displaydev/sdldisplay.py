@@ -780,8 +780,15 @@ class SDLDisplay(FrameRecorderMixin, DesktopDisplay):
     def _flush_pending_show(self):
         if not self._sdl_active():
             return
-        if self._render_dirty:
-            self.render()
+        # Recomposite every frame, even when nothing was drawn. After
+        # SDL_RenderPresent the backbuffer is undefined: on GLES (Android) the
+        # swap chain rotates through two or three buffers, so presenting a
+        # frame that wasn't redrawn shows a stale or black buffer, and the
+        # screen flickers at the refresh rate (android-runner#8). Clearing
+        # first also blanks the letterbox bars, which otherwise show garbage.
+        retcheck(usdl2.SDL_SetRenderDrawColor(self._renderer, 0, 0, 0, 255))
+        retcheck(usdl2.SDL_RenderClear(self._renderer))
+        self.render()
         recorder = self._frame_recorder
         if recorder is not None:
             pixels, _width, _height = self._visible_rgb()
