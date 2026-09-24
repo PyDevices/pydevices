@@ -123,6 +123,29 @@ Use `--target lib` when installing into a workspace whose import path expects a
 `lib/` directory. Add `--no-mpy` when the same tree must be readable by
 CircuitPython or CPython.
 
+## Freezing PyDevices into one binary
+
+If you want a single `micropython.exe` (or board image) that runs with nothing
+installed, freeze PyDevices into it instead. Add one line to your app's freeze
+manifest:
+
+```python
+include("$(PORT_DIR)/variants/standard/manifest.py")    # the port's usual content
+include("$(MPY_DIR)/../pydevices/manifest-desktop.py")  # PyDevices + desktop board config
+include("../manifest.py")                               # your app
+```
+
+[`manifest-desktop.py`](../manifest-desktop.py) freezes everything in `lib/`,
+the desktop board config, and the pure-Python SDL2 and Win32 bindings. For a
+board image, include [`manifest-core.py`](../manifest-core.py) (just `lib/`)
+and freeze your board config yourself.
+
+Frozen modules come before `lib` on `sys.path`, so a frozen PyDevices shadows
+any copy installed with `mip`, and updating it means rebuilding. That's why
+the published interpreters don't freeze it; do this only when one
+self-contained binary is the point. [`manifest.py`](../manifest.py) is the
+install manifest, not a freeze manifest.
+
 ## Connected-device installation
 
 `mpremote` can perform the same hardware-board install without running `mip`
