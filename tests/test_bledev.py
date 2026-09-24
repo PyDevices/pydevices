@@ -22,7 +22,7 @@ import unittest
 
 _TESTS = Path(__file__).resolve().parent
 CONTRACT = _TESTS / "bledev_contract.py"
-PLANTS = ("drop", "corrupt", "reorder", "truncate", "overwrite")
+PLANTS = ("drop", "corrupt", "reorder", "truncate", "overwrite", "midi")
 
 
 def _micropython():
