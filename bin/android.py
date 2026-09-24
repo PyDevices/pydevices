@@ -200,7 +200,7 @@ class AdbClient:
     def stage_file(self, package_id: str, host_path: str, dest_rel: str):
         base = os.path.basename(host_path)
         tmp = f"/data/local/tmp/pydevices-runner-{base}"
-        self.run(["push", host_path, tmp], check=True)
+        self.run(["push", _adb_path(self.adb_bin, host_path), tmp], check=True)
         dest_dir = os.path.dirname(dest_rel)
         mkdir_cmd = f"mkdir -p files/app/{dest_dir}" if dest_dir else "mkdir -p files/app"
         cp_cmd = f"cp {tmp} files/app/{dest_rel}"
