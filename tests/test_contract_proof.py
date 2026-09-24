@@ -174,6 +174,36 @@ class TestGraduatedBoardLayout(unittest.TestCase):
 
 @unittest.skipUnless(HW.is_dir(), "sibling pydevices clone required")
 class TestGraduatedBindLazy(unittest.TestCase):
+    def test_ch422g_boards_declare_initial_state(self):
+        """Every board that builds a CH422G says what its outputs start at.
+
+        The expander's own default is all-high, and on the Waveshare S3
+        panels EXIO5 high throws the native USB to the CAN transceiver:
+        importing board_config silently disconnected USB, first on the 4.3
+        (b87d45f) and again on the 7-inch, which never got that fix.
+        """
+        boards = sorted((HW / "board_configs").glob("*/*/board_config.py"))
+        checked = 0
+        for path in boards:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                name = getattr(func, "id", None) or getattr(func, "attr", None)
+                if name != "CH422G":
+                    continue
+                checked += 1
+                keywords = {k.arg for k in node.keywords}
+                with self.subTest(board=str(path.parent.relative_to(HW))):
+                    self.assertIn(
+                        "initial",
+                        keywords,
+                        "CH422G() without initial= drives every EXIO high on "
+                        "construction; declare the board's safe state",
+                    )
+        self.assertGreater(checked, 0, "no CH422G boards found to check")
+
     def test_bind_lazy_and_devices_membership(self):
         if str(LIB) not in sys.path:
             sys.path.insert(0, str(LIB))
