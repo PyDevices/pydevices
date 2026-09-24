@@ -56,12 +56,15 @@ def log(*parts):
 
 
 def _secrets():
-    # Size and a checksum of aioble's key store, to see whether a run added keys.
-    try:
-        data = open("ble_secrets.json", "rb").read()
-    except OSError:
+    # How many bonds the key store holds (NVS on an ESP32), and a checksum of
+    # them, to see whether a run added keys.
+    from aioble import security as sec
+    import bledev.security
+
+    if not sec._secrets:
         return "none"
-    return "{} bytes, sum {}".format(len(data), sum(data))
+    total = sum(sum(v) for v in sec._secrets.values())
+    return "{} bonds in {}, sum {}".format(bledev.security.bonds(), bledev.security.store().kind, total)
 
 
 def stats(values):

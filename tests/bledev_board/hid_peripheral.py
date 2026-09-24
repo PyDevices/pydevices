@@ -53,11 +53,10 @@ async def one_host(per):
     log("host is listening (LEDs", data, "), encrypted", conn.encrypted)
     if ENCRYPTED:
         a = conn._aconn
-        try:
-            keys = len(open("ble_secrets.json", "rb").read())
-        except OSError:
-            keys = 0
-        log("security: bonded", a.bonded, "key size", a.key_size, "key store", keys, "bytes")
+        import bledev.security
+
+        keys = bledev.security.bonds()
+        log("security: bonded", a.bonded, "key size", a.key_size, "key store", keys, "bonds in", bledev.security.store().kind)
     await asyncio.sleep_ms(200)
     steps = hid_script.STEPS
     if PLANT:

@@ -57,10 +57,12 @@ from . import (
     FLAG_WRITE_NO_RESPONSE,
     GattError,
     MAX_MTU,
+    PairingError,
     ScanResult,
     Scanner,
     UnsupportedError,
     UUID,
+    passkey_value,
     wait_ms,
 )
 
@@ -277,6 +279,7 @@ class _BleakConnection(Connection):
         self._inboxes = []
         self._wwr = 0  # the largest write-without-response size seen in discovery
         self._paired = False
+        self._authenticated = False
 
     def _drop(self):
         if self._dropped.is_set():
@@ -322,15 +325,100 @@ class _BleakConnection(Connection):
     def encrypted(self):
         return self._paired
 
-    async def pair(self, bond=True, timeout_ms=20000):
-        """Pair through the OS. On Windows that makes a bond the OS keeps (and,
-        for a HID device, a keyboard it uses), so the tests here never call it."""
+    @property
+    def authenticated(self):
+        return self._authenticated
+
+    async def pair(self, bond=True, timeout_ms=30000, passkey=None):
+        """Pair through the OS, which keeps the bond.
+
+        On Windows this uses WinRT's custom pairing, so no system dialog
+        appears: "just works" when the board has no display, and ``passkey``
+        (a value, or a callable asked when Windows wants it) when the board
+        shows one. A board already paired with Windows is only checked, not
+        paired again; Windows encrypts the link with the stored keys when a
+        protected characteristic is first used. Elsewhere it's bleak's
+        ``pair()``, where the OS may ask for the passkey itself.
+
+        Windows keeps the pairing until :meth:`unpair` (or Settings, Remove
+        device). Never pair a board serving HID with the computer you test
+        from: Windows then uses it as a keyboard.
+        """
         self._live("pair")
+        requester = getattr(getattr(self._client, "_backend", None), "_requester", None)
         try:
-            await wait_ms(self._client.pair(), timeout_ms, "pair")
+            if requester is not None:
+                await wait_ms(self._pair_winrt(requester, passkey), timeout_ms, "pair")
+            else:
+                await wait_ms(self._client.pair(), timeout_ms, "pair")
+                self._authenticated = passkey is not None
         except (BleakError, OSError) as e:
             raise _translate(e, self, "pair")
         self._paired = True
+
+    async def _pair_winrt(self, requester, passkey):
+        from winrt.windows.devices.enumeration import (
+            DeviceInformation,
+            DevicePairingKinds,
+            DevicePairingProtectionLevel,
+            DevicePairingResultStatus,
+        )
+
+        info = await DeviceInformation.create_from_id_async(requester.device_information.id)
+        pairing = info.pairing
+        if pairing.is_paired:
+            self._authenticated = pairing.protection_level == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+            return
+        if not pairing.can_pair:
+            raise PairingError("pair: Windows says {} can't pair".format(self.device.address))
+        loop = asyncio.get_running_loop()
+        asked = []
+
+        async def provide(args, deferral):
+            try:
+                value = await passkey_value(passkey)
+                if value is not None:
+                    args.accept_with_pin("{:06d}".format(value))
+            except Exception as e:  # a cancelled prompt: leave it unaccepted
+                asked.append(e)
+            finally:
+                deferral.complete()
+
+        def handler(sender, args):
+            # On a WinRT thread. Just works needs only a yes; a passkey waits
+            # on the provider, which may be slow (a person), behind a deferral.
+            kind = args.pairing_kind
+            asked.append(kind)
+            if kind == DevicePairingKinds.CONFIRM_ONLY:
+                args.accept()
+            elif kind == DevicePairingKinds.PROVIDE_PIN and passkey is not None:
+                deferral = args.get_deferral()
+                loop.call_soon_threadsafe(lambda: loop.create_task(provide(args, deferral)))
+
+        kinds = DevicePairingKinds.CONFIRM_ONLY
+        level = DevicePairingProtectionLevel.ENCRYPTION
+        if passkey is not None:
+            kinds |= DevicePairingKinds.PROVIDE_PIN
+            level = DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+        custom = pairing.custom
+        token = custom.add_pairing_requested(handler)
+        try:
+            result = await custom.pair_with_protection_level_async(kinds, level)
+        finally:
+            custom.remove_pairing_requested(token)
+        status = result.status
+        if status not in (DevicePairingResultStatus.PAIRED, DevicePairingResultStatus.ALREADY_PAIRED):
+            raise PairingError("pair: {} ({})".format(status.name, ", ".join(str(a) for a in asked) or "no ceremony"))
+        self._authenticated = result.protection_level_used == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+
+    async def unpair(self):
+        """Remove the OS's pairing with this board. Windows also drops the link."""
+        try:
+            await self._client.unpair()
+        except (BleakError, OSError) as e:
+            raise _translate(e, self, "unpair")
+        self._paired = False
+        self._authenticated = False
 
     async def exchange_mtu(self, mtu=None, timeout_ms=1000):
         """The OS negotiates on its own; wait briefly for it and return the result."""
@@ -486,3 +574,13 @@ class _BleakClientDescriptor(ClientDescriptor):
             return bytes(await wait_ms(client.read_gatt_descriptor(self._native.handle), timeout_ms, "descriptor read"))
         except (BleakError, OSError) as e:
             raise _translate(e, self.connection, "descriptor read")
+
+
+async def unpair(address):
+    """Remove the OS's pairing with ``address`` without connecting: the recovery
+    step when a board has lost its bond (its keys were erased) and Windows
+    still holds the other half."""
+    try:
+        await BleakClient(address).unpair()
+    except (BleakError, OSError) as e:
+        raise BLEError("unpair {}: {}".format(address, e))

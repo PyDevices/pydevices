@@ -31,6 +31,8 @@ try:
 except ImportError:  # pragma: no cover
     import uasyncio as asyncio
 
+import time
+
 import bluetooth
 import aioble
 from aioble import core as _aioble_core
@@ -52,6 +54,7 @@ from . import (
     FLAG_NOTIFY,
     FLAG_READ,
     GattError,
+    PairingError,
     ScanResult,
     Scanner,
     UnsupportedError,
@@ -69,6 +72,8 @@ _IRQ_MTU_EXCHANGED = 21
 
 _FLAG_READ_ENCRYPTED = 0x0200
 _FLAG_WRITE_ENCRYPTED = 0x1000
+_FLAG_READ_AUTHENTICATED = 0x0400
+_FLAG_WRITE_AUTHENTICATED = 0x2000
 
 # errno values NimBLE uses when its buffers are full (ENOMEM, EAGAIN, EBUSY,
 # ENOBUFS). A send that sees one of these waits and tries again.
@@ -289,19 +294,21 @@ class MPBLE(BLE):
         )
         return caps
 
-    def enable_bonding(self, path=None):
-        """Keep pairing keys in ``path`` (aioble's ``ble_secrets.json``) and bond from now on.
+    def enable_bonding(self, store=None):
+        """Bond from now on, keeping the keys in ``store`` (see
+        :func:`bledev.security.use_store`): NVS on an ESP32 by default, which
+        survives a filesystem erase, or a path for aioble's
+        ``ble_secrets.json``.
 
         Call it before any connection that may pair, on both sides: the side
-        that doesn't start pairing still has to store the keys. The file
-        doesn't survive an erase of the filesystem, and a peer that still
-        holds its half of the bond will then refuse to reconnect encrypted
-        until it's paired again.
+        that doesn't start pairing still has to store the keys. A peer that
+        still holds its half of a bond this board has lost will refuse to
+        reconnect encrypted until it's paired again.
         """
-        from aioble import security
+        from . import security
 
-        security.load_secrets(path)
-        aioble.config(bond=True, le_secure=True, mitm=False, io=3)
+        security.use_store(store)
+        aioble.config(bond=True, le_secure=True, mitm=False, io=security.IO_NO_INPUT_OUTPUT)
 
     def _config_mtu(self):
         try:
@@ -382,6 +389,8 @@ class MPBLE(BLE):
                 )
                 if c.encrypted:
                     achar.flags |= _FLAG_READ_ENCRYPTED | _FLAG_WRITE_ENCRYPTED
+                if c.authenticated:
+                    achar.flags |= _FLAG_READ_AUTHENTICATED | _FLAG_WRITE_AUTHENTICATED
                 for d in c.descriptors:
                     aioble.Descriptor(achar, _buuid(d.uuid), read=True, initial=d.value)
                 c._impl = _MPServerCharacteristic(self, c, achar)
@@ -534,13 +543,58 @@ class _MPConnection(Connection):
     def encrypted(self):
         return bool(self._aconn.encrypted)
 
-    async def pair(self, bond=True, timeout_ms=20000):
+    @property
+    def authenticated(self):
+        from . import security
+
+        return security.state(self._aconn._conn_handle)[1] if self.is_connected() else False
+
+    async def pair(self, bond=True, timeout_ms=30000, passkey=None):
+        from . import security
+
         if not self.is_connected():
             raise DisconnectedError("pair: not connected")
-        with _Translate("pair"):
-            await self._aconn.pair(bond=bond, le_secure=True, mitm=False, io=3, timeout_ms=timeout_ms)
-        if not self._aconn.encrypted:
-            raise BLEError("pair: the link is not encrypted")
+        if bond and security.store() is None:
+            security.use_store()
+        security._install()
+        handle = self._aconn._conn_handle
+        if passkey is not None:
+            # Type in what the peer shows: a keyboard, with MITM protection.
+            security.expect_passkey(handle, passkey if not callable(passkey) else _SyncPasskey(passkey))
+            io, mitm = security.IO_KEYBOARD_ONLY, True
+        else:
+            io, mitm = security.IO_NO_INPUT_OUTPUT, False
+        aioble.config(bond=bond, le_secure=True, mitm=mitm, io=io)
+        updates = []
+
+        def on_change(conn, encrypted, authenticated, bonded, key_size):
+            if conn == handle:
+                updates.append(encrypted)
+
+        security.on_change(on_change)
+        try:
+            with _Translate("pair"):
+                _aioble_core.ble.gap_pair(handle)
+            deadline = time.ticks_add(time.ticks_ms(), timeout_ms)
+            # The stack reports the outcome as an encryption update, success
+            # or not, so a wrong passkey fails here at once, not at a timeout.
+            while not updates:
+                if not self.is_connected():
+                    raise PairingError("pair: the peer hung up")
+                if time.ticks_diff(deadline, time.ticks_ms()) <= 0:
+                    raise BLETimeoutError("pair: timed out")
+                await sleep_ms(20)
+        finally:
+            security.remove_listener(on_change)
+            security.expect_passkey(handle, None)
+        if not security.state(handle)[0]:
+            raise PairingError("pair: refused (wrong passkey, or the peer lost its keys)")
+
+    async def unpair(self):
+        from . import security
+
+        addr = self.device.address
+        security.forget(addr)
 
     async def _discover_services(self, uuid, timeout_ms):
         found = []
@@ -672,6 +726,19 @@ class _MPClientCharacteristic(ClientCharacteristic):
         self._check(FLAG_INDICATE, "indicate")
         a = self._achar
         return await self._next(a._indicate_queue, a._indicate_event, timeout_ms, "indicated")
+
+
+class _SyncPasskey:
+    # The passkey is asked for from a scheduled callback, which can't await:
+    # an async provider isn't supported on a board, a plain callable is.
+    def __init__(self, fn):
+        self._fn = fn
+
+    def __call__(self):
+        value = self._fn()
+        if hasattr(value, "send"):
+            raise BLEError("a board's passkey provider must be a plain function")
+        return value
 
 
 class _MPClientDescriptor(ClientDescriptor):

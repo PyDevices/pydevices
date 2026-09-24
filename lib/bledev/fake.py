@@ -55,7 +55,9 @@ from . import (
     FLAG_WRITE,
     FLAG_WRITE_NO_RESPONSE,
     GattError,
+    INSUFFICIENT_AUTHENTICATION,
     INSUFFICIENT_ENCRYPTION,
+    PairingError,
     MAX_MTU,
     UUID,
     ScanResult,
@@ -65,6 +67,7 @@ from . import (
     decode_service_data,
     pack_advertisement,
     sleep_ms,
+    passkey_value,
     wait_ms,
 )
 
@@ -177,6 +180,11 @@ class FakeBLE(BLE):
         self._long_reads = long_reads
         #: Addresses of the peers this adapter has bonded with.
         self.bonds = set()
+        # address -> whether that bond came from a passkey
+        self._bond_authenticated = {}
+        #: As a peripheral: "justworks", or "passkey" to show one (``set_pairing``).
+        self.pairing = "justworks"
+        self.show_passkey = None
         self._services = ()
         self._adverts = []
         self._links = []
@@ -200,6 +208,14 @@ class FakeBLE(BLE):
             self.bonds.clear()
         else:
             self.bonds.discard(address)
+
+    def set_pairing(self, mode="justworks", show=None):
+        """As a peripheral, pair "just works", or show a passkey: ``show(passkey)``
+        gets the six digits a central must give ``pair(passkey=...)``."""
+        if mode not in ("justworks", "passkey"):
+            raise ValueError("the fake pairs 'justworks' or 'passkey'")
+        self.pairing = mode
+        self.show_passkey = show
 
     def config(self, *names, **settings):
         for key, value in settings.items():
@@ -357,6 +373,7 @@ class _Link:
         self.in_flight = []
         self._drain_task = None
         self.encrypted = False
+        self.authenticated = False
         central_ble._links.append(self)
         peripheral_ble._links.append(self)
 
@@ -431,15 +448,49 @@ class _FakeConnection(Connection):
     def encrypted(self):
         return self._link.encrypted
 
-    async def pair(self, bond=True, timeout_ms=20000):
+    @property
+    def authenticated(self):
+        return self._link.authenticated
+
+    async def pair(self, bond=True, timeout_ms=30000, passkey=None):
         link = self._link
         link.check()
         await asyncio.sleep(0)
         link.check()
+        central, peripheral = link.central_ble, link.peripheral_ble
+        if peripheral.address in central.bonds:
+            # Encrypt with the stored keys. If the peripheral has lost its
+            # half, that fails without a word, as it does on real hosts: the
+            # link stays unencrypted and protected reads are refused.
+            if central.address in peripheral.bonds:
+                link.encrypted = True
+                link.authenticated = central._bond_authenticated.get(peripheral.address, False)
+            return
+        authenticated = False
+        if peripheral.pairing == "passkey" and passkey is not None:
+            import os
+
+            b = os.urandom(3)
+            shown = ((b[0] << 16) | (b[1] << 8) | b[2]) % 1000000
+            if peripheral.show_passkey is not None:
+                peripheral.show_passkey(shown)
+            given = await passkey_value(passkey)
+            link.check()
+            if given != shown:
+                raise PairingError("pair: wrong passkey")
+            authenticated = True
         link.encrypted = True
+        link.authenticated = authenticated
         if bond:
-            link.central_ble.bonds.add(link.peripheral_ble.address)
-            link.peripheral_ble.bonds.add(link.central_ble.address)
+            central.bonds.add(peripheral.address)
+            peripheral.bonds.add(central.address)
+            central._bond_authenticated[peripheral.address] = authenticated
+            peripheral._bond_authenticated[central.address] = authenticated
+
+    async def unpair(self):
+        link = self._link
+        own = link.central_ble if self.role == "central" else link.peripheral_ble
+        own.forget(self.device.address)
 
     async def exchange_mtu(self, mtu=None, timeout_ms=1000):
         self._link.check()
@@ -490,6 +541,8 @@ class _FakeClientCharacteristic(ClientCharacteristic):
         link.check()
         if self._server.encrypted and not link.encrypted:
             raise GattError(INSUFFICIENT_ENCRYPTION, "{} needs an encrypted link; pair() first".format(self.uuid))
+        if self._server.authenticated and not link.authenticated:
+            raise GattError(INSUFFICIENT_AUTHENTICATION, "{} needs a link paired with a passkey".format(self.uuid))
         return link
 
     async def read(self, timeout_ms=1000):

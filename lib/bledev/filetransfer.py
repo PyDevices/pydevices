@@ -27,14 +27,20 @@ prompt and while your program runs. From a laptop or another board::
     print(await files.read("/hello.txt"), await files.listdir("/"))
 
 **The lock.** CircuitPython protects the transfer characteristic with
-pairing. bledev uses the REPL's password instead, the same way WebREPL does:
-the service carries one more characteristic (``AUTH``), the client writes the
-password to it, and until it's right every command is answered with
-:data:`STATUS_LOCKED`. One attempt per connection; a wrong password is
+pairing. bledev uses the REPL's password by default, the same way WebREPL
+does: the service carries one more characteristic (``AUTH``), the client
+writes the password to it, and until it's right every command is answered
+with :data:`STATUS_LOCKED`. One attempt per connection; a wrong password is
 hung up on. Logging in to the REPL over the same connection unlocks files
-too. The link isn't encrypted, so a sniffer nearby can capture the password;
-pairing is the later fix. A client connecting to a CircuitPython board finds
-no ``AUTH`` characteristic and skips the step.
+too. Without pairing the link isn't encrypted, so a sniffer nearby can capture
+the password.
+
+``start(pairing=...)`` adds pairing, as for :mod:`bledev.repl`: the transfer
+and ``AUTH`` characteristics then refuse a host that hasn't paired, and with
+a passkey the password can go (``password=False``). ``AUTH`` then reads 1
+once the link is paired. A client connecting to a CircuitPython board finds
+no ``AUTH`` characteristic, pairs ("just works", as CircuitPython asks) and
+skips the password.
 
 The protocol carries no checksum of its own beyond the link layer's CRC, so a
 client that must be sure checks what landed (mpftp compares SHA-256).
@@ -47,7 +53,17 @@ except ImportError:  # pragma: no cover
 
 import struct
 
-from . import BLEError, BLETimeoutError, DisconnectedError, UnsupportedError, UUID, connect_and_set_up, wait_ms
+from . import (
+    BLEError,
+    BLETimeoutError,
+    DisconnectedError,
+    GattError,
+    NEEDS_PAIRING,
+    UnsupportedError,
+    UUID,
+    connect_and_set_up,
+    wait_ms,
+)
 
 SERVICE = UUID(0xFEBB)
 VERSION = UUID("adaf0100-4669-6c65-5472-616e73666572")
@@ -784,12 +800,17 @@ def _now_ns():
         return _ns(time.time())
 
 
-async def connect(ble, password=None, name=None, *, device=None, timeout_ms=10000, mtu=247, **connect_options):
+async def connect(ble, password=None, name=None, *, device=None, timeout_ms=10000, mtu=247, pair=None, passkey=None, **connect_options):
     """Find a board serving files (by ``name``, or the first advertising the
     service), connect, log in, and return a :class:`Client`.
 
-    ``password`` is needed for a bledev board and ignored by a CircuitPython
-    one, which uses pairing instead (bond with it first).
+    ``password`` is needed for a bledev board locked by one, and ignored by
+    a CircuitPython board, which uses pairing instead.
+
+    ``pair``: ``True`` pairs first; ``None`` (the default) pairs when the
+    board asks for it, which a CircuitPython board always does and a bledev
+    board started with ``pairing=`` does; ``False`` never pairs. ``passkey``
+    is what the board's display shows, or a callable that asks for it.
     """
     from . import nus
 
@@ -815,14 +836,49 @@ async def connect(ble, password=None, name=None, *, device=None, timeout_ms=1000
             except (BLEError, ValueError):
                 pass
         auth = await service.characteristic(AUTH)
-        await transfer.subscribe(notify=True)
-        return transfer, version, auth
+        # Does the board want pairing? CircuitPython (no AUTH) always does. A
+        # bledev board with pairing on refuses to let AUTH be read.
+        locked = None
+        wants = auth is None
+        if auth is not None:
+            try:
+                locked = (await auth.read())[:1] != b"\x01"
+            except GattError as e:
+                if e.status not in NEEDS_PAIRING:
+                    raise
+                wants = True
+        return transfer, version, auth, wants, locked
 
-    connection, (transfer, version, auth) = await connect_and_set_up(
-        ble, setup, name=name, service=SERVICE, device=device, timeout_ms=timeout_ms, **connect_options
+    connection, (transfer, version, auth, wants, locked) = await connect_and_set_up(
+        ble, setup, name=name, service=SERVICE, device=device, timeout_ms=timeout_ms, pair=pair is True, passkey=passkey, **connect_options
     )
+    try:
+        if wants and pair is None and not connection.encrypted:
+            await connection.pair(passkey=passkey)
+        try:
+            await transfer.subscribe(notify=True)
+            if auth is not None and (locked is None or wants):
+                locked = (await auth.read())[:1] != b"\x01"
+                if locked and password is None and connection.encrypted:
+                    # The board unlocks on its own encryption event, which
+                    # can land a moment after this side's pair() returned.
+                    for _ in range(10):
+                        await asyncio.sleep(0.05)
+                        locked = (await auth.read())[:1] != b"\x01"
+                        if not locked:
+                            break
+        except GattError as e:
+            if e.status not in NEEDS_PAIRING:
+                raise
+            from .repl import refused
+
+            raise refused(pair is not False, passkey)
+    except BaseException:
+        if connection.is_connected():
+            await connection.disconnect()
+        raise
     client = Client(connection, transfer, version)
-    if auth is not None:
+    if auth is not None and locked:
         try:
             if password is None:
                 raise AuthError("the board wants a password")
