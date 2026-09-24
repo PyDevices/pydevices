@@ -370,7 +370,6 @@ class PSDisplay(DesktopDisplay):
         self._requires_byteswap = False
         self._rotation = 0
         self.color_depth = 16
-        self.touch_scale = 1.0
 
         super().__init__(quiet=quiet)
         # Per-canvas input; drain is the appdev.App host_read callable.
@@ -400,8 +399,6 @@ class PSDisplay(DesktopDisplay):
                 lut[k + 2] = ((lo << 3) & 0xF8) | ((lo >> 2) & 0x07)
                 lut[k + 3] = 255
             self._rgba_lut = lut
-        sx, _sy = self._pointer_scale()
-        self.touch_scale = sx
         # Match PGDisplay / SDLDisplay / JNDisplay: default full-height scroll region
         # so vscsad() works before an explicit set_vscroll/vscrdef.
         self._reset_vscroll()
@@ -516,9 +513,30 @@ class PSDisplay(DesktopDisplay):
         """Present the offscreen canvas (alias of :meth:`render`)."""
         self.render()
 
+    @property
+    def touch_scale(self):
+        """CSS layout pixels per framebuffer pixel, read live.
+
+        ``HostEventsDevice`` divides mouse coordinates by this, the same
+        contract as ``SDLDisplay``'s window scale. It is the inverse of
+        :meth:`_pointer_scale`, and it is read at each event because the page
+        can resize the canvas (a ``max-width`` rule, a window resize) after
+        :meth:`init` has run.
+        """
+        sx, _sy = self._pointer_scale()
+        return 1.0 / sx if sx else 1.0
+
+    @touch_scale.setter
+    def touch_scale(self, value):
+        # DisplayDriver.__init__ assigns a default; the layout decides here.
+        pass
+
     def _pointer_scale(self):
         """Framebuffer pixels per CSS layout pixel (1.0 when layout is 1:1)."""
-        rect = self._canvas.getBoundingClientRect()
+        canvas = getattr(self, "_canvas", None)
+        if canvas is None:
+            return 1.0, 1.0
+        rect = canvas.getBoundingClientRect()
         rw, rh = float(rect.width), float(rect.height)
         if rw <= 0 or rh <= 0:
             return 1.0, 1.0
