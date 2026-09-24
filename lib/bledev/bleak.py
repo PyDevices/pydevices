@@ -41,6 +41,7 @@ except ImportError:  # bleak < 3
     BleakGATTProtocolError = None
 
 from . import (
+    ClientDescriptor,
     BLE,
     BLEError,
     ClientCharacteristic,
@@ -275,6 +276,7 @@ class _BleakConnection(Connection):
         self._dropped = asyncio.Event()
         self._inboxes = []
         self._wwr = 0  # the largest write-without-response size seen in discovery
+        self._paired = False
 
     def _drop(self):
         if self._dropped.is_set():
@@ -315,6 +317,20 @@ class _BleakConnection(Connection):
     async def disconnected(self, timeout_ms=None):
         if self.is_connected():
             await wait_ms(self._dropped.wait(), timeout_ms, "disconnected")
+
+    @property
+    def encrypted(self):
+        return self._paired
+
+    async def pair(self, bond=True, timeout_ms=20000):
+        """Pair through the OS. On Windows that makes a bond the OS keeps (and,
+        for a HID device, a keyboard it uses), so the tests here never call it."""
+        self._live("pair")
+        try:
+            await wait_ms(self._client.pair(), timeout_ms, "pair")
+        except (BleakError, OSError) as e:
+            raise _translate(e, self, "pair")
+        self._paired = True
 
     async def exchange_mtu(self, mtu=None, timeout_ms=1000):
         """The OS negotiates on its own; wait briefly for it and return the result."""
@@ -401,6 +417,15 @@ class _BleakClientCharacteristic(ClientCharacteristic):
         except (BleakError, OSError) as e:
             raise _translate(e, self.connection, "read")
 
+    async def _discover_descriptors(self, uuid, timeout_ms):
+        self._live("descriptor discovery")
+        found = []
+        for native in sorted(self._native.descriptors, key=lambda d: d.handle):
+            d = _BleakClientDescriptor(self, native)
+            if uuid is None or d.uuid == uuid:
+                found.append(d)
+        return found
+
     async def write(self, data, response=None, timeout_ms=1000):
         data = bytes(data)
         response = self._want_response(response)
@@ -447,3 +472,17 @@ class _BleakClientCharacteristic(ClientCharacteristic):
     async def indicated(self, timeout_ms=None):
         self._check(FLAG_INDICATE, "indicate")
         return await self._indicate_inbox.get(timeout_ms)
+
+
+class _BleakClientDescriptor(ClientDescriptor):
+    def __init__(self, characteristic, native):
+        ClientDescriptor.__init__(self, characteristic, native.uuid)
+        self._native = native
+
+    async def read(self, timeout_ms=1000):
+        client = self.connection._client
+        self.connection._live("descriptor read")
+        try:
+            return bytes(await wait_ms(client.read_gatt_descriptor(self._native.handle), timeout_ms, "descriptor read"))
+        except (BleakError, OSError) as e:
+            raise _translate(e, self.connection, "descriptor read")

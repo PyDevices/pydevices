@@ -42,6 +42,7 @@ from . import (
     BLETimeoutError,
     BusyError,
     ClientCharacteristic,
+    ClientDescriptor,
     ClientService,
     Connection,
     DEFAULT_MTU,
@@ -64,6 +65,9 @@ _IRQ_CENTRAL_CONNECT = 1
 _IRQ_CENTRAL_DISCONNECT = 2
 _IRQ_GATTS_WRITE = 3
 _IRQ_MTU_EXCHANGED = 21
+
+_FLAG_READ_ENCRYPTED = 0x0200
+_FLAG_WRITE_ENCRYPTED = 0x1000
 
 # errno values NimBLE uses when its buffers are full (ENOMEM, EAGAIN, EBUSY,
 # ENOBUFS). A send that sees one of these waits and tries again.
@@ -150,7 +154,11 @@ class _Translate:
         if issubclass(exc_type, aioble.DeviceDisconnectedError):
             raise DisconnectedError("{}: disconnected".format(self._what))
         if issubclass(exc_type, aioble.GattError):
-            raise GattError(getattr(exc, "_status", 0))
+            status = getattr(exc, "_status", 0) or 0
+            # NimBLE reports an ATT error as 0x100 + the ATT code.
+            if 0x100 <= status < 0x200:
+                status -= 0x100
+            raise GattError(status)
         if exc_type is ValueError and exc.args and exc.args[0] == "Not connected":
             raise DisconnectedError("{}: not connected".format(self._what))
         return False
@@ -273,8 +281,23 @@ class MPBLE(BLE):
             max_mtu=_MAX_MTU,
             indicate=True,
             pairing=True,
+            long_read=False,
         )
         return caps
+
+    def enable_bonding(self, path=None):
+        """Keep pairing keys in ``path`` (aioble's ``ble_secrets.json``) and bond from now on.
+
+        Call it before any connection that may pair, on both sides: the side
+        that doesn't start pairing still has to store the keys. The file
+        doesn't survive an erase of the filesystem, and a peer that still
+        holds its half of the bond will then refuse to reconnect encrypted
+        until it's paired again.
+        """
+        from aioble import security
+
+        security.load_secrets(path)
+        aioble.config(bond=True, le_secure=True, mitm=False, io=3)
 
     def _config_mtu(self):
         try:
@@ -353,6 +376,10 @@ class MPBLE(BLE):
                     initial=c._initial,
                     max_len=c.max_len,
                 )
+                if c.encrypted:
+                    achar.flags |= _FLAG_READ_ENCRYPTED | _FLAG_WRITE_ENCRYPTED
+                for d in c.descriptors:
+                    aioble.Descriptor(achar, _buuid(d.uuid), read=True, initial=d.value)
                 c._impl = _MPServerCharacteristic(self, c, achar)
             aservices.append(aservice)
         aioble.register_services(*aservices)
@@ -483,6 +510,18 @@ class _MPConnection(Connection):
         with _Translate("exchange_mtu"):
             return await self._aconn.exchange_mtu(mtu, timeout_ms)
 
+    @property
+    def encrypted(self):
+        return bool(self._aconn.encrypted)
+
+    async def pair(self, bond=True, timeout_ms=20000):
+        if not self.is_connected():
+            raise DisconnectedError("pair: not connected")
+        with _Translate("pair"):
+            await self._aconn.pair(bond=bond, le_secure=True, mitm=False, io=3, timeout_ms=timeout_ms)
+        if not self._aconn.encrypted:
+            raise BLEError("pair: the link is not encrypted")
+
     async def _discover_services(self, uuid, timeout_ms):
         found = []
         with _Translate("service discovery"):
@@ -532,6 +571,17 @@ class _MPClientCharacteristic(ClientCharacteristic):
         self._live("read")
         with _Translate("read"):
             return bytes(await self._achar.read(timeout_ms))
+
+    async def _discover_descriptors(self, uuid, timeout_ms):
+        self._live("descriptor discovery")
+        found = []
+        with _Translate("descriptor discovery"):
+            async for adesc in self._achar.descriptors(timeout_ms):
+                d = _MPClientDescriptor(self, adesc)
+                if uuid is None or d.uuid == uuid:
+                    found.append(d)
+        found.sort(key=lambda d: d._adesc._value_handle)
+        return found
 
     async def write(self, data, response=None, timeout_ms=1000):
         data = bytes(data)
@@ -602,6 +652,18 @@ class _MPClientCharacteristic(ClientCharacteristic):
         self._check(FLAG_INDICATE, "indicate")
         a = self._achar
         return await self._next(a._indicate_queue, a._indicate_event, timeout_ms, "indicated")
+
+
+class _MPClientDescriptor(ClientDescriptor):
+    def __init__(self, characteristic, adesc):
+        ClientDescriptor.__init__(self, characteristic, _uuid(adesc.uuid))
+        self._adesc = adesc
+
+    async def read(self, timeout_ms=1000):
+        if not self.connection.is_connected():
+            raise DisconnectedError("read: not connected")
+        with _Translate("descriptor read"):
+            return bytes(await self._adesc.read(timeout_ms))
 
 
 class _MPServerCharacteristic:

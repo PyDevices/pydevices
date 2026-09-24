@@ -76,6 +76,11 @@ class BusyError(BLEError):
     """
 
 
+#: ATT error codes a :class:`GattError` can carry that apps act on.
+INSUFFICIENT_AUTHENTICATION = 0x05
+INSUFFICIENT_ENCRYPTION = 0x0F
+
+
 class GattError(BLEError):
     """The peer answered a GATT request with an error ``status``."""
 
@@ -353,7 +358,8 @@ class BLE:
 
         ``backend`` (its module name), ``central`` and ``peripheral`` (which
         roles it can take), ``mtu`` (the ATT MTU it asks for), ``max_mtu``,
-        ``indicate``, ``pairing`` and ``l2cap`` (bools).
+        ``indicate``, ``pairing`` and ``l2cap`` (bools), and ``long_read``:
+        whether a read returns values longer than one packet (``mtu - 1``).
         """
         return {
             "backend": self.backend,
@@ -364,6 +370,7 @@ class BLE:
             "indicate": False,
             "pairing": False,
             "l2cap": False,
+            "long_read": True,
         }
 
     def config(self, *names, **settings):
@@ -468,7 +475,8 @@ class Characteristic:
     write; MicroPython's default buffer is 20 bytes, so raise it for anything
     that takes whole MTU-sized writes. With ``capture=True``, ``written()``
     returns every write as ``(connection, data)``, in order, instead of just
-    the last writer.
+    the last writer. ``encrypted=True`` refuses a central that hasn't paired
+    (``GattError`` with status ``INSUFFICIENT_ENCRYPTION``) until it does.
     """
 
     def __init__(
@@ -483,6 +491,7 @@ class Characteristic:
         initial=None,
         capture=False,
         max_len=20,
+        encrypted=False,
     ):
         service.characteristics.append(self)
         self.service = service
@@ -502,6 +511,11 @@ class Characteristic:
         self.capture = bool(capture) and bool(flags & (FLAG_WRITE | FLAG_WRITE_NO_RESPONSE))
         self.max_len = max(max_len, len(initial) if initial else 0)
         self._initial = bytes(initial) if initial is not None else None
+        #: True when a central must pair (an encrypted link) before it may
+        #: read, write or subscribe. HID keyboards serve their reports this way.
+        self.encrypted = bool(encrypted)
+        #: :class:`Descriptor` objects, in the order they were made.
+        self.descriptors = []
         # Set by the backend's register_services(); it does the real work.
         self._impl = None
 
@@ -553,6 +567,25 @@ class Characteristic:
         if not self.flags & (FLAG_WRITE | FLAG_WRITE_NO_RESPONSE):
             raise UnsupportedError("{!r} is not writable".format(self))
         return await self._bound().written(timeout_ms)
+
+
+class Descriptor:
+    """A read-only descriptor on a :class:`Characteristic` you serve.
+
+    HID uses these: each Report characteristic carries a Report Reference
+    (0x2908) saying which report it is. The value is fixed once registered.
+    Don't make a CCCD (0x2902); every backend adds that itself for a
+    characteristic with ``notify`` or ``indicate``.
+    """
+
+    def __init__(self, characteristic, uuid, initial=b""):
+        characteristic.descriptors.append(self)
+        self.characteristic = characteristic
+        self.uuid = UUID(uuid)
+        self.value = bytes(initial)
+
+    def __repr__(self):
+        return "Descriptor({!r})".format(self.uuid)
 
 
 # ---------------------------------------------------------------- central side
@@ -754,6 +787,23 @@ class Connection:
         """Wait until the link drops, from either side."""
         raise NotImplementedError
 
+    @property
+    def encrypted(self):
+        """True once the link is encrypted (after :meth:`pair`, or a bonded reconnect)."""
+        return False
+
+    async def pair(self, bond=True, timeout_ms=20000):
+        """Pair with the peer and encrypt the link; with ``bond``, keep the keys.
+
+        Either side may call it; in practice the central does, when a read
+        fails with ``INSUFFICIENT_ENCRYPTION``. Pairing here is "just works"
+        (no passkey), which is what a keyboard without a screen does. A bonded
+        peer reconnects without pairing again, for as long as both sides keep
+        their keys. Raises :class:`UnsupportedError` on a backend without
+        pairing.
+        """
+        raise UnsupportedError("{} cannot pair".format(self._ble.backend))
+
     async def exchange_mtu(self, mtu=None, timeout_ms=1000):
         """Negotiate a larger ATT MTU and return the result.
 
@@ -836,7 +886,26 @@ class ClientCharacteristic:
             raise UnsupportedError("{!r} does not support {}".format(self, what))
 
     async def read(self, timeout_ms=1000):
+        """The value. A backend without long reads (``capabilities()["long_read"]``
+        is False: MicroPython) returns at most ``connection.mtu - 1`` bytes."""
         raise NotImplementedError
+
+    def descriptors(self, uuid=None, timeout_ms=2000):
+        """Async-iterate this characteristic's descriptors, optionally only ``uuid``."""
+        uuid = None if uuid is None else UUID(uuid)
+        return _Discovery(lambda: self._discover_descriptors(uuid, timeout_ms))
+
+    async def descriptor(self, uuid, timeout_ms=2000):
+        """The descriptor ``uuid`` on this characteristic, or ``None``."""
+        uuid = UUID(uuid)
+        found = None
+        async for d in self.descriptors(uuid, timeout_ms):
+            if found is None and d.uuid == uuid:
+                found = d
+        return found
+
+    async def _discover_descriptors(self, uuid, timeout_ms):
+        raise UnsupportedError("{} cannot discover descriptors".format(self.connection._ble.backend))
 
     async def write(self, data, response=None, timeout_ms=1000):
         """Write ``data`` (at most ``connection.mtu - 3`` bytes).
@@ -865,6 +934,21 @@ class ClientCharacteristic:
         else:
             self._check(FLAG_WRITE_NO_RESPONSE, "write without response")
         return bool(response)
+
+
+class ClientDescriptor:
+    """A descriptor on the peer, found by :meth:`ClientCharacteristic.descriptors`."""
+
+    def __init__(self, characteristic, uuid):
+        self.characteristic = characteristic
+        self.connection = characteristic.connection
+        self.uuid = UUID(uuid)
+
+    def __repr__(self):
+        return "ClientDescriptor({!r})".format(self.uuid)
+
+    async def read(self, timeout_ms=1000):
+        raise NotImplementedError
 
 
 def is_adapter(obj):
