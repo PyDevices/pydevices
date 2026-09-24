@@ -391,6 +391,16 @@ class WebBLE(BLE):
             return connection
 
 
+# The first discovery request makes the browser walk the peer's whole GATT
+# table, which took over 2 s (nus's default) from Chrome on Windows to the P4.
+# Discovery timeouts shorter than this are raised to it.
+DISCOVERY_FLOOR_MS = 10000
+
+
+def _discovery_timeout(timeout_ms):
+    return None if timeout_ms is None else max(timeout_ms, DISCOVERY_FLOOR_MS)
+
+
 class _WebConnection(Connection):
     def __init__(self, ble, device, native):
         Connection.__init__(self, ble, device, "central")
@@ -477,6 +487,7 @@ class _WebConnection(Connection):
             return await _await(promise_fn(), what, self, timeout_ms)
 
     async def _discover_services(self, uuid, timeout_ms):
+        timeout_ms = _discovery_timeout(timeout_ms)
         server = self._server
         try:
             if uuid is None:
@@ -506,6 +517,7 @@ class _WebClientService(ClientService):
         self._native = native
 
     async def _discover_characteristics(self, uuid, timeout_ms):
+        timeout_ms = _discovery_timeout(timeout_ms)
         native = self._native
         try:
             if uuid is None:
