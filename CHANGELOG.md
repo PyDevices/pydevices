@@ -1,3 +1,10 @@
+## v0.5.3 (2026-09-24)
+
+- android.py: --deps fetches a missing package from the MIP index, or fails before staging (#71)
+- psdisplay: a mouse click lands where you click when the page shrinks the canvas (#69)
+- android.py: stage multi-file examples and pure-Python deps; --install-apk stops after installing (#68)
+- android.py: -c works with Windows adb from WSL (#67)
+
 ## v0.5.2 (2026-09-24)
 
 - Android: stop the SDLDisplay flicker; android.py fixes from the phone session (#65)
