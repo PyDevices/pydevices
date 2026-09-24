@@ -159,6 +159,24 @@ There is **no** separate `board_hardware` module.
 Lazy factories import UI-shared buses from `board_config` when needed
 (e.g. IMU on the same I2C as touch).
 
+### Hand a driver the bus, not its pins
+
+A peripheral hook gives a driver the bus object `board_config` already built.
+Where a native driver can't take the object, give it the port that bus is on.
+Never give it the SDA/SCL (or SCK/MOSI/MISO) numbers of a bus something else
+owns.
+
+A driver handed pins opens its own controller on them. Two I2C masters on one
+pair of wires don't raise an error: the new device works and the old one stops
+answering. On the Waveshare P4 panel the camera did this to the touchscreen,
+and it was reported as a slowdown somewhere else entirely
+([pydevices#22](https://github.com/PyDevices/pydevices/issues/22)).
+
+If a hook must work without `board_config` (a non-graphics app that must not
+start the display), it may open the bus itself, but on the **same port**
+`board_config` uses, once, and reuse that object after. The Waveshare P4 and
+Tab5 `board_peripherals.py` files show the shape.
+
 ### Infrastructure names (for later sharing)
 
 Rename consistently even before lazy devices exist:
