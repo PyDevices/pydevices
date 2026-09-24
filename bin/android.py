@@ -27,6 +27,7 @@ import pathlib
 import re
 import select
 import selectors
+import shutil
 import signal
 import socket
 import subprocess
@@ -98,6 +99,17 @@ def find_adb(explicit_adb: Optional[str] = None) -> Optional[str]:
     if sys.platform == "win32":
         return shutil_which("adb.exe")
     return None
+
+
+def _adb_path(adb_bin: str, path: str) -> str:
+    """Host path as the adb binary expects it (Windows form for adb.exe on WSL)."""
+    if adb_bin.lower().endswith(".exe") and is_wsl():
+        try:
+            out = subprocess.run(["wslpath", "-w", path], check=True, capture_output=True, text=True)
+            return out.stdout.strip()
+        except (OSError, subprocess.CalledProcessError):
+            pass
+    return path
 
 
 def shutil_which(cmd: str) -> Optional[str]:
@@ -195,6 +207,27 @@ class AdbClient:
         rm_cmd = f"rm -f {tmp}"
         self.run_as(package_id, f"{mkdir_cmd} && {cp_cmd}")
         self.run(["shell", rm_cmd], check=False)
+
+    def stage_files(self, package_id: str, files: List[Tuple[str, str]]):
+        """Stage many ``(host_path, dest_rel)`` pairs with one push and one copy.
+
+        One adb round trip per file made staging an example directory (~80
+        files) take over a minute from WSL.
+        """
+        if not files:
+            return
+        remote = "/data/local/tmp/pydevices-runner-stage"
+        with tempfile.TemporaryDirectory() as parent:
+            root = os.path.join(parent, "pydevices-runner-stage")
+            for host_path, dest_rel in files:
+                dest = os.path.join(root, dest_rel)
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                shutil.copyfile(host_path, dest)
+            self.run(["shell", f"rm -rf {remote}"], check=False)
+            self.run(["push", _adb_path(self.adb_bin, root), "/data/local/tmp/"], check=True)
+        self.run(["shell", f"chmod -R a+rX {remote}"], check=False)
+        self.run_as(package_id, f"mkdir -p files/app && cp -R {remote}/. files/app/")
+        self.run(["shell", f"rm -rf {remote}"], check=False)
 
     def write_app_file(self, package_id: str, dest_rel: str, content: str):
         with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
@@ -431,7 +464,7 @@ def connect_sidecar_loop(host: str, port: int, mode: str, retries: int = 80, std
     return None
 
 
-def relay_stdio(sock: socket.socket, stdin_fd: int, sel: selectors.BaseSelector) -> int:
+def relay_stdio(sock: socket.socket, stdin_fd: Optional[int], sel: selectors.BaseSelector) -> int:
     def _on_sigint(_signum, _frame):
         try:
             sock.sendall(b"\x03")
@@ -458,7 +491,9 @@ def relay_stdio(sock: socket.socket, stdin_fd: int, sel: selectors.BaseSelector)
                 elif key.fd == stdin_fd:
                     line = sys.stdin.buffer.readline()
                     if not line:
-                        return 0
+                        # Host stdin ended; keep relaying the script's output.
+                        sel.unregister(stdin_fd)
+                        continue
                     try:
                         sock.sendall(line)
                     except OSError:
@@ -663,7 +698,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.clear:
         print(f"android.py: clearing staged run/ and restoring default entry on {package_id}...", file=sys.stderr)
-        adb.run_as(package_id, "rm -rf files/app/run files/app/run_entry files/app/run_argv")
+        # A staged main.py shadows the APK's baked main.pyc (the launcher).
+        adb.run_as(package_id, "rm -rf files/app/run files/app/run_entry files/app/run_argv files/app/main.py")
         adb.force_stop(package_id)
         adb.start_activity(package_id, ACTIVITY_DEFAULT)
         return 0
@@ -691,21 +727,21 @@ def main(argv: Optional[List[str]] = None) -> int:
         stem = script_path.stem
         entry_name = stem
         adb.run_as(package_id, "rm -rf files/app/run; mkdir -p files/app/run")
-        adb.stage_file(package_id, str(script_path), f"run/{stem}.py")
-        if args.verbose:
-            print(f"android.py: staged {script_path} -> run/{stem}.py", file=sys.stderr)
+        staged = [(str(script_path), f"run/{stem}.py")]
 
         # Stage sibling files / assets if part of a directory
         parent_dir = script_path.parent
         for sibling in parent_dir.iterdir():
             if sibling.is_file() and sibling != script_path and sibling.suffix in (".py", ".json", ".txt"):
-                adb.stage_file(package_id, str(sibling), f"run/{sibling.name}")
+                staged.append((str(sibling), f"run/{sibling.name}"))
         assets_dir = parent_dir / "assets"
         if assets_dir.is_dir():
-            adb.run_as(package_id, "mkdir -p files/app/run/assets")
             for asset in assets_dir.iterdir():
                 if asset.is_file():
-                    adb.stage_file(package_id, str(asset), f"run/assets/{asset.name}")
+                    staged.append((str(asset), f"run/assets/{asset.name}"))
+        adb.stage_files(package_id, staged)
+        if args.verbose:
+            print(f"android.py: staged {script_path} -> run/{stem}.py (+{len(staged) - 1} siblings)", file=sys.stderr)
 
         _stage_companions(adb, package_id, args)
 
@@ -805,15 +841,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         sel = selectors.DefaultSelector()
         try:
             if stdin_fd is not None:
-                sel.register(stdin_fd, selectors.EVENT_READ)
+                try:
+                    sel.register(stdin_fd, selectors.EVENT_READ)
+                except (OSError, ValueError):
+                    # A regular file or /dev/null can't be polled: nothing to relay.
+                    stdin_fd = None
             sel.register(sock, selectors.EVENT_READ)
 
             if use_raw:
                 saved = saved_termios
                 saved_termios = None
                 return relay_repl_raw(sock, stdin_fd, sel, saved_termios=saved)
-            if stdin_fd is None:
-                return 1
             try:
                 sys.stdin.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
             except Exception:
