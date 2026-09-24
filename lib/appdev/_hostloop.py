@@ -126,13 +126,27 @@ def _win32_cmdline():
                 break
             out += pair
             off += 2
-        text = bytes(out).decode("utf-16-le")
+        text = _utf16le(out)
     else:
         import ctypes
 
         ctypes.windll.kernel32.GetCommandLineW.restype = ctypes.c_wchar_p
         text = ctypes.windll.kernel32.GetCommandLineW()
     return tuple(_split_cmdline(text))
+
+
+def _utf16le(data):
+    """Decode UTF-16LE by hand: MicroPython has no ``utf-16-le`` codec.
+
+    Without this, micropython.exe could never read its own command line, so
+    ``-m`` / ``-c`` / ``-i`` all went undetected there. Characters outside the
+    BMP come out as ``?``; only the ASCII flags matter here.
+    """
+    chars = []
+    for i in range(0, len(data) - 1, 2):
+        code = data[i] | (data[i + 1] << 8)
+        chars.append("?" if 0xD800 <= code <= 0xDFFF else chr(code))
+    return "".join(chars)
 
 
 def _split_cmdline(text):
