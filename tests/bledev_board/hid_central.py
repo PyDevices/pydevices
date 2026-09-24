@@ -26,10 +26,13 @@ import hid_script
 
 MICROPYTHON = sys.implementation.name == "micropython"
 CONN = {}
+FAST = False  # on a board: ask for a 7.5-15 ms connection interval
 if MICROPYTHON:
     import bledev.mpble
 
     LOG = "/hid_central.log"
+    if FAST:
+        CONN = {"min_conn_interval_us": 7500, "max_conn_interval_us": 15000}
 else:
     import bledev.bleak
 
@@ -50,6 +53,15 @@ def log(*parts):
     if LOG:
         with open(LOG, "a") as f:
             f.write(line + "\n")
+
+
+def _secrets():
+    # Size and a checksum of aioble's key store, to see whether a run added keys.
+    try:
+        data = open("ble_secrets.json", "rb").read()
+    except OSError:
+        return "none"
+    return "{} bytes, sum {}".format(len(data), sum(data))
 
 
 def stats(values):
@@ -88,6 +100,10 @@ async def main():
         connection.pair = refuse
     await host.start()
     now = time.ticks_ms() if MICROPYTHON else time.monotonic() * 1000
+    if MICROPYTHON and ENCRYPTED:
+        a = connection._aconn
+        log("security: encrypted", a.encrypted, "authenticated", a.authenticated, "bonded", a.bonded,
+            "key size", a.key_size, "secrets", _secrets())
     rmap = host.report_map
     log("connected and started in", int(now - t0), "ms; mtu", connection.mtu, "paired", host.paired,
         "map", len(rmap.descriptor), "bytes, applications", ["0x%08x" % a for a in rmap.applications],

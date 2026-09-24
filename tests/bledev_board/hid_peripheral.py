@@ -25,6 +25,7 @@ PLANT = False
 ENCRYPTED = False
 INSPECT = False  # serve under hid.INSPECT_SERVICE, for a laptop (Windows hides 0x1812)
 LATENCY_N = 200
+GAP_MS = 0  # pause after each character or step; 0 sends as fast as the radio takes it
 NAME = "bledev-hid-gate"
 LOG = "/hid_peripheral.log"
 
@@ -50,13 +51,20 @@ async def one_host(per):
     log("connected", conn, "mtu", conn.mtu)
     t, data = await per.leds(30000)
     log("host is listening (LEDs", data, "), encrypted", conn.encrypted)
+    if ENCRYPTED:
+        a = conn._aconn
+        try:
+            keys = len(open("ble_secrets.json", "rb").read())
+        except OSError:
+            keys = 0
+        log("security: bonded", a.bonded, "key size", a.key_size, "key store", keys, "bytes")
     await asyncio.sleep_ms(200)
     steps = hid_script.STEPS
     if PLANT:
         text = steps[0][1]
         steps = (("type", text[0].lower()), ("type", text[1:])) + steps[1:]
     t0 = time.ticks_ms()
-    await hid_script.perform(per, steps)
+    await hid_script.perform(per, steps, gap_ms=GAP_MS, sleep_ms=asyncio.sleep_ms)
     log("script sent in", time.ticks_diff(time.ticks_ms(), t0), "ms")
     # Let the host finish comparing, then time key presses.
     await per.leds(30000)
@@ -85,7 +93,7 @@ async def main():
         ble.enable_bonding()
     per = hid.Peripheral(ble, name=NAME, encrypted=ENCRYPTED,
                          service_uuid=hid.INSPECT_SERVICE if INSPECT else hid.HID_SERVICE)
-    log("advertising as", per.name, "appearance", hex(per.appearance), "plant", PLANT,
+    log("advertising as", per.name, "appearance", hex(per.appearance), "plant", PLANT, "gap_ms", GAP_MS,
         "encrypted", ENCRYPTED, "inspect", INSPECT, "map", len(per.report_map), "bytes")
     try:
         await one_host(per)
