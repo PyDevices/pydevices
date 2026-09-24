@@ -53,6 +53,14 @@ STDIO_PORT_DEFAULT = 18765
 RUNNER_REPO = "PyDevices/android-runner"
 DEFAULT_APK_CACHE_DIR = pathlib.Path.home() / ".pydevices" / "apk"
 DEFAULT_APK_FILENAME = "pydevices-runner-debug.apk"
+MIP_INDEX_DEFAULT = "https://pydevices.github.io/mip"
+DEFAULT_DEPS_CACHE_DIR = pathlib.Path.home() / ".pydevices" / "mip"
+# Packages the Runner APK carries: a --deps package that depends on one of
+# these gets it from the APK, never a staged copy that would shadow it.
+RUNNER_BAKED = frozenset((
+    "pydevices", "pydevices-desktop", "audiodsp", "pygraphics", "palettes",
+    "pdwidgets", "lvgl", "displaydev", "multimer", "audiodev", "appdev",
+))
 
 
 def is_wsl() -> bool:
@@ -624,7 +632,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--kit", action="store_true", help="run the entry in example_test_kit mode (run_argv=kit; stages quit_inject.py)")
     parser.add_argument("--modules", help="comma-separated example modules or packages to stage beside the entry (looked up beside the entry, then in lib/examples)")
     parser.add_argument("--manifests", help="comma-separated pydevices-examples packages/*.json manifests to stage")
-    parser.add_argument("--deps", help="comma-separated pure-Python packages installed on this computer to stage for an app that needs more than the APK bakes in")
+    parser.add_argument("--deps", help="comma-separated pure-Python packages to stage for an app that needs more than the APK bakes in (from this computer's Python if installed, else the PyDevices MIP index)")
+    parser.add_argument("--index", default=None, help=f"MIP index --deps fetches from (default: $PYDEVICES_MIP_INDEX or {MIP_INDEX_DEFAULT})")
 
     # Positional script and its arguments
     parser.add_argument("script", nargs="?", help="Python script file to execute")
@@ -690,13 +699,12 @@ def _package_files(pkg_dir: pathlib.Path, dest_prefix: str) -> List[Tuple[str, s
     return files
 
 
-def _stage_companions(adb, package_id: str, args) -> None:
+def _stage_companions(adb, package_id: str, args, deps: Optional[list] = None) -> None:
     """Stage the extra modules, manifests, and pure-Python packages named on the CLI.
 
     ``--modules`` takes example modules or packages (``name.py`` or ``name/``).
-    ``--deps`` copies a pure-Python package installed on this computer (in the
-    Python running android.py) into ``run/``, for libraries the Runner APK does
-    not bake in. Native packages cannot be staged; they must be in the APK.
+    ``deps`` is what :func:`resolve_deps` found for ``--deps``: pure-Python
+    packages the Runner APK does not bake in, copied into ``run/``.
     """
     for name in _csv(getattr(args, "modules", None)):
         staged = False
@@ -721,33 +729,115 @@ def _stage_companions(adb, package_id: str, args) -> None:
         else:
             print("android.py: warning: manifest not found: {}".format(name), file=sys.stderr)
 
-    for name in _csv(getattr(args, "deps", None)):
-        import importlib.util
+    for name, files, source in deps or ():
+        adb.stage_files(package_id, files)
+        print("android.py: staged package {} from {}".format(name, source), file=sys.stderr)
 
-        try:
-            spec = importlib.util.find_spec(name)
-        except (ImportError, ValueError):
-            spec = None
-        if spec is None or not spec.submodule_search_locations:
-            where = "is not a package" if spec is not None else "is not installed"
-            print(
-                "android.py: warning: --deps {}: {} for {} -- pip install it into "
-                "the Python you run android.py with".format(name, where, sys.executable),
-                file=sys.stderr,
-            )
-            continue
-        pkg_dir = pathlib.Path(list(spec.submodule_search_locations)[0])
-        native = [p for p in pkg_dir.rglob("*") if p.suffix in (".so", ".pyd")]
-        if native:
-            print(
-                "android.py: warning: --deps {} has native code ({}); the APK must "
-                "provide it".format(name, native[0].name),
-                file=sys.stderr,
-            )
-            continue
-        adb.stage_files(package_id, _package_files(pkg_dir, "run/" + name))
-        print("android.py: staged package {} from {}".format(name, pkg_dir), file=sys.stderr)
 
+class DepsError(Exception):
+    """A --deps package cannot be staged; the message says why and what to do."""
+
+
+def _local_package(name: str) -> Optional[pathlib.Path]:
+    """Directory of a package importable by the Python running android.py, if any."""
+    import importlib.util
+
+    try:
+        spec = importlib.util.find_spec(name)
+    except (ImportError, ValueError):
+        return None
+    if spec is None or not spec.submodule_search_locations:
+        return None
+    return pathlib.Path(list(spec.submodule_search_locations)[0])
+
+
+def _http_get(url: str, timeout: float = 30.0) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "pydevices-android.py"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _fetch_mip_package(name: str, index: str, cache_dir: pathlib.Path, get=_http_get) -> Tuple[str, List[Tuple[str, str]], list]:
+    """Download a pure-Python package from a MIP index into the cache.
+
+    Returns ``(version, [(host_path, relative_path)], deps)``. Each file is
+    checked against the short sha256 the index lists for it, and a file
+    already in the cache with the right hash is not downloaded again.
+    """
+    import hashlib
+
+    index = index.rstrip("/")
+    try:
+        meta = json.loads(get("{}/package/py/{}/latest.json".format(index, name)))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise DepsError("{} is not on the MIP index {}".format(name, index))
+        raise DepsError("cannot read {} from {}: HTTP {}".format(name, index, exc.code))
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise DepsError("cannot reach the MIP index {} for {}: {}".format(index, name, exc))
+    version = str(meta.get("version", "latest"))
+    pkg_cache = cache_dir / name / version
+    files = []
+    for rel, short in meta.get("hashes", []):
+        if rel.startswith("/") or ".." in pathlib.PurePosixPath(rel).parts:
+            raise DepsError("{} lists an unsafe path: {}".format(name, rel))
+        if rel.endswith((".so", ".pyd", ".mpy")):
+            raise DepsError("{} has a compiled file ({}); the APK must provide it".format(name, rel))
+        dest = pkg_cache / rel
+        data = dest.read_bytes() if dest.is_file() else None
+        if data is None or hashlib.sha256(data).hexdigest()[: len(short)] != short:
+            try:
+                data = get("{}/file/{}/{}".format(index, short[:2], short))
+            except (urllib.error.URLError, OSError) as exc:
+                raise DepsError("cannot download {} of {}: {}".format(rel, name, exc))
+            if hashlib.sha256(data).hexdigest()[: len(short)] != short:
+                raise DepsError("{} of {} does not match its index hash".format(rel, name))
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+        files.append((str(dest), rel))
+    if not files:
+        raise DepsError("{} {} on {} lists no files".format(name, version, index))
+    return version, files, meta.get("deps", [])
+
+
+def resolve_deps(names: List[str], index: Optional[str] = None, cache_dir: pathlib.Path = DEFAULT_DEPS_CACHE_DIR, get=_http_get) -> list:
+    """Find every --deps package on the host, before anything touches the phone.
+
+    A package importable by the Python running android.py is staged from
+    there (a developer's checkout or venv). Otherwise it is fetched from the
+    PyDevices MIP index, with its own MIP dependencies, skipping the ones the
+    Runner APK carries. Returns ``[(name, [(host, device)], source)]`` and
+    raises DepsError for any package that cannot be staged.
+    """
+    index = index or os.environ.get("PYDEVICES_MIP_INDEX") or MIP_INDEX_DEFAULT
+    resolved, seen = [], set()
+    queue = list(names)
+    while queue:
+        name = queue.pop(0)
+        if name in seen:
+            continue
+        seen.add(name)
+        pkg_dir = _local_package(name)
+        if pkg_dir is not None:
+            native = [p for p in pkg_dir.rglob("*") if p.suffix in (".so", ".pyd")]
+            if native:
+                raise DepsError(
+                    "{} has native code ({}); the Runner APK must provide it".format(name, native[0].name)
+                )
+            resolved.append((name, _package_files(pkg_dir, "run/" + name), str(pkg_dir)))
+            continue
+        version, files, deps = _fetch_mip_package(name, index, cache_dir, get=get)
+        resolved.append(
+            (name, [(host, "run/" + rel) for host, rel in files], "{} ({})".format(index, version))
+        )
+        for dep in deps:
+            dep_name = dep[0] if isinstance(dep, (list, tuple)) else str(dep)
+            if dep_name in RUNNER_BAKED:
+                continue
+            if ":" in dep_name:
+                raise DepsError("{} depends on {}, which android.py cannot fetch; stage it yourself".format(name, dep_name))
+            queue.append(dep_name)
+    return resolved
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -782,6 +872,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     if n_entry > 1:
         print("android.py: error: use only one of -c, -m, or <filename>", file=sys.stderr)
         return 1
+
+    # Find every --deps package now, so a missing one fails here on the host
+    # rather than as an ImportError on the phone.
+    deps = []
+    if args.deps:
+        try:
+            deps = resolve_deps(_csv(args.deps), index=args.index)
+        except DepsError as exc:
+            print("android.py: error: --deps {}".format(exc), file=sys.stderr)
+            print("  Nothing was staged. Check the name, your network, or pip install the package", file=sys.stderr)
+            print("  into the Python you run android.py with.", file=sys.stderr)
+            return 1
 
     adb_path = find_adb()
     if not adb_path:
@@ -856,7 +958,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.verbose:
             print(f"android.py: staged {script_path} -> run/{stem}.py (+{len(staged) - 1} siblings)", file=sys.stderr)
 
-        _stage_companions(adb, package_id, args)
+        _stage_companions(adb, package_id, args, deps)
 
         # example_test_kit mode: the entry reads run_argv == "kit" and switches to
         # a timed, self-quitting run. lv_test_timer's kit path imports quit_inject,

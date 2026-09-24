@@ -36,14 +36,15 @@ Two APKs are in play:
 
 ## Staging a script with `android.py`
 
-To run an example on your phone, you need USB debugging on, `adb` on your
-computer, and two clones side by side: this repo (for `bin/android.py`) and
-[pydevices-examples](https://github.com/PyDevices/pydevices-examples) with its
-venv set up as its README says. Then, from `pydevices-examples/lib`:
+To run an example on your phone, you need USB debugging on, `adb` and
+`python3` on your computer, and two clones side by side: this repo (for
+`bin/android.py`) and
+[pydevices-examples](https://github.com/PyDevices/pydevices-examples). No venv
+is needed. From `pydevices-examples/lib`:
 
 ```bash
-../.venv/bin/python ../../pydevices/bin/android.py --install-apk   # once
-../.venv/bin/python ../../pydevices/bin/android.py examples/piano.py
+python3 ../../pydevices/bin/android.py --install-apk   # once
+python3 ../../pydevices/bin/android.py examples/piano.py
 ```
 
 The rest of this page writes that as plain `android.py`.
@@ -60,12 +61,19 @@ android.py --clear
 
 An example that is more than one file, or needs a library the Runner does not
 carry, names them. `--modules` stages example modules or packages that sit
-beside the entry; `--deps` copies a pure-Python package from the Python you run
-`android.py` with. The drum machine needs both:
+beside the entry; `--deps` stages a pure-Python package. The drum machine
+needs both:
 
 ```bash
 android.py --modules drum_seq --deps audioinstruments examples/drum_machine/drum_machine.py
 ```
+
+`--deps` takes the package from the Python you run `android.py` with if it is
+installed there (a developer's venv or checkout), and otherwise downloads it
+from the [PyDevices MIP index](https://PyDevices.github.io/mip) into
+`~/.pydevices/mip`. A package it can't find is an error on your computer,
+before anything is copied to the phone. `--index URL` or `PYDEVICES_MIP_INDEX`
+points it at another index.
 
 The Runner carries pydevices, pydevices-desktop, audiodsp, pygraphics,
 palettes, pdwidgets and LVGL. A package with native code that is not on that
