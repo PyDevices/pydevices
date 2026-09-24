@@ -51,10 +51,15 @@ from . import (
     Scanner,
     UnsupportedError,
     UUID,
+    decode_service_data,
+    pack_advertisement,
     sleep_ms,
 )
 
+_IRQ_CENTRAL_CONNECT = 1
+_IRQ_CENTRAL_DISCONNECT = 2
 _IRQ_GATTS_WRITE = 3
+_IRQ_MTU_EXCHANGED = 21
 
 # errno values NimBLE uses when its buffers are full (ENOMEM, EAGAIN, EBUSY,
 # ENOBUFS). A send that sees one of these waits and tries again.
@@ -90,18 +95,25 @@ def _errno(e):
 
 class _Queue:
     """Stands in for aioble's one-slot deque: same three operations, but it
-    keeps ``limit`` entries and turns an overflow into an error."""
+    keeps ``limit`` entries and turns an overflow into an error.
+
+    It ignores everything until ``subscribe()`` opens it. NimBLE's server
+    notifies whether or not the central subscribed, and the contract (like
+    bleak and browsers) delivers nothing before a subscription."""
 
     def __init__(self, limit, what):
         self._items = []
         self._limit = limit
         self._what = what
         self.overrun = 0
+        self.accepting = False
 
     def __len__(self):
         return len(self._items)
 
     def append(self, item):
+        if not self.accepting:
+            return
         if len(self._items) >= self._limit:
             self.overrun += 1
         else:
@@ -143,6 +155,8 @@ class _Translate:
 # Captured characteristics by value handle, for the IRQ handler. Module-level
 # because there is one radio however many MPBLE objects wrap it.
 _captures = {}
+# MTUs exchanged before their connection existed, by connection handle.
+_early_mtu = {}
 _irq_registered = False
 _shared = None
 
@@ -159,6 +173,23 @@ def _irq(event, data):
                 _AioConnection._connected.get(conn_handle),
                 bytes(_aioble_core.ble.gatts_read(value_handle)),
             )
+    elif event == _IRQ_MTU_EXCHANGED:
+        # When a central (Windows, for one) exchanges the MTU at once,
+        # MicroPython delivers the exchange *before* the connect event, and
+        # aioble, with no connection to give it to, drops it. The link then
+        # runs at the negotiated MTU while this side believes 23, so every
+        # notification carries 20 bytes. Keep it for the connect below.
+        conn_handle, mtu = data
+        if conn_handle not in _AioConnection._connected:
+            _early_mtu[conn_handle] = mtu
+    elif event == _IRQ_CENTRAL_CONNECT:
+        conn_handle = data[0]
+        mtu = _early_mtu.pop(conn_handle, None)
+        aconn = _AioConnection._connected.get(conn_handle)
+        if mtu and aconn is not None and not aconn.mtu:
+            aconn.mtu = mtu
+    elif event == _IRQ_CENTRAL_DISCONNECT:
+        _early_mtu.pop(data[0], None)
     return None
 
 
@@ -294,14 +325,16 @@ class MPBLE(BLE):
         manufacturer=None,
         connectable=True,
         timeout_ms=None,
+        service_data=None,
     ):
+        # Packed here rather than by aioble, so the fake and the board send
+        # the same bytes, and so service data (which aioble can't pack) fits.
+        adv_data, resp_data = pack_advertisement(name, services, appearance, manufacturer, service_data)
         with _Translate("advertise"):
             aconn = await aioble.advertise(
                 interval_us,
-                name=name.encode() if isinstance(name, str) else name,
-                services=[_buuid(s) for s in services] if services else None,
-                appearance=appearance,
-                manufacturer=manufacturer,
+                adv_data=adv_data,
+                resp_data=resp_data or None,
                 connectable=connectable,
                 timeout_ms=timeout_ms,
             )
@@ -368,6 +401,7 @@ class _MPScanner(Scanner):
             services=[_uuid(u) for u in r.services()],
             manufacturer=list(r.manufacturer()),
             connectable=r.connectable,
+            service_data=decode_service_data(r.adv_data, r.resp_data),
         )
 
 
@@ -480,6 +514,10 @@ class _MPClientCharacteristic(ClientCharacteristic):
         if indicate:
             self._check(FLAG_INDICATE, "indicate")
         self._live("subscribe")
+        a = self._achar
+        for queue, on in ((getattr(a, "_notify_queue", None), notify), (getattr(a, "_indicate_queue", None), indicate)):
+            if isinstance(queue, _Queue):
+                queue.accepting = bool(on)
         with _Translate("subscribe"):
             try:
                 await self._achar.subscribe(notify, indicate)

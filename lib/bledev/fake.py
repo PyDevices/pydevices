@@ -52,6 +52,7 @@ from . import (
     Scanner,
     UnsupportedError,
     decode_advertisement,
+    decode_service_data,
     pack_advertisement,
     sleep_ms,
     wait_ms,
@@ -227,10 +228,11 @@ class FakeBLE(BLE):
         manufacturer=None,
         connectable=True,
         timeout_ms=None,
+        service_data=None,
     ):
         if not self._peripheral:
             raise UnsupportedError("this fake adapter is central only; it cannot advertise")
-        adv_data, resp_data = pack_advertisement(name, services, appearance, manufacturer)
+        adv_data, resp_data = pack_advertisement(name, services, appearance, manufacturer, service_data)
         advert = _Advert(self, adv_data, resp_data, connectable)
         self._air.adverts.append(advert)
         self._adverts.append(advert)
@@ -304,6 +306,7 @@ class _FakeScanner(Scanner):
                             appearance=appearance,
                             manufacturer=manufacturer,
                             connectable=advert.connectable,
+                            service_data=decode_service_data(*payloads),
                         )
                     )
                 await sleep_ms(SCAN_TICK_MS)

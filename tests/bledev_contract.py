@@ -46,7 +46,7 @@ from bledev import (
     UnsupportedError,
     UUID,
 )
-from bledev import fake, nus
+from bledev import fake, improv, nus, repl
 from bledev.fake import Air, FakeBLE
 
 MICROPYTHON = sys.implementation.name == "micropython"
@@ -187,6 +187,26 @@ async def advertisement_packing(air):
     equal(appearance, 0x03C1, "appearance")
     equal(manufacturer, [(0xFFFF, b"\x01\x02")], "manufacturer")
     raises_sync(ValueError, bledev.pack_advertisement, "x" * 40, [nus.SERVICE])
+    # Improv's layout: a 128-bit service and 16-bit service data fill the
+    # advertisement to exactly 31 bytes, and the name goes to the response.
+    adv, resp = bledev.pack_advertisement("imp", [nus.SERVICE], service_data=[(0x4677, b"\x02\x01\0\0\0\0")])
+    equal(len(adv), 31, "a full 31-byte advertisement")
+    equal(bledev.decode_service_data(adv), [(UUID(0x4677), b"\x02\x01\0\0\0\0")], "service data")
+    equal(bledev.decode_advertisement(resp)[0], "imp", "the name overflowed to the response")
+
+
+@check
+async def scan_reports_service_data(air):
+    board = FakeBLE(air=air)
+    laptop = FakeBLE(air=air, peripheral=False)
+    adv = asyncio.create_task(board.advertise(name="imp", services=[SVC], service_data=[(0x4677, b"\x01")]))
+    await asyncio.sleep(0)
+    async with laptop.scan(100, active=False) as scanner:
+        async for result in scanner:
+            equal(result.service_data(0x4677), [(UUID(0x4677), b"\x01")], "service_data()")
+            equal(result.service_data(0x180F), [], "service_data(other)")
+            break
+    adv.cancel()
 
 
 # ---------------------------------------------------------------- roles
@@ -580,6 +600,157 @@ async def nus_readexactly_short_stream(air):
     await asyncio.sleep(0)
     await server.close()
     await raises(DisconnectedError, client.readexactly(10))
+
+
+# ---------------------------------------------------------------- repl login
+
+
+@check
+async def repl_login_right_password(air):
+    login = repl.Login("hunter22")
+    reply, verdict, rest = login.feed(b"\r")
+    equal((reply, verdict), (repl.PROMPT, None), "an empty line asks for the prompt")
+    login.feed(b"hunt")
+    reply, verdict, rest = login.feed(b"er22\r\n1 + 1\r")
+    equal((reply, verdict, rest), (repl.BANNER, True, b"1 + 1\r"), "split password, then code")
+
+
+@check
+async def repl_login_wrong_password(air):
+    login = repl.Login("hunter22")
+    reply, verdict, rest = login.feed(b"hunter2\rimport os; os.remove('main.py')\r")
+    equal((reply, verdict, rest), (repl.DENIED, False, b""), "refused, and the code after it dropped")
+    equal(login.feed(b"hunter22\r"), (b"", False, b""), "no second attempt")
+    equal(repl.Login("hunter22").feed(b"x" * 100)[1], False, "an overlong line is refused")
+    expect(not repl._check_password(b"hunter2", b"hunter22"), "prefix")
+    expect(not repl._check_password(b"hunter222", b"hunter22"), "longer")
+    expect(repl._check_password(b"hunter22", b"hunter22"), "equal")
+
+
+# ---------------------------------------------------------------- improv
+
+
+SSID = "a-network-name-that-is-32-bytes!"
+PASSWORD = "a-password-long-enough-to-cross-several-23-byte-mtu-packets-63"
+
+
+async def improv_pair(air, **server_options):
+    board = FakeBLE(air=air)
+    laptop = FakeBLE(air=air, peripheral=False)
+    joined = []
+
+    async def join(ssid, password):
+        joined.append((ssid, password))
+        await asyncio.sleep(0)
+        return "10.0.0.5" if (ssid, password) == (SSID, PASSWORD) else None
+
+    server = improv.Server(board, "imp", join=join, **server_options)
+    task = asyncio.create_task(server.serve(timeout_ms=3000))
+    return board, laptop, server, task, joined
+
+
+@check
+async def improv_packets(air):
+    packet = improv.pack(improv.CMD_WIFI_SETTINGS, "ab", "cd")
+    equal(packet[:-1], b"\x01\x06\x02ab\x02cd", "layout")
+    equal(packet[-1], sum(packet[:-1]) & 0xFF, "checksum")
+    equal(improv.unpack(packet), (1, [b"ab", b"cd"]), "unpack")
+    bad = packet[:-1] + bytes(((packet[-1] + 1) & 0xFF,))
+    e = raises_sync(improv.ImprovError, improv.unpack, bad)
+    equal(e.code, improv.ERROR_INVALID_RPC, "bad checksum code")
+
+
+@check
+async def improv_advertises_its_state(air):
+    board, laptop, server, task, joined = await improv_pair(air)
+    async with laptop.scan(200, active=False) as scanner:
+        async for result in scanner:
+            expect(improv.SERVICE in result.services(), "service UUID in the advertisement")
+            equal(result.service_data(improv.SERVICE_DATA),
+                  [(improv.SERVICE_DATA, bytes((improv.STATE_AUTHORIZED, server.capabilities, 0, 0, 0, 0)))],
+                  "state and capabilities in the service data")
+            break
+    task.cancel()
+
+
+@check
+async def improv_provisions(air):
+    board, laptop, server, task, joined = await improv_pair(air)
+    client = await improv.Client.connect(laptop, "imp", timeout_ms=2000)
+    equal(client.connection.mtu, 23, "a small MTU, so the RPC crosses several writes")
+    info = await client.device_info(timeout_ms=2000)
+    equal(len(info), 4, "device info has four strings")
+    equal(info[3], "imp", "device name")
+    url = await client.send_wifi(SSID, PASSWORD, timeout_ms=2000)
+    equal(url, "http://10.0.0.5/", "redirect URL")
+    equal(joined, [(SSID, PASSWORD)], "the device got the credentials intact")
+    equal(await client.state(), improv.STATE_PROVISIONED, "state")
+    await client.close()
+    equal(await wait_task(task), "http://10.0.0.5/", "serve() returns the URL")
+
+
+async def wait_task(task):
+    return await asyncio.wait_for(task, 3)
+
+
+@check
+async def improv_wrong_network(air):
+    board, laptop, server, task, joined = await improv_pair(air)
+    client = await improv.Client.connect(laptop, "imp", timeout_ms=2000)
+    e = await raises(improv.ImprovError, client.send_wifi("nope", "wrong", timeout_ms=2000))
+    equal(e.code, improv.ERROR_UNABLE_TO_CONNECT, "error code")
+    equal(await client.error(), improv.ERROR_UNABLE_TO_CONNECT, "the error characteristic")
+    equal(await client.state(), improv.STATE_AUTHORIZED, "back to authorized")
+    url = await client.send_wifi(SSID, PASSWORD, timeout_ms=2000)
+    equal(url, "http://10.0.0.5/", "a second, right attempt works")
+    await client.close()
+    task.cancel()
+
+
+@check
+async def improv_needs_authorization(air):
+    board, laptop, server, task, joined = await improv_pair(air, require_authorization=True)
+    client = await improv.Client.connect(laptop, "imp", timeout_ms=2000)
+    equal(await client.state(), improv.STATE_AUTHORIZATION_REQUIRED, "starts locked")
+    e = await raises(improv.ImprovError, client.send_wifi(SSID, PASSWORD, timeout_ms=100))
+    equal(e.code, improv.ERROR_NOT_AUTHORIZED, "not authorized in time")
+    equal(joined, [], "nothing was joined")
+
+    async def press():
+        await asyncio.sleep(0.05)
+        server.authorize()
+
+    asyncio.create_task(press())
+    equal(await client.send_wifi(SSID, PASSWORD, timeout_ms=2000), "http://10.0.0.5/", "after a button press")
+    await client.close()
+    task.cancel()
+
+
+@check
+async def improv_rejects_a_bad_packet(air):
+    board, laptop, server, task, joined = await improv_pair(air)
+    client = await improv.Client.connect(laptop, "imp", timeout_ms=2000)
+    await client._command(b"\x01\x00\x00")  # checksum should be 0x01
+    for _ in range(20):
+        await asyncio.sleep(0)
+    equal(await client.error(), improv.ERROR_INVALID_RPC, "invalid RPC")
+    await client._command(improv.pack(0x7E))
+    for _ in range(20):
+        await asyncio.sleep(0)
+    equal(await client.error(), improv.ERROR_UNKNOWN_RPC, "unknown RPC")
+    await client.close()
+    task.cancel()
+
+
+@check
+async def improv_scan(air):
+    nets = [("one", -40, True), ("two", -70, False)]
+    board, laptop, server, task, joined = await improv_pair(air, scan=lambda: nets)
+    client = await improv.Client.connect(laptop, "imp", timeout_ms=2000)
+    expect(client.capabilities & improv.CAP_WIFI_SCAN, "scan capability")
+    equal(await client.scan(timeout_ms=2000), nets, "scan results")
+    await client.close()
+    task.cancel()
 
 
 # ---------------------------------------------------------------- auto
