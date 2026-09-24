@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""The board side of the browser gate: serve Nordic UART as ``bledev-gate``.
+"""The board side of the browser gate: serve Nordic UART as ``bledev-web``.
 
 The same protocol as ``tests/bledev_board/nus_server.py`` (UP, DOWN, ECHO,
 BYE), but it keeps serving, one link after another, so a browser can run the
@@ -15,6 +15,7 @@ import bledev.mpble
 import bledev.nus as nus
 
 PLANT = False  # the planted run sets this: flip one bit at offset 5000 of what we send
+NAME = "bledev-web"  # not bledev-gate: tests/bledev_board uses that name on other boards
 LOG = "/gate_server.log"
 
 
@@ -91,9 +92,9 @@ async def session(link):
 async def main():
     open(LOG, "w").close()
     ble = bledev.mpble.get()
-    log("serving as bledev-gate, plant", PLANT)
+    log("serving as", NAME, "plant", PLANT)
     while True:
-        link = await nus.serve(ble, name="bledev-gate")
+        link = await nus.serve(ble, name=NAME)
         try:
             await session(link)
         except Exception as e:

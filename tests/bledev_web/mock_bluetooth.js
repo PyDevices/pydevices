@@ -1,7 +1,7 @@
 // A stand-in for navigator.bluetooth, loaded when the page has ?mock=1.
 //
 // It plays nus_gate_server.py's part in JavaScript: one device named
-// "bledev-gate" with the Nordic UART service, answering MTU, UP, DOWN, ECHO
+// "bledev-web" with the Nordic UART service, answering MTU, UP, DOWN, ECHO
 // and BYE. It lets the gate page run headless in any browser, so the Python to
 // JavaScript plumbing is checked before a radio is involved. Like Android, it
 // cuts a write without response to the link's payload (mock_mtu - 3) without
@@ -122,7 +122,7 @@
 
   const device = new EventTarget();
   device.id = "mock-device-id";
-  device.name = "bledev-gate";
+  device.name = "bledev-web";
   device.gatt = {
     connected: false,
     device,

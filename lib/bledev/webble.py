@@ -250,6 +250,10 @@ class WebBLE(BLE):
 
     backend = "webble"
 
+    #: How many times ``connect()`` tries before a failed connection attempt
+    #: is raised. ``connect_retries`` counts the extra tries made.
+    CONNECT_ATTEMPTS = 3
+
     def __init__(self, *, services=(), mtu=DEFAULT_MTU, queue_limit=512):
         if not available():
             raise UnsupportedError(
@@ -263,6 +267,7 @@ class WebBLE(BLE):
         self._requested_mtu = DEFAULT_MTU
         self._gap_name = None
         self._connections = []
+        self.connect_retries = 0
 
     def capabilities(self):
         caps = BLE.capabilities(self)
@@ -307,7 +312,12 @@ class WebBLE(BLE):
         filters = []
         if name is not None or service is not None:
             f = {}
-            if name is not None:
+            # Chrome on Android matches a name filter only against the
+            # advertisement itself, never the scan response, and a board that
+            # advertises a 128-bit service (nus does) has its name pushed into
+            # the scan response. So with a service to filter on, filter on that
+            # alone; the chooser still shows names, and find() checks the pick.
+            if name is not None and service is None:
                 f["name"] = name
             if service is not None:
                 f["services"] = [str(UUID(service))]
@@ -327,6 +337,10 @@ class WebBLE(BLE):
 
         The chooser lists devices matching ``name`` and/or ``service`` (all
         devices if neither), and ``service`` becomes reachable once connected.
+        Given both, the chooser filters on ``service`` alone and the pick must
+        carry ``name``, because Chrome on Android can't match a name that
+        only a scan response carries. A name-only ``find()`` works there only
+        if the board's name fits in its advertisement.
         Call it from a click or a tap: the browser refuses otherwise.
         ``timeout_ms`` doesn't apply, because a person is choosing. Closing
         the chooser without choosing raises :class:`BLETimeoutError`, as a
@@ -349,21 +363,32 @@ class WebBLE(BLE):
                 raise
             raise err
         dev_name = native.name
-        return Device(
-            self,
-            str(native.id),
-            name=None if _h().isNull(dev_name) else str(dev_name),
-            native=native,
-        )
+        dev_name = None if _h().isNull(dev_name) else str(dev_name)
+        if name is not None and service is not None and dev_name != name:
+            raise BLEError("the chooser returned {!r}, not {!r}".format(dev_name, name))
+        return Device(self, str(native.id), name=dev_name, native=native)
 
     async def _connect(self, device, timeout_ms, **options):
         native = device.native
         if native is None:
             raise BLEError("a browser can only connect to a device its chooser returned")
-        connection = _WebConnection(self, device, native)
-        await connection._open(timeout_ms)
-        self._connections.append(connection)
-        return connection
+        # A first connection attempt often fails at the link layer on Android
+        # (status 133, HCI 0x3E "failed to be established"); measured on the
+        # P4 through its C6 it was about half of them, and the next attempt
+        # usually works. So try again, up to CONNECT_ATTEMPTS in all.
+        attempt = 0
+        while True:
+            attempt += 1
+            connection = _WebConnection(self, device, native)
+            try:
+                await connection._open(timeout_ms)
+            except GattError as e:
+                if attempt >= self.CONNECT_ATTEMPTS or "Connection attempt failed" not in str(e):
+                    raise
+                self.connect_retries += 1
+                continue
+            self._connections.append(connection)
+            return connection
 
 
 class _WebConnection(Connection):

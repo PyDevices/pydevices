@@ -5,7 +5,7 @@ window.gateParams = {
   runtime: document.documentElement.dataset.runtime,
   plant: q.get("plant") === "1" ? 1 : 0,
   mtu: parseInt(q.get("mtu") || "23", 10),
-  name: q.get("name") || "bledev-gate",
+  name: q.get("name") || "bledev-web",
   mock: q.get("mock") === "1" ? 1 : 0,
 };
 

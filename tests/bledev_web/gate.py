@@ -73,14 +73,16 @@ async def gate():
     p = params()
     plant = bool(p.get("plant"))
     mtu = int(p.get("mtu") or 23)
-    name = p.get("name") or "bledev-gate"
+    name = p.get("name") or "bledev-web"
+    if name == "any":
+        name = None  # filter on the Nordic UART service alone
     log("GATE start runtime", p.get("runtime"), sys.implementation.name, sys.version.split()[0],
         "plant", plant, "mtu", mtu)
     ble = webble.WebBLE(mtu=mtu)
     t0 = now_ms()
     link = await nus.connect(ble, name=name)
     log("connected in", since(t0), "ms (chooser included), page mtu", link.connection.mtu,
-        "device", link.connection.device)
+        "device", link.connection.device, "connect retries", ble.connect_retries)
     ok = True
     try:
         await link.write(b"MTU\n")
@@ -117,10 +119,27 @@ async def gate():
         await link.write("ECHO {}\n".format(N).encode())
         data = pattern(N, 3)
         t0 = now_ms()
-        sender = asyncio.create_task(link.write(data))
-        got = await asyncio.wait_for(link.readexactly(N), 180)
+        failed = []
+
+        async def send():
+            try:
+                await link.write(data)
+            except Exception as e:
+                failed.append(e)
+                log("ECHO send failed after", link.bytes_out, "bytes out:", type(e).__name__, e)
+                await link.close()
+
+        sender = asyncio.create_task(send())
+        try:
+            got = await asyncio.wait_for(link.readexactly(N), 180)
+        except asyncio.TimeoutError:
+            log("ECHO stalled: sent", link.bytes_out, "bytes in all, received", link.bytes_in,
+                "(", len(link._buf), "of", N, "echo bytes buffered )")
+            raise
         ms = since(t0)
         await sender
+        if failed:
+            raise failed[0]
         bad, first = compare(got, data)
         verdict = "OK" if bad == 0 and len(got) == N else "BAD"
         log("ECHO", verdict, len(got), "bytes round trip in", ms, "ms =", kbps(N, ms),
