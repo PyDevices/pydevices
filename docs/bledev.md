@@ -223,6 +223,62 @@ boot is up to you: pass `on_join=lambda ssid, password, ip: ...` to `serve()`.
 (from a button, say) before it accepts credentials. The credentials cross the
 air unencrypted; that's the standard.
 
+## Keyboards and gamepads (HID)
+
+`bledev.hid` turns a BLE keyboard, media remote or game controller into the
+same `events` a USB keyboard gives you through usbif, or SDL gives you on the
+desktop: `events.Key` with `keys.K_*` codes and modifiers, and
+`events.JoyAxisMotion`, `JoyHatMotion`, `JoyButtonDown` and `JoyButtonUp`.
+Your app can't tell which one it's talking to.
+
+```python
+import bledev.hid as hid
+
+host = await hid.connect(ble, name="Keyboard K380")   # or no name: any HID device
+while True:
+    for event in await host.events():                 # waits for at least one
+        print(event)
+```
+
+`host.poll()` returns whatever has arrived without waiting, the way usbif's
+`poll()` does, so it fits a frame loop. Media keys arrive as `Key` events
+too (`keys.K_VOLUMEUP`, `K_AUDIOPLAY`). Axes run from -1.0 to 1.0 and are
+numbered X, Y, Z, Rx, Ry, Rz, then triggers; buttons count from 0; a hat is
+an `(x, y)` tuple with y up.
+
+A keyboard that wants an encrypted link gets one: the first read it refuses
+pairs the link ("just works", no passkey) and tries again. On a board, call
+`ble.enable_bonding()` once before connecting so the keys are kept, and the
+next connect doesn't pair from scratch. The keys live in `ble_secrets.json`
+on the board's filesystem, so erasing the board forgets them, and a keyboard
+that remembers the board may then need putting back into pairing mode.
+
+**A board can be the keyboard, too.** It advertises as a keyboard, media
+remote and gamepad (or any one or two of them) and sends what you tell it:
+
+```python
+kb = hid.Peripheral(ble)                  # keyboard=True, consumer=True, gamepad=True
+await kb.serve()                          # returns when a host connects
+await kb.keyboard.type("Hello\n")         # US layout
+await kb.keyboard.tap(0x06, hid.MOD_LCTRL)   # Ctrl+C
+await kb.consumer.tap(hid.VOLUME_UP)
+await kb.gamepad.send(axes=(0, 127, 0, 0), buttons=0b101, hat=2)
+```
+
+Its name, appearance and Report Map come from which functions you ask for,
+the same way every time, because hosts cache a device against its identity.
+Pass `encrypted=True` to make hosts pair first, as real keyboards do.
+
+**Don't pair a test board with the computer you're testing from.** Once
+paired, Windows and phones use it as a real keyboard, and it types into
+them.
+
+The parser underneath, `bledev.hidreport`, knows nothing about Bluetooth.
+Give it any HID report descriptor and it decodes that device's reports, so a
+USB host can use it the same way. How it numbers axes, what it does with a
+rollover, and what a board central can't read are in
+[bledev-internals.md](bledev-internals.md#how-hid-gets-there).
+
 ## The rules every backend keeps
 
 These hold on every backend. The fake enforces the strict version of each, so

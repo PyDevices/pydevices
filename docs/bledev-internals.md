@@ -19,6 +19,8 @@ standalone module per backend, and an optional selector.
 | `nus.py` | Nordic UART byte stream, built only on the contract. |
 | `repl.py` | The REPL over nus: MicroPython's raw `bluetooth` API from the IRQ on the board, `nus` on the client. |
 | `improv.py` | Improv Wi-Fi setup, both sides, built only on the contract. |
+| `hidreport.py` | HID report descriptors and reports to `events`. No Bluetooth in it. |
+| `hid.py` | HID over GATT, host and device, built on the contract and `hidreport`. |
 | `auto.py` | Picks a backend. Nothing imports it, and backends must not. |
 
 A backend module imports `bledev` and whatever its host provides, and nothing
@@ -71,6 +73,13 @@ returning a list of your `ClientService` in handle order.
 
 **`ClientService`**: `_discover_characteristics(uuid, timeout_ms)`, a list of
 your `ClientCharacteristic` in handle order.
+
+**Pairing and descriptors** (for HID): `Connection.encrypted` and
+`Connection.pair(bond, timeout_ms)`; `ClientCharacteristic._discover_descriptors(uuid, timeout_ms)`
+returning your `ClientDescriptor`s, whose `read()` you fill in; and on the
+server, each `Characteristic`'s `descriptors` (fixed values) and `encrypted`
+flag. Report `long_read` in `capabilities()`: False if a read returns only
+one packet. A backend without pairing leaves the base's `UnsupportedError`.
 
 **`ClientCharacteristic`**: `read`, `write`, `subscribe`, `notified`,
 `indicated`. `self._want_response(response)` resolves `response=None` and
@@ -209,6 +218,57 @@ without using up the attempt.
 The ESP32 has one dupterm slot. The REPL takes it on login and gives back
 whatever held it (WebREPL, say) on disconnect.
 
+## How HID gets there
+
+`bledev.hid` is two halves over one parser. `bledev.hidreport` reads a report
+descriptor into `Report`s of `Field`s (bit offset, size, count, flags,
+usages, logical range) and a `Decoder` diffs successive input reports into
+events. It imports `events` and `keys` and nothing from Bluetooth.
+
+**The keyboard decoder is usbif's, event for event.** Same order (modifier
+releases, key releases, key presses, modifier presses, the new modifier mask
+on all of them), same fields (`scancode` is the HID usage, `window` is
+`None`), same rollover rule. `tests/test_bledev_hid.py` feeds 3,000 random
+boot reports through both decoders when usbif's checkout is beside this one,
+and they must agree. It found one difference on its first run: the ISO "# ~"
+key (usage 0x32), which SDL calls `#` and usbif leaves unmapped. hidreport
+now leaves it unmapped too; the two tables should become one.
+
+**Axes, hats and buttons** come only from joystick, gamepad and multi-axis
+collections, so a mouse's X, Y and buttons produce nothing yet. Axes are
+numbered by usage (desktop X to wheel, then the simulation page), so an Xbox
+controller's sticks are 0 to 3 and its triggers 4 and 5. Every axis starts
+at 0.0 and moves only when its value changes, as SDL's do.
+
+**Descriptors, encryption and pairing** were added to the contract for HID.
+A Report characteristic says which report it carries in its Report Reference
+descriptor (0x2908), and HOGP gives the report ID nowhere else, so the host
+needs `ClientCharacteristic.descriptor()`. A `Characteristic` can be
+`encrypted=True`, and `Connection.pair()` encrypts a link. The host pairs
+only after a read fails with insufficient encryption or authentication,
+which is how a real keyboard asks. mpble pairs through aioble's security
+module ("just works", `io=3`); `ble.enable_bonding()` loads aioble's
+`ble_secrets.json` and turns bonding on, and it has to run on both sides,
+because the side that didn't start pairing stores keys too.
+
+**MicroPython has no long read.** `gattc_read()` is one ATT Read, so a board
+central gets at most `mtu - 1` bytes of any value. The host exchanges the MTU
+up to 247 before reading the Report Map (246 bytes fit), and a map that fails
+to parse at that length raises an error that says why. Our own map is 150
+bytes; an Xbox Series controller's is 283, so a board can't host one until
+MicroPython grows a long read. bleak reads long values itself, and the
+fake's `long_reads=False` models the board.
+
+**The peripheral's identity comes from its functions.** Name, appearance and
+PnP product ID are derived from which of keyboard, consumer control and
+gamepad it serves, so a host that cached one set never sees another set
+under the same identity. The PnP vendor is the Bluetooth SIG's test company
+ID (0xFFFF), because we have no vendor ID of our own.
+
+The host writes the keyboard's LED report once it has subscribed, as Windows
+does. `Peripheral.leds()` returns those writes, which is how the gate knows
+the host is listening, and how it times a round trip.
+
 ## The checks
 
 **Against the fake**, on both interpreters: `tests/bledev_contract.py`.
@@ -236,6 +296,8 @@ The serving scripts have a `PLANT` switch, and a planted run must fail:
 | `repl_server.py` + `repl_client.py` | The REPL: the right password evaluates `123 * 456`, a wrong one sent with code that would create `/pwned` is refused and hung up on and the code never runs, and Ctrl-C stops `while True`. `repl_server.py` runs from `/main.py`, because mpftp soft-resets the board, which turns Bluetooth off |
 | `improv_server.py` + `improv_client.py` | Improv: `--wrong` must get "unable to connect" and a return to "authorized"; without it, on a board, the network comes from that board's own `secrets.py` and must end "provisioned" with a URL |
 | `coex_server.py` + `tcp_pull.py` + `nus_client.py` | Wi-Fi and BLE on one S3: a TCP source on Wi-Fi beside the nus gate |
+| `hid_peripheral.py` + `hid_central.py` | HID: the device types `hid_script.py`'s text, chords, media keys and gamepad moves; the host's events must equal `hid_script.expected()` and spell the text. Then key-press round trips. `PLANT` drops one Shift. The host also runs on a laptop, where it refuses to pair |
+| `bless_peripheral.py` + `bless_probe.py` | The laptop as a peripheral, through bless, probed by a board |
 
 `gatt_peripheral.py` is also the peripheral to point a host backend at: it
 advertises as `bledev-radio`, and a central steers it by writing commands.
