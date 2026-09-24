@@ -190,9 +190,26 @@ with `gap_advertise`, and does everything else from an IRQ handler it adds to
 aioble's dispatcher (or sets itself, with no aioble). `os.dupterm` reads a
 `_Stream` whose `readinto` returns `None` when empty, because 0 means end of
 stream and detaches it. Output goes out as notifications of `mtu - 3` bytes,
-and what the controller can't take yet is retried from a one-shot soft timer.
-A program printing faster than the link carries waits in `write()` up to two
-seconds, then drops the excess, because `print()` can't fail.
+and what the controller can't take yet is retried every 5 ms by one periodic
+`machine.Timer`. A program printing faster than the link carries waits in
+`write()` up to two seconds, then drops the excess, because `print()` can't
+fail.
+
+Two ways that retry went wrong, both found by printing a 16,890-character
+list over the link (the REPL gate now does this):
+
+- **A doubled chunk and a lost one.** The timer's callback runs between the
+  main program's bytecodes, so it could land inside a `flush()` that
+  `print()` had started: both sent the same chunk, then both trimmed it, and
+  the next chunk never went out. Five prints out of five came back corrupt.
+  `flush()` now returns at once if it's already running.
+- **A panic.** The retry used to be a one-shot timer re-armed on every write.
+  On the esp32, `Timer.init()` on a virtual timer whose alarm is being
+  dispatched clears its handler first, so `esp_timer`'s task on the other
+  core calls a NULL function (`InstrFetchProhibited` in
+  `timer_process_alarm`). It took the board down twice in about 45 long
+  prints. The timer is now started once and never re-armed; 60 long prints
+  afterwards, no panic and every byte intact.
 
 Ctrl-C works because the IRQ calls `os.dupterm_notify()` whenever a write
 contains 0x03; dupterm then reads it and raises `KeyboardInterrupt`, even in
