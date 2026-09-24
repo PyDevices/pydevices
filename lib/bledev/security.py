@@ -543,12 +543,20 @@ def display_passkey(display=None):
         if display is not None and box:
             x, y, w, h = box.pop()
             try:
-                display.fill_rect(x, y, w, h, 0)
-                _refresh(display)
+                for _ in _buffers(display):
+                    display.fill_rect(x, y, w, h, 0)
+                    _refresh(display)
             except Exception as e:
                 sys.print_exception(e)
 
     return show, hide
+
+
+def _buffers(display):
+    # A double-buffered panel (the LCD-7's dot-clock framebuffer) swaps its
+    # two buffers on every refresh, so whatever is drawn once lives in only
+    # one of them and the next refresh, anyone's, loses it. Draw twice.
+    return (0, 1) if getattr(display, "needs_refresh", False) else (0,)
 
 
 def _refresh(display):
@@ -569,11 +577,12 @@ def _draw(display, digits, title="Bluetooth passkey"):
     bh = 8 * small + 8 * big + 6 * big
     x = (w - bw) // 2
     y = (h - bh) // 2
-    display.fill_rect(x, y, bw, bh, 0)
     white = 0xFFFF
-    _text(display, framebuf, title, (w - len(title) * 8 * small) // 2, y + 2 * big, small, white)
-    _text(display, framebuf, digits, (w - len(digits) * 8 * big) // 2, y + 8 * small + 4 * big, big, white)
-    _refresh(display)
+    for _ in _buffers(display):
+        display.fill_rect(x, y, bw, bh, 0)
+        _text(display, framebuf, title, (w - len(title) * 8 * small) // 2, y + 2 * big, small, white)
+        _text(display, framebuf, digits, (w - len(digits) * 8 * big) // 2, y + 8 * small + 4 * big, big, white)
+        _refresh(display)
     return x, y, bw, bh
 
 
