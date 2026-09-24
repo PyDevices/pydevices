@@ -86,5 +86,56 @@ class TestAndroidCli(unittest.TestCase):
         self.assertTrue(str(mgr.cache_dir).endswith("apk"))
 
 
+class TestStageCompanions(unittest.TestCase):
+    """--modules finds packages beside the entry; --deps stages pure-Python packages only."""
+
+    def _tree(self, root):
+        ex = pathlib.Path(root) / "examples"
+        (ex / "drum_machine").mkdir(parents=True)
+        (ex / "drum_machine" / "drum_machine.py").write_text("")
+        (ex / "drum_seq" / "__pycache__").mkdir(parents=True)
+        (ex / "drum_seq" / "__init__.py").write_text("")
+        (ex / "drum_seq" / "panel.py").write_text("")
+        (ex / "drum_seq" / "__pycache__" / "panel.cpython-312.pyc").write_text("")
+        site = pathlib.Path(root) / "site"
+        (site / "purepkg" / "sub").mkdir(parents=True)
+        (site / "purepkg" / "__init__.py").write_text("")
+        (site / "purepkg" / "sub" / "x.py").write_text("")
+        (site / "nativepkg").mkdir()
+        (site / "nativepkg" / "__init__.py").write_text("")
+        (site / "nativepkg" / "_c.so").write_text("")
+        return ex, site
+
+    def test_modules_package_and_pure_deps(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as root:
+            ex, site = self._tree(root)
+            args = android_cli.build_arg_parser().parse_args(
+                ["--modules", "drum_seq", "--deps", "purepkg,nativepkg,missingpkg",
+                 str(ex / "drum_machine" / "drum_machine.py")]
+            )
+            adb = MagicMock()
+            sys.path.insert(0, str(site))
+            try:
+                with patch("sys.stderr"):
+                    android_cli._stage_companions(adb, "org.pydevices.runner", args)
+            finally:
+                sys.path.remove(str(site))
+                for name in ("purepkg", "nativepkg"):
+                    sys.modules.pop(name, None)
+            staged = [dest for call in adb.stage_files.call_args_list for _, dest in call.args[1]]
+            self.assertEqual(
+                sorted(staged),
+                ["run/drum_seq/__init__.py", "run/drum_seq/panel.py",
+                 "run/purepkg/__init__.py", "run/purepkg/sub/x.py"],
+            )
+
+    def test_options_after_script_go_to_the_script(self):
+        args = android_cli.build_arg_parser().parse_args(["entry.py", "--modules", "x"])
+        self.assertIsNone(args.modules)
+        self.assertEqual(args.script_args, ["--modules", "x"])
+
+
 if __name__ == "__main__":
     unittest.main()
