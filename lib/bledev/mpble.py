@@ -271,6 +271,12 @@ class MPBLE(BLE):
                 c._impl = _MPServerCharacteristic(self, c, achar)
             aservices.append(aservice)
         aioble.register_services(*aservices)
+        # aioble writes the initial value and then sizes the buffer, which
+        # empties it again; write it once more now the buffer is final.
+        for service in services:
+            for c in service.characteristics:
+                if c._initial is not None:
+                    c._impl._achar.write(c._initial)
         self._services = tuple(services)
         _captures.clear()
         for service in services:
@@ -394,6 +400,9 @@ class _MPConnection(Connection):
         with _Translate("service discovery"):
             async for aservice in self._aconn.services(None if uuid is None else _buuid(uuid), timeout_ms):
                 found.append(_MPClientService(self, aservice))
+        # aioble yields results in whatever order its IRQs and its task
+        # interleave; the contract promises the server's order.
+        found.sort(key=lambda s: s._aservice._start_handle)
         return found
 
 
@@ -407,6 +416,7 @@ class _MPClientService(ClientService):
         with _Translate("characteristic discovery"):
             async for achar in self._aservice.characteristics(None if uuid is None else _buuid(uuid), timeout_ms):
                 found.append(_MPClientCharacteristic(self, achar))
+        found.sort(key=lambda c: c._achar._value_handle)
         return found
 
 
@@ -423,16 +433,22 @@ class _MPClientCharacteristic(ClientCharacteristic):
         # notified() are queued rather than ignored.
         achar._register_with_connection()
 
+    def _live(self, what):
+        # aioble hands a dead connection's None handle to the radio, which
+        # raises TypeError; say what actually happened.
+        if not self.connection.is_connected():
+            raise DisconnectedError("{}: not connected".format(what))
+
     async def read(self, timeout_ms=1000):
         self._check(FLAG_READ, "read")
+        self._live("read")
         with _Translate("read"):
             return bytes(await self._achar.read(timeout_ms))
 
     async def write(self, data, response=None, timeout_ms=1000):
         data = bytes(data)
         response = self._want_response(response)
-        if not self.connection.is_connected():
-            raise DisconnectedError("write: not connected")
+        self._live("write")
         if len(data) > self.connection.mtu - 3:
             raise BLEError(
                 "write of {} bytes exceeds the ATT payload of {} (mtu {} - 3)".format(
@@ -463,6 +479,7 @@ class _MPClientCharacteristic(ClientCharacteristic):
             self._check(FLAG_NOTIFY, "notify")
         if indicate:
             self._check(FLAG_INDICATE, "indicate")
+        self._live("subscribe")
         with _Translate("subscribe"):
             try:
                 await self._achar.subscribe(notify, indicate)
