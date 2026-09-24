@@ -372,7 +372,7 @@ character.
 | LCD-7 (S3) | T-Embed (S3) | PASS, 112/112 | FAIL, event 0 | PASS | 69 / 119 ms | 29 / 49 ms |
 | T-Embed (S3) | LCD-7 (S3) | PASS | FAIL, event 0 | PASS | 68 / 118 ms | 30 / 69 ms |
 | P4 | LCD-7 (S3) | PASS | FAIL, event 0 | PASS | 70 / 220 ms | 30 / 80 ms |
-| LCD-7 (S3) | P4 | PASS 2 of 3 | FAIL, event 0 | FAIL 6 of 6 | 68 / 178 ms | 29 / 69 ms |
+| LCD-7 (S3) | P4 | PASS 2 of 5 | FAIL, event 0 | FAIL 6 of 6 | 68 / 178 ms | 29 / 69 ms |
 | P4, vendor UUID | laptop (bleak) | PASS | FAIL, event 0 | PASS | 90 / 270 ms | 60 / 90 ms |
 
 The round trip is a key press on the device to the host's LED write arriving
