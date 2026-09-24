@@ -302,6 +302,8 @@ rack`, or Settings > Bluetooth > Remove device), then pair again. A phone is the
 same: forget the device, then pair.
 
 A board's name, and the services it serves, follow from what you start: the
+name you pass is both the advertised name and the one a paired computer lists
+(the GAP name, which was MicroPython's "MPY ESP32" before), and the
 same `console` and `files` give the same table every time, whatever the lock,
 because hosts cache a paired device's table. Serving something else on the same
 board (HID, say) changes it under the same address, and MicroPython doesn't tell

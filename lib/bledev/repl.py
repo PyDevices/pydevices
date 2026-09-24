@@ -313,6 +313,12 @@ class _Server:
             ble.config(mtu=nus.MTU)
         except Exception:
             pass
+        try:
+            # The name hosts show for a paired board (Windows' Settings list)
+            # is the GAP name, not the advertised one: make them the same.
+            ble.config(gap_name=self.name)
+        except Exception:
+            pass
         # With pairing, the stack itself refuses the protected characteristics
         # to a link that isn't encrypted (or, for a passkey, authenticated),
         # before anything here sees the request.
