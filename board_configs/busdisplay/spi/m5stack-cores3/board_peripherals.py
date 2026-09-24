@@ -4,8 +4,10 @@ import sys
 
 PERIPHERALS = frozenset(
     {
-        "audio_in",
         "audio_out",
+        "pcm_out",
+        "pcm_in",
+        "audio_power",
         "sdcard",
         "camera",
         "accelerometer",
@@ -15,6 +17,10 @@ PERIPHERALS = frozenset(
         "ble",
     }
 )
+
+# Audio roles are factories: first attribute access must not construct, so a
+# caller can pass a format. See boarddev.bind_lazy.
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in", "audio_power"})
 
 from audiodev import (
     AudioCapability,
@@ -45,6 +51,7 @@ _I2C_PORT = 0
 _I2C_SDA = 12
 _I2C_SCL = 11
 _i2c_own = None
+_out_codec = None
 _IBUF = 20000
 _MIN_IBUF = 4096
 
@@ -166,12 +173,10 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
     """
     from machine import I2S, Pin
 
-    from aw88298 import AW88298
-
     from audiodev import pace_output
 
     wire, source = negotiate(AUDIO_OUT, format)
-    codec = AW88298(_i2c_bus(), sample_rate=wire.rate, enable_aw9523=True)
+    codec = _output_codec()
     ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
 
     def stream():
@@ -190,6 +195,17 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
     device = I2SPCMOutput(
         stream, wire, session=_SESSION, codec=codec,
         set_hardware_mute=codec.mute, power=codec.enable_output,
+        # For a consumer that drives the peripheral in C: the pin map, and a
+        # way to bring the amp up without opening a stream. On a firmware
+        # carrying ``audiopump``, audiodev's sample player uses both and never
+        # opens ``machine.I2S`` on this port -- the pump's own I2S channel is
+        # the only owner. On a firmware without it these two are inert.
+        # Without them this board plays every sample on machine.I2S and the
+        # pump sits idle (PyDevices/pydevices#41).
+        # PUMP WIRING UNVERIFIED ON HARDWARE (2026-09-23): copied from the
+        # Waveshare P4 / T-Embed pattern; nobody here has a CoreS3.
+        wire=AUDIO_OUT.wire,
+        audio_power=_audio_power,
     )
     if source is not wire:
         from audiodev.accel import best_remix
@@ -210,9 +226,37 @@ def _audio_out(format=None, **kwargs):
     return AudioOut(_pcm_out(format, **kwargs), **pump)
 
 
+def _output_codec():
+    """The one AW88298 instance, shared by the transport and the pump.
+
+    Its I2S sample-rate register is written once, at construction, for
+    ``_RATE`` -- the only rate this board declares.
+    """
+    global _out_codec
+    if _out_codec is None:
+        from aw88298 import AW88298
+
+        _out_codec = AW88298(_i2c_bus(), sample_rate=_RATE, enable_aw9523=True)
+    return _out_codec
+
+
+def _audio_power(enable=True, *, volume=None):
+    """Bring the amp up or down WITHOUT opening an I2S stream.
+
+    The audio pump's ``BusioDriver`` calls this before it opens its own I2S
+    channel and again when it closes it. The AW88298 clocks from BCLK (no
+    MCLK on this wire) and has no volume register this driver sets, so
+    ``volume=`` is accepted and ignored. ``enable_output`` also switches the
+    speaker path on the AW9523 expander.
+    """
+    _output_codec().enable_output(bool(enable))
+    return enable
+
+
 pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
 pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
 audio_out = AudioFactory(_audio_out, AUDIO_OUT)
+audio_power = _audio_power
 
 
 def sdcard():
