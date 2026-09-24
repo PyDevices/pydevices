@@ -15,7 +15,10 @@ standalone module per backend, and an optional selector.
 | `__init__.py` | The contract: `UUID`, the errors, `FLAG_*`, advertising pack/unpack, and the base classes below. Imports no backend. |
 | `fake.py` | In-process loopback. The reference implementation of every hook. |
 | `mpble.py` | MicroPython, over aioble. |
+| `bleak.py` | CPython on Windows, Linux and macOS, over bleak. Central only. |
 | `nus.py` | Nordic UART byte stream, built only on the contract. |
+| `repl.py` | The REPL over nus: MicroPython's raw `bluetooth` API from the IRQ on the board, `nus` on the client. |
+| `improv.py` | Improv Wi-Fi setup, both sides, built only on the contract. |
 | `auto.py` | Picks a backend. Nothing imports it, and backends must not. |
 
 A backend module imports `bledev` and whatever its host provides, and nothing
@@ -123,6 +126,89 @@ returns `None` when cancelled, and mpble turns that back into
 aioble owns the one `bluetooth.BLE()` and its IRQ, so `mpble.get()` shares
 one adapter, and the capture handler is registered once per boot.
 
+The laptop found two more (2026-09-24):
+
+- **Notifications before a subscription.** NimBLE's server notifies whether
+  or not the central wrote the CCCD, and mpble registered its queue at
+  discovery, so a board central received what a laptop never would. mpble's
+  queues now ignore everything until `subscribe()` opens them. The over-the-air
+  check "nothing arrives before subscribe()" failed on the old code.
+- **An MTU exchange before the connection.** Windows exchanges the MTU the
+  moment it connects, and MicroPython 1.29 on the S3 delivers
+  `_IRQ_MTU_EXCHANGED` *before* `_IRQ_CENTRAL_CONNECT` (seen every time,
+  instrumented in the IRQ). aioble has no connection to give it to and drops
+  it, so the board believed the MTU was 23 while the link ran at 247, and
+  every notification to a Windows central carried 20 bytes. mpble's IRQ keeps
+  the early value and applies it on the connect. Laptop downstream went from
+  19 to 49 KB/s. Upstream's own order is worth an issue; the board-to-board
+  case never showed it because the central there asks for the MTU after
+  connecting.
+
+**Code that uses the raw API.** A board config's `ble` is now an `MPBLE`,
+and `MPBLE.__getattr__` hands every name it doesn't define to the raw
+`bluetooth.BLE`, so `ble.active()` or `ble.gap_advertise()` still work.
+`irq(handler)` is the exception: it runs the handler from mpble's IRQ rather
+than replacing aioble's. Raw advertising trips aioble in two places, both
+handled in mpble. aioble's peripheral IRQ calls `_connect_event.set()` on every
+incoming connection and raised `AttributeError` when `aioble.advertise()` had
+never run, which stopped the IRQ reaching anyone after it; mpble gives it a
+flag at startup. And aioble records that connection but never forgets it,
+because the task that would is started by its own `advertise()`; mpble forgets
+it on the disconnect. Checked on the T-Embed: raw service, raw advertising,
+a user IRQ that saw the connect and disconnect, a laptop read, then `nus` on
+the same adapter.
+
+## How bleak gets there
+
+bleak hands each notification to a callback on the event loop. The backend
+queues it per characteristic (`queue_limit`, an overflow raises) in
+`_BleakClientCharacteristic._received`, and routes it to `indicated()` only
+when you subscribed with `indicate=True` alone, because bleak can't tell the
+two apart. On Windows that subscription passes `force_indicate`.
+
+The OS negotiates the MTU itself. `exchange_mtu()` waits up to a second for
+the value to move off 23 and returns it; against `gatt_peripheral.py`, which
+asks for 185, Windows settles on 185. BlueZ always reports 23 through bleak,
+so the backend also takes the largest write-without-response size it saw in
+discovery, plus three.
+
+`connect(priority="throughput")`, or an interval of 15 ms or less (what
+`nus.connect()` passes on a board), calls WinRT's
+`RequestPreferredConnectionParameters(ThroughputOptimized)` through bleak's
+private `_backend._requester`, as the P4 measurements did. On the S3 it made
+no difference to nus throughput.
+
+After a disconnect bleak sets `client.services` to `None`, so every client call
+checks the connection first and raises `DisconnectedError`.
+
+## How the REPL gets there
+
+The REPL has to work when nothing runs asyncio, at the `>>>` prompt, so the
+board side doesn't use bledev's adapter at all. It registers the Nordic UART
+service with the raw API (the RX buffer in append mode, 1 KB), advertises
+with `gap_advertise`, and does everything else from an IRQ handler it adds to
+aioble's dispatcher (or sets itself, with no aioble). `os.dupterm` reads a
+`_Stream` whose `readinto` returns `None` when empty, because 0 means end of
+stream and detaches it. Output goes out as notifications of `mtu - 3` bytes,
+and what the controller can't take yet is retried from a one-shot soft timer.
+A program printing faster than the link carries waits in `write()` up to two
+seconds, then drops the excess, because `print()` can't fail.
+
+Ctrl-C works because the IRQ calls `os.dupterm_notify()` whenever a write
+contains 0x03; dupterm then reads it and raises `KeyboardInterrupt`, even in
+a loop that never reads stdin. It only does that for 0x03: notifying on every
+write would push pasted input through the 260-byte stdin ring, which drops what
+doesn't fit.
+
+The password stage is `repl.Login`, pure and checked on both interpreters.
+Nothing reaches dupterm until the password line matches, and anything sent
+after a wrong one is dropped. The prompt goes out at connect, but a client
+that subscribes after connecting misses it, so an empty line asks for it again
+without using up the attempt.
+
+The ESP32 has one dupterm slot. The REPL takes it on login and gives back
+whatever held it (WebREPL, say) on disconnect.
+
 ## The checks
 
 **Against the fake**, on both interpreters: `tests/bledev_contract.py`.
@@ -134,14 +220,22 @@ must fail the contract; if you change the fake, keep that true.
 
 **Over a real radio**, `tests/bledev_board/`. Run the serving script with
 `mpftp run` on one board and the other with `mpftp probe --capture` on a
-second. `gatt_peripheral.py`, `nus_server.py` and `nus_client.py` each have a
-`PLANT` switch, and a planted run must fail:
+second, or run the client on the laptop with the Windows Python:
+
+```bash
+PYTHONPATH="$(wslpath -w lib)" python.exe "$(wslpath -w tests/bledev_board/gatt_central.py)"
+```
+
+The serving scripts have a `PLANT` switch, and a planted run must fail:
 
 | Scripts | What they check |
 |---|---|
 | `gatt_peripheral.py` + `gatt_central.py` | The contract over the air: find, MTU exchange, discovery order, read, 200 notifications in order, 100 captured writes in order, the MTU refusal, an indication, a disconnect from the far side |
 | `gatt_peripheral.py` + `gatt_latency.py` | Per-operation latency of reads and writes-with-response, with the stall count |
-| `nus_server.py` + `nus_client.py` | 16 KB up, down and echoed over nus, byte for byte, timed |
+| `nus_server.py` + `nus_client.py` | 16 KB up, down and echoed over nus, byte for byte, timed. On a laptop, `--fast` asks for throughput parameters and `--plant` flips a bit |
+| `repl_server.py` + `repl_client.py` | The REPL: the right password evaluates `123 * 456`, a wrong one sent with code that would create `/pwned` is refused and hung up on and the code never runs, and Ctrl-C stops `while True`. `repl_server.py` runs from `/main.py`, because mpftp soft-resets the board, which turns Bluetooth off |
+| `improv_server.py` + `improv_client.py` | Improv: `--wrong` must get "unable to connect" and a return to "authorized"; without it, on a board, the network comes from that board's own `secrets.py` and must end "provisioned" with a URL |
+| `coex_server.py` + `tcp_pull.py` + `nus_client.py` | Wi-Fi and BLE on one S3: a TCP source on Wi-Fi beside the nus gate |
 
 `gatt_peripheral.py` is also the peripheral to point a host backend at: it
 advertises as `bledev-radio`, and a central steers it by writing commands.
@@ -181,3 +275,51 @@ off, 2026-09-24.
 | the same, as .py source | none | 98.8 KB |
 | registering nus, then advertising | 0.2 KB | 1.8 KB |
 | `active(False)` | all returned | |
+
+### The laptop to an S3
+
+Windows 11, bleak 3.0.2, the laptop's Intel radio, to the LCD-7 running
+`nus_server.py`, 16 KB per phase, every byte checked, 2026-09-24:
+
+| Run | Up (writes) | Down (notifications) | Echo, each way |
+|---|---|---|---|
+| before the MTU fix (the board sent 20-byte notifications) | 100.6-134.5 KB/s | 16.4-20.4 KB/s | 8.8-16.1 KB/s |
+| after it, Windows' default parameters | 126.0 KB/s | 48.6 KB/s | 33.9 KB/s |
+| after it, `priority="throughput"` | 133.3 KB/s | 47.1 KB/s | 29.7 KB/s |
+| planted bit flips on both sides | FAIL, 1 mismatch at 5000 | FAIL, same | FAIL, same |
+
+The over-the-air contract (`gatt_central.py`) passed from the laptop, and
+failed with the peripheral's planted skip ("got 199, first gap 7").
+
+### Wi-Fi and BLE on one S3
+
+The LCD-7 served nus with `coex_server.py`, the T-Embed ran `nus_client.py`
+at 64 KB per phase (default interval, BLE at about -50 dBm), and the laptop
+read the LCD-7's TCP source with `tcp_pull.py`. The LCD-7's Wi-Fi was weak,
+-74 to -82 dBm, and that matters below. Three runs each:
+
+| LCD-7's Wi-Fi | Up (writes) | Down (notifications) | Echo, each way |
+|---|---|---|---|
+| off | 76.5, 81.3, 83.9 KB/s | 34.0, 33.6, 31.7 | 26.6, 26.3, 25.8 |
+| connected, idle | 36.1, 61.8, 36.0 | 23.7, 26.0, 28.5 | 22.5, 22.3, 24.2 |
+| connected, the laptop streaming from it | 21.8, 39.2, 31.9 | 23.1, 27.0, 26.7 | 20.2, 18.5, 21.5 |
+
+Every byte arrived intact in every run. What the board receives (up) suffers
+most: an idle association alone halves it about two runs in three.
+
+**Wi-Fi throughput with BLE on is not measured, in the sense that matters.**
+The TCP stream from the board to the laptop, 10 s per run:
+
+| BLE on the LCD-7 | KB/s |
+|---|---|
+| off (never activated) | 155.0, 49.2, 13.5, 86.1 |
+| active, not advertising | 43.5, 35.9, 36.8, 120.4 |
+| advertising every 100 ms | 39.7, (connection timed out at -82 dBm), 130.8, 112.5 |
+| carrying the nus gate (averaged over 26-29 s that include advertising) | 46.2, 43.4, 40.7 |
+
+With BLE off entirely the rate ran from 13.5 to 155 KB/s, so at this signal
+strength the run-to-run spread is wider than any difference BLE could make.
+One early run with BLE advertising read 8.1 KB/s, which looked like a finding
+until the repeats. Measuring BLE's cost to Wi-Fi needs the board at -60 dBm
+or better.
+

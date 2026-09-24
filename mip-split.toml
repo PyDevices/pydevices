@@ -80,9 +80,9 @@ host-only = [
 own-package = true
 requires = ["aioble"]
 # The central-only host backends go in pydevices-desktop, as for the other
-# packages here. List `bleak` and `webble` when those modules land; a name
-# listed before its file exists fails the sync.
-host-only = []
+# packages here. List `webble` when that module lands; a name listed before
+# its file exists fails the sync.
+host-only = ["bleak"]
 # On PyPI bledev stays inside the pydevices wheel. bleak is optional, behind
 # `pip install "pydevices[ble]"`.
 pypi-extras = { ble = ["bleak>=1.0"] }

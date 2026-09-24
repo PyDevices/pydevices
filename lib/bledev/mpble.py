@@ -7,8 +7,12 @@ Needs aioble, which isn't frozen into our firmware: install it with
 ``mip.install("aioble")``, or install ``bledev`` from the PyDevices index, which
 brings aioble with it.
 
-aioble owns the one ``bluetooth.BLE()`` object and its IRQ handler, so don't
-set ``ble.irq()`` yourself while this backend is in use.
+aioble owns the one ``bluetooth.BLE()`` object and its IRQ handler. An
+:class:`MPBLE` also answers every ``bluetooth.BLE`` method (``active()``,
+``gap_advertise()``, ``gatts_notify()`` and the rest go straight to the radio),
+so code written for the raw object keeps working when a board config hands
+out an :class:`MPBLE` instead. ``irq(handler)`` is the one it changes: the
+handler runs beside aioble's rather than replacing it.
 
 Where aioble would lose data, this backend doesn't:
 
@@ -161,7 +165,14 @@ _irq_registered = False
 _shared = None
 
 
+_user_irq = None
+
+
 def _irq(event, data):
+    if _user_irq is not None:
+        result = _user_irq(event, data)
+        if result is not None:
+            return result
     # Runs beside aioble's own handlers. A captured write is copied here, in
     # the IRQ, before the next write can overwrite the value buffer, and tied
     # to its connection while that connection still exists.
@@ -189,8 +200,30 @@ def _irq(event, data):
         if mtu and aconn is not None and not aconn.mtu:
             aconn.mtu = mtu
     elif event == _IRQ_CENTRAL_DISCONNECT:
-        _early_mtu.pop(data[0], None)
+        conn_handle = data[0]
+        _early_mtu.pop(conn_handle, None)
+        aconn = _AioConnection._connected.get(conn_handle)
+        if aconn is not None and aconn._task is None:
+            _forget(conn_handle, aconn)
     return None
+
+
+def _forget(conn_handle, aconn):
+    # A central connected to something advertised with the raw API
+    # (ble.gap_advertise), not aioble.advertise(). aioble recorded it anyway
+    # and left its advertise() signal set, and nothing of aioble's will clean
+    # up, so do it here.
+    from aioble import peripheral
+
+    _AioConnection._connected.pop(conn_handle, None)
+    aconn._conn_handle = None
+    aconn.device._connection = None
+    if peripheral._incoming_connection is aconn:
+        peripheral._incoming_connection = None
+        try:
+            peripheral._connect_event.clear()
+        except AttributeError:
+            pass
 
 
 def get(ble=None):
@@ -221,6 +254,13 @@ class MPBLE(BLE):
         if not _irq_registered:
             _aioble_core.register_irq_handler(_irq, None)
             _irq_registered = True
+            # aioble's peripheral IRQ signals its advertise() on every incoming
+            # connection and raises when advertise() never ran, which happens
+            # when code uses the raw API (ble.gap_advertise). Give it a flag.
+            from aioble import peripheral
+
+            if peripheral._connect_event is None:
+                peripheral._connect_event = asyncio.ThreadSafeFlag()
         if mtu:
             self.config(mtu=mtu)
 
@@ -254,6 +294,20 @@ class MPBLE(BLE):
     def close(self):
         aioble.stop()
         self._connections = {}
+
+    # -- the raw bluetooth.BLE, for code written against it
+
+    def __getattr__(self, name):
+        # Only reached for names MPBLE doesn't define.
+        return getattr(_aioble_core.ble, name)
+
+    def irq(self, handler):
+        """Like ``bluetooth.BLE.irq``, but beside aioble's handler rather than instead of it.
+
+        A later call replaces the earlier handler; ``irq(None)`` removes it.
+        """
+        global _user_irq
+        _user_irq = handler
 
     # -- connections, one wrapper per aioble connection
 

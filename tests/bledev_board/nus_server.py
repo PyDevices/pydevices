@@ -49,6 +49,11 @@ def compare(got, want):
 
 async def main():
     open(LOG, "w").close()
+    await gate(log)
+
+
+async def gate(log):
+    """Serve one gate run; ``coex_server.py`` imports this."""
     ble = bledev.mpble.get()
     log("serving as bledev-gate, plant", PLANT)
     link = await nus.serve(ble, name="bledev-gate", timeout_ms=120000)
@@ -91,4 +96,5 @@ async def main():
     await link.close()
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
