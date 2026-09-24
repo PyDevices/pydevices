@@ -202,6 +202,13 @@ class TestHostloop(unittest.TestCase):
         self._fake_impl("circuitpython", "linux")
         self.assertIsNone(_hostloop._cp_break_watch())
 
+    def test_utf16le_decodes_without_a_codec(self):
+        raw = 'mp.exe -m examples.google_photos "C:\\Café"'.encode("utf-16-le")
+        self.assertEqual(
+            _hostloop._utf16le(raw), 'mp.exe -m examples.google_photos "C:\\Café"'
+        )
+        self.assertEqual(_hostloop._utf16le("a\U0001F600b".encode("utf-16-le")), "a??b")
+
     def test_split_cmdline_handles_quotes(self):
         self.assertEqual(
             ["mp.exe", "-i", "C:\\Program Files\\app.py"],
