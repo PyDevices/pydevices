@@ -17,6 +17,7 @@ standalone module per backend, and an optional selector.
 | `mpble.py` | MicroPython, over aioble. |
 | `bleak.py` | CPython on Windows, Linux and macOS, over bleak. Central only. |
 | `cpble.py` | CircuitPython, over `_bleio`. Both roles. |
+| `webble.py` | Web Bluetooth in a browser, central only. |
 | `nus.py` | Nordic UART byte stream, built only on the contract. |
 | `repl.py` | The REPL over nus: MicroPython's raw `bluetooth` API from the IRQ on the board, `nus` on the client. |
 | `improv.py` | Improv Wi-Fi setup, both sides, built only on the contract. |
@@ -522,6 +523,61 @@ never sees, for a few seconds. From the host the two look the same, so
 `connect_and_set_up` backs off between attempts and, when every attempt
 drops after encrypting with stored keys, says both.
 
+## webble
+
+`webble` reaches the page the way `audiodev.web_audio` does, through the `js`
+module, which Pyodide and MicroPython's WebAssembly build both have. The
+runtimes disagree on how Python values cross into JavaScript, so everything
+goes through a few helpers made once with `js.Function.new()`: strings,
+numbers and opaque objects cross, and bytes cross as hex. JS errors come back
+as each runtime's `JsException`, and `_translate()` maps them by name.
+
+What it takes to meet the contract in a browser, all found on hardware:
+
+- **Chrome on Android never matches a `name` filter against a scan
+  response.** A board advertising nus's 128-bit UUID has its name pushed
+  there, so `find(name=, service=)` filters on the service alone and checks
+  the pick's name afterwards. The check caught two wrong picks while the S3s
+  were also advertising nus.
+- **The MTU is invisible.** Chrome on Android asks for 517 right after
+  connecting (logcat: `configureMTU() mtu: 517`, answered with 247 by a
+  board), and Windows negotiates on its own, but neither tells the page.
+  Writes are sized to `WebBLE(mtu=)`, default 23. A write longer than the
+  link carries is cut short on Android without an error, which is what the
+  mock models and `test_bledev_web.py` plants.
+- **First connects fail.** Android gives status 133 / HCI 0x3E ("failed to be
+  established") on about half the first attempts to the P4, so `_connect()`
+  tries three times. One gate run needed two retries.
+- **One GATT operation at a time.** Chrome rejects a second while one is in
+  flight, so each connection serialises them behind a lock.
+- **Discovery is slow the first time.** The browser walks the whole GATT
+  table on the first request, which took longer than nus's 2 s from Windows,
+  so discovery timeouts have a 10 s floor.
+- **MicroPython's asyncio can't `wait_for()` a JS promise**, only a
+  coroutine, so promises with a timeout are wrapped in one.
+
+**The gate** is `tests/bledev_web/`: `gate.py` runs nus's three 16 KB phases
+against `nus_gate_server.py` on a board, on three pages (`pyodide.html`,
+`mpy.html`, `wasm.html`) served by `serve.py`, which also collects what the
+pages log. `?mock=1` swaps in `mock_bluetooth.js`, and
+`tests/test_bledev_web.py` runs that in headless Chromium with two planted
+faults. Against a board, the chooser is the only human step, and both ends
+of it can be automated:
+
+- **Android:** `adb reverse tcp:8765 tcp:8765` makes the page `localhost` on
+  the phone, `adb shell input tap` presses the page's button (a real user
+  gesture), and `uiautomator dump` finds the device's row and the Pair
+  button in the chooser. Chrome needs the Nearby devices permission, and
+  Android's `DeviceAccess` events never fire.
+- **Desktop Chrome:** start it with `--remote-debugging-port` and its own
+  `--user-data-dir`, click the button with `Runtime.evaluate(userGesture=true)`,
+  and answer `DeviceAccess.deviceRequestPrompted` with
+  `DeviceAccess.selectPrompt`. No person is needed at all.
+
+Restart the board's server with a hard reset: after a Ctrl-C, a new
+`nus.serve()` on the P4 twice said it was advertising while nothing was on
+the air.
+
 ## The checks
 
 **Pairing, without a radio**, on both interpreters: `tests/bledev_pairing.py`
@@ -569,6 +625,8 @@ The serving scripts have a `PLANT` switch, and a planted run must fail:
 | `bless_peripheral.py` + `bless_probe.py` | The laptop as a peripheral, through bless, probed by a board |
 | `pair_server.py` + `pair_client.py` (laptop) | Pairing. `pair`: a passkey read off the board's console, then the REPL and 20 KB through the file service on the paired link. `reconnect`: from the bond, nobody asked for a passkey. `wrong`: a passkey one off must fail pairing and leave Windows unpaired. `unpaired`: every protected characteristic refuses reads and writes. Plants on the server: `forget`, `justworks`, `open`. `uart_say.py` reads the board's state without mpftp's soft reset |
 | `pair_server.py` + `files_pair_client.py` (board) | Board to board: the client pairs on its own, 20 KB both ways byte for byte, then reconnects from the bond. `plant="flip"` and `plant="nopair"` must FAIL |
+| `nus_server.py` + `nus_client.py` | 16 KB up, down and echoed over nus, byte for byte, timed |
+| `tests/bledev_web/nus_gate_server.py` + a gate page | The same, from a browser through webble |
 
 `gatt_peripheral.py` is also the peripheral to point a host backend at: it
 advertises as `bledev-radio`, and a central steers it by writing commands.
@@ -852,3 +910,23 @@ mpftp's `ble://` (PyDevices/mpftp `ble-pairing`) used the bond with no password
 set: `exec` and 20 KB `put`/`get` byte for byte. Against a just-works board
 with a password it paired by itself; against a passkey board with the laptop
 unpaired it said to pair once and left no pairing behind.
+**webble to the P4** (through its C6), nus, 16 KB per phase, every byte
+checked, 2026-09-24. Chrome 153 on a Galaxy S21 about a metre away, and on
+Windows 11 through the laptop's Intel radio. KB/s:
+
+| Browser, runtime, page MTU | Up (writes) | Down (notifications) | Echo, each way |
+|---|---|---|---|
+| S21, Pyodide, 247 | 22.8 | 15.8 | 8.6 |
+| S21, PyScript MicroPython, 247 | 15.6 | 19.9 | 9.2 |
+| S21, MicroPython WebAssembly, 247 | 22.3 | 8.5 | 9.8 |
+| S21, Pyodide, 23 | 3.3-4.4 | 10.7-14.1 | 3.9 |
+| S21, Pyodide, 247, planted bit flips | FAIL, 1 at 5000 | FAIL, 1 at 5000 | FAIL, 1 at 5000 |
+| Windows, Pyodide and PyScript MicroPython, 247 | 37-61 | 4-7 | 3.7-4.8 |
+| Windows, MicroPython WebAssembly, 247 | 50.6 | 3.6 | 3.6 |
+
+From Windows the P4 sends 20-byte notifications, because it never learns the
+MTU Windows negotiated ([#80](https://github.com/PyDevices/pydevices/issues/80)).
+Two of three ECHO runs on the phone at MTU 23 (none of five at 247), and
+two of eleven from Windows, lost writes the P4 never received, always while it was notifying
+back ([#79](https://github.com/PyDevices/pydevices/issues/79)). The gate
+reports those as a stall, not a pass.

@@ -36,8 +36,6 @@ transport can talk to it too.
 | `bledev.webble` | Browsers: PyScript, the Workbench simulator | yes | no |
 | `bledev.fake` | Anywhere: tests | yes | yes |
 
-`bledev.webble` is being written; the other four are here.
-
 Roles aren't symmetric. A laptop or a browser can only scan and connect, so
 when a board talks to one, the board advertises. Only board-to-board links put
 a board in the central role. `ble.capabilities()` tells you which roles you
@@ -153,6 +151,38 @@ async with ble.scan(5000, active=True) as scanner:
 
 A device can come back more than once as its advertisement and scan response
 arrive, and `device.name` is whatever the scan had seen by then.
+
+## In a browser
+
+`bledev.webble` runs the same code in Chrome or Edge, on desktop or Android,
+under PyScript (Pyodide or MicroPython) or the MicroPython WebAssembly build
+Workbench uses. The page must be served from `https://` or `http://localhost`.
+
+```python
+from bledev.webble import WebBLE
+import bledev.nus as nus
+
+ble = WebBLE(mtu=247)                       # see below for the MTU
+link = await nus.connect(ble, name="rack")  # call this from a click or tap
+```
+
+Three things differ from a board:
+
+- **The browser's chooser is the scan.** `find()` and `nus.connect()` open
+  it, and the person picks the device. It only opens during a click or tap,
+  so start from one. `scan()` raises `UnsupportedError`.
+- **Only services you name are reachable.** The one in `find()`'s filter is;
+  list any others as `WebBLE(services=[...])`.
+- **The browser won't tell you the MTU.** `connection.mtu` is 23 unless you
+  pass `WebBLE(mtu=...)`, and writes are sized to it. Chrome asks for a large
+  MTU on every connect (a board running nus ends up at 247), but a write
+  longer than the link carries can be cut short without an error, so only
+  raise it when you know. At 23 everything still works, about five times
+  slower.
+
+A Web Bluetooth page can be tested without a person: Chrome's DevTools
+protocol can answer the chooser. How the gate was run on a phone and a
+laptop is in [bledev-internals.md](bledev-internals.md#webble).
 
 ## Byte streams with nus
 

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" data-runtime="pyodide">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bledev.webble gate (pyodide)</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./page.js"></script>
+  <script src="./mock_bluetooth.js"></script>
+  <link rel="stylesheet" href="/pyscript/core.css">
+  <script type="module" src="/pyscript/core.js"></script>
+</head>
+<body>
+  <button id="go" disabled>Loading pyodide…</button>
+  <pre id="log"></pre>
+  <script type="py" config="./pyodide.json">import gate</script>
+</body>
+</html>
