@@ -64,7 +64,15 @@ tft_timings = {
     "pclk_idle_high": False,
 }
 
-fb = dotclockframebuffer.DotClockFramebuffer(**tft_pins, **tft_timings)
+# 10-row bounce buffers: 32 KB of internal DMA RAM instead of 64 KB. This
+# board often runs Wi-Fi, TLS and a USB host beside the panel, and all of
+# them need that RAM; with 20-row buffers a Spotify remote plus a USB audio
+# host left the DMA-capable region at 24 bytes and Wi-Fi fell over
+# (2026-09-25). displayif builds without bounce_rows keep their default.
+try:
+    fb = dotclockframebuffer.DotClockFramebuffer(**tft_pins, **tft_timings, bounce_rows=10)
+except TypeError:
+    fb = dotclockframebuffer.DotClockFramebuffer(**tft_pins, **tft_timings)
 display_drv = FBDisplay(fb)
 
 # GT911: RST on CH422G EXIO1, INT=GPIO4 (address-select during reset → 0x5D)
