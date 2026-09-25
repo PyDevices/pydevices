@@ -47,8 +47,13 @@ tft_pins = {
     "red": (1, 2, 42, 41, 40),
 }
 
+# 14 MHz pixel clock (~34 Hz refresh), not 16: at 16 MHz the panel's scanout
+# took ~32 MB/s of PSRAM bandwidth, and the board's own Wi-Fi fell apart
+# under it -- 10-33 % ping loss with the panel on, 0 % with it stopped, and
+# TLS downloads that stalled until the server reset them. At 14 MHz: 1.7 %
+# loss and 176-237 KB/s downloads (12 MHz was similar). 2026-09-25.
 tft_timings = {
-    "frequency": 16_000_000,
+    "frequency": 14_000_000,
     "width": 800,
     "height": 480,
     "hsync_pulse_width": 4,
@@ -64,7 +69,15 @@ tft_timings = {
     "pclk_idle_high": False,
 }
 
-fb = dotclockframebuffer.DotClockFramebuffer(**tft_pins, **tft_timings)
+# 10-row bounce buffers: 32 KB of internal DMA RAM instead of 64 KB. This
+# board often runs Wi-Fi, TLS and a USB host beside the panel, and all of
+# them need that RAM; with 20-row buffers a Spotify remote plus a USB audio
+# host left the DMA-capable region at 24 bytes and Wi-Fi fell over
+# (2026-09-25). displayif builds without bounce_rows keep their default.
+try:
+    fb = dotclockframebuffer.DotClockFramebuffer(**tft_pins, **tft_timings, bounce_rows=10)
+except TypeError:
+    fb = dotclockframebuffer.DotClockFramebuffer(**tft_pins, **tft_timings)
 display_drv = FBDisplay(fb)
 
 # GT911: RST on CH422G EXIO1, INT=GPIO4 (address-select during reset → 0x5D)
