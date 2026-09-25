@@ -69,6 +69,11 @@ _IRQ_CENTRAL_DISCONNECT = 2
 _IRQ_GATTS_WRITE = 3
 _IRQ_PERIPHERAL_DISCONNECT = 8
 _IRQ_MTU_EXCHANGED = 21
+_PASSKEY_INPUT = 2  # gap_passkey's action for typing in the peer's passkey
+_EINVAL = 22
+# As central with a passkey to type: how long to wait for the stack to ask
+# before asking anyway (see _MPConnection._type_passkey).
+_ASK_WITHIN_MS = 1500
 
 _FLAG_READ_ENCRYPTED = 0x0200
 _FLAG_WRITE_ENCRYPTED = 0x1000
@@ -575,7 +580,9 @@ class _MPConnection(Connection):
         try:
             with _Translate("pair"):
                 _aioble_core.ble.gap_pair(handle)
-            deadline = time.ticks_add(time.ticks_ms(), timeout_ms)
+            started = time.ticks_ms()
+            deadline = time.ticks_add(started, timeout_ms)
+            typed = passkey is None
             # The stack reports the outcome as an encryption update, success
             # or not, so a wrong passkey fails here at once, not at a timeout.
             while not updates:
@@ -583,12 +590,43 @@ class _MPConnection(Connection):
                     raise PairingError("pair: the peer hung up")
                 if time.ticks_diff(deadline, time.ticks_ms()) <= 0:
                     raise BLETimeoutError("pair: timed out")
+                if not typed and handle not in security._asked and time.ticks_diff(time.ticks_ms(), started) > _ASK_WITHIN_MS:
+                    typed = True
+                    await self._type_passkey(handle, deadline, updates)
                 await sleep_ms(20)
         finally:
             security.remove_listener(on_change)
             security.expect_passkey(handle, None)
+            security._asked.discard(handle)
         if not security.state(handle)[0]:
             raise PairingError("pair: refused (wrong passkey, or the peer lost its keys)")
+
+    async def _type_passkey(self, handle, deadline, updates):
+        # MicroPython's NimBLE bindings raise _IRQ_PASSKEY_ACTION only on
+        # connections the board accepted, never on one it made
+        # (peripheral_gap_event_cb in extmod/nimble/modbluetooth_nimble.c
+        # doesn't handle it; micropython/micropython#19470 moves it), so a
+        # board as central is never asked for the passkey and pairing stalls
+        # until the stack's 30 s timeout. When the stack hasn't asked by now,
+        # ask for the passkey here and hand it to the stack ourselves: NimBLE
+        # takes it once its pairing reaches the confirm step and answers
+        # EINVAL before that, so keep offering it until it's taken.
+        from . import security
+
+        given = security._inputs.get(handle)
+        if callable(given):
+            given = given()
+        given = int(given)
+        # If the stack does ask after all, it answers from this, not by asking twice.
+        security._inputs[handle] = given
+        while not updates and handle not in security._asked and self.is_connected():
+            try:
+                _aioble_core.ble.gap_passkey(handle, _PASSKEY_INPUT, given)
+                return
+            except OSError as e:
+                if e.errno != _EINVAL or time.ticks_diff(deadline, time.ticks_ms()) <= 0:
+                    return  # taken already (EALREADY), or the pairing is over
+            await sleep_ms(50)
 
     async def unpair(self):
         from . import security
