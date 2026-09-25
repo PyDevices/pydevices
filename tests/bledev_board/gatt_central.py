@@ -153,7 +153,15 @@ async def main():
         await stream.write(struct.pack("<I", i) + bytes(16))
     await bledev.sleep_ms(300)
     await rw.write(b"count", response=True)
-    check(await rw.read() == b"100 0", "100 captured writes, in order", await rw.read())
+    # A peripheral that polls (cpble) may answer a moment after the write's
+    # response; give it a second before reading the count.
+    counted = await rw.read()
+    for _ in range(20):
+        if counted != b"count":
+            break
+        await bledev.sleep_ms(50)
+        counted = await rw.read()
+    check(counted == b"100 0", "100 captured writes, in order", counted)
 
     try:
         await stream.write(bytes(mtu - 2))

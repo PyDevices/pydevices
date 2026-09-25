@@ -251,6 +251,13 @@ class CPBLE(BLE):
 
     backend = "cpble"
 
+    #: How long a profile's setup after connecting may take here (see
+    #: ``bledev.connect_and_set_up``). CircuitPython's ESP32 port waits out
+    #: its whole 2 s timeout on every read and every write with response,
+    #: because it waits for a status to leave 0 and success is 0; making a
+    #: subscription is such a write.
+    min_setup_ms = 12000
+
     def __init__(self, adapter=None, *, queue_limit=64, stream_buffer=32768):
         self.raw = adapter if adapter is not None else _bleio.adapter
         if self.raw is None:
@@ -482,12 +489,13 @@ class CPBLE(BLE):
         if native is None or not native.connected:
             raise BLETimeoutError("connect timed out")
         conn = self._wrap(native, "central", device)
-        interval_us = options.get("max_conn_interval_us") or options.get("min_conn_interval_us")
-        if interval_us:
-            try:
-                native.connection_interval = interval_us / 1000
-            except Exception:
-                pass  # the peripheral may refuse; the link keeps its interval
+        # _bleio asks for 15 to 300 ms and may get the slow end; ask for what
+        # MicroPython's NimBLE asks by default (30 ms) unless told otherwise.
+        interval_us = options.get("max_conn_interval_us") or options.get("min_conn_interval_us") or 30000
+        try:
+            native.connection_interval = interval_us / 1000
+        except Exception:
+            pass  # the peripheral may refuse; the link keeps its interval
         return conn
 
 
@@ -539,13 +547,21 @@ class _CPScanner(Scanner):
         key = bytes(entry.address.address_bytes)
         seen = self._seen.get(key)
         if seen is None:
-            seen = self._seen[key] = [b"", b"", True]
+            seen = self._seen[key] = [b"", b"", True, None]
         if entry.scan_response:
             seen[1] = raw
         else:
             seen[0] = raw
             seen[2] = entry.connectable
         name, services, appearance, manufacturer = decode_advertisement(seen[0], seen[1])
+        # A name seen once stays (a host may put it in only one of the two
+        # packets), and a UUID in both packets is listed once.
+        name = seen[3] = name or seen[3]
+        unique = []
+        for uuid in services:
+            if uuid not in unique:
+                unique.append(uuid)
+        services = unique
         device = Device(
             self._ble, bytes(reversed(key)), entry.address.type, name=name, native=entry.address
         )
@@ -578,6 +594,7 @@ class _CPConnection(Connection):
         #: The ``_bleio.Connection``.
         self.native = native
         self._remote = None
+        self._by_uuid = {}
         self._last_mtu = DEFAULT_MTU
 
     @property
@@ -645,17 +662,29 @@ class _CPConnection(Connection):
     async def unpair(self):
         raise UnsupportedError("CircuitPython forgets one peer only by erasing every bond: ble.forget_bonds()")
 
-    def _discover(self):
-        if self._remote is None:
-            if not self.is_connected():
-                raise DisconnectedError("service discovery: not connected")
-            with _Call("service discovery"):
-                self._remote = [_CPClientService(self, s) for s in self.native.discover_remote_services()]
+    def _discover(self, uuid=None):
+        # _bleio discovers characteristics and descriptors too, one round trip
+        # each, so asking for one service is far quicker than asking for all
+        # (7 s against a MicroPython nus server at CircuitPython's default
+        # interval). Services found either way are kept.
+        if self._remote is not None:
+            return self._remote
+        if not self.is_connected():
+            raise DisconnectedError("service discovery: not connected")
+        if uuid is not None:
+            found = self._by_uuid.get(uuid)
+            if found is None:
+                with _Call("service discovery"):
+                    found = [_CPClientService(self, s) for s in self.native.discover_remote_services((_cuuid(uuid),))]
+                self._by_uuid[uuid] = found
+            return found
+        with _Call("service discovery"):
+            self._remote = [_CPClientService(self, s) for s in self.native.discover_remote_services()]
         return self._remote
 
     async def _discover_services(self, uuid, timeout_ms):
         await sleep_ms(0)
-        return [s for s in self._discover() if uuid is None or s.uuid == uuid]
+        return [s for s in self._discover(uuid) if uuid is None or s.uuid == uuid]
 
 
 class _CPClientService(ClientService):
@@ -988,6 +1017,18 @@ class _CPServerCharacteristic:
                 if self._char.capture:
                     return connection, data
                 self._queue = []
+                # Every buffer is polled on its own, so a task reading
+                # another characteristic may not have seen writes that came
+                # before this one. Move them into their queues now, and give
+                # those tasks a poll to take them first, which keeps the
+                # central's order across characteristics (the contract check
+                # that counts 100 captured writes and then asks: 96 of 100,
+                # once in three, before this).
+                for service in self._ble._services:
+                    for c in service.characteristics:
+                        if c._impl is not None and c._impl is not self:
+                            c._impl._drain()
+                await sleep_ms(POLL_MS * 2)
                 return connection
             if timeout_ms is not None and _elapsed(start) >= timeout_ms:
                 raise BLETimeoutError("written timed out after {} ms".format(timeout_ms))
