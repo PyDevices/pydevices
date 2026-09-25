@@ -47,8 +47,13 @@ tft_pins = {
     "red": (1, 2, 42, 41, 40),
 }
 
+# 14 MHz pixel clock (~34 Hz refresh), not 16: at 16 MHz the panel's scanout
+# took ~32 MB/s of PSRAM bandwidth, and the board's own Wi-Fi fell apart
+# under it -- 10-33 % ping loss with the panel on, 0 % with it stopped, and
+# TLS downloads that stalled until the server reset them. At 14 MHz: 1.7 %
+# loss and 176-237 KB/s downloads (12 MHz was similar). 2026-09-25.
 tft_timings = {
-    "frequency": 16_000_000,
+    "frequency": 14_000_000,
     "width": 800,
     "height": 480,
     "hsync_pulse_width": 4,
