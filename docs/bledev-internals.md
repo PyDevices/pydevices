@@ -707,6 +707,18 @@ lock. Every step below is `pair_client.py`.
 | `justworks` plant, then `wrong` | the wrong passkey gets in: FAIL, as it must |
 | `open` plant, then `unpaired` | every protected characteristic allowed: FAIL, as it must |
 
+**Board to board** (`files_pair_client.py` on the T-Embed against
+`pair_server.start("justworks", password="gate")` on the LCD-7, one desk
+apart, both with no bonds to start): the client paired by itself because the
+board refused the file service to an unpaired host, and the link was
+encrypted and bonded (16-byte key, not authenticated, as just works is). Connect,
+pair and log in 3.8 s; 20 KB written in 3.0 s (6.7 KB/s) and read back in
+1.0 s (20.1 KB/s), byte for byte, and the LCD-7's own copy had the same
+SHA-256. A second connection encrypted from the bond in 2.1 s. Plants:
+`nopair` was refused ("the board wants pairing") and `flip` failed the
+byte-for-byte check. Not run on hardware: a board as central typing in a
+passkey another board shows (the fake covers it).
+
 The passkey on the panel, read back from the framebuffer: "Bluetooth passkey"
 over the six digits at 8x the 8-pixel font, drawn in 77 ms, present in both of
 the dot-clock panel's buffers while shown and gone from both after.
