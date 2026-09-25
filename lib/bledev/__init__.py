@@ -1023,6 +1023,10 @@ async def connect_and_set_up(
     """
     pair = options.pop("pair", False)
     passkey = options.pop("passkey", None)
+    # A backend whose GATT calls are slow by nature says how long setup may
+    # take at least (cpble: CircuitPython waits 2 s on every write with a
+    # response, subscribing included).
+    setup_timeout_ms = max(setup_timeout_ms, getattr(ble, "min_setup_ms", 0))
     error = None
     stale = False
     for _ in range(attempts):

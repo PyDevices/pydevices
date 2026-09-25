@@ -1,0 +1,215 @@
+diff --git a/ports/espressif/common-hal/_bleio/PacketBuffer.c b/ports/espressif/common-hal/_bleio/PacketBuffer.c
+index a14c627f11..08337fc07a 100644
+--- a/ports/espressif/common-hal/_bleio/PacketBuffer.c
++++ b/ports/espressif/common-hal/_bleio/PacketBuffer.c
+@@ -60,6 +60,23 @@ void bleio_packet_buffer_extend(bleio_packet_buffer_obj_t *self, uint16_t conn_h
+ static int packet_buffer_on_ble_client_evt(struct ble_gap_event *event, void *param);
+ static int queue_next_write(bleio_packet_buffer_obj_t *self);
+ 
++// Runs on the VM task, from background callbacks.
++static void _retry_pending(void *self_in) {
++    bleio_packet_buffer_obj_t *self = (bleio_packet_buffer_obj_t *)self_in;
++    if (common_hal_bleio_packet_buffer_deinited(self) ||
++        self->conn_handle == BLEIO_HANDLE_INVALID ||
++        self->packet_queued) {
++        return;
++    }
++    queue_next_write(self);
++}
++
++// NimBLE couldn't take the pending packet. It reports buffers freeing up with no event, so
++// try again from the next background pass, and every pass after while it keeps failing.
++static void _schedule_retry(bleio_packet_buffer_obj_t *self) {
++    background_callback_add(&self->retry_callback, _retry_pending, self);
++}
++
+ static int _write_cb(uint16_t conn_handle,
+     const struct ble_gatt_error *error,
+     struct ble_gatt_attr *attr,
+@@ -81,61 +98,78 @@ static int queue_next_write(bleio_packet_buffer_obj_t *self) {
+     // transmission (when packet_queued is true) and the other is `pending` and can still be
+     // modified. By primarily appending to the `pending` buffer we can reduce the protocol overhead
+     // of the lower level link and ATT layers.
++    //
++    // If NimBLE can't take the packet (no mbufs, most often), the packet stays pending, and
++    // write() and flush() try again while they wait. Nothing else would: a notification that
++    // was never sent produces no BLE_GAP_EVENT_NOTIFY_TX to retry from.
+     self->packet_queued = false;
+-    if (self->pending_size > 0) {
+-        uint16_t conn_handle = self->conn_handle;
+-        int err_code = NIMBLE_OK;
+-        if (self->client) {
+-            if (self->write_type == CHAR_PROP_WRITE_NO_RESPONSE) {
+-                err_code = ble_gattc_write_no_rsp_flat(conn_handle,
+-                    self->characteristic->handle,
+-                    self->outgoing[self->pending_index],
+-                    self->pending_size);
+-                // We don't set packet_queued because NimBLE will buffer our
+-                // outgoing packets.
+-            } else {
+-                err_code = ble_gattc_write_flat(conn_handle,
+-                    self->characteristic->handle,
+-                    self->outgoing[self->pending_index],
+-                    self->pending_size,
+-                    _write_cb, self);
+-                self->pending_index = (self->pending_index + 1) % 2;
+-                self->packet_queued = true;
+-            }
++    if (self->pending_size == 0) {
++        return NIMBLE_OK;
++    }
++    uint16_t conn_handle = self->conn_handle;
++    int err_code = NIMBLE_OK;
++    if (self->client) {
++        if (self->write_type == CHAR_PROP_WRITE_NO_RESPONSE) {
++            err_code = ble_gattc_write_no_rsp_flat(conn_handle,
++                self->characteristic->handle,
++                self->outgoing[self->pending_index],
++                self->pending_size);
++            // We don't set packet_queued because NimBLE will buffer our
++            // outgoing packets.
+         } else {
+-            // Allocate an mbuf because the functions below consume it.
+-            struct os_mbuf *om = ble_hs_mbuf_from_flat(self->outgoing[self->pending_index], self->pending_size);
+-            if (om == NULL) {
+-                // We may not have any more mbufs if BLE busy. It isn't a problem (yet) so we'll
+-                // just skip queueing for now.
+-                return BLE_HS_ENOMEM;
+-            }
+-            size_t pending_size = self->pending_size;
+-            self->pending_size = 0;
+-            if (self->write_type == CHAR_PROP_NOTIFY) {
+-                err_code = ble_gatts_notify_custom(conn_handle, self->characteristic->handle, om);
+-            } else if (self->write_type == CHAR_PROP_INDICATE) {
+-                err_code = ble_gatts_indicate_custom(conn_handle, self->characteristic->handle, om);
++            err_code = ble_gattc_write_flat(conn_handle,
++                self->characteristic->handle,
++                self->outgoing[self->pending_index],
++                self->pending_size,
++                _write_cb, self);
++            if (err_code == NIMBLE_OK) {
+                 self->pending_index = (self->pending_index + 1) % 2;
+                 self->packet_queued = true;
+-            } else {
+-                // Placeholder error.
+-                err_code = BLE_HS_EUNKNOWN;
+-            }
+-            // Undo our queueing if it fails. We need to do it early because we may recurse back
+-            // to here from the above ble_gatts functions.
+-            if (err_code != NIMBLE_OK) {
+-                self->pending_index = (self->pending_index + 1) % 2;
+-                self->packet_queued = false;
+-                self->pending_size = pending_size;
+             }
+         }
+-        self->pending_size = 0;
+         if (err_code != NIMBLE_OK) {
+-            // On error, simply skip updating the pending buffers so that the next HVC or WRITE
+-            // complete event triggers another attempt.
++            // Keep the packet pending for the next attempt.
++            _schedule_retry(self);
+             return err_code;
+         }
++        self->pending_size = 0;
++        return NIMBLE_OK;
++    }
++
++    // Allocate an mbuf because the functions below consume it.
++    struct os_mbuf *om = ble_hs_mbuf_from_flat(self->outgoing[self->pending_index], self->pending_size);
++    if (om == NULL) {
++        // No mbufs while BLE is busy. Keep the packet pending for the next attempt.
++        _schedule_retry(self);
++        return BLE_HS_ENOMEM;
++    }
++    // Clear pending_size before sending, because the ble_gatts functions below may recurse back
++    // here through the NOTIFY_TX event.
++    size_t pending_size = self->pending_size;
++    self->pending_size = 0;
++    if (self->write_type == CHAR_PROP_NOTIFY) {
++        // Only one outgoing buffer is allocated for notifications (see construct), so the
++        // pending index doesn't change.
++        err_code = ble_gatts_notify_custom(conn_handle, self->characteristic->handle, om);
++    } else if (self->write_type == CHAR_PROP_INDICATE) {
++        self->pending_index = (self->pending_index + 1) % 2;
++        self->packet_queued = true;
++        err_code = ble_gatts_indicate_custom(conn_handle, self->characteristic->handle, om);
++        if (err_code != NIMBLE_OK) {
++            self->pending_index = (self->pending_index + 1) % 2;
++            self->packet_queued = false;
++        }
++    } else {
++        // Placeholder error.
++        os_mbuf_free_chain(om);
++        err_code = BLE_HS_EUNKNOWN;
++    }
++    if (err_code != NIMBLE_OK) {
++        // NimBLE freed the mbuf. The data is still in our buffer: keep it pending for the next
++        // attempt rather than dropping it.
++        self->pending_size = pending_size;
++        _schedule_retry(self);
++        return err_code;
+     }
+     return NIMBLE_OK;
+ }
+@@ -145,6 +179,8 @@ static int packet_buffer_on_ble_client_evt(struct ble_gap_event *event, void *pa
+     bleio_packet_buffer_obj_t *self = (bleio_packet_buffer_obj_t *)param;
+     if (event->type == BLE_GAP_EVENT_DISCONNECT && self->conn_handle == event->disconnect.conn.conn_handle) {
+         self->conn_handle = BLEIO_HANDLE_INVALID;
++        // A packet still pending was for that link; don't hand it to the next one.
++        self->pending_size = 0;
+         return false;
+     }
+     if (event->type == BLE_GAP_EVENT_SUBSCRIBE) {
+@@ -152,6 +188,10 @@ static int packet_buffer_on_ble_client_evt(struct ble_gap_event *event, void *pa
+             self->conn_handle = event->subscribe.conn_handle;
+         } else if (self->conn_handle == event->subscribe.conn_handle && event->subscribe.cur_notify == 0 && event->subscribe.cur_indicate == 0) {
+             self->conn_handle = BLEIO_HANDLE_INVALID;
++            if (!self->client) {
++                // As above: whatever is pending was for the central that left.
++                self->pending_size = 0;
++            }
+         }
+         return false;
+     }
+@@ -328,6 +368,10 @@ mp_int_t common_hal_bleio_packet_buffer_write(bleio_packet_buffer_obj_t *self, c
+         while (self->pending_size != 0 &&
+                self->conn_handle != BLEIO_HANDLE_INVALID &&
+                !mp_hal_is_interrupted()) {
++            if (!self->packet_queued) {
++                // The pending packet is waiting for NimBLE to have room; nothing else retries it.
++                queue_next_write(self);
++            }
+             RUN_BACKGROUND_TASKS;
+         }
+     }
+@@ -443,6 +487,9 @@ void common_hal_bleio_packet_buffer_flush(bleio_packet_buffer_obj_t *self) {
+             self->packet_queued) &&
+            self->conn_handle != BLEIO_HANDLE_INVALID &&
+            !mp_hal_is_interrupted()) {
++        if (!self->packet_queued) {
++            queue_next_write(self);
++        }
+         RUN_BACKGROUND_TASKS;
+     }
+ }
+diff --git a/ports/espressif/common-hal/_bleio/PacketBuffer.h b/ports/espressif/common-hal/_bleio/PacketBuffer.h
+index 0ab084c5b0..278f9fbe06 100644
+--- a/ports/espressif/common-hal/_bleio/PacketBuffer.h
++++ b/ports/espressif/common-hal/_bleio/PacketBuffer.h
+@@ -9,6 +9,7 @@
+ #include "py/ringbuf.h"
+ #include "shared-bindings/_bleio/Characteristic.h"
+ #include "common-hal/_bleio/ble_events.h"
++#include "supervisor/background_callback.h"
+ 
+ typedef struct {
+     mp_obj_base_t base;
+@@ -27,6 +28,8 @@ typedef struct {
+     uint8_t write_type;
+     bool client;
+     bool packet_queued;
++    // Retries a pending packet that NimBLE had no room for. No BLE event will.
++    background_callback_t retry_callback;
+ } bleio_packet_buffer_obj_t;
+ 
+ typedef ble_event_handler_entry_t ble_event_handler_t;

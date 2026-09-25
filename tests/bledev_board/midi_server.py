@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: MIT
 """The BLE-MIDI gate and latency rig, board side: serve BLE-MIDI as ``bledev-midi``.
 
-Run it from ``/main.py`` on one board (mpftp soft-resets a board before it
-runs a script, and a soft reset turns Bluetooth off, so ``mpftp run`` would
-lose it). ``midi_client.py`` on another board or a laptop then connects and
+Run it from ``/main.py`` on one MicroPython board (mpftp soft-resets a board
+before it runs a script, and a soft reset turns Bluetooth off, so ``mpftp run``
+would lose it); on CircuitPython, ``mpftp run`` works. ``midi_client.py`` on another board or a laptop then connects and
 asks for one of two sessions with a SysEx command, ``F0 7D 10 <mode> F7``:
 
 * mode 1, the gate: this side reads 1,000 mixed messages (``mix()``) and
@@ -24,7 +24,11 @@ import asyncio
 import sys
 
 import bledev.midi as midi
-import bledev.mpble
+
+if sys.implementation.name == "circuitpython":
+    import bledev.cpble as backend  # mpftp run keeps Bluetooth on here
+else:
+    import bledev.mpble as backend
 
 PLANT = None  # None, "drop" or "flip"
 LOG = "/midi_server.log"
@@ -137,7 +141,7 @@ async def main():
         os.remove(LOG)
     except OSError:
         pass
-    ble = bledev.mpble.get()
+    ble = backend.get()
     log("serving BLE-MIDI as", NAME, "plant", PLANT)
     while True:
         port = await midi.serve(ble, name=NAME)
@@ -158,5 +162,5 @@ async def main():
             await port.aclose()
 
 
-if sys.implementation.name == "micropython":
+if sys.implementation.name in ("micropython", "circuitpython"):
     asyncio.run(main())

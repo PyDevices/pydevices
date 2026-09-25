@@ -4,7 +4,7 @@
     ble = bledev.auto.adapter()
 
 picks, in order: ``mpble`` where MicroPython's ``bluetooth`` module exists,
-``webble`` in a browser (PyScript, Pyodide, the Workbench simulator), and
+``cpble`` where CircuitPython's ``_bleio`` does, ``webble`` in a browser (PyScript, Pyodide, the Workbench simulator), and
 ``bleak`` on CPython when bleak is installed (``pip install pydevices[ble]``).
 Pass ``backend="fake"`` (or set ``BLEDEV_BACKEND``) to force one; extra
 keyword arguments go to the backend's constructor.
@@ -19,6 +19,7 @@ from . import UnsupportedError
 #: backend name -> (module, class). Each module stands alone and never imports this one.
 BACKENDS = {
     "mpble": ("bledev.mpble", "MPBLE"),
+    "cpble": ("bledev.cpble", "CPBLE"),
     "bleak": ("bledev.bleak", "BleakBLE"),
     "webble": ("bledev.webble", "WebBLE"),
     "fake": ("bledev.fake", "FakeBLE"),
@@ -48,7 +49,9 @@ def backend_name():
             return "webble"
         if _importable("bluetooth"):
             return "mpble"
-        return None  # CircuitPython's _bleio waits for bledev.cpble
+        if _importable("_bleio"):
+            return "cpble"
+        return None
     if _in_browser():
         return "webble"
     if _importable("bleak"):
@@ -71,7 +74,8 @@ def adapter(backend=None, **kwargs):
     if name is None:
         raise UnsupportedError(
             "no BLE backend on this host: on CPython, pip install 'pydevices[ble]' "
-            "for bleak; on MicroPython, use firmware built with bluetooth"
+            "for bleak; on MicroPython, use firmware built with bluetooth; on "
+            "CircuitPython, a board with _bleio"
         )
     if name not in BACKENDS:
         raise UnsupportedError("unknown bledev backend {!r}; one of {}".format(name, sorted(BACKENDS)))

@@ -9,9 +9,22 @@ it checks; ECHO: this side sends back what it gets) and prints the verdict.
 Set PLANT = True to flip one bit at offset 5000 of everything this side sends;
 the client must then report FAIL. Logs to /gate_server.log.
 """
-import asyncio, time
-import bledev.mpble
+import asyncio, sys, time
 import bledev.nus as nus
+
+if sys.implementation.name == "circuitpython":
+    # CircuitPython: bledev.cpble, and no time.ticks_ms. Its filesystem is
+    # read-only to code while USB mounts it, so the log is printed only.
+    import bledev.cpble as backend
+    from supervisor import ticks_ms
+
+    def ticks_diff(a, b):
+        return (a - b) & ((1 << 29) - 1)
+
+else:
+    import bledev.mpble as backend
+
+    ticks_ms, ticks_diff = time.ticks_ms, time.ticks_diff
 
 PLANT = False  # the planted run sets this: flip one bit at offset 5000 of what we send
 LOG = "/gate_server.log"
@@ -20,8 +33,11 @@ LOG = "/gate_server.log"
 def log(*parts):
     line = " ".join(str(p) for p in parts)
     print(line)
-    with open(LOG, "a") as f:
-        f.write(line + "\n")
+    try:
+        with open(LOG, "a") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
 
 
 def pattern(n, seed):
@@ -48,13 +64,16 @@ def compare(got, want):
 
 
 async def main():
-    open(LOG, "w").close()
+    try:
+        open(LOG, "w").close()
+    except OSError:
+        pass
     await gate(log)
 
 
 async def gate(log):
     """Serve one gate run; ``coex_server.py`` imports this."""
-    ble = bledev.mpble.get()
+    ble = backend.get()
     log("serving as bledev-gate, plant", PLANT)
     link = await nus.serve(ble, name="bledev-gate", timeout_ms=120000)
     log("connected, mtu", link.connection.mtu)
@@ -65,18 +84,18 @@ async def gate(log):
         op, n = cmd.split()
         n = int(n)
         if op == "UP":
-            t0 = time.ticks_ms()
+            t0 = ticks_ms()
             got = await link.readexactly(n)
-            ms = time.ticks_diff(time.ticks_ms(), t0)
+            ms = ticks_diff(ticks_ms(), t0)
             bad, first = compare(got, pattern(n, 1))
             verdict = "OK" if bad == 0 and len(got) == n else "BAD"
             log("UP", verdict, n, "bytes", ms, "ms mismatches", bad, "first", first, "mtu", link.connection.mtu)
             await link.write("UP {} {} {} {}\n".format(verdict, ms, bad, first).encode())
         elif op == "DOWN":
             data = plant(pattern(n, 2))
-            t0 = time.ticks_ms()
+            t0 = ticks_ms()
             await link.write(data)
-            log("DOWN sent", n, "bytes in", time.ticks_diff(time.ticks_ms(), t0), "ms")
+            log("DOWN sent", n, "bytes in", ticks_diff(ticks_ms(), t0), "ms")
         elif op == "ECHO":
             left = n
             sent = 0

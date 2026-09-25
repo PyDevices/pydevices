@@ -21,9 +21,14 @@ It logs to /gatt_peripheral.log and serves connections until reset.
 
 import asyncio
 import struct
+import sys
 
 import bledev
-import bledev.mpble
+
+if sys.implementation.name == "circuitpython":
+    import bledev.cpble as backend
+else:
+    import bledev.mpble as backend
 
 PLANT = False  # the planted run skips notification 7, which the central must catch
 LOG = "/gatt_peripheral.log"
@@ -37,8 +42,11 @@ CHR_IND = bledev.UUID("12345678-1234-5678-1234-56789abcdef3")
 def log(*parts):
     line = " ".join(str(p) for p in parts)
     print(line)
-    with open(LOG, "a") as f:
-        f.write(line + "\n")
+    try:
+        with open(LOG, "a") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass  # CircuitPython: the filesystem is USB's while it's mounted
 
 
 async def notify_all(stream, connection, n):
@@ -51,7 +59,7 @@ async def notify_all(stream, connection, n):
                 stream.notify(connection, data)
                 break
             except bledev.BusyError:
-                await asyncio.sleep_ms(2)
+                await bledev.sleep_ms(2)
 
 
 async def count_writes(stream, state):
@@ -92,9 +100,15 @@ async def serve(ble, rw, stream, ind):
 
 
 async def main():
-    open(LOG, "w").close()
-    ble = bledev.mpble.get()
-    ble.config(mtu=185)
+    try:
+        open(LOG, "w").close()
+    except OSError:
+        pass
+    ble = backend.get()
+    try:
+        ble.config(mtu=185)
+    except bledev.UnsupportedError:
+        pass  # CircuitPython's MTU is fixed; the central expects 256 then
     service = bledev.Service(SVC)
     rw = bledev.Characteristic(service, CHR_RW, read=True, write=True, initial=b"hi")
     stream = bledev.Characteristic(

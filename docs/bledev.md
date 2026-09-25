@@ -31,11 +31,12 @@ transport can talk to it too.
 | Backend | Host | Central (scan, connect) | Peripheral (advertise, serve) |
 |---|---|---|---|
 | `bledev.mpble` | MicroPython with `bluetooth` (ESP32, S3, P4 + C6, Pico W) | yes | yes |
+| `bledev.cpble` | CircuitPython with `_bleio` (ESP32-S3 measured) | yes | yes |
 | `bledev.bleak` | CPython on Windows, Linux, macOS | yes | no |
 | `bledev.webble` | Browsers: PyScript, the Workbench simulator | yes | no |
 | `bledev.fake` | Anywhere: tests | yes | yes |
 
-`bledev.webble` is being written; the other three are here.
+`bledev.webble` is being written; the other four are here.
 
 Roles aren't symmetric. A laptop or a browser can only scan and connect, so
 when a board talks to one, the board advertises. Only board-to-board links put
@@ -86,11 +87,18 @@ import bledev.bleak
 ble = bledev.bleak.BleakBLE()   # central only
 ```
 
+On CircuitPython (it needs the `asyncio` library: `circup install asyncio`):
+
+```python
+import bledev.cpble
+ble = bledev.cpble.get()        # CircuitPython's _bleio.adapter, both roles
+```
+
 Anywhere, if you don't want to name the backend:
 
 ```python
 import bledev.auto
-ble = bledev.auto.adapter()     # mpble, webble or bleak, whichever this host has
+ble = bledev.auto.adapter()     # mpble, cpble, webble or bleak, whichever this host has
 ```
 
 `bledev.auto` is optional, and nothing else in bledev imports it. Set
@@ -437,6 +445,37 @@ Give it any HID report descriptor and it decodes that device's reports, so a
 USB host can use it the same way. How it numbers axes, what it does with a
 rollover, and what a board central can't read are in
 [bledev-internals.md](bledev-internals.md#how-hid-gets-there).
+
+## On CircuitPython
+
+The same code runs on a CircuitPython board with `bledev.cpble`, in either
+role: nus, MIDI, the contract's checks and the file client all passed over the
+radio there (the numbers are in [the internals](bledev-internals.md#circuitpython-cpble)). A few
+things differ, because `_bleio` works differently from aioble underneath:
+
+- Connecting, discovery, a read, a write with response and subscribing each
+  hold up your other tasks until the radio answers, usually a connection
+  interval or two. `_bleio` has no async calls.
+- It pairs "just works" only. `authenticated=True` and passkeys raise
+  `UnsupportedError`, and it always bonds.
+- A central there can't receive indications, and the MTU is 247 at most.
+- `Characteristic.write()` on a characteristic that notifies sends the value
+  to subscribed centrals even without `send_update`.
+- CircuitPython 10.3's `PacketBuffer` can stall or fault the board when a
+  notification stream outruns the radio. bledev steps around the stall; the
+  fault needs a CircuitPython fix, drafted for upstream with a patch. On the
+  official build, 2 of 11 fast 16 KB streams restarted the board in safe mode;
+  on the patched build, none did.
+- A central there waits 2 s on every read and every write with a response
+  (subscribing is one), so connecting and setting up takes several seconds.
+
+CircuitPython's own BLE file service, the one its supervisor serves, is
+reached with the same `bledev.filetransfer.connect()` a MicroPython board
+uses; it pairs by itself. The service is only public in CircuitPython's
+discovery mode, it won't write while a computer has the CIRCUITPY drive
+mounted, and on the official 10.3.0 build a 20 KB download stalls (the same
+`PacketBuffer` fault). What cpble does about each of these, and why, is in
+[bledev-internals.md](bledev-internals.md#how-cpble-gets-there).
 
 ## The rules every backend keeps
 
