@@ -46,7 +46,7 @@ from bledev import (
     UnsupportedError,
     UUID,
 )
-from bledev import fake, improv, nus, repl
+from bledev import fake, improv, midi, nus, repl
 from bledev.fake import Air, FakeBLE
 
 MICROPYTHON = sys.implementation.name == "micropython"
@@ -805,6 +805,105 @@ async def setup_gives_up_after_its_attempts(air):
     served.cancel()
 
 
+async def midi_pair(air, *, mtu=midi.MTU, **options):
+    board = FakeBLE(air=air)
+    laptop = FakeBLE(air=air, peripheral=False)
+    served = asyncio.create_task(midi.serve(board, name="synth", mtu=mtu, timeout_ms=2000, **options))
+    client = await midi.connect(laptop, name="synth", mtu=mtu, timeout_ms=2000, **options)
+    server = await served
+    return server, client
+
+
+async def _collect(port, n, buf=None):
+    """Read ``port`` as a MidiPort until ``n`` messages have come, as bytes."""
+    got = bytearray()
+    buf = buf or bytearray(64)
+    splitter = midi.Splitter()
+    messages = []
+    while len(messages) < n:
+        k = port.read(buf)
+        if k:
+            messages.extend(splitter.feed(buf[:k]))
+        else:
+            await asyncio.sleep(0.001)
+    return messages
+
+
+def midi_mix(count):
+    """Notes, controllers, pitch bend, a 300-byte SysEx and clock, interleaved."""
+    out = []
+    for i in range(count):
+        k = i % 10
+        if k in (0, 1, 2):
+            out.append(bytes((0x90 | (i % 16), i % 128, 1 + i % 127)))
+        elif k == 3:
+            out.append(bytes((0x80 | (i % 16), i % 128, 0)))
+        elif k in (4, 5):
+            out.append(bytes((0xB0 | (i % 16), 7, i % 128)))
+        elif k == 6:
+            out.append(bytes((0xE0 | (i % 16), i % 128, (i >> 7) % 128)))
+        elif k in (7, 8):
+            out.append(b"\xf8")
+        elif i % 100 == 9:
+            out.append(bytes([0xF0] + [(i + j) % 128 for j in range(298)] + [0xF7]))
+        else:
+            out.append(bytes((0xC0 | (i % 16), i % 128)))
+    return out
+
+
+@check
+async def midi_notes_both_ways(air):
+    server, client = await midi_pair(air)
+    equal(server.connection._ble.config("gap_name"), "synth", "GAP name follows the advertised name")
+    expect(hasattr(client, "read") and hasattr(client, "write") and client.info.direction == "inout", "a MidiPort")
+    client.write(b"\x90\x3c\x64\x3e\x64")  # running status on the way in
+    equal(await _collect(server, 2), [b"\x90\x3c\x64", b"\x90\x3e\x64"], "central -> peripheral")
+    server.write(b"\xb0\x07\x40")
+    ts, message = await client.receive(timeout_ms=1000)
+    equal(message, b"\xb0\x07\x40", "peripheral -> central")
+    expect(0 <= ts <= 0x1FFF, "a 13-bit timestamp")
+
+
+@check
+async def midi_a_thousand_mixed_messages(air):
+    server, client = await midi_pair(air)
+    sent = midi_mix(1000)
+    for sender, receiver, way in ((client, server, "up"), (server, client, "down")):
+        for m in sent:
+            sender.write(m)
+        await sender.drain()
+        got = await _collect(receiver, len(sent))
+        equal(len(got), len(sent), way + ": count")
+        equal([m for m in got if m[0] >= 0xF8], [m for m in sent if m[0] >= 0xF8], way + ": real-time, in order")
+        equal([m for m in got if m[0] < 0xF8], [m for m in sent if m[0] < 0xF8], way + ": the rest, in order")
+        equal(receiver.decode_errors, 0, way + ": decode errors")
+
+
+@check
+async def midi_sysex_at_the_smallest_mtu(air):
+    server, client = await midi_pair(air, mtu=23)
+    sysex = bytes([0xF0] + [j % 128 for j in range(300)] + [0xF7])
+    server.write(sysex + b"\xf8")
+    await server.drain()
+    first = await client.receive(timeout_ms=1000)
+    second = await client.receive(timeout_ms=1000)
+    equal(sorted([first[1], second[1]]), sorted([sysex, b"\xf8"]), "SysEx and clock at MTU 23")
+
+
+@check
+async def midi_overflow_is_counted(air):
+    server, client = await midi_pair(air, queue_limit=10)
+    for i in range(30):
+        client.write(bytes((0x90, i, 1)))
+    await client.drain()
+    for _ in range(100):
+        if server.dropped:
+            break
+        await asyncio.sleep(0.005)
+    expect(server.overflowed, "an overflow shows")
+    equal(server.dropped + server.any(), 30, "dropped + kept")
+
+
 @check
 async def auto_picks_or_explains(air):
     import bledev.auto as auto
@@ -870,11 +969,24 @@ def _plant(name):
             self.event.set()
 
         fake._Inbox.put = one_slot
+    elif name == "midi":
+        # One packet in 50 arrives with a bit flipped in its last byte.
+        packet = midi.Port._packet
+        count = [0]
+
+        def flipping_packet(self, data):
+            count[0] += 1
+            if count[0] % 50 == 0 and len(data) > 2:
+                data = bytearray(data)
+                data[-1] ^= 0x01
+            packet(self, data)
+
+        midi.Port._packet = flipping_packet
     else:
         raise SystemExit("unknown plant " + name)
 
 
-PLANTS = ("drop", "corrupt", "reorder", "truncate", "overwrite")
+PLANTS = ("drop", "corrupt", "reorder", "truncate", "overwrite", "midi")
 
 
 def _print_exception(e):

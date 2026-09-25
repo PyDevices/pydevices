@@ -19,6 +19,8 @@ standalone module per backend, and an optional selector.
 | `nus.py` | Nordic UART byte stream, built only on the contract. |
 | `repl.py` | The REPL over nus: MicroPython's raw `bluetooth` API from the IRQ on the board, `nus` on the client. |
 | `improv.py` | Improv Wi-Fi setup, both sides, built only on the contract. |
+| `midi.py` | BLE-MIDI as a usbif-style MIDI port, both sides, built only on the contract. |
+| `midi_codec.py` | The BLE-MIDI packet codec. Pure, no imports, shared by every host. |
 | `auto.py` | Picks a backend. Nothing imports it, and backends must not. |
 
 A backend module imports `bledev` and whatever its host provides, and nothing
@@ -272,6 +274,8 @@ The serving scripts have a `PLANT` switch, and a planted run must fail:
 | `gatt_peripheral.py` + `gatt_latency.py` | Per-operation latency of reads and writes-with-response, with the stall count |
 | `nus_server.py` + `nus_client.py` | 16 KB up, down and echoed over nus, byte for byte, timed. On a laptop, `--fast` asks for throughput parameters and `--plant` flips a bit |
 | `repl_server.py` + `repl_client.py` | The REPL: the right password evaluates `123 * 456`, a wrong one sent with code that would create `/pwned` is refused and hung up on and the code never runs, and Ctrl-C stops `while True`. `repl_server.py` runs from `/main.py`, because mpftp soft-resets the board, which turns Bluetooth off |
+| `midi_server.py` + `midi_client.py` | BLE-MIDI. `gate`: 1,000 mixed messages up, checked by the server, then down, checked by the client; `--plant` on the client and `PLANT = "drop"` or `"flip"` on the server must FAIL. `latency`: note-on round trips through an echo, `--fast` for a 7.5 ms interval (throughput parameters on a laptop). A board client reads its arguments from `/midi_client_args.py` |
+| `reconnect_loop.py` (laptop) against `repl_server.py` | Rapid reconnects: log in, run a line, close, wait 1.5 s, N times; `--no-retry` turns `connect_and_set_up`'s retry off |
 | `improv_server.py` + `improv_client.py` | Improv: `--wrong` must get "unable to connect" and a return to "authorized"; without it, on a board, the network comes from that board's own `secrets.py` and must end "provisioned" with a URL |
 | `coex_server.py` + `tcp_pull.py` + `nus_client.py` | Wi-Fi and BLE on one S3: a TCP source on Wi-Fi beside the nus gate |
 
@@ -360,4 +364,49 @@ strength the run-to-run spread is wider than any difference BLE could make.
 One early run with BLE advertising read 8.1 KB/s, which looked like a finding
 until the repeats. Measuring BLE's cost to Wi-Fi needs the board at -60 dBm
 or better.
+
+### BLE-MIDI
+
+The LCD-7 ran `midi_server.py` and the T-Embed or the laptop ran
+`midi_client.py`, one desk apart, Wi-Fi off, bledev as `.py` source,
+2026-09-24.
+
+**The gate** passed board to board at both intervals and from the laptop:
+1,000 messages each way, complete, in order and intact, no decode errors, in
+about 0.7 s up and 0.5 s down. The planted runs failed as they must: a bit
+flipped in one packet going up (the server reported the first bad message,
+546), one packet dropped going down (940 of 1,000 arrived), and a bit flipped
+going down.
+
+**Latency**, half a note-on's round trip, each ping sent 0-20 ms after the
+last echo so the phase against the connection events varies:
+
+| Link | Pings | Median | p90 | p99 | Max |
+|---|---|---|---|---|---|
+| S3 to S3, default interval (MicroPython asks 30-50 ms) | 400 notes | 44.3 ms | 44.3 | 49.8 | 69.3 |
+| the same, four-note chords (to the last note) | 100 | 44.4 ms | 44.4 | 49.7 | 49.7 |
+| S3 to S3, 7.5 ms interval | 400 notes | 10.8 ms | 13.6 | 15.9 | 21.1 |
+| the same, chords | 100 | 10.9 ms | 13.7 | 18.8 | 18.8 |
+| Laptop to S3, Windows' defaults | 400 notes | 52.3 ms | 60.0 | 110.7 | 118.1 |
+| the same, chords | 100 | 52.1 ms | 59.8 | 105.7 | 105.7 |
+| Laptop to S3, throughput parameters | 400 notes | 13.4 ms | 16.7 | 23.1 | 24.7 |
+| the same, chords | 100 | 13.3 ms | 16.5 | 23.2 | 23.2 |
+
+No echo was lost in any run. **The codec's own cost** on the S3 (240 MHz,
+`.py` source), splitting, encoding and decoding: 0.51 ms for a note, 1.27 ms
+for a four-note chord, 4.9 ms for a 300-byte SysEx. A round trip crosses the
+codec four times, so it accounts for about 1 ms of the 10.8 ms one way at
+7.5 ms. What the rest splits into, connection events against asyncio's
+scheduling on each board, wasn't measured: that needs a raw GATT echo at the
+same interval to compare.
+
+**Windows** (2026-09-24, Windows 11 build 26200): once the board is paired,
+Windows lists it as a MIDI device, `bledev-midi (Bluetooth MIDI IN)` and
+`(Bluetooth MIDI OUT)`, found through the WinRT MIDI device interfaces. It
+takes pairing: unpaired, nothing appears. winmm doesn't list it, and this
+build's Windows MIDI Services has no Bluetooth transport among its
+`Midi2.*Transport.dll`s, so a DAW that opens ports through winmm can't see
+the board. Pairing needs the board to bond (`ble.config(bond=True, ...)` with
+aioble's `security` module loaded); bledev doesn't do that for you yet.
+Before `midi.serve()` set the GAP name, Windows called the port `MPY ESP32`.
 
