@@ -1,0 +1,10 @@
+{
+  "files": {
+    "../../lib/bledev/__init__.py": "./bledev/__init__.py",
+    "../../lib/bledev/auto.py": "./bledev/auto.py",
+    "../../lib/bledev/nus.py": "./bledev/nus.py",
+    "../../lib/bledev/webble.py": "./bledev/webble.py",
+    "./gate.py": "./gate.py"
+  },
+  "interpreter": "/pyscript/micropython/micropython.mjs"
+}
