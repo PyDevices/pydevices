@@ -59,6 +59,36 @@ _REQUIRED = ("spawn", "shutdown", "running", "retarget", "drain", "park")
 
 _BLOCKS_FOREVER = 0x7FFFFFFF
 
+# How long produce() waits for a pump that has not made its first block, and
+# how it waits. It used to spin 20 000 drains and nothing else, and that spin
+# was the race behind pydevices#56: on a loaded machine the pump thread often
+# shares a core with the interpreter, and a thread that never gives the core
+# up is exactly what keeps the pump from running. Pinned to one core, 303 of
+# those spins in ten probe runs ended with the pump still at block 0. A round
+# of `lifecycle.py` gives the pump five of these waits, and when all five went
+# by without it the round played nothing. So: a short spin for the usual case
+# (the pump is on another core and a few microseconds away), then sleep in
+# small steps, which hands the core over, until the deadline.
+_FIRST_BLOCK_SPINS = 200
+_FIRST_BLOCK_WAIT_US = 20000
+_FIRST_BLOCK_STEP_US = 100
+
+try:
+    from time import sleep_us as _sleep_us
+    from time import ticks_diff as _ticks_diff
+    from time import ticks_us as _ticks_us
+except ImportError:  # CPython, CircuitPython
+    import time as _time
+
+    def _sleep_us(us):
+        _time.sleep(us / 1000000)
+
+    def _ticks_us():
+        return _time.monotonic_ns() // 1000
+
+    def _ticks_diff(a, b):
+        return a - b
+
 # audiocore.get_buffer()'s result codes, repeated here so this module does not
 # have to import sample_out (which imports it the other way round).
 GET_BUFFER_DONE = 0
@@ -768,6 +798,7 @@ class RingDriver(_Driver):
         view = memoryview(into)
         at = 0
         idle = 0
+        started = None
         while at < len(view):
             # running() is read BEFORE the drain, and that ordering is the
             # whole of the fix: read it after, and a pump that finishes its
@@ -786,10 +817,18 @@ class RingDriver(_Driver):
                 break
             # Nothing yet and nothing pulled: the pump has been unparked for
             # microseconds and has not finished its first block. Waiting here
-            # beats returning a service call that produced nothing.
+            # beats returning a service call that produced nothing -- but not
+            # by spinning, which can keep the pump off the very core it needs
+            # (pydevices#56; see _FIRST_BLOCK_WAIT_US).
             idle += 1
-            if idle > 20000:
+            if idle <= _FIRST_BLOCK_SPINS:
+                continue
+            now = _ticks_us()
+            if started is None:
+                started = now
+            elif _ticks_diff(now, started) >= _FIRST_BLOCK_WAIT_US:
                 break
+            _sleep_us(_FIRST_BLOCK_STEP_US)
         self.rest()
         return at
 
