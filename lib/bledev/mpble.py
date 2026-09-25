@@ -31,6 +31,8 @@ try:
 except ImportError:  # pragma: no cover
     import uasyncio as asyncio
 
+import time
+
 import bluetooth
 import aioble
 from aioble import core as _aioble_core
@@ -42,6 +44,7 @@ from . import (
     BLETimeoutError,
     BusyError,
     ClientCharacteristic,
+    ClientDescriptor,
     ClientService,
     Connection,
     DEFAULT_MTU,
@@ -51,6 +54,7 @@ from . import (
     FLAG_NOTIFY,
     FLAG_READ,
     GattError,
+    PairingError,
     ScanResult,
     Scanner,
     UnsupportedError,
@@ -63,11 +67,18 @@ from . import (
 _IRQ_CENTRAL_CONNECT = 1
 _IRQ_CENTRAL_DISCONNECT = 2
 _IRQ_GATTS_WRITE = 3
+_IRQ_PERIPHERAL_DISCONNECT = 8
 _IRQ_MTU_EXCHANGED = 21
+
+_FLAG_READ_ENCRYPTED = 0x0200
+_FLAG_WRITE_ENCRYPTED = 0x1000
+_FLAG_READ_AUTHENTICATED = 0x0400
+_FLAG_WRITE_AUTHENTICATED = 0x2000
 
 # errno values NimBLE uses when its buffers are full (ENOMEM, EAGAIN, EBUSY,
 # ENOBUFS). A send that sees one of these waits and tries again.
 _BUSY_ERRNOS = (12, 11, 16, 105)
+_EALREADY = 120
 
 # The largest ATT MTU MicroPython's NimBLE will negotiate.
 _MAX_MTU = 512
@@ -150,7 +161,11 @@ class _Translate:
         if issubclass(exc_type, aioble.DeviceDisconnectedError):
             raise DisconnectedError("{}: disconnected".format(self._what))
         if issubclass(exc_type, aioble.GattError):
-            raise GattError(getattr(exc, "_status", 0))
+            status = getattr(exc, "_status", 0) or 0
+            # NimBLE reports an ATT error as 0x100 + the ATT code.
+            if 0x100 <= status < 0x200:
+                status -= 0x100
+            raise GattError(status)
         if exc_type is ValueError and exc.args and exc.args[0] == "Not connected":
             raise DisconnectedError("{}: not connected".format(self._what))
         return False
@@ -199,6 +214,8 @@ def _irq(event, data):
         aconn = _AioConnection._connected.get(conn_handle)
         if mtu and aconn is not None and not aconn.mtu:
             aconn.mtu = mtu
+    elif event == _IRQ_PERIPHERAL_DISCONNECT:
+        _early_mtu.pop(data[0], None)
     elif event == _IRQ_CENTRAL_DISCONNECT:
         conn_handle = data[0]
         _early_mtu.pop(conn_handle, None)
@@ -273,8 +290,25 @@ class MPBLE(BLE):
             max_mtu=_MAX_MTU,
             indicate=True,
             pairing=True,
+            long_read=False,
         )
         return caps
+
+    def enable_bonding(self, store=None):
+        """Bond from now on, keeping the keys in ``store`` (see
+        :func:`bledev.security.use_store`): NVS on an ESP32 by default, which
+        survives a filesystem erase, or a path for aioble's
+        ``ble_secrets.json``.
+
+        Call it before any connection that may pair, on both sides: the side
+        that doesn't start pairing still has to store the keys. A peer that
+        still holds its half of a bond this board has lost will refuse to
+        reconnect encrypted until it's paired again.
+        """
+        from . import security
+
+        security.use_store(store)
+        aioble.config(bond=True, le_secure=True, mitm=False, io=security.IO_NO_INPUT_OUTPUT)
 
     def _config_mtu(self):
         try:
@@ -353,6 +387,12 @@ class MPBLE(BLE):
                     initial=c._initial,
                     max_len=c.max_len,
                 )
+                if c.encrypted:
+                    achar.flags |= _FLAG_READ_ENCRYPTED | _FLAG_WRITE_ENCRYPTED
+                if c.authenticated:
+                    achar.flags |= _FLAG_READ_AUTHENTICATED | _FLAG_WRITE_AUTHENTICATED
+                for d in c.descriptors:
+                    aioble.Descriptor(achar, _buuid(d.uuid), read=True, initial=d.value)
                 c._impl = _MPServerCharacteristic(self, c, achar)
             aservices.append(aservice)
         aioble.register_services(*aservices)
@@ -466,7 +506,15 @@ class _MPConnection(Connection):
 
     @property
     def mtu(self):
-        return self._aconn.mtu or DEFAULT_MTU
+        a = self._aconn
+        if not a.mtu and a._conn_handle is not None:
+            # The same race as a central's early exchange, with this board as
+            # the central: a peripheral that exchanges at once (Windows,
+            # through bless) is heard before aioble records the connection.
+            early = _early_mtu.pop(a._conn_handle, None)
+            if early:
+                a.mtu = early
+        return a.mtu or DEFAULT_MTU
 
     def is_connected(self):
         return self._aconn.is_connected()
@@ -480,8 +528,73 @@ class _MPConnection(Connection):
             await self._aconn.disconnected(timeout_ms)
 
     async def exchange_mtu(self, mtu=None, timeout_ms=1000):
-        with _Translate("exchange_mtu"):
-            return await self._aconn.exchange_mtu(mtu, timeout_ms)
+        try:
+            with _Translate("exchange_mtu"):
+                return await self._aconn.exchange_mtu(mtu, timeout_ms)
+        except OSError as e:
+            # NimBLE exchanges the MTU once per link. When the peer already
+            # did (Windows as a peripheral through bless does, at once), a
+            # second exchange is EALREADY: the MTU is settled, so return it.
+            if _errno(e) != _EALREADY:
+                raise
+            return self.mtu
+
+    @property
+    def encrypted(self):
+        return bool(self._aconn.encrypted)
+
+    @property
+    def authenticated(self):
+        from . import security
+
+        return security.state(self._aconn._conn_handle)[1] if self.is_connected() else False
+
+    async def pair(self, bond=True, timeout_ms=30000, passkey=None):
+        from . import security
+
+        if not self.is_connected():
+            raise DisconnectedError("pair: not connected")
+        if bond and security.store() is None:
+            security.use_store()
+        security._install()
+        handle = self._aconn._conn_handle
+        if passkey is not None:
+            # Type in what the peer shows: a keyboard, with MITM protection.
+            security.expect_passkey(handle, passkey if not callable(passkey) else _SyncPasskey(passkey))
+            io, mitm = security.IO_KEYBOARD_ONLY, True
+        else:
+            io, mitm = security.IO_NO_INPUT_OUTPUT, False
+        aioble.config(bond=bond, le_secure=True, mitm=mitm, io=io)
+        updates = []
+
+        def on_change(conn, encrypted, authenticated, bonded, key_size):
+            if conn == handle:
+                updates.append(encrypted)
+
+        security.on_change(on_change)
+        try:
+            with _Translate("pair"):
+                _aioble_core.ble.gap_pair(handle)
+            deadline = time.ticks_add(time.ticks_ms(), timeout_ms)
+            # The stack reports the outcome as an encryption update, success
+            # or not, so a wrong passkey fails here at once, not at a timeout.
+            while not updates:
+                if not self.is_connected():
+                    raise PairingError("pair: the peer hung up")
+                if time.ticks_diff(deadline, time.ticks_ms()) <= 0:
+                    raise BLETimeoutError("pair: timed out")
+                await sleep_ms(20)
+        finally:
+            security.remove_listener(on_change)
+            security.expect_passkey(handle, None)
+        if not security.state(handle)[0]:
+            raise PairingError("pair: refused (wrong passkey, or the peer lost its keys)")
+
+    async def unpair(self):
+        from . import security
+
+        addr = self.device.address
+        security.forget(addr)
 
     async def _discover_services(self, uuid, timeout_ms):
         found = []
@@ -532,6 +645,17 @@ class _MPClientCharacteristic(ClientCharacteristic):
         self._live("read")
         with _Translate("read"):
             return bytes(await self._achar.read(timeout_ms))
+
+    async def _discover_descriptors(self, uuid, timeout_ms):
+        self._live("descriptor discovery")
+        found = []
+        with _Translate("descriptor discovery"):
+            async for adesc in self._achar.descriptors(timeout_ms):
+                d = _MPClientDescriptor(self, adesc)
+                if uuid is None or d.uuid == uuid:
+                    found.append(d)
+        found.sort(key=lambda d: d._adesc._value_handle)
+        return found
 
     async def write(self, data, response=None, timeout_ms=1000):
         data = bytes(data)
@@ -602,6 +726,31 @@ class _MPClientCharacteristic(ClientCharacteristic):
         self._check(FLAG_INDICATE, "indicate")
         a = self._achar
         return await self._next(a._indicate_queue, a._indicate_event, timeout_ms, "indicated")
+
+
+class _SyncPasskey:
+    # The passkey is asked for from a scheduled callback, which can't await:
+    # an async provider isn't supported on a board, a plain callable is.
+    def __init__(self, fn):
+        self._fn = fn
+
+    def __call__(self):
+        value = self._fn()
+        if hasattr(value, "send"):
+            raise BLEError("a board's passkey provider must be a plain function")
+        return value
+
+
+class _MPClientDescriptor(ClientDescriptor):
+    def __init__(self, characteristic, adesc):
+        ClientDescriptor.__init__(self, characteristic, _uuid(adesc.uuid))
+        self._adesc = adesc
+
+    async def read(self, timeout_ms=1000):
+        if not self.connection.is_connected():
+            raise DisconnectedError("read: not connected")
+        with _Translate("descriptor read"):
+            return bytes(await self._adesc.read(timeout_ms))
 
 
 class _MPServerCharacteristic:

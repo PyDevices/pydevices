@@ -17,8 +17,24 @@ laptop or another board::
 It behaves like WebREPL: one attempt per connection, a wrong password gets
 ``Access denied`` and a disconnect, and nothing the client sends reaches the
 REPL before the password is right. Like WebREPL, the link isn't encrypted, so
-someone sniffing nearby can capture the password; pairing is the later fix
-(docs/ble.md §3).
+someone sniffing nearby can capture the password.
+
+**Pairing** encrypts the link, and bonds so the next connection skips it.
+It's off unless you ask (``pairing=None``, the password alone):
+
+* ``pairing="passkey"``: the board shows a six-digit passkey on its display
+  (or the console) and the host types it in. That authenticates the host, so
+  the password becomes optional: ``password=False`` drops it.
+* ``pairing="justworks"``: encrypted and bonded, with no passkey. It proves
+  nothing about who paired, so the password stays required; what it buys is
+  that nobody sniffing can read the password or the session.
+* ``pairing="numeric"``: both sides show a number; ``confirm(number)`` on the
+  board says whether they match (a button, say).
+* ``pairing="auto"``: ``"passkey"`` on a board with a display, else ``"justworks"``.
+
+The keys live in NVS on an ESP32, so a filesystem erase keeps them and a full
+chip erase loses them (``bledev.security``). A client pairs with
+``connect(..., pair=True, passkey=...)``.
 
 **The REPL owns the radio while it runs.** It registers its own GATT service
 (replacing any other) and advertises whenever nobody is connected. It works
@@ -31,13 +47,23 @@ as it does over USB. ``stop()`` gives the radio back. It's MicroPython only;
 import struct
 import sys
 
-from . import BLEError, pack_advertisement, wait_ms
+from . import BLEError, GattError, NEEDS_PAIRING, PairingError, STALE_BOND, pack_advertisement, wait_ms
 from . import nus
+
+# bluetooth.BLE characteristic flags for the protected characteristics.
+_F_READ_ENC = 0x0200
+_F_READ_AUTHN = 0x0400
+_F_WRITE_ENC = 0x1000
+_F_WRITE_AUTHN = 0x2000
 
 PROMPT = b"Password: "
 
 # How often the server retries output the controller couldn't take yet.
 _TICK_MS = 5
+# With pairing on, how long a link may stay unpaired before the board hangs
+# up, so a host that never pairs can't hold the one connection. SMP's own
+# timeout is 30 s.
+PAIR_WITHIN_MS = 30000
 BANNER = b"\r\nbledev REPL connected\r\n>>> "
 DENIED = b"\r\nAccess denied\r\n"
 
@@ -102,7 +128,21 @@ class Login:
 _server = None
 
 
-def start(password=None, name="mpy-repl", *, interval_us=100000, dupterm_index=0, files=False, console=True, window=None):
+def start(
+    password=None,
+    name="mpy-repl",
+    *,
+    interval_us=100000,
+    dupterm_index=0,
+    files=False,
+    console=True,
+    window=None,
+    pairing=None,
+    show=None,
+    hide=None,
+    confirm=None,
+    bond_store=None,
+):
     """Serve the REPL over BLE until :func:`stop` or a reset. MicroPython only.
 
     ``password`` defaults to ``webrepl_cfg.PASS`` when that file exists;
@@ -111,23 +151,47 @@ def start(password=None, name="mpy-repl", *, interval_us=100000, dupterm_index=0
     ``files=True`` also serves :mod:`bledev.filetransfer` (CircuitPython's
     file-transfer service) behind the same password, with ``window`` bytes
     of free space per round trip; ``console=False`` leaves the REPL out.
+
+    ``pairing`` is ``None`` (the default: the password alone), ``"passkey"``,
+    ``"justworks"``, ``"numeric"`` or ``"auto"`` (see the module notes).
+    With a pairing that authenticates (passkey, numeric), ``password=False``
+    serves without one. ``show(passkey)``/``hide()`` replace drawing the
+    passkey on ``board_config.display_drv``; ``confirm(number)`` answers
+    numeric comparison. ``bond_store`` is where the keys go
+    (``bledev.security.use_store``; default NVS on an ESP32).
     """
     global _server
     if sys.implementation.name != "micropython":
         raise BLEError("bledev.repl serves only on MicroPython; use connect() on this host")
+    mode = None
+    if pairing is not None:
+        from . import security
+
+        # Before the radio starts where possible, so its keys load first.
+        security.use_store(bond_store)
+        mode = security.configure(pairing, show=show, hide=hide, confirm=confirm)
+    authenticates = mode in ("passkey", "numeric")
     if password is None:
         try:
             import webrepl_cfg
 
             password = webrepl_cfg.PASS
         except (ImportError, AttributeError):
-            raise ValueError("bledev.repl needs a password (or webrepl_cfg.PASS)")
-    if len(password) < 4:
+            if not authenticates:
+                raise ValueError("bledev.repl needs a password (or webrepl_cfg.PASS)")
+            password = False
+    if password is False or password == "":
+        if not authenticates:
+            raise ValueError(
+                "only a pairing that authenticates the host (passkey, numeric) can replace the password"
+            )
+        password = None
+    elif len(password) < 4:
         raise ValueError("the password must be at least 4 characters")
     if not (files or console):
         raise ValueError("nothing to serve: files=False and console=False")
     stop()
-    _server = _Server(password, name, interval_us, dupterm_index, files, console, window)
+    _server = _Server(password, name, interval_us, dupterm_index, files, console, window, mode)
     _server.start()
     return _server
 
@@ -187,8 +251,11 @@ class _Server:
     # Input buffered beyond this, while nothing reads stdin, is dropped.
     RX_CAP = 4096
 
-    def __init__(self, password, name, interval_us, dupterm_index, files=False, console=True, window=None):
+    def __init__(self, password, name, interval_us, dupterm_index, files=False, console=True, window=None, pairing=None):
         self.password = password
+        #: None (password only), or the pairing mode in force.
+        self.pairing = pairing
+        self._security = None
         self.console = console
         self.files = None
         self.ft_flushing = False
@@ -246,6 +313,21 @@ class _Server:
             ble.config(mtu=nus.MTU)
         except Exception:
             pass
+        try:
+            # The name hosts show for a paired board (Windows' Settings list)
+            # is the GAP name, not the advertised one: make them the same.
+            ble.config(gap_name=self.name)
+        except Exception:
+            pass
+        # With pairing, the stack itself refuses the protected characteristics
+        # to a link that isn't encrypted (or, for a passkey, authenticated),
+        # before anything here sees the request.
+        if self.pairing is None:
+            rd = wr = 0
+        elif self.pairing == "justworks":
+            rd, wr = _F_READ_ENC, _F_WRITE_ENC
+        else:
+            rd, wr = _F_READ_ENC | _F_READ_AUTHN, _F_WRITE_ENC | _F_WRITE_AUTHN
         services = []
         uuids = []
         if self.console:
@@ -254,7 +336,7 @@ class _Server:
                     bluetooth.UUID(str(nus.SERVICE)),
                     (
                         (bluetooth.UUID(str(nus.TX)), 0x0010),  # notify
-                        (bluetooth.UUID(str(nus.RX)), 0x0008 | 0x0004),  # write, write without response
+                        (bluetooth.UUID(str(nus.RX)), 0x0008 | 0x0004 | wr),  # write, write without response
                     ),
                 )
             )
@@ -268,8 +350,10 @@ class _Server:
                     (
                         (bluetooth.UUID(str(ft.VERSION)), 0x0002),  # read
                         # read, write without response, write, notify
-                        (bluetooth.UUID(str(ft.TRANSFER)), 0x0002 | 0x0004 | 0x0008 | 0x0010),
-                        (bluetooth.UUID(str(ft.AUTH)), 0x0002 | 0x0008),  # read, write
+                        (bluetooth.UUID(str(ft.TRANSFER)), 0x0002 | 0x0004 | 0x0008 | 0x0010 | rd | wr),
+                        # read, write. Served even without a password, so the
+                        # table is the same for every lock: hosts cache it.
+                        (bluetooth.UUID(str(ft.AUTH)), 0x0002 | 0x0008 | rd | wr),
                     ),
                 )
             )
@@ -288,6 +372,10 @@ class _Server:
             ble.gatts_set_buffer(self.auth_handle, MAX_PASSWORD + 1)
             ble.gatts_write(self.auth_handle, b"\x00")
         self._forget_other_services()
+        if self.pairing is not None:
+            from . import security
+
+            self._security = security.on_change(self.on_security)
         # One periodic timer for the life of the server, never re-armed: on
         # the esp32, re-initialising a virtual Timer while its alarm is being
         # dispatched calls a NULL handler and panics the board (seen as a
@@ -322,6 +410,11 @@ class _Server:
 
     def stop(self):
         self.running = False
+        if self._security is not None:
+            from . import security
+
+            security.remove_listener(self._security)
+            self._security = None
         try:
             self.ble.gap_advertise(None)
         except Exception:
@@ -347,7 +440,7 @@ class _Server:
         if self.early_mtu and self.early_mtu[0] == conn:
             self.mtu = self.early_mtu[1]
         self.early_mtu = None
-        self.login = _Gate(self.password)
+        self.login = _Gate(self.password) if self.password is not None else _Open()
         self.hang_up_at = None
         self.authed = False
         self.rx = bytearray()
@@ -355,9 +448,52 @@ class _Server:
         self.tx = bytearray()
         if self.files is not None:
             self._ft_forget()
+        if self.pairing is not None:
+            # A bonded host may already be encrypting; on_security() takes over.
+            import time
+
+            from . import security
+
+            self.hang_up_at = time.ticks_add(time.ticks_ms(), PAIR_WITHIN_MS)
+            if self.secure(conn):
+                self.on_security(conn, *security.state(conn))
+            return
         if self.console:
             # Sent now in case the client is already listening; clients that
             # subscribe later ask for it again with an empty line.
+            self.notify_now(PROMPT)
+
+    # -- pairing
+
+    def secure(self, conn):
+        """Whether ``conn``'s link is as secure as this server asks."""
+        if self.pairing is None:
+            return True
+        from . import security
+
+        encrypted, authenticated, _bonded, _size = security.state(conn)
+        if self.pairing == "justworks":
+            return encrypted
+        return encrypted and authenticated
+
+    def on_security(self, conn, encrypted, authenticated, bonded, key_size):
+        # From the BLE IRQ, when pairing or a bonded reconnect settles.
+        if conn != self.conn:
+            return
+        if not self.secure(conn):
+            # Failed pairing, a weaker one than asked for, or a host whose
+            # keys this board no longer has. Stay connected so the host sees
+            # its reads refused (and can say why); the pairing deadline set at
+            # connect still hangs up on a host that never gets there.
+            return
+        self.hang_up_at = None  # the pairing deadline is met
+        if self.password is None:
+            # The pairing was the lock: the files open now, and the REPL on
+            # the client's first line (_Open).
+            if self.files is not None and not self.files.authed:
+                self.files.authed = True
+                self.ble.gatts_write(self.auth_handle, b"\x01")
+        elif self.console and not self.authed:
             self.notify_now(PROMPT)
 
     def on_disconnect(self, conn):
@@ -376,7 +512,7 @@ class _Server:
         self.advertise()
 
     def on_write(self, conn, data):
-        if conn != self.conn:
+        if conn != self.conn or not self.secure(conn):
             return
         if not self.authed:
             reply, verdict, rest = self.login.feed(data)
@@ -405,7 +541,7 @@ class _Server:
         # This runs in the BLE stack's task, whose stack is a few KB: too
         # small for filesystem work (a recursive delete crashed the board).
         # So the IRQ only queues the bytes, and the main thread does the rest.
-        if conn != self.conn:
+        if conn != self.conn or not self.secure(conn):
             return
         self.ft_in.extend(data)
         if not self.ft_scheduled:
@@ -440,8 +576,10 @@ class _Server:
         self.ft_flush()
 
     def on_auth(self, conn, data):
-        if conn != self.conn or self.files.authed or self.hang_up_at is not None:
+        if conn != self.conn or self.files.authed or self.hang_up_at is not None or not self.secure(conn):
             return
+        if self.password is None:
+            return  # unlocked by pairing, not by a password
         given = bytes(data).rstrip(b"\r\n")
         want = self.password.encode() if isinstance(self.password, str) else bytes(self.password)
         if _check_password(given, want):
@@ -496,6 +634,10 @@ class _Server:
 
     def _tick(self, _timer=None):
         # Every _TICK_MS while the server runs, as a scheduled callback.
+        if self.pairing is not None:
+            from . import security
+
+            security.poll()
         if self.hang_up_at is not None:
             import time
 
@@ -508,7 +650,15 @@ class _Server:
             self._ft_work()
 
     def _hang_up(self):
-        if self.conn is not None and not self.authed and not (self.files is not None and self.files.authed):
+        if self.conn is None:
+            return
+        if self.pairing is not None and not self.secure(self.conn):
+            try:
+                self.ble.gap_disconnect(self.conn)
+            except OSError:
+                pass
+            return
+        if not self.authed and not (self.files is not None and self.files.authed):
             try:
                 self.ble.gap_disconnect(self.conn)
             except OSError:
@@ -586,6 +736,25 @@ class _Server:
                 files.sent()
         finally:
             self.ft_flushing = False
+
+
+class _Open:
+    """The gate when pairing is the lock: the client's first line (the empty
+    one every client sends to ask for a prompt) gets the banner and ``>>>``,
+    and isn't passed to the REPL, so the client sees exactly one prompt."""
+
+    refused = False
+    verdict = None
+
+    def feed(self, data):
+        for i in range(len(data)):
+            if data[i] in (10, 13):
+                rest = bytes(data[i + 1 :])
+                if data[i] == 13 and rest[:1] == b"\n":
+                    rest = rest[1:]
+                self.verdict = True
+                return BANNER, True, rest
+        return b"", None, b""
 
 
 class _Gate(Login):
@@ -669,24 +838,53 @@ async def _expect(link, markers, buffer, timeout_ms):
         buffer.extend(chunk)
 
 
-async def connect(ble, password, name="mpy-repl", *, device=None, timeout_ms=10000, **connect_options):
+def refused(pair, passkey):
+    """The :class:`bledev.PairingError` for a board that refused a link."""
+    if not pair:
+        return PairingError("the board wants pairing: connect with pair=True")
+    if passkey is None:
+        return PairingError("the board wants a link paired with a passkey (pass passkey=), or " + STALE_BOND)
+    return PairingError(STALE_BOND)
+
+
+async def connect(ble, password=None, name="mpy-repl", *, device=None, timeout_ms=10000, pair=False, passkey=None, **connect_options):
     """Log in to a board's BLE REPL and return the :class:`bledev.nus.Link`, at ``>>>``.
 
-    Raises :class:`AuthError` if the board refuses the password.
+    ``pair=True`` pairs first (bonding, so the next connect skips it), for a
+    board started with ``pairing=``; ``passkey`` is what its display shows,
+    or a callable that asks for it. A board that pairing unlocks alone needs
+    no ``password``.
+
+    Raises :class:`AuthError` if the board refuses the password, and
+    :class:`bledev.PairingError` if pairing fails or the board refuses the
+    keys this host kept.
     """
-    link = await nus.connect(ble, name=name, device=device, timeout_ms=timeout_ms, **connect_options)
+    try:
+        link = await nus.connect(ble, name=name, device=device, timeout_ms=timeout_ms, pair=pair, passkey=passkey, **connect_options)
+    except GattError as e:
+        if e.status in NEEDS_PAIRING:
+            raise refused(pair, passkey)
+        raise
     try:
         buffer = bytearray()
-        await link.write(b"\r")
-        marker, buffer = await _expect(link, (PROMPT,), buffer, timeout_ms)
+        try:
+            await link.write(b"\r")
+        except GattError as e:
+            if e.status not in NEEDS_PAIRING:
+                raise
+            raise refused(pair, passkey)
+        marker, buffer = await _expect(link, (PROMPT, b">>> "), buffer, timeout_ms)
         if marker is None:
             raise BLEError("the board closed the link before asking for a password")
-        del buffer[: buffer.find(PROMPT) + len(PROMPT)]
-        secret = password.encode() if isinstance(password, str) else bytes(password)
-        await link.write(secret + b"\r")
-        marker, buffer = await _expect(link, (b">>> ", DENIED.strip()), buffer, timeout_ms)
-        if marker != b">>> ":
-            raise AuthError("the board refused the password")
+        if marker == PROMPT:
+            if password is None:
+                raise AuthError("the board wants a password")
+            del buffer[: buffer.find(PROMPT) + len(PROMPT)]
+            secret = password.encode() if isinstance(password, str) else bytes(password)
+            await link.write(secret + b"\r")
+            marker, buffer = await _expect(link, (b">>> ", DENIED.strip()), buffer, timeout_ms)
+            if marker != b">>> ":
+                raise AuthError("the board refused the password")
     except BaseException:
         await link.close()
         raise

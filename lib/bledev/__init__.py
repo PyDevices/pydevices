@@ -76,6 +76,27 @@ class BusyError(BLEError):
     """
 
 
+#: ATT error codes a :class:`GattError` can carry that apps act on.
+INSUFFICIENT_AUTHENTICATION = 0x05
+INSUFFICIENT_ENCRYPTION = 0x0F
+
+
+class PairingError(BLEError):
+    """Pairing failed: a wrong passkey, a refusal, or a peer that lost its keys."""
+
+
+#: What to tell someone whose host kept a bond the board no longer has.
+STALE_BOND = (
+    "the board refused this host's keys: it has probably lost its bond (a chip "
+    "erase, or bledev.security.forget()). Unpair it on this host "
+    "(bledev.bleak.unpair(address), or Settings > Bluetooth > Remove device) "
+    "and pair again"
+)
+
+#: The GATT statuses that mean "pair first".
+NEEDS_PAIRING = (INSUFFICIENT_AUTHENTICATION, INSUFFICIENT_ENCRYPTION)
+
+
 class GattError(BLEError):
     """The peer answered a GATT request with an error ``status``."""
 
@@ -353,7 +374,8 @@ class BLE:
 
         ``backend`` (its module name), ``central`` and ``peripheral`` (which
         roles it can take), ``mtu`` (the ATT MTU it asks for), ``max_mtu``,
-        ``indicate``, ``pairing`` and ``l2cap`` (bools).
+        ``indicate``, ``pairing`` and ``l2cap`` (bools), and ``long_read``:
+        whether a read returns values longer than one packet (``mtu - 1``).
         """
         return {
             "backend": self.backend,
@@ -364,6 +386,7 @@ class BLE:
             "indicate": False,
             "pairing": False,
             "l2cap": False,
+            "long_read": True,
         }
 
     def config(self, *names, **settings):
@@ -468,7 +491,10 @@ class Characteristic:
     write; MicroPython's default buffer is 20 bytes, so raise it for anything
     that takes whole MTU-sized writes. With ``capture=True``, ``written()``
     returns every write as ``(connection, data)``, in order, instead of just
-    the last writer.
+    the last writer. ``encrypted=True`` refuses a central that hasn't paired
+    (``GattError`` with status ``INSUFFICIENT_ENCRYPTION``) until it does;
+    ``authenticated=True`` also refuses one that paired without a passkey
+    (``INSUFFICIENT_AUTHENTICATION``).
     """
 
     def __init__(
@@ -483,6 +509,8 @@ class Characteristic:
         initial=None,
         capture=False,
         max_len=20,
+        encrypted=False,
+        authenticated=False,
     ):
         service.characteristics.append(self)
         self.service = service
@@ -502,6 +530,14 @@ class Characteristic:
         self.capture = bool(capture) and bool(flags & (FLAG_WRITE | FLAG_WRITE_NO_RESPONSE))
         self.max_len = max(max_len, len(initial) if initial else 0)
         self._initial = bytes(initial) if initial is not None else None
+        #: True when a central must pair (an encrypted link) before it may
+        #: read, write or subscribe. HID keyboards serve their reports this way.
+        self.encrypted = bool(encrypted) or bool(authenticated)
+        #: True when only a link paired with a passkey (or numeric
+        #: comparison) may use it: "just works" isn't enough.
+        self.authenticated = bool(authenticated)
+        #: :class:`Descriptor` objects, in the order they were made.
+        self.descriptors = []
         # Set by the backend's register_services(); it does the real work.
         self._impl = None
 
@@ -553,6 +589,25 @@ class Characteristic:
         if not self.flags & (FLAG_WRITE | FLAG_WRITE_NO_RESPONSE):
             raise UnsupportedError("{!r} is not writable".format(self))
         return await self._bound().written(timeout_ms)
+
+
+class Descriptor:
+    """A read-only descriptor on a :class:`Characteristic` you serve.
+
+    HID uses these: each Report characteristic carries a Report Reference
+    (0x2908) saying which report it is. The value is fixed once registered.
+    Don't make a CCCD (0x2902); every backend adds that itself for a
+    characteristic with ``notify`` or ``indicate``.
+    """
+
+    def __init__(self, characteristic, uuid, initial=b""):
+        characteristic.descriptors.append(self)
+        self.characteristic = characteristic
+        self.uuid = UUID(uuid)
+        self.value = bytes(initial)
+
+    def __repr__(self):
+        return "Descriptor({!r})".format(self.uuid)
 
 
 # ---------------------------------------------------------------- central side
@@ -754,6 +809,39 @@ class Connection:
         """Wait until the link drops, from either side."""
         raise NotImplementedError
 
+    @property
+    def encrypted(self):
+        """True once the link is encrypted (after :meth:`pair`, or a bonded reconnect)."""
+        return False
+
+    async def pair(self, bond=True, timeout_ms=30000, passkey=None):
+        """Pair with the peer and encrypt the link; with ``bond``, keep the keys.
+
+        Either side may call it; in practice the central does, when a read
+        fails with ``INSUFFICIENT_ENCRYPTION``. Without ``passkey`` the
+        pairing is "just works", which is what a keyboard without a screen
+        does. When the peer shows a passkey (a board with a display),
+        ``passkey`` is what to type in: an int, a string of six digits, or a
+        callable (plain or async) that returns one when asked, such as one
+        that prompts a person. A bonded peer reconnects without pairing again,
+        for as long as both sides keep their keys; pairing a bonded peer just
+        encrypts the link with the stored keys.
+
+        Raises :class:`PairingError` when pairing fails (a wrong passkey, or
+        a peer that lost its half of the bond), and :class:`UnsupportedError`
+        on a backend without pairing.
+        """
+        raise UnsupportedError("{} cannot pair".format(self._ble.backend))
+
+    @property
+    def authenticated(self):
+        """True when the link's keys came from a passkey or numeric comparison."""
+        return False
+
+    async def unpair(self):
+        """Forget this peer's keys on this side (and, on a laptop, the OS's pairing)."""
+        raise UnsupportedError("{} cannot unpair".format(self._ble.backend))
+
     async def exchange_mtu(self, mtu=None, timeout_ms=1000):
         """Negotiate a larger ATT MTU and return the result.
 
@@ -836,7 +924,26 @@ class ClientCharacteristic:
             raise UnsupportedError("{!r} does not support {}".format(self, what))
 
     async def read(self, timeout_ms=1000):
+        """The value. A backend without long reads (``capabilities()["long_read"]``
+        is False: MicroPython) returns at most ``connection.mtu - 1`` bytes."""
         raise NotImplementedError
+
+    def descriptors(self, uuid=None, timeout_ms=2000):
+        """Async-iterate this characteristic's descriptors, optionally only ``uuid``."""
+        uuid = None if uuid is None else UUID(uuid)
+        return _Discovery(lambda: self._discover_descriptors(uuid, timeout_ms))
+
+    async def descriptor(self, uuid, timeout_ms=2000):
+        """The descriptor ``uuid`` on this characteristic, or ``None``."""
+        uuid = UUID(uuid)
+        found = None
+        async for d in self.descriptors(uuid, timeout_ms):
+            if found is None and d.uuid == uuid:
+                found = d
+        return found
+
+    async def _discover_descriptors(self, uuid, timeout_ms):
+        raise UnsupportedError("{} cannot discover descriptors".format(self.connection._ble.backend))
 
     async def write(self, data, response=None, timeout_ms=1000):
         """Write ``data`` (at most ``connection.mtu - 3`` bytes).
@@ -867,9 +974,36 @@ class ClientCharacteristic:
         return bool(response)
 
 
+class ClientDescriptor:
+    """A descriptor on the peer, found by :meth:`ClientCharacteristic.descriptors`."""
+
+    def __init__(self, characteristic, uuid):
+        self.characteristic = characteristic
+        self.connection = characteristic.connection
+        self.uuid = UUID(uuid)
+
+    def __repr__(self):
+        return "ClientDescriptor({!r})".format(self.uuid)
+
+    async def read(self, timeout_ms=1000):
+        raise NotImplementedError
+
+
 def is_adapter(obj):
     """True for a bledev :class:`BLE`; False for a raw ``bluetooth.BLE`` or anything else."""
     return isinstance(obj, BLE)
+
+
+async def passkey_value(passkey):
+    """``passkey`` as an int: it may be an int, a string of digits, or a
+    callable (plain or async) returning either. ``None`` stays ``None``."""
+    if callable(passkey):
+        passkey = passkey()
+    if hasattr(passkey, "send"):  # a coroutine
+        passkey = await passkey
+    if passkey is None:
+        return None
+    return int(passkey)
 
 
 async def connect_and_set_up(
@@ -884,18 +1018,36 @@ async def connect_and_set_up(
     from Windows, the OS reports a connection the peripheral never saw, and
     the first GATT operation on it hangs until Windows gives up nine seconds
     later. ``setup_timeout_ms`` bounds that wait. ``options`` go to
-    ``device.connect()``.
+    ``device.connect()``, except ``pair`` (pair before ``setup``) and
+    ``passkey`` (for :meth:`Connection.pair`).
     """
+    pair = options.pop("pair", False)
+    passkey = options.pop("passkey", None)
     error = None
+    stale = False
     for _ in range(attempts):
         target = device
         if target is None:
             target = await ble.find(name=name, service=service, timeout_ms=timeout_ms)
         connection = await target.connect(timeout_ms=timeout_ms, **options)
+        if pair:
+            # Before discovery: a board that wants pairing refuses the
+            # subscriptions setup makes. Pairing waits on a person typing a
+            # passkey, so setup_timeout_ms doesn't bound it.
+            try:
+                await connection.pair(passkey=passkey)
+            except BaseException:
+                if connection.is_connected():
+                    await connection.disconnect()
+                raise
+            reused = getattr(connection, "reused_bond", False)
+        else:
+            reused = False
         try:
             return connection, await wait_ms(setup(connection), setup_timeout_ms, "setting up the connection")
         except (DisconnectedError, BLETimeoutError) as e:
             error = e
+            stale = reused and isinstance(e, DisconnectedError)
         except BaseException:
             if connection.is_connected():
                 await connection.disconnect()
@@ -904,4 +1056,16 @@ async def connect_and_set_up(
             await connection.disconnect()
         except BLEError:
             pass
+        # Give a dead link time to be noticed before the next try.
+        await sleep_ms(500 * (_ + 1))
+    if stale:
+        # Every attempt encrypted with keys this host already had, and every
+        # link fell. Windows hangs up when the board refuses those keys, but
+        # it also hands out links the board never saw, for a while after the
+        # board resets; from here the two look the same.
+        raise PairingError(
+            "every link dropped right after connecting with this host's stored keys. Try again in "
+            "a few seconds (after a board reset Windows can hold a dead link); if it keeps "
+            "happening, " + STALE_BOND
+        )
     raise error

@@ -41,6 +41,7 @@ except ImportError:  # bleak < 3
     BleakGATTProtocolError = None
 
 from . import (
+    ClientDescriptor,
     BLE,
     BLEError,
     ClientCharacteristic,
@@ -56,10 +57,12 @@ from . import (
     FLAG_WRITE_NO_RESPONSE,
     GattError,
     MAX_MTU,
+    PairingError,
     ScanResult,
     Scanner,
     UnsupportedError,
     UUID,
+    passkey_value,
     wait_ms,
 )
 
@@ -275,6 +278,10 @@ class _BleakConnection(Connection):
         self._dropped = asyncio.Event()
         self._inboxes = []
         self._wwr = 0  # the largest write-without-response size seen in discovery
+        self._paired = False
+        self._authenticated = False
+        #: True when pair() found the OS already paired and paired nothing new.
+        self.reused_bond = False
 
     def _drop(self):
         if self._dropped.is_set():
@@ -315,6 +322,121 @@ class _BleakConnection(Connection):
     async def disconnected(self, timeout_ms=None):
         if self.is_connected():
             await wait_ms(self._dropped.wait(), timeout_ms, "disconnected")
+
+    @property
+    def encrypted(self):
+        return self._paired
+
+    @property
+    def authenticated(self):
+        return self._authenticated
+
+    async def pair(self, bond=True, timeout_ms=30000, passkey=None):
+        """Pair through the OS, which keeps the bond.
+
+        On Windows this uses WinRT's custom pairing, so no system dialog
+        appears: "just works" when the board has no display, and ``passkey``
+        (a value, or a callable asked when Windows wants it) when the board
+        shows one. A board already paired with Windows is only checked, not
+        paired again; Windows encrypts the link with the stored keys when a
+        protected characteristic is first used. Elsewhere it's bleak's
+        ``pair()``, where the OS may ask for the passkey itself.
+
+        Windows keeps the pairing until :meth:`unpair` (or Settings, Remove
+        device). Never pair a board serving HID with the computer you test
+        from: Windows then uses it as a keyboard.
+        """
+        self._live("pair")
+        requester = getattr(getattr(self._client, "_backend", None), "_requester", None)
+        try:
+            if requester is not None:
+                await wait_ms(self._pair_winrt(requester, passkey), timeout_ms, "pair")
+            else:
+                await wait_ms(self._client.pair(), timeout_ms, "pair")
+                self._authenticated = passkey is not None
+        except (BleakError, OSError) as e:
+            raise _translate(e, self, "pair")
+        self._paired = True
+
+    async def _pair_winrt(self, requester, passkey):
+        from winrt.windows.devices.enumeration import (
+            DeviceInformation,
+            DevicePairingKinds,
+            DevicePairingProtectionLevel,
+            DevicePairingResultStatus,
+        )
+
+        info = await DeviceInformation.create_from_id_async(requester.device_information.id)
+        pairing = info.pairing
+        if pairing.is_paired:
+            # Windows encrypts with the stored keys when a protected
+            # characteristic is first used; if the board lost its half, that
+            # fails and Windows drops the link (see connect_and_set_up).
+            self.reused_bond = True
+            self._authenticated = pairing.protection_level == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+            return
+        if not pairing.can_pair:
+            raise PairingError("pair: Windows says {} can't pair".format(self.device.address))
+        loop = asyncio.get_running_loop()
+        asked = []
+
+        async def provide(args, deferral):
+            try:
+                value = await passkey_value(passkey)
+                if value is not None:
+                    args.accept_with_pin("{:06d}".format(value))
+            except Exception as e:  # a cancelled prompt: leave it unaccepted
+                asked.append(e)
+            finally:
+                deferral.complete()
+
+        def handler(sender, args):
+            # On a WinRT thread. Just works needs only a yes; a passkey waits
+            # on the provider, which may be slow (a person), behind a deferral.
+            kind = args.pairing_kind
+            asked.append(kind)
+            if kind == DevicePairingKinds.CONFIRM_ONLY:
+                args.accept()
+            elif kind == DevicePairingKinds.PROVIDE_PIN and passkey is not None:
+                deferral = args.get_deferral()
+                loop.call_soon_threadsafe(lambda: loop.create_task(provide(args, deferral)))
+
+        kinds = DevicePairingKinds.CONFIRM_ONLY
+        level = DevicePairingProtectionLevel.ENCRYPTION
+        if passkey is not None:
+            kinds |= DevicePairingKinds.PROVIDE_PIN
+            level = DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+        custom = pairing.custom
+        token = custom.add_pairing_requested(handler)
+        try:
+            result = await custom.pair_with_protection_level_async(kinds, level)
+            if result.status == DevicePairingResultStatus.PROTECTION_LEVEL_COULD_NOT_BE_MET and passkey is not None:
+                # A board without a display pairs just works; the board, not
+                # this side, decides whether that's enough.
+                result = await custom.pair_with_protection_level_async(kinds, DevicePairingProtectionLevel.ENCRYPTION)
+        finally:
+            custom.remove_pairing_requested(token)
+        status = result.status
+        if status not in (DevicePairingResultStatus.PAIRED, DevicePairingResultStatus.ALREADY_PAIRED):
+            raise PairingError("pair: {} ({})".format(status.name, ", ".join(str(a) for a in asked) or "no ceremony"))
+        #: What Windows reported: the status, the protection level it used,
+        #: and the ceremonies it asked for.
+        self.pairing_result = (status.name, result.protection_level_used, [int(a) for a in asked if isinstance(a, int)])
+        # A passkey that was asked for and typed in is what authenticates;
+        # Windows' reported level is the second opinion.
+        self._authenticated = (
+            DevicePairingKinds.PROVIDE_PIN in asked
+            or result.protection_level_used == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+        )
+
+    async def unpair(self):
+        """Remove the OS's pairing with this board. Windows also drops the link."""
+        try:
+            await self._client.unpair()
+        except (BleakError, OSError) as e:
+            raise _translate(e, self, "unpair")
+        self._paired = False
+        self._authenticated = False
 
     async def exchange_mtu(self, mtu=None, timeout_ms=1000):
         """The OS negotiates on its own; wait briefly for it and return the result."""
@@ -401,6 +523,15 @@ class _BleakClientCharacteristic(ClientCharacteristic):
         except (BleakError, OSError) as e:
             raise _translate(e, self.connection, "read")
 
+    async def _discover_descriptors(self, uuid, timeout_ms):
+        self._live("descriptor discovery")
+        found = []
+        for native in sorted(self._native.descriptors, key=lambda d: d.handle):
+            d = _BleakClientDescriptor(self, native)
+            if uuid is None or d.uuid == uuid:
+                found.append(d)
+        return found
+
     async def write(self, data, response=None, timeout_ms=1000):
         data = bytes(data)
         response = self._want_response(response)
@@ -447,3 +578,69 @@ class _BleakClientCharacteristic(ClientCharacteristic):
     async def indicated(self, timeout_ms=None):
         self._check(FLAG_INDICATE, "indicate")
         return await self._indicate_inbox.get(timeout_ms)
+
+
+class _BleakClientDescriptor(ClientDescriptor):
+    def __init__(self, characteristic, native):
+        ClientDescriptor.__init__(self, characteristic, native.uuid)
+        self._native = native
+
+    async def read(self, timeout_ms=1000):
+        client = self.connection._client
+        self.connection._live("descriptor read")
+        try:
+            return bytes(await wait_ms(client.read_gatt_descriptor(self._native.handle), timeout_ms, "descriptor read"))
+        except (BleakError, OSError) as e:
+            raise _translate(e, self.connection, "descriptor read")
+
+
+async def unpair(address):
+    """Remove the OS's pairing with ``address`` without connecting: the recovery
+    step when a board has lost its bond (its keys were erased) and Windows
+    still holds the other half."""
+    try:
+        await BleakClient(address).unpair()
+    except (BleakError, OSError) as e:
+        raise BLEError("unpair {}: {}".format(address, e))
+
+
+async def _main(argv):
+    """``python -m bledev.bleak pair NAME`` / ``unpair NAME``: pair this computer
+    with a board once, typing in the passkey its display shows. mpftp, bledev
+    and anything else on this computer then use the bond."""
+    if len(argv) != 2 or argv[0] not in ("pair", "unpair"):
+        print("usage: python -m bledev.bleak pair|unpair NAME")
+        return 2
+    what, name = argv
+    ble = BleakBLE()
+    try:
+        device = await ble.find(name=name, timeout_ms=15000)
+        if what == "unpair":
+            await unpair(device.address)
+            print("unpaired", name, device.address)
+            return 0
+        connection = await device.connect(timeout_ms=15000)
+
+        async def ask():
+            loop = asyncio.get_running_loop()
+            text = await loop.run_in_executor(None, input, "Passkey shown on {}: ".format(name))
+            return int(text.replace(" ", "")) if text.strip() else None
+
+        try:
+            await connection.pair(passkey=ask)
+        except PairingError as e:
+            print("not paired:", e)
+            return 1
+        finally:
+            if connection.is_connected():
+                await connection.disconnect()
+        print("paired", name, device.address, "(passkey)" if connection.authenticated else "(just works)")
+        return 0
+    finally:
+        await ble.aclose()
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(asyncio.run(_main(sys.argv[1:])))
