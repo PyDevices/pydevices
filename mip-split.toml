@@ -1,4 +1,6 @@
-# Which modules in lib/ cannot run on a microcontroller.
+# Which modules in lib/ cannot run on a microcontroller, and which packages in
+# lib/ publish to MIP on their own instead of inside `pydevices` (`own-package`,
+# at the end: bledev).
 #
 # `displaydev`, `audiodev` and `multimer` each carry a full set of platform
 # backends and pick one at import time through their `auto` module. That design
@@ -66,3 +68,21 @@ host-only = [
     "wasm",
     "win32",
 ]
+
+[bledev]
+# BLE is its own MIP package rather than part of `pydevices`, so a board
+# without a radio doesn't carry it (docs/ble.md §3):
+#     mip.install("bledev", index="https://PyDevices.github.io/mip")
+# `requires` is included into the package at index build time, which is how
+# micropython-lib resolves require(): one install brings aioble with it. On a
+# firmware that freezes aioble, the frozen copy wins and the installed one is
+# never imported.
+own-package = true
+requires = ["aioble"]
+# The central-only host backends go in pydevices-desktop, as for the other
+# packages here. List `bleak` and `webble` when those modules land; a name
+# listed before its file exists fails the sync.
+host-only = []
+# On PyPI bledev stays inside the pydevices wheel. bleak is optional, behind
+# `pip install "pydevices[ble]"`.
+pypi-extras = { ble = ["bleak>=1.0"] }

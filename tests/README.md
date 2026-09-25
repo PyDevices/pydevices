@@ -36,3 +36,4 @@ Do not run audiodev tests while another process is playing audio — see
 | `test_mip_portable.py` | portable `utils/mip.py` |
 | `test_audiodev*.py`, `test_*_audio.py`, `test_auto.py` | audiodev (see audio README) |
 | `test_portability.py` / `test_contract_proof.py` | portable-module constraints |
+| `test_bledev.py` | runs `bledev_contract.py` on CPython and unix MicroPython, and proves five planted faults fail it (see [docs/bledev-internals.md](../docs/bledev-internals.md#the-checks)) |

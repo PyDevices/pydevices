@@ -21,6 +21,7 @@
 - [appdev.md](appdev.md) — the event poller and device mux (`App`)
 - [multimer.md](multimer.md) — portable timers
 - [audio.md](audio.md) — `audiodev` interfaces
+- [bledev.md](bledev.md) — Bluetooth Low Energy: one async API on boards, laptops and browsers
 - [app-and-board-config.md](app-and-board-config.md) — the application loop
 
 ## Drivers
@@ -41,6 +42,7 @@
 
 - [displaydev-internals.md](displaydev-internals.md)
 - [multimer-internals.md](multimer-internals.md)
+- [bledev-internals.md](bledev-internals.md) — writing a bledev backend, and what was measured
 
 ## Maintainers
 
