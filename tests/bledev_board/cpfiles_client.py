@@ -21,7 +21,7 @@ and back down byte for byte (timed, ``--runs N`` times), a read from an
 offset, mkdir, listdir, move, delete; then a reconnect from the bond, with
 no pairing. Then it unpairs, unless ``--keep``,
 so Windows' Bluetooth list ends as it started. ``--plant`` flips a bit in
-one packet the client receives, and the run must FAIL. Ends with
+one packet of the file data it reads back first, and the run must FAIL. Ends with
 ``RESULT PASS`` or ``RESULT FAIL``.
 """
 import asyncio
@@ -41,6 +41,7 @@ for i, arg in enumerate(ARGS):
         RUNS = int(ARGS[i + 1])
 
 failures = []
+FOUND = []  # the board's address, to unpair even when a check throws
 
 
 def check(ok, what, detail=""):
@@ -65,6 +66,7 @@ def pattern(n, seed):
 async def main():
     ble = bledev.bleak.BleakBLE()
     device = await ble.find(service=ft.SERVICE, timeout_ms=20000)
+    FOUND.append(device.address)
     print("found", device)
 
     try:
@@ -79,14 +81,16 @@ async def main():
     files = await ft.connect(ble, device=device, timeout_ms=15000)
     check(files.connection.encrypted, "the client paired by itself", "{:.0f} ms to connect and pair".format(ticks() - t0))
     print("connected, mtu", files.connection.mtu, "protocol version", files.version)
+    state = {"armed": False, "n": 0}
     if PLANT:
         feed = files._feed
-        state = {"n": 0}
 
         def planted(data):
-            if len(data) > 28:
+            # The fifth packet to arrive while the first read runs: file data
+            # (CircuitPython sends each READ_DATA header in a packet of its own).
+            if state["armed"]:
                 state["n"] += 1
-                if state["n"] == 3:
+                if state["n"] == 5:
                     data = bytes(data[:-1]) + bytes((data[-1] ^ 0x10,))
             feed(data)
 
@@ -104,7 +108,9 @@ async def main():
         t0 = ticks()
         await files.write("/ftgate/big.bin", data)
         t1 = ticks()
+        state["armed"] = run == 0
         back = await files.read("/ftgate/big.bin")
+        state["armed"] = False
         t2 = ticks()
         print("run {}: 20 KB up {:.0f} ms ({:.1f} KB/s), down {:.0f} ms ({:.1f} KB/s)".format(
             run + 1, t1 - t0, len(data) / (t1 - t0), t2 - t1, len(back) / max(1, t2 - t1)))
@@ -146,6 +152,12 @@ async def guarded():
     try:
         await main()
     except Exception as e:
+        if not KEEP and FOUND:
+            try:  # leave Windows' Bluetooth list as it was, even on a failure
+                await bledev.bleak.unpair(FOUND[0])
+                print("unpaired", FOUND[0])
+            except Exception:
+                pass
         failures.append("exception")
         print("EXCEPTION", type(e).__name__, e)
         import traceback

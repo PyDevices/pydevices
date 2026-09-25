@@ -1,7 +1,7 @@
 # bledev internals: writing a backend
 
 This page is for you if you're adding a backend (`bledev.bleak`,
-`bledev.webble`, later `bledev.cpble`) or changing one. What an app can rely
+`bledev.webble`, `bledev.cpble`) or changing one. What an app can rely
 on is in [bledev.md](bledev.md#the-rules-every-backend-keeps); this is how a
 backend delivers it.
 
@@ -16,6 +16,7 @@ standalone module per backend, and an optional selector.
 | `fake.py` | In-process loopback. The reference implementation of every hook. |
 | `mpble.py` | MicroPython, over aioble. |
 | `bleak.py` | CPython on Windows, Linux and macOS, over bleak. Central only. |
+| `cpble.py` | CircuitPython, over `_bleio`. Both roles. |
 | `nus.py` | Nordic UART byte stream, built only on the contract. |
 | `repl.py` | The REPL over nus: MicroPython's raw `bluetooth` API from the IRQ on the board, `nus` on the client. |
 | `improv.py` | Improv Wi-Fi setup, both sides, built only on the contract. |
@@ -226,6 +227,77 @@ board never saw, so `bledev.connect_and_set_up()` stays as the defence: it
 bounds the setup at 4 s and tries again, up to three times. `nus.connect()`
 and `midi.connect()` use it, and the contract checks both the retry and the
 giving up.
+
+## How cpble gets there
+
+`_bleio` has no events and no async calls. An adapter hands out objects you
+look at: `adapter.connections`, `connection.connected`, and the ring buffers
+that a characteristic's writes and notifications land in. So every wait in
+cpble is a poll of one of those every `POLL_MS` (5 ms), and each blocking
+`_bleio` call (connect, discovery, a read, a write with response, making a
+subscription) holds the event loop until the radio answers, which is one or
+two connection intervals. A scan runs in slices of `SCAN_SLICE_MS` (100 ms),
+each a fresh `start_scan()`, with the scan response merged per address the
+way aioble does.
+
+**Where writes land.** A characteristic with notify or indicate gets a
+`_bleio.PacketBuffer`, which keeps each write whole but takes writes only from
+the central that subscribed, and only after it did (it learns the connection
+from the subscribe event). Any other writable characteristic gets a
+`_bleio.CharacteristicBuffer`, a byte stream: with `capture=True`, each
+`written()` returns what arrived since the last one. Both drop the oldest data
+when full and don't say so; cpble checks the stream buffer's fill and raises
+when it's full, and sizes it at 32 KB (`stream_buffer`), which is nus's whole
+16 KB echo phase in flight twice over. `_bleio` doesn't say which central
+wrote, so `written()` names the most recent live one. Every server value
+buffer is `_bleio`'s largest (512 bytes), because a notification can't be
+longer than the value's buffer; `max_len` is kept in Python (`read()` gives
+the first `max_len` bytes) rather than by `_bleio` refusing the write.
+
+**Notifications, and a stall in CircuitPython 10.3.** `PacketBuffer.write()`
+on the ESP32 keeps a packet it couldn't get an mbuf for and retries it on the
+next `BLE_GAP_EVENT_NOTIFY_TX`. NimBLE sends that event when a notification is
+handed to the stack, not when it leaves the radio, so a packet that never got
+an mbuf never produces one, and the next write that doesn't fit beside it
+waits inside `_bleio` until the central disconnects. Writing 253-byte packets
+back to back from the laptop gate delivered 10 (2,530 bytes) and stopped,
+every time. So cpble passes each notification as the `header=` of an empty
+write: `_bleio` copies a header only into an empty packet, and a write of
+nothing never waits, but it does retry what's pending. A return of 0 means
+the previous packet is still there, and `notify()` raises `BusyError`; nus,
+midi and the other async senders wait and try again. A task retries the last
+packet every 5 ms for 5 s after it was sent, since nothing else will. It
+also keeps notifications whole, where `PacketBuffer` would append the next
+write to a pending packet.
+
+**And a hard fault.** When NimBLE refuses a notification after the mbuf was
+allocated (it needs one more for the ATT header), `PacketBuffer` "undoes" by
+switching to a second outgoing buffer that it allocates only for indications
+and writes, and the next write copies into a null pointer: the board restarts
+in safe mode. cpble can make it rarer but not impossible: notifications are
+held to 244 bytes (the reported MTU is at most 247, one link-layer packet, so
+NimBLE never fragments), and each new connection gets fresh packet buffers.
+The fix is in CircuitPython; the draft for upstream, with the patch, is
+[upstream-reports/cp-packetbuffer-notify-stall.md](upstream-reports/cp-packetbuffer-notify-stall.md).
+
+**Discovery mode, without a hand.** CircuitPython's own file service
+advertises to a new host only in discovery mode, which normally takes a reset
+pressed during the blue blink after boot. The supervisor marks that second in
+an RTC register that survives a reset, and `memorymap` can write that register
+on the S3 (`RTC_CNTL_STORE0_REG`, 0x60008050), so
+`tests/bledev_board/cpfiles_discovery.py` writes the mark and resets. It also
+erases the board's bonds, as the button would.
+
+**What `_bleio` can't do here**, on the ESP32 port: a central can't receive
+indications (they're ignored below Python); pairing is "just works" only
+(`authenticated=True` raises); there are no long reads; the MTU is fixed at
+256 when CircuitPython is built; a service has at most 10 characteristics and
+a characteristic at most 2 descriptors; a peripheral doesn't learn its
+central's address; `Service.deinit()` is the only way to take a service away,
+which `register_services()` uses; and a read that times out inside `_bleio`
+returns a full buffer as if it succeeded. A refused read or write comes back as
+`BluetoothError("Unknown system firmware error: 261")`, NimBLE's 0x100 plus
+the ATT code, and cpble turns that into `GattError(5)`.
 
 ## How the REPL gets there
 
