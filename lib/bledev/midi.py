@@ -134,6 +134,17 @@ if sys.implementation.name == "micropython":
         """This host's BLE-MIDI clock: milliseconds, 13 bits."""
         return time.ticks_ms() & TIMESTAMP_MASK
 
+elif sys.implementation.name == "circuitpython":
+    # time.monotonic() is a float that loses milliseconds after a few hours.
+    try:
+        from supervisor import ticks_ms as _ticks_ms
+    except ImportError:  # the unix port has no supervisor, and MicroPython's time
+        from time import ticks_ms as _ticks_ms
+
+    def now_ms():
+        """This host's BLE-MIDI clock: milliseconds, 13 bits."""
+        return _ticks_ms() & TIMESTAMP_MASK
+
 else:
     import time
 
@@ -149,6 +160,10 @@ def _adapter(ble):
         from . import mpble
 
         return mpble.get(ble)
+    if hasattr(ble, "start_advertising") and hasattr(ble, "erase_bonding"):
+        from . import cpble  # CircuitPython's _bleio.adapter
+
+        return cpble.get(ble)
     raise TypeError("expected a bledev adapter, not {!r}".format(ble))
 
 

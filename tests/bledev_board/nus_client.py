@@ -14,9 +14,17 @@ bit at offset 5000 of the UP stream, which the server must catch.
 import asyncio, time, gc, sys
 import bledev.nus as nus
 
-MICROPYTHON = sys.implementation.name == "micropython"
-if MICROPYTHON:
-    import bledev.mpble
+CIRCUITPYTHON = sys.implementation.name == "circuitpython"
+MICROPYTHON = sys.implementation.name == "micropython" or CIRCUITPYTHON  # a board
+if CIRCUITPYTHON:
+    import bledev.cpble as backend
+    from supervisor import ticks_ms
+
+    def ticks_diff(a, b):
+        return (a - b) & ((1 << 29) - 1)
+
+elif MICROPYTHON:
+    import bledev.mpble as backend
 
     ticks_ms, ticks_diff = time.ticks_ms, time.ticks_diff
 else:
@@ -43,8 +51,11 @@ def log(*parts):
     line = " ".join(str(p) for p in parts)
     print(line)
     if LOG:
-        with open(LOG, "a") as f:
-            f.write(line + "\n")
+        try:
+            with open(LOG, "a") as f:
+                f.write(line + "\n")
+        except OSError:
+            pass  # CircuitPython: the filesystem is USB's while it's mounted
 
 
 def pattern(n, seed):
@@ -68,7 +79,7 @@ def kbps(n, ms):
 
 async def main():
     gc.collect()
-    ble = bledev.mpble.get() if MICROPYTHON else bledev.bleak.BleakBLE()
+    ble = backend.get() if MICROPYTHON else bledev.bleak.BleakBLE()
     t0 = ticks_ms()
     link = await nus.connect(ble, name="bledev-gate", timeout_ms=20000, **CONN)
     log("connected in", ticks_diff(ticks_ms(), t0), "ms, mtu", link.connection.mtu, "conn", CONN, "plant", PLANT)
@@ -126,7 +137,11 @@ async def guarded():
     try:
         await main()
     except BaseException as e:
-        if MICROPYTHON:
+        if CIRCUITPYTHON:
+            import traceback
+
+            log("EXCEPTION", "".join(traceback.format_exception(e)))
+        elif MICROPYTHON:
             import io
 
             buf = io.StringIO()
@@ -140,6 +155,9 @@ async def guarded():
 
 
 if LOG:
-    open(LOG, "w").close()
+    try:
+        open(LOG, "w").close()
+    except OSError:
+        pass
 log("start")
 asyncio.run(guarded())
