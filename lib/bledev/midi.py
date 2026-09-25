@@ -136,7 +136,10 @@ if sys.implementation.name == "micropython":
 
 elif sys.implementation.name == "circuitpython":
     # time.monotonic() is a float that loses milliseconds after a few hours.
-    from supervisor import ticks_ms as _ticks_ms
+    try:
+        from supervisor import ticks_ms as _ticks_ms
+    except ImportError:  # the unix port has no supervisor, and MicroPython's time
+        from time import ticks_ms as _ticks_ms
 
     def now_ms():
         """This host's BLE-MIDI clock: milliseconds, 13 bits."""

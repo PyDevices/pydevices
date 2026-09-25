@@ -281,6 +281,70 @@ class CPBLEChecks(unittest.TestCase):
         run(main())
 
 
+def _circuitpython():
+    """A CircuitPython unix binary and a directory holding Adafruit's asyncio
+    and adafruit_ticks, or ``(None, why)``. ``PYDEVICES_CIRCUITPYTHON`` and
+    ``PYDEVICES_CP_ASYNCIO`` name them; otherwise the workspace layout, where
+    ``bin/circuitpython`` and the ``circuitpython`` checkout (whose ``frozen/``
+    carries both libraries) sit beside this repository."""
+    import os
+    from pathlib import Path
+
+    binary = os.environ.get("PYDEVICES_CIRCUITPYTHON")
+    libs = os.environ.get("PYDEVICES_CP_ASYNCIO")
+    here = Path(__file__).resolve().parent
+    for parent in here.parents:
+        if binary is None and (parent / "bin" / "circuitpython").is_file():
+            binary = str(parent / "bin" / "circuitpython")
+        frozen = parent / "circuitpython" / "frozen"
+        if libs is None and (frozen / "Adafruit_CircuitPython_asyncio" / "asyncio").is_dir():
+            libs = frozen
+    if binary is None:
+        return None, "no circuitpython binary"
+    if libs is None:
+        return None, "no Adafruit asyncio library"
+    return (binary, libs), None
+
+
+class OnCircuitPython(unittest.TestCase):
+    """bledev's contract and codec checks, run by CircuitPython's own
+    interpreter (the unix port, with Adafruit's asyncio). The file-transfer
+    server and pairing checks are MicroPython's and aren't run here."""
+
+    def test_contract_and_codecs(self):
+        import os
+        import shutil
+        import subprocess
+        import tempfile
+        from pathlib import Path
+
+        found, why = _circuitpython()
+        if found is None:
+            message = why + ": bledev's checks did NOT run on CircuitPython"
+            if os.environ.get("PYDEVICES_REQUIRE_CIRCUITPYTHON") == "1":
+                self.fail(message)
+            sys.stderr.write("\n*** " + message + " ***\n")
+            self.skipTest(message)
+        binary, libs = found
+        here = Path(__file__).resolve().parent
+        if isinstance(libs, Path):  # the checkout's frozen/: gather the two libraries
+            scratch = tempfile.TemporaryDirectory()
+            self.addCleanup(scratch.cleanup)
+            shutil.copytree(str(libs / "Adafruit_CircuitPython_asyncio" / "asyncio"), os.path.join(scratch.name, "asyncio"))
+            shutil.copy(str(libs / "Adafruit_CircuitPython_Ticks" / "adafruit_ticks.py"), scratch.name)
+            libs = scratch.name
+        env = dict(os.environ, MICROPYPATH=str(here.parent / "lib") + ":" + libs)
+        for script, tail in (
+            ("bledev_contract.py", " 0 failed (circuitpython)"),
+            ("bledev_midi_codec.py", " 0 failed"),
+            ("bledev_hid_checks.py", " 0 failed (circuitpython)"),
+        ):
+            with self.subTest(script=script):
+                result = subprocess.run([binary, str(here / script)], capture_output=True, text=True, timeout=600, env=env)
+                self.assertIn(tail, result.stdout, result.stdout[-2000:] + result.stderr[-2000:])
+                self.assertIn("circuitpython", result.stdout)
+
+
 class Planted(unittest.TestCase):
     """cpble's send reverted to a plain PacketBuffer.write(data): the checks above must fail."""
 
