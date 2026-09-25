@@ -19,8 +19,15 @@ import sys
 
 import bledev
 
-MICROPYTHON = sys.implementation.name == "micropython"
+IMPL = sys.implementation.name
+MICROPYTHON = IMPL in ("micropython", "circuitpython")  # a board
 LOG = "/gatt_central.log" if MICROPYTHON else None
+#: What exchange_mtu() must return: the peripheral's 185, or, against a
+#: CircuitPython peripheral (fixed at 256), ``--mtu 256`` (a laptop sees the
+#: link's 256; a CircuitPython central reports at most 247).
+EXPECT_MTU = 185
+if "--mtu" in sys.argv:
+    EXPECT_MTU = int(sys.argv[sys.argv.index("--mtu") + 1])
 SVC = bledev.UUID("12345678-1234-5678-1234-56789abcdef0")
 CHR_RW = bledev.UUID("12345678-1234-5678-1234-56789abcdef1")
 CHR_STREAM = bledev.UUID("12345678-1234-5678-1234-56789abcdef2")
@@ -28,6 +35,10 @@ CHR_IND = bledev.UUID("12345678-1234-5678-1234-56789abcdef3")
 
 
 def adapter():
+    if IMPL == "circuitpython":
+        import bledev.cpble
+
+        return bledev.cpble.get()
     if MICROPYTHON:
         import bledev.mpble
 
@@ -38,7 +49,11 @@ def adapter():
 
 
 def print_exception(e):
-    if MICROPYTHON:
+    if IMPL == "circuitpython":
+        import traceback
+
+        traceback.print_exception(e)
+    elif MICROPYTHON:
         sys.print_exception(e)
     else:
         import traceback
@@ -53,8 +68,11 @@ def log(*parts):
     line = " ".join(str(p) for p in parts)
     print(line)
     if LOG:
-        with open(LOG, "a") as f:
-            f.write(line + "\n")
+        try:
+            with open(LOG, "a") as f:
+                f.write(line + "\n")
+        except OSError:
+            pass  # CircuitPython: the filesystem is USB's while it's mounted
 
 
 def check(ok, what, detail=""):
@@ -96,7 +114,7 @@ async def main():
     check(connection.is_connected() and connection.role == "central", "connect")
 
     mtu = await connection.exchange_mtu(247)
-    check(mtu == 185, "exchange_mtu: the smaller side wins", mtu)
+    check(mtu == EXPECT_MTU, "exchange_mtu: the smaller side wins", mtu)
 
     check(await connection.service(bledev.UUID(0x180F)) is None, "missing service is None")
     service = await connection.service(SVC)
@@ -149,9 +167,16 @@ async def main():
     got = await rw.read()
     log("NOTE write past max_len: sent 29 bytes, the server kept", len(got))
 
-    await ind.subscribe(notify=False, indicate=True)
-    await rw.write(b"indicate", response=True)
-    check(await ind.indicated(timeout_ms=3000) == b"ack me", "indication")
+    if caps["indicate"]:
+        await ind.subscribe(notify=False, indicate=True)
+        await rw.write(b"indicate", response=True)
+        check(await ind.indicated(timeout_ms=3000) == b"ack me", "indication")
+    else:
+        try:
+            await ind.subscribe(notify=False, indicate=True)
+            check(False, "a central without indications refuses to subscribe to one")
+        except bledev.UnsupportedError:
+            check(True, "a central without indications refuses to subscribe to one")
 
     waiting = asyncio.create_task(stream.notified())
     await bledev.sleep_ms(50)
@@ -184,7 +209,10 @@ async def guarded():
 
 
 if LOG:
-    open(LOG, "w").close()
+    try:
+        open(LOG, "w").close()
+    except OSError:
+        pass
 asyncio.run(guarded())
 if not MICROPYTHON:
     sys.exit(1 if failures else 0)

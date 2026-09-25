@@ -67,6 +67,10 @@ def _adapter(ble):
         from . import mpble
 
         return mpble.get(ble)
+    if hasattr(ble, "start_advertising") and hasattr(ble, "erase_bonding"):
+        from . import cpble  # CircuitPython's _bleio.adapter
+
+        return cpble.get(ble)
     raise TypeError("expected a bledev adapter, not {!r}".format(ble))
 
 

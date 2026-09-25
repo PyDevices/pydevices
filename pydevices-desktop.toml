@@ -23,6 +23,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/__init__.py" = "/lib/bledev/__init__.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/auto.py" = "/lib/bledev/auto.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/bleak.py" = "/lib/bledev/bleak.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/cpble.py" = "/lib/bledev/cpble.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/fake.py" = "/lib/bledev/fake.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/filetransfer.py" = "/lib/bledev/filetransfer.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/hid.py" = "/lib/bledev/hid.py"
