@@ -359,6 +359,31 @@ class NeverStarts(FakeEngine):
         return got
 
 
+class SharesTheCore(FakeEngine):
+    """A pump thread that can only run once the interpreter gives the core up.
+
+    What `lifecycle.py` hit on a loaded machine (pydevices#56): the pump and
+    the interpreter on one core, and the interpreter waiting for the pump's
+    first block by spinning. A spin never hands the core over, so the pump
+    never ran, the wait ran out, and a round played nothing. Here "the core
+    is handed over" is a call to `audiodev.pump._sleep_us`, which the test
+    wires to `yielded`; until then every drain is empty and the pump is
+    running.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.yielded = False
+
+    def backpressure(self):
+        return True
+
+    def drain(self, into):
+        if not self.yielded:
+            return 0
+        return super().drain(into)
+
+
 class FakeI2SOut:
     """``audiobusio.I2SOut``: the surface ``audiodev`` drives it through.
 
@@ -772,6 +797,37 @@ class AStartTheInterpreterMissedCostsNoAudio(PumpFixture):
         self.assertEqual(bytes(transport.data), b"\x01" * 1024,
                          "the sample the pump had already pulled never "
                          "reached the transport")
+
+
+class AWaitForThePumpGivesTheCoreUp(PumpFixture):
+    """pydevices#56: waiting for the pump's first block must not starve it.
+
+    Measured before the fix with the probe pinned to one core: 303 waits in
+    ten runs of `lifecycle.py` spun out their whole budget with the pump still
+    at block 0, and under load one round in a few thousand played nothing.
+    """
+
+    ENGINE = SharesTheCore
+
+    def test_the_first_block_arrives_when_the_pump_shares_the_core(self):
+        def hand_over(_us):
+            self.engine.yielded = True
+
+        transport = Recorder()
+        out = sample_out.AudioOut(transport, chunk_ms=10)
+        self.addCleanup(out.close)
+        with mock.patch.object(pump_mod, "_sleep_us", hand_over, create=True):
+            # Eight blocks, so the sample outlives the round and the fake
+            # never has to say how it ended.
+            out.play(FakeSample(blocks=8, block=1024))
+            for _ in range(4):
+                out.service()
+        self.assertTrue(out.pumped, "the pump was not taken at all")
+        self.assertTrue(self.engine.yielded,
+                        "the wait never gave the core up, so a pump on the "
+                        "same core could not run")
+        self.assertEqual(bytes(transport.data[:1024]), b"\x01" * 1024,
+                         "a round on the pump played nothing")
 
 
 class AStartThatReallyFailedIsNotSticky(PumpFixture):
