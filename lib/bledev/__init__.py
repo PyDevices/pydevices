@@ -223,29 +223,34 @@ ADV_TYPE_UUID128_INCOMPLETE = 0x06
 ADV_TYPE_UUID128_COMPLETE = 0x07
 ADV_TYPE_SHORT_NAME = 0x08
 ADV_TYPE_NAME = 0x09
+ADV_TYPE_SERVICE_DATA16 = 0x16
 ADV_TYPE_APPEARANCE = 0x19
+ADV_TYPE_SERVICE_DATA32 = 0x20
+ADV_TYPE_SERVICE_DATA128 = 0x21
 ADV_TYPE_MANUFACTURER = 0xFF
 
 ADV_PAYLOAD_MAX = 31
 
 
-def pack_advertisement(name=None, services=None, appearance=0, manufacturer=None):
-    """Build ``(adv_data, resp_data)`` exactly the way aioble packs them.
+def pack_advertisement(name=None, services=None, appearance=0, manufacturer=None, service_data=None):
+    """Build ``(adv_data, resp_data)``, in aioble's field order.
 
     Fields go into the 31-byte advertisement in this order (flags, services,
-    name, appearance, manufacturer) and overflow into the scan response, which
-    only an *active* scan sees. That is why a long name can be invisible to a
-    passive scan: the fake backend uses this so tests see the same thing.
-    ``manufacturer`` is ``(company_id, data)``.
+    service data, name, appearance, manufacturer) and overflow into the scan
+    response, which only an *active* scan sees. That is why a long name can be
+    invisible to a passive scan. The fake backend and mpble both advertise
+    what this returns, so tests see what a board sends.
+    ``manufacturer`` is ``(company_id, data)``; ``service_data`` is a list of
+    ``(uuid, data)``.
     """
     adv = bytearray()
     resp = bytearray()
 
     def append(adv_type, value):
         field = bytes((len(value) + 1, adv_type)) + bytes(value)
-        if len(adv) + len(field) < ADV_PAYLOAD_MAX:
+        if len(adv) + len(field) <= ADV_PAYLOAD_MAX:
             adv.extend(field)
-        elif len(resp) + len(field) < ADV_PAYLOAD_MAX:
+        elif len(resp) + len(field) <= ADV_PAYLOAD_MAX:
             resp.extend(field)
         else:
             raise ValueError("advertising payload too long")
@@ -257,6 +262,11 @@ def pack_advertisement(name=None, services=None, appearance=0, manufacturer=None
             group = b"".join(u for u in uuids if len(u) == size)
             if group:
                 append(code, group)
+    if service_data:
+        codes = {2: ADV_TYPE_SERVICE_DATA16, 4: ADV_TYPE_SERVICE_DATA32, 16: ADV_TYPE_SERVICE_DATA128}
+        for uuid, data in service_data:
+            raw = UUID(uuid).to_bytes()
+            append(codes[len(raw)], raw + bytes(data))
     if name:
         append(ADV_TYPE_NAME, name.encode() if isinstance(name, str) else name)
     if appearance:
@@ -310,6 +320,17 @@ def decode_advertisement(*payloads):
         elif adv_type == ADV_TYPE_MANUFACTURER and len(value) >= 2:
             manufacturer.append((struct.unpack("<H", value[:2])[0], value[2:]))
     return name, services, appearance, manufacturer
+
+
+def decode_service_data(*payloads):
+    """``[(UUID, data), ...]`` from the service-data fields of raw payloads."""
+    sizes = {ADV_TYPE_SERVICE_DATA16: 2, ADV_TYPE_SERVICE_DATA32: 4, ADV_TYPE_SERVICE_DATA128: 16}
+    found = []
+    for adv_type, value in decode_fields(*payloads):
+        size = sizes.get(adv_type)
+        if size and len(value) >= size:
+            found.append((UUID(value[:size]), value[size:]))
+    return found
 
 
 # ---------------------------------------------------------------- the adapter
@@ -378,9 +399,11 @@ class BLE:
         manufacturer=None,
         connectable=True,
         timeout_ms=None,
+        service_data=None,
     ):
         """Advertise until a central connects, and return that :class:`Connection`.
 
+        ``service_data`` is a list of ``(uuid, data)`` (Improv uses it).
         Raises :class:`BLETimeoutError` if nobody connects within
         ``timeout_ms``. Cancelling the task stops advertising. Advertising
         stops when a central connects; call again to accept another.
@@ -587,13 +610,16 @@ class ScanResult:
     aioble. ``services()`` returns a list of :class:`UUID`.
     """
 
-    def __init__(self, device, rssi=None, name=None, services=(), appearance=0, manufacturer=(), connectable=True):
+    def __init__(
+        self, device, rssi=None, name=None, services=(), appearance=0, manufacturer=(), connectable=True, service_data=()
+    ):
         self.device = device
         self.rssi = rssi
         self._name = name
         self._services = [UUID(s) for s in services]
         self.appearance = appearance
         self._manufacturer = list(manufacturer)
+        self._service_data = [(UUID(u), bytes(d)) for u, d in service_data]
         self.connectable = connectable
 
     def name(self):
@@ -604,6 +630,12 @@ class ScanResult:
 
     def manufacturer(self, filter=None):
         return [(m, d) for m, d in self._manufacturer if filter is None or m == filter]
+
+    def service_data(self, uuid=None):
+        """``[(UUID, data), ...]``, optionally only for ``uuid``."""
+        if uuid is not None:
+            uuid = UUID(uuid)
+        return [(u, d) for u, d in self._service_data if uuid is None or u == uuid]
 
     def __repr__(self):
         return "ScanResult({!r}, rssi={})".format(self.device, self.rssi)

@@ -1,10 +1,16 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""Board side of the over-the-air contract check: the central.
+"""The over-the-air contract check: the central, on a board or a laptop.
 
-Needs ``gatt_peripheral.py`` running on another board. Writes one line per
-check to /gatt_central.log and ends with ``RESULT PASS`` or ``RESULT FAIL``.
+Needs ``gatt_peripheral.py`` running on a board. On MicroPython it uses
+mpble and writes one line per check to /gatt_central.log. On CPython it uses
+``bledev.bleak`` and prints; run it with the Windows Python from WSL::
+
+    PYTHONPATH="$(wslpath -w lib)" python.exe "$(wslpath -w tests/bledev_board/gatt_central.py)"
+
+It ends with ``RESULT PASS`` or ``RESULT FAIL``. Start the peripheral with
+its ``PLANT = True`` (it skips notification 7) and this must fail.
 """
 
 import asyncio
@@ -12,13 +18,33 @@ import struct
 import sys
 
 import bledev
-import bledev.mpble
 
-LOG = "/gatt_central.log"
+MICROPYTHON = sys.implementation.name == "micropython"
+LOG = "/gatt_central.log" if MICROPYTHON else None
 SVC = bledev.UUID("12345678-1234-5678-1234-56789abcdef0")
 CHR_RW = bledev.UUID("12345678-1234-5678-1234-56789abcdef1")
 CHR_STREAM = bledev.UUID("12345678-1234-5678-1234-56789abcdef2")
 CHR_IND = bledev.UUID("12345678-1234-5678-1234-56789abcdef3")
+
+
+def adapter():
+    if MICROPYTHON:
+        import bledev.mpble
+
+        return bledev.mpble.get()
+    import bledev.bleak
+
+    return bledev.bleak.BleakBLE()
+
+
+def print_exception(e):
+    if MICROPYTHON:
+        sys.print_exception(e)
+    else:
+        import traceback
+
+        traceback.print_exception(type(e), e, e.__traceback__)
+
 
 failures = []
 
@@ -26,8 +52,9 @@ failures = []
 def log(*parts):
     line = " ".join(str(p) for p in parts)
     print(line)
-    with open(LOG, "a") as f:
-        f.write(line + "\n")
+    if LOG:
+        with open(LOG, "a") as f:
+            f.write(line + "\n")
 
 
 def check(ok, what, detail=""):
@@ -37,10 +64,30 @@ def check(ok, what, detail=""):
 
 
 async def main():
-    ble = bledev.mpble.get()
+    ble = adapter()
     caps = ble.capabilities()
-    check(caps["central"] and caps["peripheral"], "capabilities: both roles", caps)
+    if MICROPYTHON:
+        check(caps["central"] and caps["peripheral"], "capabilities: both roles", caps)
+    else:
+        check(caps["central"] and not caps["peripheral"], "capabilities: central only", caps)
+        for what, call in (
+            ("advertise", lambda: ble.advertise(name="x", timeout_ms=10)),
+            ("nus.serve", lambda: __import__("bledev.nus").nus.serve(ble, name="x", timeout_ms=10)),
+        ):
+            try:
+                await call()
+                check(False, "a central-only host refuses " + what)
+            except bledev.UnsupportedError:
+                check(True, "a central-only host refuses " + what)
 
+    try:
+        await ble.find(name="bledev-nobody", timeout_ms=1500)
+        check(False, "find() times out with BLETimeoutError")
+    except bledev.BLETimeoutError:
+        check(True, "find() times out with BLETimeoutError")
+
+    named = await ble.find(name="bledev-radio", timeout_ms=15000)
+    check(named is not None and named.name == "bledev-radio", "find by name", repr(named))
     device = await ble.find(service=SVC, timeout_ms=15000)
     # The name may arrive in a later scan response than the service UUID, so
     # a find by service can return before the name is known.
@@ -63,7 +110,16 @@ async def main():
 
     check(await rw.read() == b"hi", "read the initial value")
 
+    # The peripheral sends these before we subscribe; none may arrive.
+    await rw.write(b"notify 3", response=True)
+    await bledev.sleep_ms(500)
     await stream.subscribe(notify=True)
+    try:
+        early = await stream.notified(timeout_ms=300)
+        check(False, "nothing arrives before subscribe()", early)
+    except bledev.BLETimeoutError:
+        check(True, "nothing arrives before subscribe()")
+
     await rw.write(b"notify 200", response=True)
     seqs = []
     for _ in range(200):
@@ -77,7 +133,7 @@ async def main():
 
     for i in range(100):
         await stream.write(struct.pack("<I", i) + bytes(16))
-    await asyncio.sleep_ms(300)
+    await bledev.sleep_ms(300)
     await rw.write(b"count", response=True)
     check(await rw.read() == b"100 0", "100 captured writes, in order", await rw.read())
 
@@ -98,7 +154,7 @@ async def main():
     check(await ind.indicated(timeout_ms=3000) == b"ack me", "indication")
 
     waiting = asyncio.create_task(stream.notified())
-    await asyncio.sleep_ms(50)
+    await bledev.sleep_ms(50)
     try:
         await rw.write(b"drop", response=True)
     except bledev.DisconnectedError:
@@ -122,10 +178,13 @@ async def guarded():
         await main()
     except BaseException as e:
         failures.append("exception")
-        sys.print_exception(e)
+        print_exception(e)
         log("EXCEPTION", repr(e))
     log("RESULT", "FAIL {}".format(failures) if failures else "PASS")
 
 
-open(LOG, "w").close()
+if LOG:
+    open(LOG, "w").close()
 asyncio.run(guarded())
+if not MICROPYTHON:
+    sys.exit(1 if failures else 0)

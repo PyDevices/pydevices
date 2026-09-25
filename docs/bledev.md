@@ -35,7 +35,7 @@ transport can talk to it too.
 | `bledev.webble` | Browsers: PyScript, the Workbench simulator | yes | no |
 | `bledev.fake` | Anywhere: tests | yes | yes |
 
-`bledev.bleak` and `bledev.webble` are being written; the table is the plan.
+`bledev.webble` is being written; the other three are here.
 
 Roles aren't symmetric. A laptop or a browser can only scan and connect, so
 when a board talks to one, the board advertises. Only board-to-board links put
@@ -61,11 +61,29 @@ adds bleak, which the laptop backend needs.
 
 ## Getting an adapter
 
-The adapter is one radio. On a board:
+The adapter is one radio. On a board with a PyDevices board config, it's the
+`ble` role:
+
+```python
+from board_config import ble    # a bledev adapter
+```
+
+It still answers every `bluetooth.BLE` method (`active()`, `gap_advertise()`,
+`gatts_notify()`), so code written for the raw radio keeps working. The one
+difference is `ble.irq(handler)`: your handler runs beside aioble's instead of
+replacing it. A board without bledev installed gets the raw `bluetooth.BLE()`,
+as before. Without a board config:
 
 ```python
 import bledev.mpble
 ble = bledev.mpble.get()        # the board has one radio, so get() shares one adapter
+```
+
+On a laptop:
+
+```python
+import bledev.bleak
+ble = bledev.bleak.BleakBLE()   # central only
 ```
 
 Anywhere, if you don't want to name the backend:
@@ -146,6 +164,65 @@ max_conn_interval_us=15000)` asks for a short connection interval, which
 nearly doubles a round trip's throughput (the numbers are in
 [the measurements](#measured-on-two-esp32-s3s)).
 
+From a laptop, `nus.connect(ble, name=..., priority="throughput")` asks
+Windows for its short-interval parameters. Board to laptop, it made little
+difference (see [the measurements](#measured-on-two-esp32-s3s)).
+
+## A REPL over Bluetooth
+
+A board can offer its REPL over nus, behind a password, the way WebREPL does
+over Wi-Fi. It's opt-in; put this in `main.py`:
+
+```python
+import bledev.repl
+bledev.repl.start(password="correct horse", name="rack")   # or webrepl_cfg.PASS
+```
+
+`start()` returns at once, and the REPL keeps being served at the `>>>`
+prompt and while your program runs; Ctrl-C over Bluetooth interrupts a running
+program. From a laptop or another board:
+
+```python
+import bledev.repl
+link = await bledev.repl.connect(ble, "correct horse", name="rack")
+print(await bledev.repl.run(link, "1 + 1"))    # "2"
+```
+
+Any terminal that speaks Nordic UART works too: send an empty line, and the
+board answers `Password: `. A wrong password gets `Access denied` and a
+disconnect, and nothing sent with it reaches the REPL. The link isn't
+encrypted, as with WebREPL, so someone nearby with a sniffer can read the
+password; pairing is the later fix.
+
+While it runs, the REPL owns the radio: it registers its own service and
+advertises whenever nobody is connected. Call `bledev.repl.stop()` to give the
+radio back to your app.
+
+## Wi-Fi setup with Improv
+
+`bledev.improv` speaks [Improv](https://www.improv-wifi.com/ble/), the BLE
+Wi-Fi setup standard ESPHome, WLED and Home Assistant use. A board without
+credentials serves it until someone provisions it:
+
+```python
+import bledev.improv as improv
+url = await improv.serve(ble, name="kitchen")   # returns once the board has joined
+```
+
+Anything that speaks Improv can then set it up: Home Assistant, the Improv web
+page, or another bledev host:
+
+```python
+url = await improv.provision(ble, ssid, password, name="kitchen")
+```
+
+A network the board can't join raises `improv.ImprovError` with
+`code == improv.ERROR_UNABLE_TO_CONNECT`. Saving the credentials for the next
+boot is up to you: pass `on_join=lambda ssid, password, ip: ...` to `serve()`.
+`require_authorization=True` makes the board wait for `server.authorize()`
+(from a button, say) before it accepts credentials. The credentials cross the
+air unencrypted; that's the standard.
+
 ## The rules every backend keeps
 
 These hold on every backend. The fake enforces the strict version of each, so
@@ -217,6 +294,15 @@ Board to board over nus (16 KB each way, verified byte for byte), with Wi-Fi off
 | Central to peripheral (writes) | 80-87 KB/s | 69-79 KB/s |
 | Peripheral to central (notifications) | 31-41 KB/s | 37-39 KB/s |
 | Echo round trip, each way | 24-30 KB/s | 44 KB/s |
+
+A laptop (Windows, bleak) to an S3 over the same gate: 100-134 KB/s up,
+47-49 KB/s down and 30-34 KB/s echoed each way. Asking Windows for its
+throughput parameters changed nothing measurable.
+
+With the board also on Wi-Fi, BLE slows: idle-connected Wi-Fi roughly halves
+the upstream writes (36-62 KB/s instead of 77-84) and trims the rest by a
+fifth, and a Wi-Fi stream running at the same time takes upstream to 22-39
+KB/s. The runs are in [bledev-internals.md](bledev-internals.md#wi-fi-and-ble-on-one-s3).
 
 A single GATT read or write takes two connection intervals: a median of 100 ms
 at the default interval, and 30 ms at 7.5-15 ms, with nothing over 100 ms in

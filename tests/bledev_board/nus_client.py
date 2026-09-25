@@ -3,27 +3,48 @@
 # SPDX-License-Identifier: MIT
 """The nus byte-stream gate, the central: 16 KB up, down and echoed, verified.
 
-Needs ``nus_server.py`` on another board. Every byte is checked against the
+Needs ``nus_server.py`` on a board. It runs on another board (mpble) or on a
+laptop (``bledev.bleak``, printing instead of logging); see gatt_central.py
+for the command line. Every byte is checked against the
 pattern, lengths must match, and throughput is timed per phase. Ends with
 ``RESULT PASS`` or ``RESULT FAIL`` in /gate_client.log. ``PLANT = True`` flips one
 bit at offset 5000 of the UP stream, which the server must catch.
 ``CONN`` passes connection intervals to ``device.connect()``.
 """
-import asyncio, time, gc
-import bledev.mpble
+import asyncio, time, gc, sys
 import bledev.nus as nus
+
+MICROPYTHON = sys.implementation.name == "micropython"
+if MICROPYTHON:
+    import bledev.mpble
+
+    ticks_ms, ticks_diff = time.ticks_ms, time.ticks_diff
+else:
+    import bledev.bleak
+
+    def ticks_ms():
+        return int(time.monotonic() * 1000)
+
+    def ticks_diff(a, b):
+        return a - b
 
 N = 16384
 PLANT = False  # the planted run sets this: flip one bit at offset 5000 of the UP stream
 CONN = {}      # e.g. min_conn_interval_us / max_conn_interval_us
-LOG = "/gate_client.log"
+if not MICROPYTHON:
+    # On a laptop: --fast asks the OS for a short connection interval, --plant plants.
+    if "--fast" in sys.argv:
+        CONN = {"priority": "throughput"}
+    PLANT = PLANT or "--plant" in sys.argv
+LOG = "/gate_client.log" if MICROPYTHON else None
 
 
 def log(*parts):
     line = " ".join(str(p) for p in parts)
     print(line)
-    with open(LOG, "a") as f:
-        f.write(line + "\n")
+    if LOG:
+        with open(LOG, "a") as f:
+            f.write(line + "\n")
 
 
 def pattern(n, seed):
@@ -47,10 +68,10 @@ def kbps(n, ms):
 
 async def main():
     gc.collect()
-    ble = bledev.mpble.get()
-    t0 = time.ticks_ms()
+    ble = bledev.mpble.get() if MICROPYTHON else bledev.bleak.BleakBLE()
+    t0 = ticks_ms()
     link = await nus.connect(ble, name="bledev-gate", timeout_ms=20000, **CONN)
-    log("connected in", time.ticks_diff(time.ticks_ms(), t0), "ms, mtu", link.connection.mtu, "conn", CONN, "plant", PLANT)
+    log("connected in", ticks_diff(ticks_ms(), t0), "ms, mtu", link.connection.mtu, "conn", CONN, "plant", PLANT)
     ok = True
 
     # UP: we send, the server checks.
@@ -60,9 +81,9 @@ async def main():
         data[5000] ^= 0x01
         data = bytes(data)
     await link.write("UP {}\n".format(N).encode())
-    t0 = time.ticks_ms()
+    t0 = ticks_ms()
     await link.write(data)
-    sent_ms = time.ticks_diff(time.ticks_ms(), t0)
+    sent_ms = ticks_diff(ticks_ms(), t0)
     reply = (await link.readline()).decode().split()
     ms = int(reply[2])
     log("UP", reply[1], N, "bytes: server received in", ms, "ms =", kbps(N, ms), "(our send", sent_ms, "ms) mismatches", reply[3], "first", reply[4])
@@ -70,13 +91,13 @@ async def main():
 
     # DOWN: the server sends, we check.
     await link.write("DOWN {}\n".format(N).encode())
-    t0 = time.ticks_ms()
+    t0 = ticks_ms()
     try:
-        got = await asyncio.wait_for_ms(link.readexactly(N), 15000)
+        got = await asyncio.wait_for(link.readexactly(N), 15)
     except asyncio.TimeoutError:
         log("DOWN stalled: buffered", len(link._buf), "bytes_in", link.bytes_in, "connected", link.connection.is_connected())
         raise
-    ms = time.ticks_diff(time.ticks_ms(), t0)
+    ms = ticks_diff(ticks_ms(), t0)
     bad, first = compare(got, pattern(N, 2))
     verdict = "OK" if bad == 0 and len(got) == N else "BAD"
     log("DOWN", verdict, len(got), "bytes in", ms, "ms =", kbps(N, ms), "mismatches", bad, "first", first)
@@ -85,10 +106,10 @@ async def main():
     # ECHO: round trip through the server.
     await link.write("ECHO {}\n".format(N).encode())
     data = pattern(N, 3)
-    t0 = time.ticks_ms()
+    t0 = ticks_ms()
     sender = asyncio.create_task(link.write(data))
     got = await link.readexactly(N)
-    ms = time.ticks_diff(time.ticks_ms(), t0)
+    ms = ticks_diff(ticks_ms(), t0)
     await sender
     bad, first = compare(got, data)
     verdict = "OK" if bad == 0 and len(got) == N else "BAD"
@@ -96,7 +117,7 @@ async def main():
     ok = ok and verdict == "OK"
 
     await link.write(b"BYE\n")
-    await asyncio.sleep_ms(300)
+    await asyncio.sleep(0.3)
     await link.close()
     log("RESULT", "PASS" if ok else "FAIL")
 
@@ -105,13 +126,20 @@ async def guarded():
     try:
         await main()
     except BaseException as e:
-        import sys, io
-        buf = io.StringIO()
-        sys.print_exception(e, buf)
-        log("EXCEPTION", buf.getvalue())
+        if MICROPYTHON:
+            import io
+
+            buf = io.StringIO()
+            sys.print_exception(e, buf)
+            log("EXCEPTION", buf.getvalue())
+        else:
+            import traceback
+
+            log("EXCEPTION", "".join(traceback.format_exception(type(e), e, e.__traceback__)))
         log("RESULT", "FAIL")
 
 
-open(LOG, "w").close()
+if LOG:
+    open(LOG, "w").close()
 log("start")
 asyncio.run(guarded())
