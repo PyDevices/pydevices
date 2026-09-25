@@ -12,6 +12,8 @@ once per planted fault, each of which must make it fail.
 When usbif's checkout sits beside this one, the keyboard decoder is also
 compared with usbif's own boot-keyboard decoder over random reports, since
 the promise is that a BLE keyboard and a USB one look the same to an app.
+Both take their keyboard table from ``keys.hid_keycode``; usbif's own tests
+check it hasn't grown a copy, and this one checks hidreport hasn't.
 """
 
 from pathlib import Path
@@ -28,7 +30,7 @@ sys.path.insert(0, str(_TESTS.parent / "lib"))
 from test_bledev import _micropython  # noqa: E402
 
 SUITES = {
-    "hidreport_vectors.py": ("bitorder", "unsigned", "range", "order", "rollover", "hat"),
+    "hidreport_vectors.py": ("bitorder", "unsigned", "range", "order", "rollover", "hat", "mousebutton", "wheel"),
     "bledev_hid_checks.py": ("drop_report", "shift_lost", "axis_sign", "no_pair"),
 }
 
@@ -87,6 +89,13 @@ def _usbif_decoder():
 
 
 class SameAsUsbif(unittest.TestCase):
+    def test_one_keyboard_table(self):
+        import keys
+        from bledev import hidreport
+
+        self.assertIs(hidreport.keycode, keys.hid_keycode)
+        self.assertIs(hidreport.modifier_mask, keys.hid_modifiers)
+
     def test_boot_reports_decode_like_usbif(self):
         usbif_decoder = _usbif_decoder()
         if usbif_decoder is None:

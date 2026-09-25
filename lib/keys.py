@@ -624,3 +624,57 @@ def chord_matches(chord, keycode, mod):
     if keycode != chord_key:
         return False
     return all(not (chord_mod & group and not mod & group) for group in _MOD_GROUPS)
+
+
+# --- HID keyboards --------------------------------------------------------
+#
+# The one table from HID keyboard usages to these codes. usbif's USB keyboard
+# decoder and bledev.hidreport's BLE one both use it, so a key reads the same
+# whichever way it arrived. SDL's scancodes ARE the HID usages, and every key
+# without a character has the keycode ``usage | 1 << 30``, so only the
+# character keys need a table. The ISO "# ~" key (usage 0x32), which SDL
+# calls '#', stays unmapped.
+
+_HID_CHARS = {
+    0x28: K_RETURN, 0x29: K_ESCAPE, 0x2A: K_BACKSPACE, 0x2B: K_TAB, 0x2C: K_SPACE,
+    0x2D: K_MINUS, 0x2E: K_EQUALS, 0x2F: K_LEFTBRACKET, 0x30: K_RIGHTBRACKET,
+    0x31: K_BACKSLASH, 0x33: K_SEMICOLON, 0x34: K_QUOTE, 0x35: K_BACKQUOTE,
+    0x36: K_COMMA, 0x37: K_PERIOD, 0x38: K_SLASH, 0x4C: K_DELETE,
+}
+
+
+def hid_keycode(usage):
+    """The ``K_*`` code for a HID keyboard-page usage (``0x04`` is 'a'), or None."""
+    if 0x04 <= usage <= 0x1D:
+        return K_a + usage - 0x04
+    if 0x1E <= usage <= 0x26:
+        return K_1 + usage - 0x1E
+    if usage == 0x27:
+        return K_0
+    code = _HID_CHARS.get(usage)
+    if code is not None:
+        return code
+    if usage >= 0x39:
+        code = usage | 0x40000000
+        if code in _keytable:
+            return code
+    return None
+
+
+#: The eight modifier bits of a HID keyboard report, in bit order (bit 0 is
+#: left Ctrl), as ``(KMOD_* mask, K_* code)``. Bit ``i`` is usage ``0xE0 + i``.
+HID_MODIFIERS = (
+    (KMOD_LCTRL, K_LCTRL), (KMOD_LSHIFT, K_LSHIFT),
+    (KMOD_LALT, K_LALT), (KMOD_LGUI, K_LGUI),
+    (KMOD_RCTRL, K_RCTRL), (KMOD_RSHIFT, K_RSHIFT),
+    (KMOD_RALT, K_RALT), (KMOD_RGUI, K_RGUI),
+)
+
+
+def hid_modifiers(bits):
+    """The ``KMOD_*`` mask for a HID report's modifier byte."""
+    mask = KMOD_NONE
+    for i in range(8):
+        if bits & (1 << i):
+            mask |= HID_MODIFIERS[i][0]
+    return mask

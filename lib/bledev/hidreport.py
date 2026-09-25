@@ -3,9 +3,10 @@
 A HID device describes its own reports: the *report descriptor* (Bluetooth
 calls it the Report Map) says which bits of which report carry which control.
 This module reads one, and turns the device's input reports into the same
-``events.Key``, ``events.JoyAxisMotion``, ``events.JoyHatMotion`` and
-``events.JoyButtonDown``/``Up`` records a keyboard or a joystick produces on
-the desktop through SDL::
+``events.Key``, ``events.Motion``, ``events.Button``, ``events.Wheel``,
+``events.JoyAxisMotion``, ``events.JoyHatMotion`` and
+``events.JoyButtonDown``/``Up`` records a keyboard, a mouse or a joystick
+produces on the desktop through SDL::
 
     from bledev.hidreport import ReportMap, Decoder
 
@@ -24,6 +25,18 @@ USB one. The keyboard says which keys are held; events come from the
 difference between successive reports: modifier releases, key releases, key
 presses, then modifier presses. An ErrorRollOver report is ignored, so the
 eventual releases still balance.
+
+The keyboard table is ``keys.hid_keycode``, the one usbif uses too.
+
+**Mice** (the mouse and pointer collections) produce ``MOUSEMOTION``,
+``MOUSEBUTTONDOWN``/``UP`` and ``MOUSEWHEEL``, in that order within a report,
+with ``touch`` False and ``window`` None. A relative mouse has no position of
+its own, so ``pos`` is the sum of its motion from (0, 0), kept inside
+``Decoder(..., bounds=(width, height))`` when you give one. Buttons are
+numbered as SDL does: 1 left, 2 middle, 3 right (HID calls right 2 and middle
+3). The wheel is ``y``, positive away from you, and AC Pan is ``x``. A motion
+event's ``buttons`` is the ``(left, middle, right)`` held before that report,
+so a press that arrives with a move reads as the move, then the press.
 
 **Consumer controls** (media keys, remotes) become ``events.Key`` as well,
 with ``keys.K_VOLUMEUP`` and friends, and ``scancode`` set to the extended
@@ -71,7 +84,16 @@ APP_MULTI_AXIS = 0x00010008
 APP_CONSUMER = 0x000C0001
 
 _GAME_APPS = (APP_JOYSTICK, APP_GAMEPAD, APP_MULTI_AXIS)
+_MOUSE_APPS = (APP_MOUSE, APP_POINTER)
 _HAT = 0x00010039
+_X = 0x00010030
+_Y = 0x00010031
+_WHEEL = 0x00010038
+_AC_PAN = 0x000C0238
+
+# HID numbers mouse buttons primary, secondary, tertiary; SDL numbers them
+# left, middle, right. Buttons 4 and up (back, forward) are the same in both.
+_SDL_BUTTON = {1: 1, 2: 3, 3: 2}
 
 ERROR_ROLLOVER = 0x01
 
@@ -350,39 +372,12 @@ class ReportMap:
 
 # ---------------------------------------------------------------- key tables
 
-# HID keyboard usage -> SDL keycode. SDL's scancodes *are* HID usages, and
-# SDL makes the keycode of every key without a character ``usage | 1 << 30``,
-# so only the character keys need a table. It agrees with usbif's table
-# (tests/test_bledev_hid.py compares the two), so 0x32, the ISO keyboard's
-# "# ~" key, stays unmapped here as it is there, though SDL calls it '#'.
-_CHARS = {
-    0x28: keys.K_RETURN, 0x29: keys.K_ESCAPE, 0x2A: keys.K_BACKSPACE,
-    0x2B: keys.K_TAB, 0x2C: keys.K_SPACE,
-    0x2D: ord("-"), 0x2E: ord("="), 0x2F: ord("["), 0x30: ord("]"),
-    0x31: ord("\\"), 0x33: ord(";"), 0x34: ord("'"),
-    0x35: ord("`"), 0x36: ord(","), 0x37: ord("."), 0x38: ord("/"),
-    0x4C: keys.K_DELETE,
-}
-
-_SCANCODE_KEY = 1 << 30
-
-
-def keycode(usage):
-    """The SDL-style keycode (``keys.K_*``) for a keyboard-page usage, or ``None``."""
-    if 0x04 <= usage <= 0x1D:
-        return keys.K_a + usage - 0x04
-    if 0x1E <= usage <= 0x26:
-        return ord("1") + usage - 0x1E
-    if usage == 0x27:
-        return ord("0")
-    code = _CHARS.get(usage)
-    if code is not None:
-        return code
-    if usage >= 0x39:
-        code = usage | _SCANCODE_KEY
-        if keys.keyname(code) != "Unknown":
-            return code
-    return None
+# HID keyboard usage -> keycode, and the modifier byte -> KMOD mask. The table
+# is keys.py's, the one usbif's USB keyboard decoder uses as well, so a key
+# reads the same whichever way it arrived.
+keycode = keys.hid_keycode
+modifier_mask = keys.hid_modifiers
+_MODIFIERS = keys.HID_MODIFIERS
 
 
 # Consumer page usage -> keys constant name.
@@ -400,24 +395,6 @@ def consumer_keycode(usage):
     """The ``keys.K_*`` code for a consumer-page usage (``0xE9``, not extended), or ``None``."""
     name = _CONSUMER.get(usage)
     return getattr(keys, name, None) if name else None
-
-
-# Modifier usage 0xE0..0xE7 -> (KMOD mask, keycode), in report bit order.
-_MODIFIERS = (
-    (keys.KMOD_LCTRL, keys.K_LCTRL), (keys.KMOD_LSHIFT, keys.K_LSHIFT),
-    (keys.KMOD_LALT, keys.K_LALT), (keys.KMOD_LGUI, keys.K_LGUI),
-    (keys.KMOD_RCTRL, keys.K_RCTRL), (keys.KMOD_RSHIFT, keys.K_RSHIFT),
-    (keys.KMOD_RALT, keys.K_RALT), (keys.KMOD_RGUI, keys.K_RGUI),
-)
-
-
-def modifier_mask(bits):
-    """``keys.KMOD_*`` for a byte of modifier bits (bit 0 is left Ctrl)."""
-    mask = keys.KMOD_NONE
-    for i in range(8):
-        if bits & (1 << i):
-            mask |= _MODIFIERS[i][0]
-    return mask
 
 
 # Axis order: desktop X..Wheel, then the simulation page.
@@ -450,15 +427,17 @@ class Decoder:
     joystick instance its joystick events carry.
     """
 
-    def __init__(self, report_map, instance_id=0):
+    def __init__(self, report_map, instance_id=0, bounds=None):
         self.map = report_map
         self.instance_id = instance_id
+        #: ``(width, height)`` to keep the mouse pointer inside, or None.
+        self.bounds = bounds
         # Per input report ID: (keyboard, consumer, axes, hats, buttons) element lists.
         self._plan = {}
         axes = []
         hats = []
         for report in report_map.inputs():
-            kb, cc, ax, ht, bt = [], [], [], [], []
+            kb, cc, ax, ht, bt, ms = [], [], [], [], [], []
             for f in report.fields:
                 if f.constant or not f.usages:
                     continue
@@ -470,10 +449,14 @@ class Decoder:
                     elif page == PAGE_CONSUMER:
                         cc.append((f, None))
                     continue
+                mouse = f.application in _MOUSE_APPS
                 for n in range(f.count):
                     u = f.usage(n)
                     page = u >> 16
-                    if page == PAGE_KEYBOARD:
+                    if mouse and (u in (_X, _Y, _WHEEL, _AC_PAN)
+                                  or (page == PAGE_BUTTON and u & 0xFFFF)):
+                        ms.append((f, n, u))
+                    elif page == PAGE_KEYBOARD:
                         kb.append((f, n))
                     elif page == PAGE_CONSUMER:
                         cc.append((f, n))
@@ -483,7 +466,7 @@ class Decoder:
                         bt.append((f, n, (u & 0xFFFF) - 1))
                     elif game and not f.relative and _is_axis(u):
                         axes.append((_axis_order(u), report.report_id, f.offset, n, f))
-            self._plan[report.report_id] = [kb, cc, [], [], bt]
+            self._plan[report.report_id] = [kb, cc, [], [], bt, ms]
         # Number axes and hats across the whole device, by usage then position.
         axes.sort(key=lambda a: a[:4])
         for index, (_, rid, _, n, f) in enumerate(axes):
@@ -503,6 +486,8 @@ class Decoder:
         self._axes = {}
         self._hats = {}
         self._buttons = {}
+        self._pointer = (0, 0)
+        self._mouse_buttons = frozenset()
 
     @property
     def held(self):
@@ -541,7 +526,7 @@ class Decoder:
         plan = self._plan.get(report_id)
         if plan is None:
             return ()
-        kb, cc, ax, ht, bt = plan
+        kb, cc, ax, ht, bt, ms = plan
         out = []
         if kb:
             self._keyboard(kb, data, out)
@@ -576,6 +561,8 @@ class Decoder:
             out.append(events.JoyButtonUp(events.JOYBUTTONUP, self.instance_id, b))
         for b in sorted(downs):
             out.append(events.JoyButtonDown(events.JOYBUTTONDOWN, self.instance_id, b))
+        if ms:
+            self._mouse(ms, data, out)
         return tuple(out)
 
     def _keyboard(self, elements, data, out):
@@ -623,6 +610,61 @@ class Decoder:
                 out.append(events.Key(events.KEYDOWN, keys.keyname(code), code, mod, 0xE0 + i, None))
         self._held = now
         self._mod_bits = mod_bits
+
+    @property
+    def pointer(self):
+        """Where the mouse pointer is, ``(x, y)``: the sum of its motion, from (0, 0)."""
+        return self._pointer
+
+    def _mouse(self, elements, data, out):
+        x, y = self._pointer
+        dx = dy = wheel = pan = 0
+        held = set()
+        for f, n, u in elements:
+            raw = f.raw(data, n)
+            if u >> 16 == PAGE_BUTTON:
+                if raw:
+                    b = u & 0xFFFF
+                    held.add(_SDL_BUTTON.get(b, b))
+            elif u == _WHEEL:
+                wheel = raw
+            elif u == _AC_PAN:
+                pan = raw
+            elif f.relative:
+                if u == _X:
+                    dx = raw
+                else:
+                    dy = raw
+            else:
+                # An absolute pointer (a tablet, a touch screen that calls
+                # itself a mouse): its logical range spans the bounds, or it
+                # is taken as pixels when there are none.
+                pos = raw
+                size = self.bounds[0 if u == _X else 1] if self.bounds else 0
+                if size and f.logical_max > f.logical_min:
+                    pos = (raw - f.logical_min) * (size - 1) // (f.logical_max - f.logical_min)
+                if u == _X:
+                    dx = pos - x
+                else:
+                    dy = pos - y
+        held = frozenset(held)
+        was = self._mouse_buttons
+        if dx or dy:
+            x, y = x + dx, y + dy
+            if self.bounds:
+                x = min(max(x, 0), self.bounds[0] - 1)
+                y = min(max(y, 0), self.bounds[1] - 1)
+            self._pointer = (x, y)
+            state = (1 if 1 in was else 0, 1 if 2 in was else 0, 1 if 3 in was else 0)
+            out.append(events.Motion(events.MOUSEMOTION, (x, y), (dx, dy), state, False, None))
+        for b in sorted(was - held):
+            out.append(events.Button(events.MOUSEBUTTONUP, (x, y), b, False, None))
+        for b in sorted(held - was):
+            out.append(events.Button(events.MOUSEBUTTONDOWN, (x, y), b, False, None))
+        self._mouse_buttons = held
+        if wheel or pan:
+            out.append(events.Wheel(events.MOUSEWHEEL, False, pan, wheel,
+                                    float(pan), float(wheel), False, None))
 
     def _consumer_keys(self, elements, data, out):
         now = set()

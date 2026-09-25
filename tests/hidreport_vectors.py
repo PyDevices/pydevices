@@ -24,6 +24,11 @@ devices and libraries:
   consumer control.
 * ``ADAFRUIT_GAMEPAD``: the gamepad adafruit_ble carries (commented out) in
   the same file: 16 buttons and four signed 8-bit axes, report 5.
+* ``BOOT_MOUSE``: the boot mouse from the HID 1.11 specification, appendix
+  E.10: three buttons and 8-bit relative X and Y.
+* ``WHEEL_MOUSE``: written for these tests in the shape Logitech's BLE mice
+  use: report 2, five buttons, 12-bit relative X and Y, a wheel, and AC Pan
+  (consumer 0x238) for the horizontal wheel.
 * ``XBOX_1914``: the Xbox Series controller (model 1914) over Bluetooth LE, as
   dumped in github.com/DJm00n/ControllersInfo. 283 bytes, which is more than
   one ATT read carries at MTU 247.
@@ -92,7 +97,33 @@ XBOX_1914 = _h("""
 01910265005500097c150026ff00750895019102c0c0
 """)
 
+BOOT_MOUSE = _h("""
+05 01 09 02 a1 01 09 01 a1 00 05 09 19 01 29 03 15 00 25 01 95 03 75 01
+81 02 95 01 75 05 81 01 05 01 09 30 09 31 15 81 25 7f 75 08 95 02 81 06
+c0 c0
+""")
+
+WHEEL_MOUSE = _h("""
+05 01 09 02 a1 01 85 02 09 01 a1 00 05 09 19 01 29 05 15 00 25 01 95 05
+75 01 81 02 95 01 75 03 81 01 05 01 16 01 f8 26 ff 07 75 0c 95 02 09 30
+09 31 81 06 15 81 25 7f 75 08 95 01 09 38 81 06 05 0c 0a 38 02 95 01 81
+06 c0 c0
+""")
+
 KD, KU = events.KEYDOWN, events.KEYUP
+MM, MD, MU, MW = events.MOUSEMOTION, events.MOUSEBUTTONDOWN, events.MOUSEBUTTONUP, events.MOUSEWHEEL
+
+
+def motion(pos, rel, buttons=(0, 0, 0)):
+    return events.Motion(MM, pos, rel, buttons, False, None)
+
+
+def button(kind, pos, n):
+    return events.Button(kind, pos, n, False, None)
+
+
+def wheel(x, y):
+    return events.Wheel(MW, False, x, y, float(x), float(y), False, None)
 LSHIFT = keys.KMOD_LSHIFT
 
 
@@ -310,8 +341,58 @@ def t_adafruit_events():
         key(KD, keys.K_a, LSHIFT, 0x04),
         key(KD, keys.K_LSHIFT, LSHIFT, 0xE1),
     ), "shift+a")
-    # A mouse report is not a joystick: no events.
-    equal(d.feed(bytes([0x02, 0x01, 0x05, 0xFB, 0x00])), (), "mouse report")
+    # Report 2 is the mouse: button 1 down, X = 5, Y = 0xFB (-5), wheel 0.
+    # Motion comes first, carrying the buttons held BEFORE this report.
+    equal(d.feed(bytes([0x02, 0x01, 0x05, 0xFB, 0x00])), (
+        motion((5, -5), (5, -5)),
+        button(MD, (5, -5), 1),
+    ), "mouse press and move")
+    # Dragging: X + 1 with the button held, and one wheel notch away from you.
+    equal(d.feed(bytes([0x02, 0x01, 0x01, 0x00, 0x01])), (
+        motion((6, -5), (1, 0), (1, 0, 0)),
+        wheel(0, 1),
+    ), "drag and wheel")
+    equal(d.feed(bytes([0x02, 0x00, 0x00, 0x00, 0x00])), (button(MU, (6, -5), 1),), "release")
+
+
+def t_boot_mouse_events():
+    m = ReportMap(BOOT_MOUSE)
+    # 3 buttons + 5 pad, X, Y = 3 bytes, unnumbered.
+    equal((m.numbered, m.report(INPUT).size), (False, 3), "layout")
+    d = Decoder(m)
+    # HID button 2 is the right button, which SDL numbers 3.
+    equal(d.feed(bytes([0x02, 0x00, 0x00])), (button(MD, (0, 0), 3),), "right press")
+    # HID button 3 is the middle one, SDL's 2; X = 0x81 (-127), Y = 0x7F.
+    equal(d.feed(bytes([0x06, 0x81, 0x7F])), (
+        motion((-127, 127), (-127, 127), (0, 0, 1)),
+        button(MD, (-127, 127), 2),
+    ), "middle press while moving")
+    equal(d.pointer, (-127, 127), "pointer")
+
+
+def t_wheel_mouse_events():
+    m = ReportMap(WHEEL_MOUSE)
+    # 5 buttons + 3 pad + 12 + 12 + 8 + 8 bits = 6 bytes.
+    equal(m.report(INPUT, 2).size, 6, "layout")
+    d = Decoder(m)
+    # Buttons 1 and 2 (0x03). X = -3 is 12-bit 0xFFD: byte 1 = 0xFD and the
+    # low nibble of byte 2 = 0xF. Y = 2 is the high nibble of byte 2 (0x2)
+    # and byte 3 (0x00), so byte 2 = 0x2F. Wheel 0xFF (-1, towards you),
+    # AC Pan 0x01 (right).
+    equal(d.feed(bytes([0x03, 0xFD, 0x2F, 0x00, 0xFF, 0x01]), report_id=2), (
+        motion((-3, 2), (-3, 2)),
+        button(MD, (-3, 2), 1),
+        button(MD, (-3, 2), 3),
+        wheel(1, -1),
+    ), "press two, move, both wheels")
+    equal(d.feed(bytes([0x02, 0, 0, 0, 0, 0]), report_id=2), (button(MU, (-3, 2), 1),), "release left")
+    # With bounds the pointer stays on the screen. X = 2047 (0x7FF: byte 1
+    # 0xFF, byte 2 low nibble 0x7), Y = 0; button 3, the middle (SDL 2).
+    b = Decoder(m, bounds=(100, 50))
+    equal(b.feed(bytes([0x02, 0x04, 0xFF, 0x07, 0x00, 0x00, 0x00])), (
+        motion((99, 0), (2047, 0)),
+        button(MD, (99, 0), 2),
+    ), "clamped to the bounds")
 
 
 def t_adafruit_gamepad_events():
@@ -392,6 +473,8 @@ TESTS = [
     t_cp_consumer_events,
     t_adafruit_events,
     t_adafruit_gamepad_events,
+    t_boot_mouse_events,
+    t_wheel_mouse_events,
     t_xbox_events,
 ]
 
@@ -447,11 +530,17 @@ def _plant(name):
         hidreport.ERROR_ROLLOVER = -1
     elif name == "hat":
         hidreport._HAT8 = hidreport._HAT8[1:] + hidreport._HAT8[:1]
+    elif name == "mousebutton":
+        # HID's button numbers passed straight through: right reads as middle.
+        hidreport._SDL_BUTTON = {}
+    elif name == "wheel":
+        # The vertical and horizontal wheels crossed.
+        hidreport._WHEEL, hidreport._AC_PAN = hidreport._AC_PAN, hidreport._WHEEL
     else:
         raise SystemExit("unknown plant " + name)
 
 
-PLANTS = ("bitorder", "unsigned", "range", "order", "rollover", "hat")
+PLANTS = ("bitorder", "unsigned", "range", "order", "rollover", "hat", "mousebutton", "wheel")
 
 
 def run(verbose=False):
