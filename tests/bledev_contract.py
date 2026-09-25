@@ -757,6 +757,55 @@ async def improv_scan(air):
 
 
 @check
+async def setup_retries_a_link_that_drops(air):
+    # Windows sometimes reports a connection the peripheral never saw; the
+    # first GATT operation then fails. connect_and_set_up tries again.
+    board, laptop = _two(air)
+    attempts = []
+
+    async def setup(connection):
+        attempts.append(connection)
+        if len(attempts) == 1:
+            raise bledev.DisconnectedError("the first link came up dead")
+        return "ready"
+
+    served = asyncio.create_task(_serve_twice(board))
+    connection, result = await bledev.connect_and_set_up(laptop, setup, name="board", timeout_ms=2000)
+    equal(result, "ready", "setup's result")
+    equal(len(attempts), 2, "attempts")
+    expect(not attempts[0].is_connected(), "the dead link was closed")
+    expect(connection.is_connected(), "the second link is up")
+    served.cancel()
+
+
+def _two(air):
+    board = FakeBLE(air=air)
+    laptop = FakeBLE(air=air, peripheral=False)
+    board.register_services(gatt()[0])
+    return board, laptop
+
+
+async def _serve_twice(board):
+    for _ in range(2):
+        await board.advertise(name="board", timeout_ms=2000)
+
+
+@check
+async def setup_gives_up_after_its_attempts(air):
+    board, laptop = _two(air)
+    served = asyncio.create_task(_serve_twice(board))
+
+    async def setup(connection):
+        await asyncio.sleep(10)
+
+    await raises(
+        BLETimeoutError,
+        bledev.connect_and_set_up(laptop, setup, name="board", timeout_ms=2000, attempts=2, setup_timeout_ms=100),
+    )
+    served.cancel()
+
+
+@check
 async def auto_picks_or_explains(air):
     import bledev.auto as auto
 

@@ -34,6 +34,9 @@ from . import BLEError, pack_advertisement, wait_ms
 from . import nus
 
 PROMPT = b"Password: "
+
+# How often the server retries output the controller couldn't take yet.
+_TICK_MS = 5
 BANNER = b"\r\nbledev REPL connected\r\n>>> "
 DENIED = b"\r\nAccess denied\r\n"
 
@@ -190,10 +193,12 @@ class _Server:
         self.rx = bytearray()
         self.rx_pos = 0
         self.tx = bytearray()
+        self.flushing = False
         self.dropped_out = 0
         self.prev_term = None
         self.stream = _Stream(self)
         self.timer = None
+        self.hang_up_at = None
         self.early_mtu = None
 
     # -- setup
@@ -236,8 +241,12 @@ class _Server:
         # Appending: several writes between two IRQs arrive together.
         ble.gatts_set_buffer(self.rx_handle, 1024, True)
         self._forget_other_services()
+        # One periodic timer for the life of the server, never re-armed: on
+        # the esp32, re-initialising a virtual Timer while its alarm is being
+        # dispatched calls a NULL handler and panics the board (seen as a
+        # Guru Meditation in esp_timer's task during long prints).
         self.timer = machine.Timer(-1)
-        self.one_shot = machine.Timer.ONE_SHOT
+        self.timer.init(mode=machine.Timer.PERIODIC, period=_TICK_MS, callback=self._tick)
         self.adv = pack_advertisement(self.name, [nus.SERVICE])
         self.running = True
         self.advertise()
@@ -292,6 +301,7 @@ class _Server:
             self.mtu = self.early_mtu[1]
         self.early_mtu = None
         self.login = _Gate(self.password)
+        self.hang_up_at = None
         self.authed = False
         self.rx = bytearray()
         self.rx_pos = 0
@@ -305,6 +315,7 @@ class _Server:
             return
         self._detach()
         self.conn = None
+        self.hang_up_at = None
         self.login = None
         self.authed = False
         self.rx = bytearray()
@@ -321,7 +332,9 @@ class _Server:
                 self.notify_now(reply)
                 self.login.refused = True
                 # Let "Access denied" reach the client, then hang up.
-                self.timer.init(mode=self.one_shot, period=300, callback=self._hang_up)
+                import time
+
+                self.hang_up_at = time.ticks_add(time.ticks_ms(), 300)
                 return
             if verdict is None:
                 if reply:
@@ -373,7 +386,18 @@ class _Server:
 
     # -- sending
 
-    def _hang_up(self, _timer=None):
+    def _tick(self, _timer=None):
+        # Every _TICK_MS while the server runs, as a scheduled callback.
+        if self.hang_up_at is not None:
+            import time
+
+            if time.ticks_diff(time.ticks_ms(), self.hang_up_at) >= 0:
+                self.hang_up_at = None
+                self._hang_up()
+        if self.tx and self.conn is not None:
+            self.flush()
+
+    def _hang_up(self):
         if self.conn is not None and not self.authed:
             try:
                 self.ble.gap_disconnect(self.conn)
@@ -409,23 +433,26 @@ class _Server:
                     break
                 time.sleep_ms(2)
                 self.flush()
-        if self.tx:
-            self.timer.init(mode=self.one_shot, period=5, callback=self._flush_later)
-
-    def _flush_later(self, _timer=None):
-        self.flush()
-        if self.tx and self.conn is not None:
-            self.timer.init(mode=self.one_shot, period=5, callback=self._flush_later)
 
     def flush(self):
-        size = self.mtu - 3
-        while self.tx and self.conn is not None:
-            chunk = self.tx[:size]
-            try:
-                self.ble.gatts_notify(self.conn, self.tx_handle, chunk)
-            except OSError:
-                return  # the controller's buffers are full; the timer retries
-            self.tx = self.tx[len(chunk) :]
+        # The timer's callback runs between the main program's
+        # bytecodes, so it can land inside a flush() that print() started.
+        # Two flushes interleaved sent one chunk twice and dropped the next,
+        # so the second one leaves the work to the first.
+        if self.flushing:
+            return
+        self.flushing = True
+        try:
+            size = self.mtu - 3
+            while self.tx and self.conn is not None:
+                chunk = self.tx[:size]
+                try:
+                    self.ble.gatts_notify(self.conn, self.tx_handle, chunk)
+                except OSError:
+                    return  # the controller's buffers are full; _tick retries
+                self.tx = self.tx[len(chunk) :]
+        finally:
+            self.flushing = False
 
 
 class _Gate(Login):

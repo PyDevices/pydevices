@@ -870,3 +870,38 @@ class ClientCharacteristic:
 def is_adapter(obj):
     """True for a bledev :class:`BLE`; False for a raw ``bluetooth.BLE`` or anything else."""
     return isinstance(obj, BLE)
+
+
+async def connect_and_set_up(
+    ble, setup, *, name=None, service=None, device=None, timeout_ms=10000, attempts=3, setup_timeout_ms=4000, **options
+):
+    """Find a device, connect, and run ``await setup(connection)``; returns
+    ``(connection, what setup returned)``.
+
+    If the link drops or stalls before ``setup`` finishes, this disconnects
+    and tries again, up to ``attempts`` times. Profiles use it (``nus``,
+    ``midi``), because a link can come up dead: about one reconnect in fifty
+    from Windows, the OS reports a connection the peripheral never saw, and
+    the first GATT operation on it hangs until Windows gives up nine seconds
+    later. ``setup_timeout_ms`` bounds that wait. ``options`` go to
+    ``device.connect()``.
+    """
+    error = None
+    for _ in range(attempts):
+        target = device
+        if target is None:
+            target = await ble.find(name=name, service=service, timeout_ms=timeout_ms)
+        connection = await target.connect(timeout_ms=timeout_ms, **options)
+        try:
+            return connection, await wait_ms(setup(connection), setup_timeout_ms, "setting up the connection")
+        except (DisconnectedError, BLETimeoutError) as e:
+            error = e
+        except BaseException:
+            if connection.is_connected():
+                await connection.disconnect()
+            raise
+        try:
+            await connection.disconnect()
+        except BLEError:
+            pass
+    raise error

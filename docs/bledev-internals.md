@@ -181,6 +181,27 @@ no difference to nus throughput.
 After a disconnect bleak sets `client.services` to `None`, so every client call
 checks the connection first and raises `DisconnectedError`.
 
+## Reconnecting fast
+
+The REPL gate once failed one run in five: bleak couldn't subscribe on a
+connection made 1.5 s after the last one closed. A loop of rapid reconnects
+from the laptop (`tests/bledev_board/reconnect_loop.py`: log in, run a line,
+close, wait 1.5 s) caught it at about one cycle in fifty, always the same
+way. bleak's connect returned in 70-440 ms where a real one takes 1.7 s or
+more, Windows reported the device connected and the GATT session active, the
+board never saw a connection (its IRQ log shows it advertising throughout),
+and the first GATT operation hung until Windows reported a drop about nine
+seconds later.
+
+It went away with the REPL's output fixes (below): against `bledev-host`'s
+`repl.py` the loop failed 7 times in 465 cycles; against the fixed one, 0 in
+270, 150 of them with the retry switched off. We haven't found how the
+board's old timer handling produced a connection Windows believed in and the
+board never saw, so `bledev.connect_and_set_up()` stays as the defence: it
+bounds the setup at 4 s and tries again, up to three times. `nus.connect()`
+and `midi.connect()` use it, and the contract checks both the retry and the
+giving up.
+
 ## How the REPL gets there
 
 The REPL has to work when nothing runs asyncio, at the `>>>` prompt, so the
@@ -190,9 +211,26 @@ with `gap_advertise`, and does everything else from an IRQ handler it adds to
 aioble's dispatcher (or sets itself, with no aioble). `os.dupterm` reads a
 `_Stream` whose `readinto` returns `None` when empty, because 0 means end of
 stream and detaches it. Output goes out as notifications of `mtu - 3` bytes,
-and what the controller can't take yet is retried from a one-shot soft timer.
-A program printing faster than the link carries waits in `write()` up to two
-seconds, then drops the excess, because `print()` can't fail.
+and what the controller can't take yet is retried every 5 ms by one periodic
+`machine.Timer`. A program printing faster than the link carries waits in
+`write()` up to two seconds, then drops the excess, because `print()` can't
+fail.
+
+Two ways that retry went wrong, both found by printing a 16,890-character
+list over the link (the REPL gate now does this):
+
+- **A doubled chunk and a lost one.** The timer's callback runs between the
+  main program's bytecodes, so it could land inside a `flush()` that
+  `print()` had started: both sent the same chunk, then both trimmed it, and
+  the next chunk never went out. Five prints out of five came back corrupt.
+  `flush()` now returns at once if it's already running.
+- **A panic.** The retry used to be a one-shot timer re-armed on every write.
+  On the esp32, `Timer.init()` on a virtual timer whose alarm is being
+  dispatched clears its handler first, so `esp_timer`'s task on the other
+  core calls a NULL function (`InstrFetchProhibited` in
+  `timer_process_alarm`). It took the board down twice in about 45 long
+  prints. The timer is now started once and never re-armed; 60 long prints
+  afterwards, no panic and every byte intact.
 
 Ctrl-C works because the IRQ calls `os.dupterm_notify()` whenever a write
 contains 0x03; dupterm then reads it and raises `KeyboardInterrupt`, even in

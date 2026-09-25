@@ -7,6 +7,7 @@ Needs ``repl_server.py`` started on a board. Runs on a laptop (bleak) or a
 board (mpble); see gatt_central.py for the command line. Checks, in order:
 
 1. The right password gets a prompt, and ``123 * 456`` evaluates to 56088.
+   A 16,890-character print arrives byte for byte.
 2. A wrong password, sent together with a line of code that would create
    ``/pwned``, gets ``Access denied`` and a disconnect, and never a prompt.
 3. Logged in again, ``/pwned`` does not exist: the code never ran.
@@ -65,6 +66,11 @@ async def main():
     link = await repl.connect(ble, PASSWORD, name=NAME, timeout_ms=15000)
     out = await repl.run(link, "123 * 456")
     check(out.strip() == "56088", "the right password gets a working prompt", repr(out))
+    # A list prints as hundreds of small writes, which is what once let the
+    # retry timer interleave two flushes: a chunk sent twice, the next lost.
+    out = await repl.run(link, "print(list(range(3000)))", timeout_ms=30000)
+    want = str(list(range(3000)))
+    check(out.strip() == want, "a long print arrives intact", "{} chars, want {}".format(len(out.strip()), len(want)))
     await repl.run(link, "import os")
     await repl.run(link, "exec(\"try:\\n os.remove('/pwned')\\nexcept OSError:\\n pass\")")
     out = await repl.run(link, "'pwned' in os.listdir('/')")
