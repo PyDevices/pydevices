@@ -450,7 +450,7 @@ rollover, and what a board central can't read are in
 
 The same code runs on a CircuitPython board with `bledev.cpble`, in either
 role: nus, MIDI, the contract's checks and the file client all passed over the
-radio there (the numbers are [below](#measured-on-circuitpython)). A few
+radio there (the numbers are in [the internals](bledev-internals.md#circuitpython-cpble)). A few
 things differ, because `_bleio` works differently from aioble underneath:
 
 - Connecting, discovery, a read, a write with response and subscribing each
@@ -463,13 +463,18 @@ things differ, because `_bleio` works differently from aioble underneath:
   to subscribed centrals even without `send_update`.
 - CircuitPython 10.3's `PacketBuffer` can stall or fault the board when a
   notification stream outruns the radio. bledev steps around the stall; the
-  fault needs a CircuitPython fix, which is drafted for upstream. Until it
-  lands, a board that streams notifications fast can restart in safe mode.
+  fault needs a CircuitPython fix, drafted for upstream with a patch. On the
+  official build, 2 of 11 fast 16 KB streams restarted the board in safe mode;
+  on the patched build, none did.
+- A central there waits 2 s on every read and every write with a response
+  (subscribing is one), so connecting and setting up takes several seconds.
 
 CircuitPython's own BLE file service, the one its supervisor serves, is
 reached with the same `bledev.filetransfer.connect()` a MicroPython board
 uses; it pairs by itself. The service is only public in CircuitPython's
-discovery mode. What cpble does about each of these, and why, is in
+discovery mode, it won't write while a computer has the CIRCUITPY drive
+mounted, and on the official 10.3.0 build a 20 KB download stalls (the same
+`PacketBuffer` fault). What cpble does about each of these, and why, is in
 [bledev-internals.md](bledev-internals.md#how-cpble-gets-there).
 
 ## The rules every backend keeps

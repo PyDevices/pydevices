@@ -73,12 +73,17 @@ restarted the board in safe mode (`SafeModeReason.HARD_FAULT`) in 2 of 11
 - Drop a pending packet when its central unsubscribes or disconnects, so a
   kept packet can't reach the next central.
 
-With it (same board, same tests): RESULTS_PATCHED
+With it (same board, same tests): the 16 KB notify stream passed 12 of 12
+with no safe-mode restart, and the file service listed `/` in 50 ms and moved
+20 KB up and down byte for byte in 7 of 7 round trips, where the official
+build stalled on the download 2 of 2 times.
 
 Not addressed here, noticed on the way: `bleio_packet_buffer_extend()` drops
 the oldest packets when its ring is full, with a `// set an overflow flag?`
 comment; `bleio_gattc_read()` reports a timeout as success with the whole
-buffer's length; and ATT errors on reads and writes reach Python as
+buffer's length; `bleio_gattc_read()` and `bleio_gattc_write()` always wait out the whole
+2 s, because `_wait_for_completion()` waits for `_completion_status` to leave
+0 and a success sets it to 0; and ATT errors on reads and writes reach Python as
 `BluetoothError("Unknown system firmware error: 261")` rather than
 `SecurityError`, because `_wait_for_completion()` is checked with
 `CHECK_NIMBLE_ERROR` instead of `CHECK_BLE_ERROR`.

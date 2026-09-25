@@ -761,6 +761,59 @@ KB/s), overwriting the same file each time. The planted bit flip on the client
 failed the round-trip check. mpftp's `ble://` transport, and its gate, are in
 [PyDevices/mpftp](https://github.com/PyDevices/mpftp) `docs/plans/ble.md`.
 
+### CircuitPython (cpble)
+
+The LilyGO T-Embed (ESP32-S3) on CircuitPython 10.3.0, bledev as `.py`
+source, against Windows 11 and bleak 3.0.2 one desk apart, 2026-09-24.
+"Official" is circuitpython.org's build; "patched" is the same tag with
+[upstream-reports/cp-packetbuffer-notify-stall.patch](upstream-reports/cp-packetbuffer-notify-stall.patch),
+built here because the official build can't carry a notification stream
+reliably (below).
+
+| Gate | Official 10.3.0 | Patched |
+|---|---|---|
+| nus, 16 KB up, down and echoed (`nus_server.py` on the board) | 9 of 11 passed; 2 restarted the board in safe mode (hard fault) | 12 of 12 |
+| nus throughput, Windows' defaults | 50-90 KB/s up, 31-49 down, 21-37 echo | 50-91 up, 25-49 down, 16-28 echo |
+| nus, `--fast` (throughput parameters) | | 88 up, 44 down, 34 echo |
+| the GATT contract, laptop central (`gatt_central.py --mtu 256`) | pass | 5 of 5 |
+| BLE-MIDI, 1,000 messages each way | pass (0.8 s up, 0.7 s down) | pass |
+| CircuitPython's own file service, 20 KB up and down (`cpfiles_client.py`) | 0 of 2: the download stalls | 7 of 7 round trips in 3 sessions |
+| MicroPython LCD-7 central, CircuitPython serving nus | | pass: 90 up, 37 down, 25 echo |
+
+Every planted fault failed its gate: a bit flipped in the nus stream (either
+side), notification 7 skipped by the contract's peripheral, the three BLE-MIDI
+plants (a flip going up, a dropped and a flipped packet going down), and a bit
+flipped in the file data read back.
+
+**BLE-MIDI latency** against the T-Embed, half a note-on's round trip, 400
+notes: a median of 52.1 ms (p99 103.2) at Windows' defaults and 13.3 ms (p99
+23.4) with throughput parameters, the same as against a MicroPython S3
+(52.3 and 13.4). Polling every 5 ms costs nothing you can see there.
+
+**CircuitPython's file service.** The client paired by itself in 2.1-3.2 s,
+reconnected from the bond with no pairing in 1.0-1.7 s, and moved 20 KB up in
+4.6-10.1 s (2.0-4.4 KB/s: CircuitPython writes flash between 512-byte
+windows) and down in 0.8-1.8 s (11-26 KB/s). Two conditions, both
+CircuitPython's design: the service writes nothing while a computer has the
+CIRCUITPY drive mounted (USB takes the filesystem's lock as soon as the host
+asks whether it may write; `storage.disable_usb_drive()` in `boot.py` for the
+gate), and a command that arrives while a write's automatic reload is
+restarting `code.py` isn't answered until another command arrives
+(`supervisor.runtime.autoreload = False` in `code.py` for the gate). mkdir
+there makes one level, where bledev's server makes the parents too.
+
+**CircuitPython as central**, against the LCD-7 serving nus: found, connected,
+discovered, subscribed and wrote, with every write with a response (making the
+subscription is one) taking 2 s, because CircuitPython's ESP32 port waits out
+its whole timeout for a status to leave 0, and success is 0. The full nus gate
+in that direction didn't run; see ble.md.
+
+**mpftp on CircuitPython**, noticed on the way: a long `exec` or `run` sent
+over the serial REPL arrived garbled now and then (a base64 chunk of 6,000
+characters decoded with 11 wrong bytes, twice), and `put` with the drive
+disabled failed with a syntax error. Copying through the CIRCUITPY drive and
+`exec`-ing `import script` was reliable.
+
 ### Pairing
 
 The laptop (Windows 11, bleak 3.0.2, WinRT custom pairing) and the LCD-7
