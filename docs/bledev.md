@@ -419,11 +419,12 @@ slipped into a SysEx. Its test vectors (`tests/bledev_midi_vectors.json`) were
 worked out by hand from the specification, and every interpreter checks
 against the same file.
 
-## Keyboards and gamepads (HID)
+## Keyboards, mice and gamepads (HID)
 
-`bledev.hid` turns a BLE keyboard, media remote or game controller into the
-same `events` a USB keyboard gives you through usbif, or SDL gives you on the
-desktop: `events.Key` with `keys.K_*` codes and modifiers, and
+`bledev.hid` turns a BLE keyboard, mouse, media remote or game controller
+into the same `events` a USB keyboard gives you through usbif, or SDL gives
+you on the desktop: `events.Key` with `keys.K_*` codes and modifiers,
+`events.Motion`, `Button` and `Wheel` for a mouse, and
 `events.JoyAxisMotion`, `JoyHatMotion`, `JoyButtonDown` and `JoyButtonUp`.
 Your app can't tell which one it's talking to.
 
@@ -440,7 +441,10 @@ while True:
 `poll()` does, so it fits a frame loop. Media keys arrive as `Key` events
 too (`keys.K_VOLUMEUP`, `K_AUDIOPLAY`). Axes run from -1.0 to 1.0 and are
 numbered X, Y, Z, Rx, Ry, Rz, then triggers; buttons count from 0; a hat is
-an `(x, y)` tuple with y up.
+an `(x, y)` tuple with y up. A mouse's buttons are numbered as SDL does
+(1 left, 2 middle, 3 right), and since a mouse only reports movement, `pos`
+is where its motion has taken it from (0, 0); set `host.decoder.bounds =
+(width, height)` to keep it on your screen.
 
 A keyboard that wants an encrypted link gets one: the first read it refuses
 pairs the link ("just works", no passkey) and tries again. On a board, call

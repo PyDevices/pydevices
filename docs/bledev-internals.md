@@ -404,11 +404,20 @@ on all of them), same fields (`scancode` is the HID usage, `window` is
 `None`), same rollover rule. `tests/test_bledev_hid.py` feeds 3,000 random
 boot reports through both decoders when usbif's checkout is beside this one,
 and they must agree. It found one difference on its first run: the ISO "# ~"
-key (usage 0x32), which SDL calls `#` and usbif leaves unmapped. hidreport
-now leaves it unmapped too; the two tables should become one.
+key (usage 0x32), which SDL calls `#` and usbif leaves unmapped. Now there is
+one table, `keys.hid_keycode`, and both decoders use it: the key's code comes
+from the same place whether it arrived over USB or Bluetooth.
+
+**Mice** are the mouse and pointer collections. Relative X and Y add up to a
+pointer position that starts at (0, 0) and stays inside `bounds` if you give
+the decoder one; an absolute pointer's logical range spans the bounds.
+Buttons are renumbered to SDL's (HID's 2 is right, SDL's 3). The wheel
+(desktop 0x38) is the event's `y` and AC Pan (consumer 0x238) its `x`, which
+is what the desktop's `MOUSEWHEEL` carries. usbif has no mouse decoder to
+match: it hands a hosted mouse's reports to Python raw.
 
 **Axes, hats and buttons** come only from joystick, gamepad and multi-axis
-collections, so a mouse's X, Y and buttons produce nothing yet. Axes are
+collections. Axes are
 numbered by usage (desktop X to wheel, then the simulation page), so an Xbox
 controller's sticks are 0 to 3 and its triggers 4 and 5. Every axis starts
 at 0.0 and moves only when its value changes, as SDL's do.
