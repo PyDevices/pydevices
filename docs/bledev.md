@@ -198,6 +198,50 @@ While it runs, the REPL owns the radio: it registers its own service and
 advertises whenever nobody is connected. Call `bledev.repl.stop()` to give the
 radio back to your app.
 
+## Files over Bluetooth
+
+`bledev.filetransfer` is the board side of CircuitPython's BLE file-transfer
+protocol, so a MicroPython board serves files the same way a CircuitPython one
+does, and one client reaches both. It's opt-in, like the REPL; in `main.py`:
+
+```python
+import bledev.filetransfer
+bledev.filetransfer.start(password="correct horse", name="rack")   # files and the REPL
+```
+
+From a laptop or another board:
+
+```python
+import bledev.filetransfer as ft
+files = await ft.connect(ble, "correct horse", name="rack")
+await files.write("/lib/app.py", source)
+print(await files.read("/lib/app.py"))
+print(await files.listdir("/lib"))      # [(name, size, is_directory, mtime_ns), ...]
+await files.mkdir("/data/logs")         # parents too
+await files.move("/a.txt", "/data/a.txt")
+await files.delete("/data")             # a directory and everything in it
+```
+
+`write()` takes an `offset`, and the file ends after what you wrote.
+`read()` takes one too. The board paces every write with a free-space count,
+so it never receives more than it can hold.
+
+It's locked the way the REPL is. CircuitPython uses pairing; bledev uses the
+REPL's password, sent to one extra characteristic, and until it's right
+every command is refused. One attempt per connection, and a wrong one is hung
+up on. Logging in to the REPL over the same connection unlocks files too,
+which is what [mpftp](https://github.com/PyDevices/mpftp) does. The protocol
+has no checksum beyond the radio's own, so check what matters (mpftp compares
+SHA-256 after every transfer).
+
+`start()` serves the REPL beside the files; `console=False` serves files
+alone. It's MicroPython only, and like the REPL it owns the radio while it
+runs.
+
+How fast: 20 KB from the laptop to the T-Embed in about 0.8 s and back in
+0.3 s, against 16 s and 11 s through the raw REPL. The numbers are in
+[the internals](bledev-internals.md#file-transfer).
+
 ## Wi-Fi setup with Improv
 
 `bledev.improv` speaks [Improv](https://www.improv-wifi.com/ble/), the BLE

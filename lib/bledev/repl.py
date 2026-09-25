@@ -28,6 +28,7 @@ as it does over USB. ``stop()`` gives the radio back. It's MicroPython only;
 ``connect()`` runs anywhere bledev does.
 """
 
+import struct
 import sys
 
 from . import BLEError, pack_advertisement, wait_ms
@@ -101,11 +102,15 @@ class Login:
 _server = None
 
 
-def start(password=None, name="mpy-repl", *, interval_us=100000, dupterm_index=0):
+def start(password=None, name="mpy-repl", *, interval_us=100000, dupterm_index=0, files=False, console=True, window=None):
     """Serve the REPL over BLE until :func:`stop` or a reset. MicroPython only.
 
     ``password`` defaults to ``webrepl_cfg.PASS`` when that file exists;
     it must be at least 4 characters. Returns at once.
+
+    ``files=True`` also serves :mod:`bledev.filetransfer` (CircuitPython's
+    file-transfer service) behind the same password, with ``window`` bytes
+    of free space per round trip; ``console=False`` leaves the REPL out.
     """
     global _server
     if sys.implementation.name != "micropython":
@@ -119,8 +124,10 @@ def start(password=None, name="mpy-repl", *, interval_us=100000, dupterm_index=0
             raise ValueError("bledev.repl needs a password (or webrepl_cfg.PASS)")
     if len(password) < 4:
         raise ValueError("the password must be at least 4 characters")
+    if not (files or console):
+        raise ValueError("nothing to serve: files=False and console=False")
     stop()
-    _server = _Server(password, name, interval_us, dupterm_index)
+    _server = _Server(password, name, interval_us, dupterm_index, files, console, window)
     _server.start()
     return _server
 
@@ -180,8 +187,20 @@ class _Server:
     # Input buffered beyond this, while nothing reads stdin, is dropped.
     RX_CAP = 4096
 
-    def __init__(self, password, name, interval_us, dupterm_index):
+    def __init__(self, password, name, interval_us, dupterm_index, files=False, console=True, window=None):
         self.password = password
+        self.console = console
+        self.files = None
+        self.ft_flushing = False
+        self.ft_in = bytearray()
+        self.ft_scheduled = False
+        self.ft_reset = False
+        self.rx_handle = self.tx_handle = None
+        self.ft_handle = self.auth_handle = None
+        if files:
+            from . import filetransfer
+
+            self.files = filetransfer.FileServer(window=window or filetransfer.WINDOW)
         self.name = name
         self.interval_us = interval_us
         self.dupterm_index = dupterm_index
@@ -227,19 +246,47 @@ class _Server:
             ble.config(mtu=nus.MTU)
         except Exception:
             pass
-        ((self.tx_handle, self.rx_handle),) = ble.gatts_register_services(
-            (
+        services = []
+        uuids = []
+        if self.console:
+            services.append(
                 (
                     bluetooth.UUID(str(nus.SERVICE)),
                     (
                         (bluetooth.UUID(str(nus.TX)), 0x0010),  # notify
                         (bluetooth.UUID(str(nus.RX)), 0x0008 | 0x0004),  # write, write without response
                     ),
-                ),
+                )
             )
-        )
-        # Appending: several writes between two IRQs arrive together.
-        ble.gatts_set_buffer(self.rx_handle, 1024, True)
+            uuids.append(nus.SERVICE)
+        if self.files is not None:
+            from . import filetransfer as ft
+
+            services.append(
+                (
+                    bluetooth.UUID(ft.SERVICE.short),
+                    (
+                        (bluetooth.UUID(str(ft.VERSION)), 0x0002),  # read
+                        # read, write without response, write, notify
+                        (bluetooth.UUID(str(ft.TRANSFER)), 0x0002 | 0x0004 | 0x0008 | 0x0010),
+                        (bluetooth.UUID(str(ft.AUTH)), 0x0002 | 0x0008),  # read, write
+                    ),
+                )
+            )
+            uuids.append(ft.SERVICE)
+        handles = ble.gatts_register_services(tuple(services))
+        if self.console:
+            (self.tx_handle, self.rx_handle) = handles[0]
+            # Appending: several writes between two IRQs arrive together.
+            ble.gatts_set_buffer(self.rx_handle, 1024, True)
+        if self.files is not None:
+            (version, self.ft_handle, self.auth_handle) = handles[-1]
+            ble.gatts_write(version, struct.pack("<I", ft.PROTOCOL_VERSION))
+            # Room for a whole window of data, its header and the next
+            # command: the board never offers more than this.
+            ble.gatts_set_buffer(self.ft_handle, 2 * self.files.window + 64, True)
+            ble.gatts_set_buffer(self.auth_handle, MAX_PASSWORD + 1)
+            ble.gatts_write(self.auth_handle, b"\x00")
         self._forget_other_services()
         # One periodic timer for the life of the server, never re-armed: on
         # the esp32, re-initialising a virtual Timer while its alarm is being
@@ -247,7 +294,7 @@ class _Server:
         # Guru Meditation in esp_timer's task during long prints).
         self.timer = machine.Timer(-1)
         self.timer.init(mode=machine.Timer.PERIODIC, period=_TICK_MS, callback=self._tick)
-        self.adv = pack_advertisement(self.name, [nus.SERVICE])
+        self.adv = pack_advertisement(self.name, uuids)
         self.running = True
         self.advertise()
 
@@ -306,15 +353,20 @@ class _Server:
         self.rx = bytearray()
         self.rx_pos = 0
         self.tx = bytearray()
-        # Sent now in case the client is already listening; clients that
-        # subscribe later ask for it again with an empty line.
-        self.notify_now(PROMPT)
+        if self.files is not None:
+            self._ft_forget()
+        if self.console:
+            # Sent now in case the client is already listening; clients that
+            # subscribe later ask for it again with an empty line.
+            self.notify_now(PROMPT)
 
     def on_disconnect(self, conn):
         if conn != self.conn:
             return
         self._detach()
         self.conn = None
+        if self.files is not None:
+            self._ft_forget()
         self.hang_up_at = None
         self.login = None
         self.authed = False
@@ -341,11 +393,67 @@ class _Server:
                     self.notify_now(reply)
                 return
             self._attach()
+            if self.files is not None:
+                self.files.authed = True  # one password unlocks both
             self.send(reply)
             data = rest
             if not data:
                 return
         self.feed_repl(data)
+
+    def on_files(self, conn, data):
+        # This runs in the BLE stack's task, whose stack is a few KB: too
+        # small for filesystem work (a recursive delete crashed the board).
+        # So the IRQ only queues the bytes, and the main thread does the rest.
+        if conn != self.conn:
+            return
+        self.ft_in.extend(data)
+        if not self.ft_scheduled:
+            self.ft_scheduled = True
+            try:
+                import micropython
+
+                micropython.schedule(self._ft_work, None)
+            except (ImportError, RuntimeError):
+                self.ft_scheduled = False  # the queue is full; the tick picks it up
+
+    def _ft_forget(self):
+        # From the IRQ: lock the files and drop what's queued. Closing files
+        # waits for the main thread, which may be in the middle of one.
+        self.files.authed = False
+        self.ft_in = bytearray()
+        self.ft_reset = True
+        self.ble.gatts_write(self.auth_handle, b"\x00")
+
+    def _ft_work(self, _arg=None):
+        self.ft_scheduled = False
+        if self.ft_reset:
+            self.ft_reset = False
+            self.files.reset()
+        if self.conn is None:
+            return
+        if self.ft_in:
+            # Swap before feeding: bytes the IRQ adds meanwhile go to the new buffer.
+            data = self.ft_in
+            self.ft_in = bytearray()
+            self.files.feed(data)
+        self.ft_flush()
+
+    def on_auth(self, conn, data):
+        if conn != self.conn or self.files.authed or self.hang_up_at is not None:
+            return
+        given = bytes(data).rstrip(b"\r\n")
+        want = self.password.encode() if isinstance(self.password, str) else bytes(self.password)
+        if _check_password(given, want):
+            self.files.authed = True
+            self.ble.gatts_write(self.auth_handle, b"\x01")
+            return
+        # One attempt per connection, as for the REPL: refuse and hang up.
+        if self.login is not None:
+            self.login.refused = True
+        import time
+
+        self.hang_up_at = time.ticks_add(time.ticks_ms(), 300)
 
     def on_mtu(self, conn, mtu):
         if conn == self.conn:
@@ -396,9 +504,11 @@ class _Server:
                 self._hang_up()
         if self.tx and self.conn is not None:
             self.flush()
+        if self.files is not None and (self.ft_reset or self.conn is not None and (self.ft_in or self.files.has_output())):
+            self._ft_work()
 
     def _hang_up(self):
-        if self.conn is not None and not self.authed:
+        if self.conn is not None and not self.authed and not (self.files is not None and self.files.authed):
             try:
                 self.ble.gap_disconnect(self.conn)
             except OSError:
@@ -455,6 +565,29 @@ class _Server:
             self.flushing = False
 
 
+    def ft_flush(self):
+        # File-transfer answers, one notification at a time; what the
+        # controller can't take yet waits for the next tick. Main thread only,
+        # but guarded like flush() against a tick landing inside it.
+        if self.ft_flushing:
+            return
+        self.ft_flushing = True
+        try:
+            size = self.mtu - 3
+            files = self.files
+            while self.conn is not None:
+                packet = files.packet(size)
+                if packet is None:
+                    return
+                try:
+                    self.ble.gatts_notify(self.conn, self.ft_handle, packet)
+                except OSError:
+                    return
+                files.sent()
+        finally:
+            self.ft_flushing = False
+
+
 class _Gate(Login):
     refused = False
 
@@ -477,6 +610,10 @@ def _irq(event, data):
         conn, handle = data
         if handle == s.rx_handle:
             s.on_write(conn, bytes(s.ble.gatts_read(handle)))
+        elif handle == s.ft_handle:
+            s.on_files(conn, bytes(s.ble.gatts_read(handle)))
+        elif handle == s.auth_handle:
+            s.on_auth(conn, bytes(s.ble.gatts_read(handle)))
     elif event == 21:  # _IRQ_MTU_EXCHANGED
         s.on_mtu(data[0], data[1])
     return None
