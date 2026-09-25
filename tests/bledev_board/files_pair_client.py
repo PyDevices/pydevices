@@ -22,6 +22,13 @@ Checks, in order:
 ``run(plant="flip")`` flips one bit in one notification the client receives,
 and ``run(plant="nopair")`` never pairs; each must fail. Ends with
 ``RESULT PASS`` or ``RESULT FAIL`` (also written to /files_pair_result.txt).
+
+``run(passkey="console")`` is for a serving board started with
+``pair_server.start("passkey")``: when the other board shows its passkey, this
+board prints ``PASSKEY?`` and reads the digits from its own console, the way a
+person would type what they see. The link must then also be authenticated, and
+the reconnect must not ask again. ``passkey_gate.py`` carries the digits from
+one board's console to the other's.
 """
 import asyncio
 import hashlib
@@ -61,7 +68,17 @@ def pattern(n):
     return bytes(out)
 
 
-async def _main(plant):
+asked = []
+
+
+def _typed():
+    # Called when the peer shows a passkey: read it off this board's console.
+    asked.append(time.ticks_ms())
+    print("PASSKEY?")
+    return int(input().strip())
+
+
+async def _main(plant, passkey):
     ble = bledev.mpble.get()
     ble.enable_bonding()
     log("store", security.store().kind, "bonds before", security.bonds())
@@ -79,14 +96,18 @@ async def _main(plant):
         ft.Client._feed = feed
     t = time.ticks_ms()
     try:
-        client = await ft.connect(ble, PASSWORD, name=NAME, pair=False if plant == "nopair" else None, timeout_ms=15000)
+        client = await ft.connect(ble, PASSWORD, name=NAME, pair=False if plant == "nopair" else None, timeout_ms=15000,
+                                  passkey=_typed if passkey == "console" else None)
     except bledev.BLEError as e:
         check(False, "connect and pair", repr(e))
+        log("passkey asked", len(asked), "bonds after", security.bonds())
         return
     conn = client.connection
     log("connected and logged in in", time.ticks_diff(time.ticks_ms(), t), "ms, mtu", conn.mtu)
     enc = security.state(conn._aconn._conn_handle)
     check(enc[0] and enc[2], "the link is encrypted and bonded", enc)
+    if passkey:
+        check(enc[1] and len(asked) == 1, "the link is authenticated by the passkey", (enc, len(asked)))
     data = pattern(20 * 1024)
     t = time.ticks_ms()
     await client.write(PATH, data)
@@ -107,17 +128,21 @@ async def _main(plant):
     log("reconnected from the bond in", time.ticks_diff(time.ticks_ms(), t), "ms")
     enc = security.state(conn._aconn._conn_handle)
     check(enc[0] and enc[2], "the second link is encrypted from the bond", enc)
+    if passkey:
+        check(enc[1] and len(asked) == 1, "the second link is authenticated with no passkey asked", (enc, len(asked)))
     entries = await client.listdir("/")
     check(any(e[0] == PATH[1:] and e[1] == len(data) for e in entries), "the file is on the board, 20 KB")
     await client.close()
+    log("bonds after", security.bonds())
 
 
-def run(plant=None):
+def run(plant=None, passkey=None):
     _lines.clear()
     _failures.clear()
+    asked.clear()
     log("PLANTED", plant) if plant else None
     try:
-        asyncio.run(_main(plant))
+        asyncio.run(_main(plant, passkey))
     except Exception as e:
         check(False, "no exception", repr(e))
     log("RESULT", "FAIL " + "; ".join(_failures) if _failures else "PASS")

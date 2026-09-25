@@ -60,6 +60,9 @@ _listeners = []
 # conn_handle -> what to type in when this board, as central, is asked for the
 # peer's passkey: an int, or a callable returning one.
 _inputs = {}
+# Connections the stack has asked, as central, for the peer's passkey. Stock
+# MicroPython's NimBLE never asks on a connection it made (see mpble's pair()).
+_asked = set()
 # The server's side: what to do when the stack wants a passkey shown or a
 # number confirmed. Set by configure().
 _show = None
@@ -438,7 +441,9 @@ def _irq(event, data):
             core.ble.gap_passkey(conn, action, passkey)
             if _show is not None:
                 _defer(_show, passkey)
-        elif action == _ACTION_INPUT and not callable(_inputs.get(conn)):
+        if action == _ACTION_INPUT:
+            _asked.add(conn)
+        if action == _ACTION_INPUT and not callable(_inputs.get(conn)):
             given = _inputs.get(conn)
             # No passkey to give: answer with one that can't be relied on to
             # match, so the pairing fails now rather than at a timeout.
@@ -451,6 +456,7 @@ def _irq(event, data):
         conn = data[0]
         had = _links.pop(conn, None)
         _inputs.pop(conn, None)
+        _asked.discard(conn)
         if had is None and _hide is not None:
             _defer(_call_hide, None)
     return None
