@@ -1,3 +1,51 @@
+## v0.5.4 (2026-09-25)
+
+- docs: cpble measurements, the file service's conditions, the 2 s GATT wait
+- cpble: discover one service when asked, 30 ms interval by default, slow-setup hint, sticky scan names, order across characteristics; board scripts and docs
+- cpfiles gate: plant in the read path, unpair on failure; docs: cpble, the CircuitPython PacketBuffer draft
+- bledev: run the contract and codec checks on CircuitPython's own interpreter; nus_client runs on CircuitPython
+- bledev.cpble: the CircuitPython backend over _bleio
+- tests/bledev_board: UART rigs for the P4 HID gate, connect counts and a typed passkey
+- bledev.mpble: a board as central types in the passkey even when the stack never asks
+- docs: the board-to-board pairing gate, T-Embed to LCD-7
+- bledev.repl: the GAP name is the advertised name
+- docs: pairing counts from the run log
+- docs: pairing and bonding, how it gets there, and what it measured
+- bledev.security: draw and clear the passkey in both buffers of a double-buffered panel
+- bledev pairing: python -m bledev.bleak pair NAME; honest stale-bond message; tighter gate
+- bledev pairing: fixes from the LCD-7 and Windows
+- bledev: pairing and bonding for the REPL and file services
+- docs/bledev-internals: count every P4-host run
+- docs/bledev-internals: the HID gate's numbers, board to board and from the laptop
+- bledev.hid board gate: pacing, connection interval and security logging; notification burst scripts (pydevices#87)
+- docs: bledev.filetransfer, how it gets there, and what it measured
+- pydevices-desktop.toml: ship bledev.filetransfer
+- bledev.filetransfer: CircuitPython's BLE file-transfer protocol, board and client
+- bledev.midi: the board-to-board gate and latency rig, and what they measured
+- bledev.midi: BLE-MIDI as a usbif-style MIDI port, with a portable codec
+- docs/bledev-internals: the fast-reconnect failure and what fixed it
+- bledev: retry a connection that drops during setup
+- bledev: the laptop checks a board's HID side under a vendor UUID; bless probed; two mpble MTU fixes
+- bledev.repl: long output arrives intact, and no longer panics the board
+- bledev.hid: board gate scripts, the bless probe, and the docs
+- bledev.hid: HID over GATT both ways, and a portable report-descriptor parser
+- docs/bledev-internals: correct the stall counts and the Windows row
+- webble: discovery timeout floor, browser gate test, docs and measurements
+- bledev: board configs hand out a bledev adapter; the laptop and coexistence runs
+- webble: filter the chooser by service, retry failed connects; gate reports stalls
+- bledev: the bleak backend, the BLE REPL and Improv Wi-Fi setup
+- bledev.webble: the Web Bluetooth backend, with a browser gate for three runtimes
+- docs/bledev: add the final-code gate run to the measurements
+- docs: bledev.md for apps, bledev-internals.md for backend authors
+- mip-split.toml: bledev publishes to MIP on its own, requiring aioble
+- bledev: board-to-board checks, and three mpble fixes they found
+- bledev.mpble: the MicroPython backend, over aioble
+- bledev: the contract, the fake loopback, nus and auto
+- ecosystem.md: regenerated after the site audit (PyDevices.github.io#6)
+- docs/android.md: Runner 0.2.2 carries the audio libraries, so the drum machine needs no --deps (#74)
+- Freeze manifests an app can include for a standalone build (#75) (#76)
+- docs/android.md: download android.py from GitHub instead of cloning pydevices (#73)
+
 ## v0.5.3 (2026-09-24)
 
 - android.py: --deps fetches a missing package from the MIP index, or fails before staging (#71)
