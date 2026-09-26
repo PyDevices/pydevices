@@ -1,3 +1,10 @@
+## v0.5.5 (2026-09-26)
+
+- audiodev: wait for the pump's first block without starving it (#98)
+- bledev.hidreport: mice produce events; one keyboard table in keys.py (#97)
+- LCD-7: declare EXIO5 low in the CH422G constructor, so board_config leaves native USB connected (#77)
+- LCD-7: 14 MHz pixel clock and 10-row bounce buffers, so Wi-Fi and USB survive the panel (#96)
+
 ## v0.5.4 (2026-09-25)
 
 - docs: cpble measurements, the file service's conditions, the 2 s GATT wait
