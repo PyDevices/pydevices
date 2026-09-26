@@ -141,5 +141,7 @@ display's `frame_clock`. Neither needs `app.run()`.
 ## Next
 
 - [Timer internals and the wake sources](multimer-internals.md)
+- [The design, the numbers, and what lost](timing-design.md)
+- [Migrating code from the old API](multimer-migration.md)
 - [App and board config](app-and-board-config.md)
 - [Displays](displaydev.md)
