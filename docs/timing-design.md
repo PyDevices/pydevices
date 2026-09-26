@@ -550,10 +550,13 @@ runs, not the cloud's; the cloud's container was 4 cores, the bench is 8.
     PyDevices.github.io#9 and workbench#1, and the runner's
     `MULTIMER_BACKEND` line is dropped with its recipes moved to 0.6.1 in
     android-runner#24.
-    **Still pending:** the LVGL launcher and drum machine visual pass on the
-    phone. An APK from android-runner#24 builds and installs, but the S21's
-    secure lock screen kept the activity from ever drawing, so nothing was
-    seen. The desktop launcher on 0.6.1 was checked under Xvfb instead.
+    The LVGL launcher and drum machine visual pass ran on the phone on
+    2026-09-26, on the Runner v0.2.4 release: the launcher and the drum machine
+    draw, animate and take taps, with no `EGL_BAD_ACCESS`. It found two Runner
+    bugs outside the timers: the launcher comes back black after an example,
+    and Back takes two presses because `boot.py` still reads
+    `App._current_app`. Details:
+    [timing-hardware-tests.md](timing-hardware-tests.md#what-the-runs-saw-2026-09-26).
 - **Phase 6, the deliverables (here).** The four repository series were
   exported with `git format-patch` from branches on each repository's
   `origin/main`, then re-applied with `git am` onto a fresh checkout of each

@@ -218,6 +218,22 @@ per-plan record of pass/fail and anything found.
   mechanism it exercises is what the numbers already prove. `--install-apk`
   installs the 0.2.3 release; a prior local-key debug build must be uninstalled
   first.
+- **Android visual pass (S21, Runner v0.2.4 = pydevices 0.6.2 + pydevices-lvgl
+  9.5.47), 2026-09-26: the timers pass, and two Runner bugs showed up.** From
+  a cold start the LVGL launcher draws and takes taps
+  ([screenshot](screenshots/android-visual-pass/launcher-home.png)). The drum
+  machine, started from the launcher, took a tap on a step and played muted for
+  60 s with the playhead moving
+  ([screenshot](screenshots/android-visual-pass/drum-machine-playing.png)).
+  Logcat had no `EGL_BAD_ACCESS`, no traceback. Two failures, neither in the
+  timers: after leaving a launcher session the launcher comes back **black**
+  and still takes taps
+  ([screenshot](screenshots/android-visual-pass/launcher-after-session-black.png),
+  [android-runner#28](https://github.com/PyDevices/android-runner/issues/28)).
+  Also, Back takes two presses, and an app that quits by itself leaves the
+  Runner frozen, because the Runner's `boot.py` still reads
+  `App._current_app`, which this redesign renamed
+  ([android-runner#27](https://github.com/PyDevices/android-runner/issues/27)).
 - **Browsers, 2026-09-26 — pass.** PyScript/Pyodide: `lv_test_timer` reports
   `Timer: asyncio/idle` and animates. The `mp-wasm` rebuild with the bridge fix
   runs the same demo in the direct gallery host (`Timer: wasm/idle`, 298 → 495
