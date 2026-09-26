@@ -199,15 +199,35 @@ def _i2s(mode, sd_pin, ibuf, fmt):
     )
 
 
+def _refuse_if_held(session, wanted, holder):
+    """Refuse to open I2S(0) while the other direction has it.
+
+    machine.I2S takes one direction per id, and constructing I2S(0) while it
+    is in use does not raise on esp32: it deinitialises the live instance and
+    hands the same object back in the new direction. Opening the microphone
+    during playback silenced the speaker with no error anywhere, and
+    ``playing`` stayed True (pydevices#23, heard on this board). So the second
+    direction is refused here, by name, instead.
+    """
+    if session._owners:
+        raise OSError(
+            "I2S(0) is in use by %s: this board's speaker and microphone "
+            "share one I2S port, so close the %s before opening the %s"
+            % (holder, holder, wanted)
+        )
+
+
 def _output_stream(ibuf, fmt):
     from machine import I2S
 
+    _refuse_if_held(_INPUT_SESSION, "speaker", "microphone")
     return _i2s(I2S.TX, _DSDIN, ibuf, fmt)
 
 
 def _input_stream(ibuf, fmt):
     from machine import I2S
 
+    _refuse_if_held(_SESSION, "microphone", "speaker")
     return _i2s(I2S.RX, _ASDOUT, ibuf, fmt)
 
 
@@ -294,8 +314,9 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
 def _pcm_in(format=None, *, latency=None, queue_ms=None):
     """ES7210 capture: a raw ``PCMInput`` with hardware ADC gain.
 
-    Shares I2S(0) and its clocks with playback under a non-duplex session,
-    so this board cannot record itself.
+    Shares I2S(0) and its clocks with playback, so this board cannot record
+    itself: opening it while the speaker is open raises OSError, and so does
+    the reverse.
     """
     global _mclk_rate
 
