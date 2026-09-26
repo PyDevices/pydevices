@@ -129,6 +129,12 @@ with app.refresh_paused():
     custom_direct_frame_draw()
 ```
 
+#### `app.pause_polling()`
+Stops the service tick reading the input devices, for a GUI that polls them itself (LVGL reads its indevs from its own timers). Returns a claim object with `.release()`; `app.resume_polling()` releases too. Without it the service tick consumes the events first.
+
+#### `app.timers`
+The App's own `multimer.Timer`s: the service tick, each display's refresh, and every `every()` subscription still running. `multimer.report()` shows them all.
+
 #### `app.displays`
 Tuple of attached `displaydev` driver instances (index 0 is primary).
 
