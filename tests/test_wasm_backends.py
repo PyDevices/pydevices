@@ -86,7 +86,7 @@ class WasmBackendTests(unittest.TestCase):
         self.bridge = FakeBridge()
         self.modules_patch = mock.patch.dict(sys.modules, {"_wasm_bridge": self.bridge})
         self.modules_patch.start()
-        for name in ("displaydev.wasmdisplay", "audiodev.wasm_audio", "multimer.wasm"):
+        for name in ("displaydev.wasmdisplay", "audiodev.wasm_audio", "multimer._src_wasm"):
             sys.modules.pop(name, None)
 
     def tearDown(self):
@@ -227,50 +227,54 @@ class WasmBackendTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Enable Microphone"):
             WasmPCMInput().open()
 
-    def test_timer_one_shot_rearm_and_self_deinit(self):
-        from multimer.wasm import Timer, pump
+    def test_wasm_source_arms_one_browser_timer_and_polls_queued_firings(self):
+        # A fresh import against this test's bridge: ``from multimer import
+        # _src_wasm`` would hand back the package attribute an earlier test
+        # left, bound to that test's bridge.
+        src = importlib.import_module("multimer._src_wasm")
+        if getattr(src, "_wasm_bridge", None) is not self.bridge:
+            src = importlib.reload(src)
 
-        fired = []
-        one = Timer(
-            -1,
-            period=10,
-            mode=Timer.ONE_SHOT,
-            callback=lambda timer: fired.append(timer.id),
-        )
-        self.bridge.timer_fired.append(one.id)
-        pump()
-        self.assertEqual(fired, [one.id])
-        self.assertNotIn(one.id, self.bridge.timers)
-
-        periodic = Timer(-1)
-        periodic.init(
-            period=20, mode=Timer.PERIODIC, callback=lambda timer: timer.deinit()
-        )
-        self.bridge.timer_fired.append(periodic.id)
-        pump()
-        self.assertNotIn(periodic.id, self.bridge.timers)
-        periodic.init(period=30, callback=lambda _timer: None, hard=False)
-        self.assertEqual(self.bridge.timers[periodic.id][:2], (30, True))
-        self.assertTrue(callable(self.bridge.timers[periodic.id][2]))
-        periodic.deinit()
+        woken = []
+        src.start(lambda: woken.append(1))
+        try:
+            src.arm(10)
+            self.assertEqual(self.bridge.timers[src._ID][:2], (10, False))
+            self.assertTrue(callable(self.bridge.timers[src._ID][2]))
+            # The bridge calls the callback itself once the VM is idle...
+            self.bridge.timers[src._ID][2]()
+            self.assertEqual(woken, [1])
+            # ...and queues a firing while Python is inside an Asyncify sleep.
+            src.arm(20)
+            self.bridge.timer_fired.append(src._ID)
+            src.sleep_ms(1)
+            self.assertEqual(woken, [1, 1])
+            src.cancel()
+            self.assertNotIn(src._ID, self.bridge.timers)
+        finally:
+            src.stop()
 
     def test_automatic_selectors_prefer_builtin_bridge(self):
         import audiodev.auto
         import displaydev.auto
-        import multimer.auto
+        from multimer import _dispatch
 
         self.assertEqual(importlib.reload(displaydev.auto).host_kind(), "wasm")
         audio_auto = importlib.reload(audiodev.auto)
         with mock.patch.object(audio_auto, "_is_micropython", return_value=True):
             self.assertEqual(audio_auto.select_backend(), "wasm_audio")
-        self.assertEqual(importlib.reload(multimer.auto).name, "wasm")
+        src = _dispatch._select_source()
+        try:
+            self.assertEqual(src.name, "wasm")
+        finally:
+            src.stop()
 
     def test_python_backends_do_not_import_browser_proxies(self):
         root = Path(__file__).parents[1] / "lib"
         for relative in (
             "displaydev/wasmdisplay.py",
             "audiodev/wasm_audio.py",
-            "multimer/wasm.py",
+            "multimer/_src_wasm.py",
         ):
             tree = ast.parse((root / relative).read_text("utf-8"))
             names = []

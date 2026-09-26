@@ -15,7 +15,6 @@ application decides which coordinator, if any, to instantiate.
 | `keypad_read` | optional | Keypad reader |
 | `encoder_read` / `encoder_button_read` | optional | Encoder readers |
 | `joystick_driver` / `emulate` | optional | Joystick input and optional emulation mapping |
-| `timer_async` | optional | Host preference for async timing |
 
 Board configs do not import `appdev` and do not export `app`.
 
@@ -41,7 +40,6 @@ You may also provide overrides:
 app = appdev.App(
     board_config,
     refresh_period=16,
-    timer_async=True,
 )
 ```
 
@@ -65,7 +63,6 @@ appdev.App(
     touch_read=None,
     touch_rotation_table=None,
     refresh_period=None,
-    timer_async=False,
 )
 ```
 
@@ -119,18 +116,17 @@ because `SystemExit` cannot be raised usefully from an interpreter exit hook.
 
 ### How `app.run()` Behaves
 
-When called explicitly, `app.run()` adapts to the interpreter environment and timer model:
+When called explicitly, `app.run()` adapts to the host:
 
-1. **Interactive REPL (`python -i`, `micropython -i`, MCU prompt)**:
-   - When running with hardware interrupts or signal-based timers (`machine.Timer`, Linux `librt`, Windows `uwin32`), `run()` **immediately returns**.
-   - The interactive prompt (`>>>`) stays open for live debugging and introspection while the UI continues running and responding to inputs in the background.
+1. **A host that owns a loop (`python -i`, `micropython -i`, an MCU prompt, a
+   notebook, a browser page)**: `run()` **returns at once**. The prompt (or
+   the page) stays open for live debugging and introspection while the UI
+   keeps running; `multimer.report()` shows its timers.
 
-2. **Standalone Desktop CLI (`python app.py`)**:
-   - In non-interactive desktop scripts, `run()` **sleeps in a keep-alive loop** until a quit event occurs.
-   - This prevents the desktop OS process from exiting immediately after drawing the initial window.
-
-3. **Async / Cooperative / Pumped Modes (`asyncio`, CircuitPython, Browser)**:
-   - `run()` runs the event loop continuously to pump timer ticks and process queued events.
+2. **A script (`python app.py`, `code.py`)**: `run()` blocks in
+   `multimer.run_until`, delivering timers and events, until a quit event.
+   Without `run()` the interpreter's exit hook does the same after the last
+   line, so the call is optional.
 
 Or an application can explicitly poll:
 
@@ -145,20 +141,6 @@ Hosted displays that set `needs_refresh` are presented by the coordinator.
 Display-only MCU applications can omit `appdev` entirely and call
 `display_drv.show()` according to their own policy.
 
-
-## `timer_async`
-
-Board configs publish a neutral `timer_async` preference. Current defaults are:
-
-| Host | Value |
-|---|---|
-| PyScript / Jupyter | `True` |
-| PG/SDL desktop | `False`, optionally overridden by `PYDEVICES_TIMER_ASYNC` |
-| MCU board config | selected by that config |
-
-Examples do not read the environment variable directly. The selected
-coordinator consumes `board_config.timer_async`; test harnesses can use their
-`--timer-async` option.
 
 ## Touch read contract
 
@@ -205,6 +187,6 @@ thread spawned from a soft timer or an input callback — that overflows the sta
 (`Stack protection fault` in task `mp_thread`).
 
 Queue the work and run it on the main tick instead: `appdev.App.on_tick`,
-an LVGL `lv.timer`, or a soft [`multimer.auto.Timer`](multimer.md) pump. Keep UI
+an LVGL `lv.timer`, or a [`multimer.Timer`](multimer.md). Keep UI
 mutations on that same main path. Desktop CPython can still use threads freely —
 this constraint is specific to MCU MicroPython.

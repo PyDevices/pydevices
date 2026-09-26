@@ -47,7 +47,6 @@ class DesktopBoardConfigContractTests(unittest.TestCase):
         display.needs_refresh = True
         display.fill = mock.Mock()
         display.get_events = mock.Mock(name="get_events")
-        display.requires_async_timer = False
         displaydev_mod = types.ModuleType("displaydev")
         displaydev_mod.env_bool = lambda name, default=False: default
         displaydev_mod.env_float = lambda name, default=0.0: default
@@ -67,7 +66,6 @@ class DesktopBoardConfigContractTests(unittest.TestCase):
 
         self.assertIs(board_config.display_drv, display)
         self.assertIs(board_config.host_read, display.get_events)
-        self.assertFalse(board_config.timer_async)
         self.assertFalse(hasattr(board_config, "app"))
         self.assertEqual(board_config.PERIPHERALS, frozenset({"audio_out", "pcm_out", "pcm_in"}))
         import board_peripherals

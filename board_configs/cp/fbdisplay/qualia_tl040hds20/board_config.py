@@ -107,8 +107,4 @@ class _Keypad:
 keypad = _Keypad()
 
 touch_read = _touch_points
-# Sync + multimer polling Timer: CircuitPython has no machine.Timer and
-# (on this build) no frozen asyncio — timer_async would use _mpasyncio and
-# leave LVGL unarmed / blank after ``import lv_test_timer``.
-timer_async = False
 keypad_read = keypad.read

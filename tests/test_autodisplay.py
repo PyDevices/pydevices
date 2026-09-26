@@ -42,7 +42,6 @@ class TestAutoDisplay(unittest.TestCase):
     def test_pyscript_returns_display(self):
         display = mock.Mock(name="PSDisplay")
         display.get_events = mock.Mock(name="ps_get_events")
-        display.requires_async_timer = True
         ps_mod = types.ModuleType("displaydev.psdisplay")
         ps_mod.PSDisplay = mock.Mock(return_value=display)
         with mock.patch.object(ad, "host_kind", return_value="pyscript"), mock.patch.dict(
@@ -50,14 +49,12 @@ class TestAutoDisplay(unittest.TestCase):
         ):
             result = AutoDisplay(width=100, height=200, canvas_id="c1", quiet=True)
         self.assertIs(result, display)
-        self.assertTrue(result.requires_async_timer)
         self.assertIs(result.get_events, display.get_events)
         ps_mod.PSDisplay.assert_called_once_with("c1", 100, 200, quiet=True)
 
     def test_jupyter_returns_display(self):
         display = mock.Mock(name="JNDisplay")
         display.get_events = mock.Mock(name="jn_get_events")
-        display.requires_async_timer = True
         jn_mod = types.ModuleType("displaydev.jndisplay")
         jn_mod.JNDisplay = mock.Mock(return_value=display)
         with mock.patch.object(ad, "host_kind", return_value="jupyter"), mock.patch.dict(
@@ -65,13 +62,11 @@ class TestAutoDisplay(unittest.TestCase):
         ):
             result = AutoDisplay(width=80, height=60, quiet=True)
         self.assertIs(result, display)
-        self.assertTrue(result.requires_async_timer)
         jn_mod.JNDisplay.assert_called_once_with(80, 60, quiet=True)
 
     def test_desktop_pg_first(self):
         display = mock.Mock(name="PGDisplay")
         display.get_events = mock.Mock(name="pg_get_events")
-        display.requires_async_timer = False
         pg_mod = types.ModuleType("displaydev.pgdisplay")
         pg_mod.PGDisplay = mock.Mock(return_value=display)
         with mock.patch.object(ad, "host_kind", return_value="desktop"), mock.patch.object(
@@ -86,7 +81,6 @@ class TestAutoDisplay(unittest.TestCase):
                 quiet=True,
             )
         self.assertIs(result, display)
-        self.assertFalse(result.requires_async_timer)
         self.assertIs(result.get_events, display.get_events)
         pg_mod.PGDisplay.assert_called_once_with(
             width=320,
@@ -100,7 +94,6 @@ class TestAutoDisplay(unittest.TestCase):
     def test_desktop_falls_back_to_sdl(self):
         display = mock.Mock(name="SDLDisplay")
         display.get_events = mock.Mock(name="sdl_get_events")
-        display.requires_async_timer = False
         sdl_mod = types.ModuleType("displaydev.sdldisplay")
         sdl_mod.SDLDisplay = mock.Mock(return_value=display)
         with mock.patch.object(ad, "host_kind", return_value="desktop"), mock.patch.object(
@@ -116,7 +109,6 @@ class TestAutoDisplay(unittest.TestCase):
                 quiet=True,
             )
         self.assertIs(result, display)
-        self.assertFalse(result.requires_async_timer)
         self.assertIs(result.get_events, display.get_events)
         sdl_mod.SDLDisplay.assert_called_once()
         kwargs = sdl_mod.SDLDisplay.call_args.kwargs
@@ -127,7 +119,6 @@ class TestAutoDisplay(unittest.TestCase):
     def test_win32_prefers_windisplay(self):
         display = mock.Mock(name="WinDisplay")
         display.get_events = mock.Mock()
-        display.requires_async_timer = False
         win_mod = types.ModuleType("displaydev.windisplay")
         win_mod.WinDisplay = mock.Mock(return_value=display)
         pg_mod = types.ModuleType("displaydev.pgdisplay")
@@ -146,7 +137,6 @@ class TestAutoDisplay(unittest.TestCase):
     def test_win32_sets_directsound_when_windisplay_unavailable(self):
         display = mock.Mock(name="PGDisplay")
         display.get_events = mock.Mock()
-        display.requires_async_timer = False
         pg_mod = types.ModuleType("displaydev.pgdisplay")
         pg_mod.PGDisplay = mock.Mock(return_value=display)
         with mock.patch.object(ad, "host_kind", return_value="desktop"), mock.patch.object(
@@ -164,7 +154,6 @@ class TestAutoDisplay(unittest.TestCase):
     def test_win32_skips_directsound_for_pyscript(self):
         display = mock.Mock(name="PSDisplay")
         display.get_events = mock.Mock()
-        display.requires_async_timer = True
         ps_mod = types.ModuleType("displaydev.psdisplay")
         ps_mod.PSDisplay = mock.Mock(return_value=display)
         with mock.patch.object(ad, "host_kind", return_value="pyscript"), mock.patch.object(
@@ -178,7 +167,6 @@ class TestAutoDisplay(unittest.TestCase):
     def test_android_uses_shown_highdpi_flags(self):
         display = mock.Mock(name="AndroidSDLDisplay")
         display.get_events = mock.Mock(name="sdl_get_events")
-        display.requires_async_timer = False
         android_mod = types.ModuleType("displaydev.androidsdl")
         android_mod.AndroidSDLDisplay = mock.Mock(return_value=display)
         usdl2_mod = types.ModuleType("usdl2")

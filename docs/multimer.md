@@ -1,286 +1,147 @@
 # multimer
 
-`multimer` provides explicit cross-platform timer providers with a
-`machine.Timer`-compatible API, plus backend-neutral ticks, scheduling, and
-async timing primitives.
-
-Importing the package root never probes or selects a synchronous backend.
-
-## Upgrading to 0.1.2
-
-Version 0.1.2 is a clean break: it removes package-root synchronous timer
-selection and the mutable backend API. There are no compatibility shims.
-
-| Before 0.1.2 | 0.1.2 replacement |
-|---|---|
-| `from multimer import Timer` | `from multimer import auto as timer`, then `timer.Timer` |
-| `from multimer import sleep_ms` | `timer.sleep_ms` from the selected provider |
-| `multimer.uses_signals()` | `timer.uses_interrupts` |
-| `multimer.backend_name()` | `timer.name` |
-| `multimer.use_backend("polling")` | `from multimer import polling as timer` |
-| Import-time backend override | Set `MULTIMER_BACKEND` before importing `multimer.auto` |
-| `multimer.backends()` / `backends_available()` | No replacement; import the required provider explicitly |
-| `install_asyncio_compat()` / `asyncio_compat` | Import the lazy `asyncio` symbol directly from `multimer` |
-
-Shared clocks, scheduling, `AsyncTimer`, `loop_running`, and the lazy `asyncio`
-export remain at the package root.
-
-## Choosing a timer provider
-
-Choose the provider required by the target:
-
-```python
-from multimer import machine as timer       # MicroPython MCU
-from multimer import librt as timer         # Linux signals
-from multimer import win32 as timer          # Windows APC timer
-from multimer import sdl2 as timer           # SDL timer/event pump
-from multimer import threading as timer      # worker + main-thread queue
-from multimer import polling as timer        # cooperative fallback
-from multimer import wasm as timer           # direct MicroPython WebAssembly
-```
-
-Portable host applications can opt into automatic selection:
-
-```python
-from multimer import auto as timer
-```
-
-Every provider exposes the same module contract:
-
-| Symbol | Meaning |
-|---|---|
-| `Timer` | Existing `machine.Timer`-compatible timer class |
-| `name` | Selected provider name |
-| `uses_interrupts` | `True` when callbacks run without an application pump |
-| `is_async` | `True` when `Timer` and `sleep_ms` use asyncio |
-| `pump()` | Deliver scheduled callbacks and provider events |
-| `sleep_ms(ms)` | Sleep using that provider's interrupt/pump behavior |
-
-`uses_interrupts` includes MCU hardware interrupts and their desktop
-equivalents: Linux real-time signals and Windows alertable APC timers.
-
-## Sync quick start
-
-```python
-from multimer import auto as timer
-
-
-def on_tick(tim):
-    print("tick")
-
-
-tim = timer.Timer(-1)
-tim.init(mode=timer.Timer.PERIODIC, period=500, callback=on_tick)
-
-while True:
-    # Required by pumped providers; valid for interrupt providers too.
-    timer.sleep_ms(10)
-```
-
-Mode constants live on the timer class (`Timer.PERIODIC` and
-`Timer.ONE_SHOT`), matching `machine.Timer`.
-
-The provider module is conventionally named `timer`; timer instances use names
-such as `tim`, `refresh_timer`, or `_timer`.
-
-## Backend-neutral package API
-
-Common functions stay at the package root:
-
-```python
-from multimer import (
-    AsyncTimer,
-    asyncio,
-    loop_running,
-    monotonic,
-    run_deadline_hook,
-    schedule,
-    set_deadline_hook,
-    ticks_add,
-    ticks_diff,
-    ticks_less,
-    ticks_ms,
-)
-```
-
-Clock-only code therefore has no timer-backend side effects:
-
-```python
-from multimer import ticks_add, ticks_diff, ticks_ms
-
-deadline = ticks_add(ticks_ms(), 100)
-if ticks_diff(ticks_ms(), deadline) >= 0:
-    update()
-```
-
-There is no root `Timer` or root `sleep_ms`. Plain hardware initialization
-delays should use `time.sleep_ms` (or a `time.sleep` fallback); provider-aware
-application loops use `timer.sleep_ms`.
-
-## Async timers
-
-Async applications select `AsyncTimer` directly:
-
-```python
-from multimer import AsyncTimer, asyncio
-
-
-async def main():
-    tim = AsyncTimer(-1)
-    tim.init(mode=AsyncTimer.PERIODIC, period=33, callback=on_tick)
-    while running:
-        await asyncio.sleep(0)
-
-
-asyncio.run(main())
-```
-
-`AsyncTimer.init()` must run while an event loop is executing. Use
-`loop_running()` when a library must decide whether it may arm an async timer;
-`get_event_loop()` and `get_running_loop()` are not portable enough for that
-test across MicroPython and CircuitPython.
-
-On PyScript and Jupyter, `multimer.auto` exposes `AsyncTimer` as `timer.Timer`,
-sets `timer.is_async = True`, and provides an awaitable `timer.sleep_ms`.
-
-## Automatic selection
-
-`multimer.auto` preserves the established selection order:
-
-```text
-wasm → machine → librt → win32 → sdl2 → threading → polling
-```
-
-Host-specific rules remain:
-
-- `win32` is auto-tried only on Windows.
-- CPython skips `sdl2` when pygame imports, matching `PGDisplay` and avoiding a
-  dual-SDL deadlock.
-- Android skips `sdl2`; its timer callback is not on the GLES thread.
-- PyScript and Jupyter select async.
-- Direct MicroPython WebAssembly selects `wasm` when `_wasm_bridge` imports.
-- A provider which is not installed/importable is skipped.
-- `polling` remains the final sync fallback.
-
-Set `MULTIMER_BACKEND` before importing `multimer.auto` to force a provider:
-
-```bash
-MULTIMER_BACKEND=threading python app.py
-```
-
-Accepted values are `wasm`, `machine`, `librt`, `win32`, `sdl2`, `threading`,
-`polling`, and `async`. An unknown or unavailable forced provider raises; it
-never silently falls back. Auto selects once at import and has no mutable
-`use_backend` API.
-
-The selected provider is available as `timer.name`:
-
-```python
-from multimer import auto as timer
-
-print(timer.name)
-```
-
-## Interpreter matrix
-
-| Interpreter / host | Typical auto provider | `uses_interrupts` | Application requirement |
-|---|---|---:|---|
-| MicroPython MCU | `machine` | `True` | callbacks run from hardware timer delivery |
-| CPython Linux | `librt` | `True` | no callback pump required |
-| MicroPython Unix | `librt` | `True` | no callback pump required |
-| CPython Windows + `uwin32` | `win32` | `True` | use provider sleep for alertable waits |
-| `micropython.exe` + `ffi`/`uwin32` | `win32` | `True` | use provider sleep for alertable waits |
-| CPython + pygame | `threading` after higher providers fail | `False` | call `pump()` or `sleep_ms()` |
-| CircuitPython Unix + usdl2 | `sdl2` | `False` | call `pump()` or `sleep_ms()` |
-| `micropython.exe` without `ffi`, with usdl2 | `sdl2` | `False` | call `pump()` or `sleep_ms()` |
-| `micropython.exe` without `ffi` or usdl2 | `polling` | `False` | call `pump()` or `sleep_ms()` |
-| Android | `threading` | `False` | call `pump()` or `sleep_ms()` |
-| PyScript / Jupyter | `async` | `False` | await the host event loop |
-| Direct MicroPython WebAssembly | `wasm` | `True` | browser timers deliver on the VM thread |
-
-Provider selection is independent from display construction. A console app can
-have a working timer even when no GUI backend is installed.
-
-## `hard` and soft delivery
-
-`Timer.init(..., hard=True|False)` retains MicroPython naming and behavior:
-
-| `hard` | Delivery |
-|---|---|
-| `True` | Invoke directly from the backend delivery path |
-| `False` | Deliver through `schedule`, with soft coalescing/gap behavior |
-
-Signal/interrupt providers already deliver on the main thread, so soft delivery
-does not necessarily postpone the callback there. It still applies overload
-coalescing. On MicroPython, `micropython.schedule` moves soft work out of the
-locked-heap interrupt context.
-
-The SDL provider retains its existing exception: usdl2 already marshals the
-callback onto the VM thread, so it does not add another schedule hop.
-
-## `pump()` and `sleep_ms()`
-
-Pumped providers deliver queued work only while the main thread cooperates:
-
-```python
-while running:
-    handle_application_work()
-    timer.pump()
-```
-
-`timer.sleep_ms(ms)` performs the same pumping around its wait. Interrupt
-providers expose the same two functions, but `pump()` normally has no provider
-queue to drain.
-
-Applications should keep `Timer`, `sleep_ms`, `pump`, and `uses_interrupts`
-from one provider module. Mixing them from different providers breaks the
-delivery contract.
-
-## `schedule`
-
-`multimer.schedule(callback, arg)` matches `micropython.schedule` where
-available. On CPython and CircuitPython, off-main calls enter a queue which a
-provider pump drains on the main thread. Main-thread calls run immediately
-after pending work is drained.
-
-## Development deadline hooks
-
-`set_deadline_hook` and `run_deadline_hook` exist for test harnesses and
-interactive troubleshooting, especially single-threaded browser hosts. They
-are not application lifecycle APIs.
+One `Timer` with `machine.Timer`'s shape, one clock, and one place that
+delivers callbacks, on every interpreter PyDevices runs on. The script ends,
+the prompt comes back, and the timers keep firing.
 
 ```python
 import multimer
+from multimer import Timer
 
-multimer.set_deadline_hook(check_test_deadline)
-try:
-    run_test()
-finally:
-    multimer.set_deadline_hook(None)
+def on_tick(tim):
+    print("tick", tim.fired)
+
+tim = Timer(-1)
+tim.init(mode=Timer.PERIODIC, period=500, callback=on_tick)   # as on a board
 ```
 
-Provider `sleep_ms` invokes the hook before and after sleeping. App poll
-loops invoke `run_deadline_hook()` directly.
+That is the whole program. Run it with `-i` and you are at `>>>` with `tim`
+ticking; type `multimer.report()` to see it. Run it without `-i` and the
+process exits when the script ends, like a daemon thread, unless something
+asks it to stay (an `appdev.App` does, or `multimer.keepalive()`).
+
+## The API
+
+```python
+import multimer
+from multimer import Timer, every, after, sleep_ms, schedule, hold
+
+sub = every(33, draw)               # a PERIODIC Timer, returned
+tok = after(500, done)              # a ONE_SHOT Timer
+sub.deinit()                        # or sub.cancel(); machine.Timer's spelling
+sleep_ms(100)                       # sleep; due timers are delivered on the way
+schedule(fn, arg)                   # run fn(arg) at the next safe point
+with hold():                        # nothing is delivered in here
+    critical_section()
+multimer.report()                   # what is running, from the REPL
+```
+
+| Function | Meaning |
+|---|---|
+| `Timer(id=-1)` then `init(mode=, freq=, period=, callback=, hard=)`, `deinit()` | `machine.Timer`'s API. `ONE_SHOT`, `PERIODIC`. Context manager. |
+| `every(ms, fn, *, name=None)` / `after(ms, fn, *, name=None)` | a PERIODIC / ONE_SHOT `Timer` |
+| `sleep_ms(ms)` | sleep, delivering due timers on every host |
+| `pump()` | deliver what is due now; returns ms until the next deadline |
+| `schedule(fn, arg)` | `micropython.schedule`'s shape, on every host; from any thread |
+| `hold()` | context manager: delivery masked inside, flushed once at exit |
+| `keepalive(flag=True)` | keep the process alive past the script's end while timers are armed |
+| `run_until(pred, tick_ms=10)` | block, delivering, until `pred()` is true |
+| `timers()`, `info()`, `report(file=None)` | what is armed, the dispatcher's state, both printed for a person |
+| `repl(namespace=None)` | a line REPL that keeps delivering, for hosts with no prompt (CircuitPython) |
+| `asleep_ms(ms)` | coroutine sleep for async code |
+| `ticks_ms()`, `ticks_us()`, `ticks_diff()`, `ticks_add()`, `ticks_less()`, `monotonic()` | the clock |
+| `strategy()` | how the program stays alive: `"ambient"`, `"exit_hook"`, `"none"` |
+
+A timer knows about itself: `period`, `mode`, `callback`, `running`,
+`due_in`, `fired`, `missed`, `late_max` (ms), `last`, `error` (the last
+exception its callback raised), and a settable `name` for `report()`.
+`repr(tim)` shows them.
+
+`MULTIMER_SOURCE=<name>` in the environment forces a wake source (below),
+for tests. `import multimer` does nothing to the host; the source is chosen
+when the first timer is armed.
+
+## What a callback can count on
+
+A callback runs on the main thread, at a safe point: between two bytecodes
+where the host can interrupt (a board, a signal, a pending call), otherwise
+at the next idle point (`sleep_ms`, `pump()`, the REPL waiting for a key, an
+`await`). It never runs on another thread and never inside a C call.
+
+A callback never interrupts another callback. A callback that is still
+running when its next slot comes is not re-entered; the slot is skipped and
+counted in `missed`. After a callback runs longer than its period, its next
+slot is no sooner than `min(overrun, yield_cap)` later (100 ms by default,
+per timer), so a slow pass lowers that timer's rate instead of taking the
+thread. Deadlines are absolute, so delivery latency never drifts the
+schedule. A callback that raises is printed once and keeps its schedule;
+the exception is on `tim.error`.
+
+Because the host can interrupt between bytecodes, code that must not be
+interrupted says so: `with multimer.hold():`. Everything that came due is
+delivered once at the end of the block.
+
+`hard` is accepted for `machine.Timer` parity; every host delivers soft,
+which is what `hard=False` means on a board.
+
+## Hosts
+
+The dispatcher is the same everywhere. What differs is the *wake source*,
+the host's way of getting the main thread's attention, chosen once when the
+first timer is armed and named in `report()`:
+
+| Host | Source | Delivery | Idle prompt served? |
+|---|---|---|---|
+| MicroPython on a board | `machine` (one `machine.Timer`) | between bytecodes | yes |
+| MicroPython unix, macOS | `signal` (a POSIX timer) | between bytecodes | yes |
+| MicroPython windows | `native` (the `_timing` module) | between bytecodes | yes |
+| MicroPython wasm (direct) | `wasm` (the page's timer) | when the VM is idle | the page loop |
+| CPython Linux, macOS | `signal` | between bytecodes | yes |
+| CPython Windows, Android | `pending` (a worker thread and `Py_AddPendingCall`) | between bytecodes | yes, through the input hook |
+| CPython with a running asyncio loop (Jupyter, PyScript) | `asyncio` (`call_later`) | at await points | the loop |
+| CircuitPython | none | `sleep_ms` / `pump()` / `repl()` only | no prompt to serve |
+
+On CPython, `multimer` also installs a `PyOS_InputHook` that serves timers
+while the REPL waits for a key, on 3.11's readline and 3.13's new REPL, on
+Unix and Windows. `MULTIMER_INPUTHOOK=0` turns it off.
+
+On a host without a wake source, `sleep_ms` and `pump()` are the program's
+part of the bargain, as they were with the old `polling` provider: a script
+that computes without yielding delivers nothing until it yields.
+
+## Introspection where there is no prompt
+
+- **Jupyter:** run `multimer.report()` in a cell; timers keep firing between
+  cells because the kernel's loop is the source.
+- **A browser page** (PyScript, the direct wasm build): the same call from
+  the page's console or REPL; the page loop is the source.
+- **CircuitPython:** `code.py` ends with `multimer.repl()`. It reads lines
+  from the serial port between deliveries and evaluates them in the script's
+  namespace, so `report()` and the program's own objects are reachable
+  without stopping it. Ctrl-D returns.
+- **A MicroPython board:** the script ends, the REPL comes back, and
+  `report()` works there like on a desktop.
+
+## Async code
+
+Where a host owns an asyncio loop, `multimer` rides it: nothing to configure.
+For your own coroutines use `multimer.asleep_ms(ms)` (or the loop's sleep)
+and `multimer.loop_running()` when a library must know whether a loop is up;
+`get_event_loop()` and `get_running_loop()` are not portable enough for that
+test across MicroPython and CircuitPython.
 
 ## PyDevices integration
 
-`appdev.App` and LVGL's `display_driver` explicitly opt into
-`multimer.auto`. They keep their sync timer, provider sleep, pump, and interrupt
-capability together. Async mode uses `AsyncTimer` and `multimer.asyncio`.
-
-Applications using those coordinators normally call `app.poll()`,
-`app.run()`, or `app.run_async()` rather than allocating a
-second refresh timer. Most need none of them: `appdev.App` keeps itself alive
-past the end of the script body.
-
-`uses_interrupts` describes how callbacks are *delivered*, not who owns the main
-thread — no timer backend can keep a process alive on its own. Note that the
-`win32` provider delivers through APCs, so it needs an alertable wait
-(`SleepEx(ms, TRUE)`); the app's own loop provides one, a bare REPL prompt does
-not.
+`appdev.App` is built on this: `app.every()` returns a `multimer.Timer`, the
+device service tick and each display's refresh are ordinary timers you see in
+`report()`, and an `App` sets `keepalive`. `display_driver` (LVGL) runs LVGL
+on one timer that asks LVGL when to come back, and presents from the
+display's `frame_clock`. Neither needs `app.run()`.
 
 ## Next
 
-- [Timer backend internals](multimer-internals.md)
+- [Timer internals and the wake sources](multimer-internals.md)
+- [The design, the numbers, and what lost](timing-design.md)
+- [Migrating code from the old API](multimer-migration.md)
 - [App and board config](app-and-board-config.md)
 - [Displays](displaydev.md)

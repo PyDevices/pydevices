@@ -10,7 +10,7 @@ board configs stay MCU-shaped wiring only. Explicit boards import a backend
 directly; this factory is convenience only.
 
 Returns the display driver directly. Desktop drivers expose ``get_events`` for
-``appdev.App(host_read=...)`` and ``requires_async_timer`` for the timer default.
+``appdev.App(host_read=...)``.
 """
 
 import sys
@@ -61,8 +61,7 @@ def AutoDisplay(
 
     Returns:
         A ``PSDisplay``, ``JNDisplay``, ``WinDisplay``, ``PGDisplay``, or
-        ``SDLDisplay`` with ``get_events`` and ``requires_async_timer`` set for
-        board_config wiring.
+        ``SDLDisplay`` with ``get_events`` set for board_config wiring.
     """
     from displaydev import env_get
     if canvas_id is None:

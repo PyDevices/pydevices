@@ -130,10 +130,10 @@ still launches `main.py` first.
 | Looping entry + **Ctrl+C** | `KeyboardInterrupt`, then banner + `>>>` |
 | Bare `android.py -i` | Clean `>>>` (`main.py` removed for this session) |
 
-With `multimer` **threading** (`timer_async=False`, Android's usual path) there is
-no MicroPython soft-IRQ into the REPL mid-loop — matching `micropython.exe -i` on
-Windows desktop. MicroPython's signals / `machine.Timer` path can return from
-`run` immediately so `>>>` coexists with ticks; Android does not fake that.
+`multimer`'s `pending` source delivers between two bytecodes of the main
+thread, so `>>>` coexists with ticks on Android as it does on a board: the
+prompt is served while it waits, and a long statement typed there is
+interrupted by the app's timers like any other main-line code.
 
 TTY editing aims for MicroPython REPL parity:
 
@@ -172,10 +172,11 @@ not drive the Android window size; desktop `SDLDisplay` still uses software
 
 ## Timers
 
-`multimer` skips auto **`sdl2`** on Android — CPython's `SDL_AddTimer` is not on
-the GLES thread and raises `EGL_BAD_ACCESS`. Auto-select falls through to
-**`threading`**; the launcher also sets `MULTIMER_BACKEND=threading`.
-See [multimer](multimer.md).
+`multimer` uses its `pending` source on Android: a worker thread keeps time
+and the callback runs on the main (GLES) thread between two bytecodes, so
+SDL's timer thread is never involved and `EGL_BAD_ACCESS` has no path to
+happen through. Nothing needs setting in the launcher. See
+[multimer](multimer.md).
 
 ## Audio
 

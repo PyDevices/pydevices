@@ -14,7 +14,6 @@ height = env_int("PYDEVICES_HEIGHT", height)
 display_drv = PSDisplay("display_canvas", width, height)
 
 host_read = display_drv.get_events
-timer_async = display_drv.requires_async_timer
 
 display_drv.fill(0)
 

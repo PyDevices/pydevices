@@ -1,13 +1,25 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""App: application coordinator, event dispatcher, timer manager, and run loop."""
+"""App: devices, events, display refresh and lifecycle, on multimer's timers.
+
+An ``App`` owns no timer machinery of its own. ``app.every(ms, fn)`` is
+``multimer.every``; the device service tick and each display's refresh are
+ordinary timers you can see in ``multimer.report()``; and staying alive past
+the end of the script body is ``multimer.keepalive``, which the App sets
+when it has a display or a subscription. So a script that builds its UI and
+ends keeps running, at the prompt under ``-i`` and in the exit hook
+otherwise, with or without LVGL, and ``app.run()`` is only for a program
+that wants to block.
+"""
 
 import sys
+
 import events
 import keys
+import multimer
+from multimer import _hostloop
 
-from . import _hostloop
 from .devices import (
     ENCODER,
     HOST,
@@ -25,31 +37,20 @@ DEFAULT_REFRESH_MS = 33
 SERVICE_TICK_MS = 10
 
 
-class _TimerSubscription:
-    """Handle for a periodic callback on the App's timer."""
-
-    def __init__(self, app, entry):
-        self._app = app
-        self._entry = entry
-
-    def cancel(self):
-        entry = self._entry
-        if entry is None:
-            return
-        self._entry = None
-        entry[3] = True
-        try:
-            self._app._tick_callbacks.remove(entry)
-        except (ValueError, AttributeError):
-            pass
-
-
 class _RefreshClaim:
     def __init__(self, app):
         self._app = app
 
     def release(self):
         self._app.resume_refresh()
+
+
+class _PollingClaim:
+    def __init__(self, app):
+        self._app = app
+
+    def release(self):
+        self._app.resume_polling()
 
 
 class _RefreshPaused:
@@ -68,7 +69,7 @@ class _RefreshPaused:
 
 
 class App:
-    """Application coordinator: devices, shared timer, display refresh, and lifecycle."""
+    """Application coordinator: devices, event dispatch, display refresh, lifecycle."""
 
     _current = None
     events = events
@@ -93,59 +94,32 @@ class App:
         touch_read=None,
         touch_rotation_table=None,
         refresh_period=None,
-        timer_async=None,
     ):
+        prev = App._current
+        if prev is not None and prev is not self:
+            # A second App in one process (sequential apps, a test suite):
+            # the first one's timers must not keep dispatching into it.
+            try:
+                prev.stop_timers()
+            except Exception:
+                pass
         App._current = self
         self.devices = []
         self._event_callbacks = {}
-        self._tick_callbacks = []
-        self._in_tick_dispatch = False
+        self._subscriptions = []
         self._before_quit = None
         self._quit_requested = False
         self._exit_code = None
-        self._timer = None
-
-        # Stop timers on any previous App instance to avoid duplicate event dispatch on re-runs
-        prev_app = getattr(App, "_current_app", None)
-        if prev_app is not None and prev_app is not self:
-            try:
-                prev_app.stop_timer()
-            except Exception:
-                pass
-        App._current_app = self
-
-        # Work that cannot be armed yet, flushed the moment the loop starts.
-        # Replaces the several _pending_* flags that each approximated that
-        # moment separately; _hostloop supplies it exactly once.
-        self._deferred = []
-        self._loop_started = False
-        self._strategy = None
-        self._refresh_subscription = None
+        self._refresh_timers = []
+        self._refresh_period = refresh_period
         self._refresh_paused = False
         self._refresh_claim = None
-        self._refresh_pending = False
-        self._refresh_period = refresh_period
-        self._service_subscription = None
-        self._service_pending = False
+        self._service_timer = None
+        self._polling_claim = None
         self._app_drives_poll = False
         self._in_service_poll = False
-        self._pending_teardown = False
         self._teardown_done = False
-        self._blocking_run = False
-        self._ticks_ms = None
-        self._ticks_add = None
-        self._ticks_diff = None
 
-        self._timer_thread_ident = None
-        try:
-            if sys.implementation.name == "micropython":
-                import _thread
-
-                self._timer_thread_ident = _thread.get_ident()
-        except (ImportError, AttributeError):
-            pass
-
-        # Parse displays from arguments or board_config
         if displays is not None:
             self._displays = list(displays)
         elif board_config is not None and getattr(board_config, "display_drv", None) is not None:
@@ -161,24 +135,12 @@ class App:
             except Exception:
                 pass
 
-        # Determine timer_async
-        if timer_async is not None:
-            self._timer_async = bool(timer_async)
-        elif board_config is not None and hasattr(board_config, "timer_async"):
-            self._timer_async = bool(board_config.timer_async)
-        else:
-            self._timer_async = any(
-                getattr(drv, "requires_async_timer", False) for drv in self._displays
-            )
-
-        # Wire inputs from board_config or explicit kwargs
         primary = self.primary
 
         effective_host_read = (
             host_read
             if host_read is not None
-            else getattr(board_config, "host_read", None)
-            or getattr(board_config, "get_events", None)
+            else getattr(board_config, "host_read", None) or getattr(board_config, "get_events", None)
         )
         if effective_host_read is not None:
             self.host_dev = HostEvents(host_read=effective_host_read, display=primary)
@@ -186,9 +148,7 @@ class App:
         else:
             self.host_dev = None
 
-        effective_touch_read = (
-            touch_read if touch_read is not None else getattr(board_config, "touch_read", None)
-        )
+        effective_touch_read = touch_read if touch_read is not None else getattr(board_config, "touch_read", None)
         effective_touch_table = (
             touch_rotation_table
             if touch_rotation_table is not None
@@ -196,9 +156,7 @@ class App:
         )
         if effective_touch_read is not None:
             self.touch_dev = self.add_touch(
-                effective_touch_read,
-                display=primary,
-                rotation_table=effective_touch_table,
+                effective_touch_read, display=primary, rotation_table=effective_touch_table
             )
         else:
             self.touch_dev = None
@@ -211,10 +169,7 @@ class App:
 
         encoder_read = getattr(board_config, "encoder_read", None)
         if encoder_read is not None:
-            self.add_encoder(
-                encoder_read,
-                button_read=getattr(board_config, "encoder_button_read", None),
-            )
+            self.add_encoder(encoder_read, button_read=getattr(board_config, "encoder_button_read", None))
         else:
             self.encoder_dev = None
 
@@ -225,23 +180,17 @@ class App:
         else:
             self.joystick_dev = None
 
+        _hostloop.on_stop(self._teardown_from_loop)
         if self._displays:
             self._wire_display_refresh(self._refresh_period)
-            self._install_hostloop()
+            self._keep_alive()
+
+    # -- properties --------------------------------------------------------
 
     @property
     def strategy(self):
-        """How this app stays alive past the end of the script body.
-
-        One of ``"ambient"`` (the host runs a loop of its own), ``"exit_hook"``
-        (an interpreter exit hook takes the main thread), ``"none"`` (nothing
-        available -- :meth:`run` is required), or None before wiring.
-        """
-        return self._strategy
-
-    @property
-    def timer_async(self):
-        return self._timer_async
+        """How the program stays alive past the script body (see ``multimer.strategy``)."""
+        return multimer.strategy()
 
     @property
     def displays(self):
@@ -265,6 +214,18 @@ class App:
             raise ValueError("before_quit must be callable")
         self._before_quit = value
 
+    @property
+    def timers(self):
+        """The App's own timers: service, refresh and every() subscriptions."""
+        out = []
+        if self._service_timer is not None:
+            out.append(self._service_timer)
+        out.extend(self._refresh_timers)
+        out.extend(t for t in self._subscriptions if t.running)
+        return tuple(out)
+
+    # -- displays and devices ---------------------------------------------
+
     def add_display(self, drv):
         if drv is None:
             raise ValueError("drv is required")
@@ -278,13 +239,9 @@ class App:
             pass
         if first:
             self._wire_display_refresh(self._refresh_period)
-            self._install_hostloop()
-        elif (
-            getattr(drv, "needs_refresh", False)
-            and self._refresh_subscription is None
-            and not self._refresh_pending
-        ):
-            self._wire_display_refresh(self._refresh_period)
+            self._keep_alive()
+        elif getattr(drv, "needs_refresh", False):
+            self._wire_one_refresh(drv, self._refresh_period)
         return drv
 
     def remove_display(self, drv):
@@ -292,6 +249,10 @@ class App:
             return
         was_primary = drv is self.primary
         self._displays.remove(drv)
+        for t in tuple(self._refresh_timers):
+            if getattr(t, "_display", None) is drv:
+                t.deinit()
+                self._refresh_timers.remove(t)
         try:
             drv.app = None
         except Exception:
@@ -346,11 +307,14 @@ class App:
         dev.app = self
         if dev not in self.devices:
             self.devices.append(dev)
+        self._arm_service()
 
     def unregister(self, dev):
         if dev in self.devices:
             self.devices.remove(dev)
             dev.app = None
+
+    # -- events ---------------------------------------------------------------
 
     def on(self, event_type_or_list, callback=None):
         """Subscribe callback to one or more event types, or use as a decorator."""
@@ -379,199 +343,59 @@ class App:
         if callback_set:
             callback_set.discard(callback)
 
-    def _ensure_ticks(self):
-        if self._ticks_ms is not None:
-            return
-        from multimer import ticks_add, ticks_diff, ticks_ms
+    # -- timers -----------------------------------------------------------
 
-        self._ticks_ms = ticks_ms
-        self._ticks_add = ticks_add
-        self._ticks_diff = ticks_diff
+    def every(self, ms=None, callback=None, *, period=None, name=None):
+        """A periodic ``multimer.Timer`` calling ``callback(timer)`` every *ms*.
 
-    @staticmethod
-    def _event_loop_running():
-        try:
-            from multimer import loop_running
-
-            return loop_running()
-        except ImportError:
-            return False
-
-    def _arm_ready(self):
-        """True when a timer can be created right now.
-
-        Only async timers have to wait: they need a running event loop. The
-        browser is the exception even there -- it owns the loop for the whole
-        program, including import.
-
-        Deliberately *not* consulting ``_defer_sync_arm``. That flag asks for
-        the display refresh subscription to be armed from inside the loop; it
-        does not mean sync timers cannot be created, and gating every timer on
-        it would leave ``app._timer`` None all the way through UI construction
-        on those providers.
+        Usable as a decorator (``@app.every(1000)``). The App keeps the
+        process alive while any subscription runs; ``timer.deinit()`` (or
+        ``cancel()``) ends one.
         """
-        if not self._timer_async:
-            return True
-        if sys.platform in ("emscripten", "webassembly"):
-            return True
-        return self._event_loop_running()
-
-    def _defer(self, fn):
-        """Run ``fn`` now if the app can arm, else at the moment the loop starts."""
-        if self._arm_ready():
-            fn()
-        else:
-            self._deferred.append(fn)
-
-    def on_start(self, fn):
-        """Register ``fn()`` to run when the app's loop starts.
-
-        Runs immediately if the loop is already able to arm timers. This is the
-        single coordination point callers such as ``display_driver`` need in
-        place of probing for a running event loop themselves.
-        """
-        if not callable(fn):
-            raise ValueError("fn must be callable")
-        self._defer(fn)
-        return fn
-
-    def _flush_deferred(self):
-        """Arm everything that was waiting for the loop. Called at loop start.
-
-        Only the async gate applies here. A sync provider that sets
-        ``_defer_sync_arm`` is asking to be armed *from inside* the loop, which
-        is exactly where this runs -- consulting :meth:`_arm_ready` would keep
-        deferring forever, since that flag never clears.
-        """
-        if self._timer_async and not self._arm_ready():
-            return
-        self._loop_started = True
-        while self._deferred:
-            self._deferred.pop(0)()
-
-    def _install_hostloop(self):
-        """Arrange for the app to outlive the script body. See ``_hostloop``."""
-        self._strategy = _hostloop.install(
-            pump=self._pump,
-            alive=lambda: not self._quit_requested and not self._teardown_done,
-            on_start=self._flush_deferred,
-            on_stop=self._teardown_from_loop,
-            drive=self._drive_async if self._timer_async else None,
-        )
-        return self._strategy
-
-    def _pump(self):
-        from multimer import auto as timer
-
-        timer.sleep_ms(SERVICE_TICK_MS)
-
-    def _drive_async(self):
-        from multimer import asyncio
-
-        asyncio.run(self._run_async())
-
-    def every(self, ms=None, callback=None, *, period=None, async_=None):
-        """Schedule a periodic callback every ms milliseconds, or use as decorator."""
         if period is not None:
             if callable(ms) and callback is None:
                 callback = ms
             ms = period
         if ms is None and period is None:
-            ms = 10
+            ms = SERVICE_TICK_MS
         if callback is None:
             if callable(ms):
                 callback = ms
-                ms = 10
+                ms = SERVICE_TICK_MS
             else:
-                return lambda fn: self.every(ms, fn)
+                return lambda fn: self.every(ms, fn, name=name)
         if not callable(callback):
             raise ValueError("callback must be callable")
-        self._ensure_ticks()
-        if self._timer is None:
-            self._defer(lambda: self._start_timer(async_=self._timer_async))
-        entry = [callback, int(ms), self._ticks_add(self._ticks_ms(), int(ms)), False]
-        self._tick_callbacks.append(entry)
-        return _TimerSubscription(self, entry)
+        tim = multimer.every(int(ms), callback, name=name)
+        self._subscriptions.append(tim)
+        self._keep_alive()
+        return tim
 
-    def on_tick(self, callback, period=10, async_=None):
-        """Schedule a periodic callback (wrapper around every)."""
+    def on_tick(self, callback, period=SERVICE_TICK_MS, **_ignored):
+        """Schedule a periodic callback (alias of :meth:`every`)."""
         return self.every(period, callback)
 
-    def _start_timer(self, *, async_=False, tick_ms=10):
-        if self._timer is not None:
-            return self._timer
-        # A timer is the other reason an app must outlive the script body, so a
-        # display-less app that only schedules callbacks still gets a host loop.
-        self._install_hostloop()
-        from multimer import AsyncTimer
-        from multimer import auto as timer
-
-        self._ensure_ticks()
-        timer_class = AsyncTimer if async_ else timer.Timer
-        timer_inst = None
-        last_err = None
-        for timer_id in (-1, 0, 1, 2, 3):
-            try:
-                timer_inst = timer_class(timer_id)
-                break
-            except ValueError as exc:
-                last_err = exc
-        if timer_inst is None:
-            raise last_err
-        timer_inst.init(
-            mode=timer_class.PERIODIC,
-            period=tick_ms,
-            callback=self._dispatch_tick,
-            hard=False,
-        )
-        self._timer = timer_inst
-        return timer_inst
-
-    def stop_timer(self):
-        """Stop the shared timer and clear all periodic subscriptions."""
-        self._tick_callbacks.clear()
-        timer_inst = self._timer
-        self._timer = None
-        self._refresh_subscription = None
+    def stop_timers(self):
+        """Stop the service tick, every refresh and every subscription."""
+        st = self._service_timer
+        self._service_timer = None
+        if st is not None:
+            st.deinit()
+        for t in self._refresh_timers:
+            t.deinit()
+        self._refresh_timers = []
+        for t in self._subscriptions:
+            t.deinit()
+        self._subscriptions = []
         self._refresh_paused = False
         self._refresh_claim = None
-        self._refresh_pending = False
-        self._service_subscription = None
-        self._service_pending = False
-        self._deferred.clear()
-        if timer_inst is not None:
-            try:
-                timer_inst.deinit()
-            except Exception:
-                # Never let a provider's disarm abort the rest of teardown --
-                # displays still have to be released.
-                pass
 
-    def _dispatch_tick(self, timer_obj):
-        if self._timer_thread_ident is not None:
-            try:
-                import _thread
+    stop_timer = stop_timers
 
-                if _thread.get_ident() != self._timer_thread_ident:
-                    return
-            except (ImportError, AttributeError):
-                pass
-        if self._in_tick_dispatch:
-            return
-        self._in_tick_dispatch = True
-        try:
-            now = self._ticks_ms()
-            for entry in tuple(self._tick_callbacks):
-                if entry[3]:
-                    continue
-                if self._ticks_diff(entry[2], now) > 0:
-                    continue
-                entry[2] = self._ticks_add(now, entry[1])
-                entry[0](timer_obj)
-            if self._pending_teardown and not self._blocking_run:
-                self._try_perform_teardown()
-        finally:
-            self._in_tick_dispatch = False
+    def _keep_alive(self):
+        multimer.keepalive(True)
+
+    # -- refresh ----------------------------------------------------------
 
     def pause_refresh(self):
         """Pause display refresh while a GUI renders frames."""
@@ -592,64 +416,58 @@ class App:
         """Context manager to pause display refresh within a block."""
         return _RefreshPaused(self)
 
+    def pause_polling(self):
+        """Stop the service tick reading the devices: the caller reads them.
+
+        A GUI that polls the input devices itself (LVGL reads its indevs
+        from its own timers) claims the devices with this, or the service
+        tick consumes the events first. ``release()`` the claim to resume.
+        """
+        if self._polling_claim is not None:
+            raise RuntimeError("device polling already claimed")
+        self._polling_claim = _PollingClaim(self)
+        return self._polling_claim
+
+    def resume_polling(self):
+        self._polling_claim = None
+
     def _wire_display_refresh(self, refresh_period):
-        if not self._displays:
-            return
         self._arm_service()
-        needs = any(getattr(d, "needs_refresh", False) for d in self._displays)
+        for display in self._displays:
+            self._wire_one_refresh(display, refresh_period)
+
+    def _wire_one_refresh(self, display, refresh_period):
         if refresh_period is None:
-            wire = needs
-            period = DEFAULT_REFRESH_MS
+            if not getattr(display, "needs_refresh", False):
+                return
+            period = int(getattr(display, "refresh_period_ms", 0) or DEFAULT_REFRESH_MS)
         else:
-            refresh_period = int(refresh_period)
-            wire = refresh_period > 0
-            period = refresh_period if wire else DEFAULT_REFRESH_MS
-        if not wire:
+            period = int(refresh_period)
+            if period <= 0:
+                return
+        show = getattr(display, "show", None)
+        if not callable(show):
             return
 
-        def _show(timer_obj):
+        def _show(timer_obj, _display=display, _show=show):
             if self._refresh_paused:
                 return
-            for display in self._displays:
-                if getattr(display, "needs_refresh", False) and callable(
-                    getattr(display, "show", None)
-                ):
-                    display.show(timer_obj)
+            _show(timer_obj)
 
-        self._refresh_pending = True
-        arm = lambda: self._subscribe_refresh(_show, period)  # noqa: E731
-        if self._sync_refresh_needs_deferred_arm() and not self._timer_async:
-            # This provider wants the refresh subscription armed from inside the
-            # loop, so queue it unconditionally rather than asking _defer.
-            self._deferred.append(arm)
-        else:
-            self._defer(arm)
+        name = "refresh:%s" % (getattr(display, "__class__", type(display)).__name__,)
+        tim = multimer.every(period, _show, name=name)
+        tim._display = display
+        self._refresh_timers.append(tim)
 
-    @staticmethod
-    def _sync_refresh_needs_deferred_arm():
-        try:
-            from multimer import auto as timer
-
-            return getattr(timer, "_defer_sync_arm", False)
-        except ImportError:
-            return False
-
-    def _subscribe_refresh(self, show_fn, period):
-        self._refresh_pending = False
-        self._refresh_subscription = self.every(period, show_fn)
+    # -- service ----------------------------------------------------------
 
     def _arm_service(self):
-        if self._service_subscription is not None or self._service_pending:
+        if self._service_timer is not None or not self.devices and not self._displays:
             return
-        self._service_pending = True
-        self._defer(self._subscribe_service)
-
-    def _subscribe_service(self):
-        self._service_pending = False
-        self._service_subscription = self.every(SERVICE_TICK_MS, self._service_tick)
+        self._service_timer = multimer.every(SERVICE_TICK_MS, self._service_tick, name="app.service")
 
     def _service_tick(self, timer_obj):
-        if self._quit_requested or self._app_drives_poll:
+        if self._quit_requested or self._app_drives_poll or self._polling_claim is not None:
             return
         self._in_service_poll = True
         try:
@@ -658,25 +476,17 @@ class App:
             self._in_service_poll = False
 
     def poll(self):
-        """Poll registered devices and dispatch any pending events."""
+        """Poll registered devices and dispatch any pending events.
+
+        A program that calls this from its own loop takes over from the
+        service timer; delivery of every other timer happens here too.
+        """
         if not self._in_service_poll:
             self._app_drives_poll = True
-        try:
-            from multimer import run_deadline_hook
-
-            run_deadline_hook()
-        except ImportError:
-            pass
-        try:
-            from multimer import auto as timer
-
-            timer.pump()
-        except ImportError:
-            pass
-        self._flush_deferred()
-
+            multimer.pump()
+        multimer.run_deadline_hook()
         eventlist = []
-        for device in self.devices:
+        for device in tuple(self.devices):
             dev_events = device.poll()
             if dev_events:
                 eventlist.extend(dev_events)
@@ -689,86 +499,40 @@ class App:
                             cb(event)
         return eventlist
 
-    def arm_async_refresh(self):
-        """Deprecated alias for flushing deferred arming; prefer :meth:`on_start`.
-
-        Kept because it is public API and callers may still invoke it from
-        inside a running loop.
-        """
-        self._flush_deferred()
-
-    async def _run_async(self, tick_ms=SERVICE_TICK_MS):
-        from multimer import asyncio
-
-        self._flush_deferred()
-        self._blocking_run = True
-        try:
-            while not self._quit_requested:
-                await asyncio.sleep(tick_ms / 1000)
-                try:
-                    from multimer import run_deadline_hook
-
-                    run_deadline_hook()
-                except ImportError:
-                    pass
-        finally:
-            self._blocking_run = False
-        self._perform_teardown()
+    # -- lifecycle --------------------------------------------------------
 
     def run(self, tick_ms=SERVICE_TICK_MS):
-        """Start the application and run until quit."""
-        from multimer import auto as timer
+        """Block until quit, delivering timers and events. Optional.
 
-        self._install_hostloop()
+        Returns at once where the host already owns a loop that keeps the
+        program running (a REPL under ``-i``, a browser page, a notebook).
+        """
+        if multimer.strategy() == _hostloop.AMBIENT:
+            return
         _hostloop.claim()
-
-        if self._timer_async:
-            if self._event_loop_running():
-                self._flush_deferred()
-                return
-            from multimer import asyncio
-
-            asyncio.run(self._run_async(tick_ms))
-            self._raise_exit_code()
-            return
-
-        # Nothing to block for when the host already runs a loop and the timer
-        # drives itself: an interactive REPL keeps the prompt, and a browser
-        # page would deadlock its own event loop if we slept here.
-        self_driving = getattr(timer, "uses_interrupts", False) or sys.platform in (
-            "emscripten",
-            "webassembly",
-        )
-        if _hostloop.strategy() == _hostloop.AMBIENT and self_driving:
-            self._flush_deferred()
-            return
-
-        self._flush_deferred()
-
-        self._blocking_run = True
         try:
-            while not self._quit_requested:
-                timer.sleep_ms(tick_ms)
+            multimer.run_until(lambda: self._teardown_done, tick_ms)
         finally:
-            self._blocking_run = False
-            self._perform_teardown()
+            _hostloop.release()
         self._raise_exit_code()
 
     def run_async(self, coro_or_fn):
-        """Run an async coroutine or factory under the App's async environment."""
-        from multimer import asyncio
+        """Run a coroutine (or a factory of one) under the host's asyncio loop.
 
-        if asyncio is None:
+        Schedules it as a task where a loop is already running (Jupyter,
+        PyScript) and returns the task; otherwise ``asyncio.run`` blocks.
+        """
+        aio = multimer.asyncio
+        if aio is None:
             raise RuntimeError("asyncio is not available")
 
         async def runner():
-            self._flush_deferred()
             coro = coro_or_fn() if callable(coro_or_fn) else coro_or_fn
             return await coro
 
-        if self._event_loop_running():
-            return asyncio.create_task(runner())
-        return asyncio.run(runner())
+        if multimer.loop_running():
+            return aio.create_task(runner())
+        return aio.run(runner())
 
     def request_quit(self, code=None):
         """Request a clean application shutdown."""
@@ -781,55 +545,10 @@ class App:
             return
         self._quit_requested = True
         self._refresh_paused = True
-        self._pending_teardown = True
-        # Single quit choke point. Under ``exit_hook`` the loop notices via
-        # ``alive()``; under ``ambient`` nothing of ours would ever notice, so
-        # ``quit()`` performs teardown there. Both land on _teardown_from_loop.
-        _hostloop.quit()
-        if self._in_service_poll:
-            self._teardown_from_loop()
-
-    def _teardown_from_loop(self):
-        """Tear down, deferring one turn if we are inside a callback."""
-        if self._teardown_done:
-            return
-        if (self._in_service_poll or self._in_tick_dispatch) and self._schedule_async_teardown():
-            return
         self._perform_teardown()
 
-    def _schedule_async_teardown(self):
-        """Defer teardown to the next loop turn. True when scheduled.
-
-        Not gated on ``timer_async``: ``multimer.auto`` resolves to an async
-        provider in the browser even for an app that never asked for one, and
-        deinitialising an async-backed timer from inside its own callback fails
-        with "can't cancel self".
-
-        ``create_task`` cannot answer "is a loop running?" -- MicroPython
-        happily creates a task with no loop running (verified on ESP32), which
-        would queue teardown onto a queue nothing services, so the app would
-        never tear down at all. ``loop_running()`` is the probe that answers
-        correctly on every interpreter.
-        """
-        if not self._event_loop_running():
-            return False
-        try:
-            from multimer import asyncio
-
-            async def _later():
-                await asyncio.sleep(0)
-                self._perform_teardown()
-
-            asyncio.create_task(_later())
-            return True
-        except Exception:
-            return False
-
-    def _try_perform_teardown(self):
-        # Reached from inside _dispatch_tick, so it must take the deferring
-        # path: tearing down there cancels the very task/timer delivering the
-        # callback ("can't cancel self" on an AsyncTimer).
-        self._teardown_from_loop()
+    def _teardown_from_loop(self):
+        self._perform_teardown()
 
     def _perform_teardown(self):
         if self._teardown_done:
@@ -838,13 +557,12 @@ class App:
         self._quit_requested = True
         if App._current is self:
             App._current = None
-        self._pending_teardown = False
         if self._before_quit is not None:
             try:
                 self._before_quit()
             except Exception:
                 pass
-        self.stop_timer()
+        self.stop_timers()
         for display in tuple(self._displays):
             if callable(getattr(display, "quit", None)):
                 try:
@@ -852,6 +570,8 @@ class App:
                 except Exception:
                     pass
         self._displays.clear()
+        # Nothing of ours is left to keep the process alive.
+        multimer.keepalive(False)
 
     def _raise_exit_code(self):
         code = self._exit_code

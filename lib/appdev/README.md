@@ -32,18 +32,17 @@ script body. See [Application lifecycle](../../docs/appdev.md#application-lifecy
 
 ## Constructor
 
-### `appdev.App(board_config=None, *, displays=None, host_read=None, touch_read=None, touch_rotation_table=None, refresh_period=None, timer_async=None)`
+### `appdev.App(board_config=None, *, displays=None, host_read=None, touch_read=None, touch_rotation_table=None, refresh_period=None)`
 
 Instantiates the application coordinator.
 
 #### Arguments:
-* **`board_config`** *(optional)*: A board configuration module or namespace exporting hardware attributes (e.g. `display_drv`, `host_read`, `touch_read`, `touch_rotation_table`, `keypad_read`, `encoder_read`, `encoder_button_read`, `joystick_driver`, `joystick_emulate_digital`, `timer_async`).
+* **`board_config`** *(optional)*: A board configuration module or namespace exporting hardware attributes (e.g. `display_drv`, `host_read`, `touch_read`, `touch_rotation_table`, `keypad_read`, `encoder_read`, `encoder_button_read`, `joystick_driver`, `joystick_emulate_digital`).
 * **`displays`** *(sequence, optional)*: Sequence of `displaydev` driver instances. Index 0 is primary. If omitted, extracted from `board_config.display_drv`.
 * **`host_read`** *(callable, optional)*: Polling callable returning raw OS/host events (SDL2/PyGame).
 * **`touch_read`** *(callable, optional)*: Polling callable returning touch point tuples `(x, y[, ...])`.
 * **`touch_rotation_table`** *(4-item tuple, optional)*: Bitmask quadrant rotation table for touch mapping (defaults to standard 0/90/180/270° orientation mask).
-* **`refresh_period`** *(int, optional)*: Milliseconds between `display.show()` presentation ticks. Defaults to `33` ms (approx 30 FPS) if any attached display has `needs_refresh=True`. Pass `0` or negative to disable periodic refresh.
-* **`timer_async`** *(bool, optional)*: Force async timer (`multimer.AsyncTimer`) or synchronous timer (`multimer.auto.Timer`). Auto-detected from display requirements (e.g. PyScript / Jupyter canvas) or `board_config.timer_async` if omitted.
+* **`refresh_period`** *(int, optional)*: Milliseconds between `display.show()` presentation ticks. Defaults to each display's `refresh_period_ms` (33 ms unless the backend knows better) when it has `needs_refresh=True`. Pass `0` or negative to disable periodic refresh.
 
 ---
 
@@ -129,6 +128,12 @@ Context manager that pauses auto-refresh within a code block:
 with app.refresh_paused():
     custom_direct_frame_draw()
 ```
+
+#### `app.pause_polling()`
+Stops the service tick reading the input devices, for a GUI that polls them itself (LVGL reads its indevs from its own timers). Returns a claim object with `.release()`; `app.resume_polling()` releases too. Without it the service tick consumes the events first.
+
+#### `app.timers`
+The App's own `multimer.Timer`s: the service tick, each display's refresh, and every `every()` subscription still running. `multimer.report()` shows them all.
 
 #### `app.displays`
 Tuple of attached `displaydev` driver instances (index 0 is primary).

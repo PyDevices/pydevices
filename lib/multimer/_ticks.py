@@ -86,6 +86,29 @@ except (ImportError, NameError):
         _impl_monotonic = _monotonic_from_ticks_ms
 
 
+_impl_ticks_us = None
+try:
+    from time import ticks_us as _time_ticks_us
+
+    _impl_ticks_us = _time_ticks_us
+except ImportError:
+    try:
+        from time import monotonic_ns as _mono_ns_for_us
+
+        _mono_ns_for_us()
+
+        def _us_from_ns():
+            return (_mono_ns_for_us() // 1000) & _TICKS_MAX
+
+        _impl_ticks_us = _us_from_ns
+    except (ImportError, NameError, NotImplementedError):
+
+        def _us_from_ticks_ms():
+            return (_impl_ticks_ms() * 1000) & _TICKS_MAX
+
+        _impl_ticks_us = _us_from_ticks_ms
+
+
 def ticks_ms():
     """Return a wrapping millisecond tick counter (period ``2**29`` ms).
 
@@ -96,6 +119,16 @@ def ticks_ms():
         int: Milliseconds since an arbitrary epoch, masked to 29 bits.
     """
     return _impl_ticks_ms()
+
+
+def ticks_us():
+    """A wrapping microsecond counter (period ``2**29`` us on hosts without one of their own).
+
+    ``time.ticks_us`` where the interpreter has it; otherwise derived from the
+    nanosecond monotonic clock. Pair with :func:`ticks_diff` only for
+    intervals under the half period (about 4.5 minutes).
+    """
+    return _impl_ticks_us()
 
 
 def monotonic():
@@ -148,15 +181,19 @@ def ticks_less(ticks1, ticks2):
     return ticks_diff(ticks1, ticks2) < 0
 
 
+try:
+    from time import sleep_ms as _host_sleep_ms
+except ImportError:
+    from time import sleep as _host_sleep
+
+    def _host_sleep_ms(ms):
+        _host_sleep(ms / 1000)
+
+
 def _raw_sleep_ms(ms):
-    try:
-        from time import sleep_ms as _time_sleep_ms
-
-        _time_sleep_ms(ms)
-    except ImportError:
-        import time
-
-        time.sleep(ms / 1000)
+    """The host's own sleep, bound once so a callback delivered mid-sleep
+    is not chained to an ImportError we were handling."""
+    _host_sleep_ms(ms)
 
 
 # Optional development/troubleshooting hook only — not part of normal app use.

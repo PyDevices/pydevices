@@ -356,7 +356,6 @@ class PSDisplay(DesktopDisplay):
     """
 
     needs_refresh = True
-    requires_async_timer = True
     quit_chord = (keys.K_AC_BACK, 0)
 
     def __init__(self, id, width=None, height=None, *, quiet=False):

@@ -72,10 +72,7 @@ input source depends on what each platform exposes:
 
 With appdev, handlers see the same `events` objects, so application code does
 not need to know which backend is active. LVGL instead connects these neutral
-backend capabilities through its own `display_driver` coordinator. Desktop board configs also use
-`timer_async=env_bool("PYDEVICES_TIMER_ASYNC", display_drv.requires_async_timer)`
-(`requires_async_timer` is `True` only on PS/JN). `appdev.App` raises if
-`timer_async=False` while any attached display has `requires_async_timer`.
+backend capabilities through its own `display_driver` coordinator.
 
 ### Desktop (SDL2, PyGame)
 
@@ -124,7 +121,6 @@ display_drv = PSDisplay("display_canvas", width, height)
 app = appdev.App(
     displays=[display_drv],
     host_read=display_drv.get_events,
-    timer_async=display_drv.requires_async_timer,
 )
 ```
 
@@ -173,7 +169,7 @@ Anything you can draw on implements the framebuf API:
 pydevices-examples does not include a task scheduler. Options:
 
 - **`asyncio`** — works on CPython, MicroPython, and PyScript (required there)
-- **[multimer](multimer.md)** — explicit or auto-selected `Timer` providers for sync loops; `AsyncTimer` for async/PyScript apps
+- **[multimer](multimer.md)** — one `Timer` on every host; it rides the page's loop on PyScript
 
 ## Vertical scrolling
 

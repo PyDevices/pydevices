@@ -244,7 +244,6 @@ class WinDisplay(DesktopDisplay):
     """
 
     needs_refresh = True
-    requires_async_timer = False
     quit_chord = (keys.K_q, keys.KMOD_CTRL)
 
     # Defaults at class level so teardown works on a half-built instance:

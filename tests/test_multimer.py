@@ -1,564 +1,479 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
+"""multimer: the Timer contract, the dispatcher's rules, and the failure
+classes that cost real time before the redesign.
 
+The wake source is chosen once per process, so the tests that need a named
+source run a child interpreter with ``MULTIMER_SOURCE`` set.
+"""
+
+import io
 import os
-import runpy
+import subprocess
 import sys
 import threading
 import time
 import unittest
 
 import _env  # noqa: F401
-import multimer
-from multimer import (
-    AsyncTimer,
-    monotonic,
-    ticks_add,
-    ticks_diff,
-    ticks_less,
-    ticks_ms,
-)
-from multimer import auto as timer
 
-Timer = timer.Timer
-sleep_ms = timer.sleep_ms
+import multimer
+from multimer import Timer, ticks_add, ticks_diff, ticks_less, ticks_ms
 
 _TICKS_PERIOD = 1 << 29
 _TICKS_MAX = _TICKS_PERIOD - 1
 _TICKS_HALFPERIOD = _TICKS_PERIOD // 2
 
-_PUBLIC_TIMER_MEMBERS = {"init", "deinit", "ONE_SHOT", "PERIODIC"}
+_PUBLIC_TIMER_MEMBERS = {
+    "init",
+    "deinit",
+    "cancel",
+    "ONE_SHOT",
+    "PERIODIC",
+    "period",
+    "mode",
+    "callback",
+    "running",
+    "due_in",
+    "fired",
+    "missed",
+    "late_max",
+    "last",
+    "error",
+    "name",
+    "id",
+    "yield_cap",
+    "reschedule",
+}
 
 
-def _public_class_members(cls):
-    return {n for n in dir(cls) if not n.startswith("_")}
+def _wait(predicate, timeout_s=2.0):
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        multimer.sleep_ms(2)
+    return predicate()
+
+
+def _child(code, source=None, timeout=30):
+    env = dict(os.environ)
+    if source is not None:
+        env["MULTIMER_SOURCE"] = source
+    env["PYTHONPATH"] = os.pathsep.join(sys.path)
+    p = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=timeout)
+    return p
 
 
 class TestApiSurface(unittest.TestCase):
-    def test_timer_public_members(self):
-        self.assertEqual(_public_class_members(Timer), _PUBLIC_TIMER_MEMBERS)
+    def tearDown(self):
+        multimer.stop_all()
 
-    def test_async_timer_public_members(self):
-        self.assertEqual(_public_class_members(AsyncTimer), _PUBLIC_TIMER_MEMBERS)
+    def test_timer_public_members(self):
+        members = {n for n in dir(Timer(-1)) if not n.startswith("_")}
+        self.assertEqual(members, _PUBLIC_TIMER_MEMBERS)
 
     def test_constants_match_micropython(self):
         self.assertEqual(Timer.ONE_SHOT, 0)
         self.assertEqual(Timer.PERIODIC, 1)
-        self.assertEqual(AsyncTimer.ONE_SHOT, 0)
-        self.assertEqual(AsyncTimer.PERIODIC, 1)
 
     def test_package_exports(self):
-        self.assertEqual(
-            set(multimer.__all__),
-            {
-                "AsyncTimer",
-                "loop_running",
-                "monotonic",
-                "run_deadline_hook",
-                "schedule",
-                "set_deadline_hook",
-                "ticks_ms",
-                "ticks_add",
-                "ticks_diff",
-                "ticks_less",
-                "asyncio",
-            },
-        )
+        for name in ("Timer", "every", "after", "sleep_ms", "pump", "schedule", "hold",
+                     "keepalive", "run_until", "timers", "info", "report", "repl",
+                     "ticks_ms", "ticks_us", "ticks_diff", "ticks_add", "ticks_less",
+                     "monotonic", "asleep_ms", "loop_running", "strategy"):
+            self.assertTrue(hasattr(multimer, name), name)
+        for gone in ("auto", "AsyncTimer", "uses_interrupts", "is_async", "librt", "polling"):
+            self.assertFalse(hasattr(multimer, gone), gone)
 
+    def test_import_arms_nothing(self):
+        # A fresh interpreter that only imports the package selects no source.
+        p = _child("import multimer, sys; print(multimer.info()['source'])")
+        self.assertEqual("None", p.stdout.strip(), p.stderr)
 
-class TestProviderSelection(unittest.TestCase):
-    def test_root_has_no_timer_or_backend_side_effects(self):
-        import subprocess
-
-        code = (
-            "import sys; sys.path.insert(0, 'lib'); import multimer; "
-            "assert not any(hasattr(multimer, n) for n in ("
-            "'Timer','sleep_ms','backends','available_backends',"
-            "'backends_available','use_backend')); "
-            "assert not any(n in sys.modules for n in ("
-            "'multimer.auto','multimer.machine','multimer.librt','multimer.win32',"
-            "'multimer.sdl2','multimer.threading','multimer.polling'))"
-        )
-        subprocess.run([sys.executable, "-c", code], check=True)
-
-    def test_explicit_provider_contract(self):
-        from multimer import polling
-
-        self.assertEqual(
-            set(polling.__all__),
-            {"Timer", "is_async", "name", "pump", "sleep_ms", "uses_interrupts"},
-        )
-        self.assertEqual(polling.name, "polling")
-        self.assertFalse(polling.uses_interrupts)
-        self.assertFalse(polling.is_async)
-        self.assertEqual(polling.Timer.__module__, "multimer.polling")
-
-    def test_environment_forces_auto_provider_at_import(self):
-        import subprocess
-
-        code = (
-            "import sys; sys.path.insert(0, 'lib'); "
-            "from multimer import auto as timer; "
-            "assert timer.name == 'polling'; "
-            "assert timer.Timer.__module__ == 'multimer.polling'"
-        )
-        env = os.environ.copy()
-        env["MULTIMER_BACKEND"] = "polling"
-        subprocess.run([sys.executable, "-c", code], check=True, env=env)
-
-    def test_environment_can_force_async_auto_provider(self):
-        import subprocess
-
-        code = (
-            "import sys; sys.path.insert(0, 'lib'); "
-            "from multimer import AsyncTimer; from multimer import auto as timer; "
-            "assert timer.name == 'async'; assert timer.Timer is AsyncTimer; "
-            "assert timer.is_async and not timer.uses_interrupts"
-        )
-        env = os.environ.copy()
-        env["MULTIMER_BACKEND"] = "async"
-        subprocess.run([sys.executable, "-c", code], check=True, env=env)
-
-    def test_invalid_environment_backend_fails_without_fallback(self):
-        import subprocess
-
-        code = (
-            "import sys; sys.path.insert(0, 'lib'); "
-            "from multimer import auto"
-        )
-        env = os.environ.copy()
-        env["MULTIMER_BACKEND"] = "no_such_backend"
-        result = subprocess.run(
-            [sys.executable, "-c", code],
-            env=env,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("unknown multimer backend", result.stderr)
-
-    def test_auto_matches_provider_contract(self):
-        self.assertEqual(
-            set(timer.__all__),
-            {"Timer", "is_async", "name", "pump", "sleep_ms", "uses_interrupts"},
-        )
-        self.assertIsInstance(timer.name, str)
-        self.assertIsInstance(timer.uses_interrupts, bool)
-        self.assertIsInstance(timer.is_async, bool)
-
-    def test_auto_backends_skips_win32_off_windows(self):
-        from unittest import mock
-
-        from multimer import auto
-
-        with mock.patch.object(auto.sys, "platform", "linux"):
-            self.assertNotIn("win32", auto._auto_backends())
-
-    @unittest.skipUnless(sys.platform == "win32", "win32 timer backend")
-    def test_win32_backend_arms(self):
-        from multimer import win32
-
+    def test_constructor_kwargs_match_machine_timer(self):
         hits = []
-        self.assertTrue(win32.uses_interrupts)
-        t = win32.Timer(-1)
-        t.init(period=40, callback=lambda _t: hits.append(1))
-        try:
-            win32.sleep_ms(120)
-        finally:
-            t.deinit()
-        self.assertGreaterEqual(len(hits), 1)
+        tim = Timer(-1, mode=Timer.PERIODIC, period=5, callback=hits.append)
+        self.addCleanup(tim.deinit)
+        self.assertTrue(tim.running)
+        self.assertEqual(5, tim.period)
+        self.assertTrue(_wait(lambda: len(hits) >= 2))
+        self.assertIs(hits[0], tim)
 
-    def test_auto_backends_skips_sdl2_when_pygame_present(self):
-        from unittest import mock
+    def test_freq_overrides_period(self):
+        tim = Timer(-1, freq=200, period=999, callback=lambda t: None)
+        self.addCleanup(tim.deinit)
+        self.assertEqual(5, tim.period)
 
-        from multimer import auto
-
-        self.assertEqual(sys.implementation.name, "cpython")
-        with mock.patch.object(auto, "_pygame_available", return_value=True):
-            self.assertNotIn("sdl2", auto._auto_backends())
-        # With pygame available, auto-selection must not land on sdl2.
-        with mock.patch.object(auto, "_pygame_available", return_value=True):
-            # Re-evaluate active backend through the same auto filter used at import.
-            candidates = auto._auto_backends()
-        self.assertNotIn("sdl2", candidates)
-
-    def test_auto_backends_allows_sdl2_on_cpython_without_pygame(self):
-        from unittest import mock
-
-        from multimer import auto
-
-        with mock.patch.object(
-            auto, "_pygame_available", return_value=False
-        ), mock.patch.object(auto.sys, "platform", "linux"):
-            self.assertIn("sdl2", auto._auto_backends())
-
-    def test_auto_backends_skips_sdl2_on_android(self):
-        from unittest import mock
-
-        from multimer import auto
-
-        with mock.patch.object(
-            auto, "_pygame_available", return_value=False
-        ), mock.patch.object(auto.sys, "platform", "android"):
-            self.assertNotIn("sdl2", auto._auto_backends())
-
-    def test_async_backend_selects_awaitable_sleep(self):
-        from multimer import auto
-
-        provider = auto._load_backend("async")
-        self.assertIs(provider.Timer, AsyncTimer)
-        self.assertTrue(provider.is_async)
-        self.assertFalse(provider.uses_interrupts)
-        coro = provider.sleep_ms(0)
-        self.addCleanup(coro.close)
-        self.assertTrue(hasattr(coro, "send"))
-
-    def test_unknown_backend_raises_value_error(self):
-        from multimer import auto
-
+    def test_invalid_arguments(self):
         with self.assertRaises(ValueError):
-            auto._load_backend("no_such_backend")
-
-    def test_unavailable_backend_raises_import_error(self):
-        # ``machine.Timer`` is absent on CPython desktop; the selection must not
-        # fall back silently when a caller asks for a specific backend.
-        try:
-            from machine import Timer as _MachineTimer  # noqa: F401
-        except ImportError:
-            pass
-        else:
-            self.skipTest("machine.Timer is available on this host")
-        with self.assertRaises(ImportError):
-            from multimer import machine  # noqa: F401
+            Timer(-1, mode=7, period=10, callback=lambda t: None)
+        with self.assertRaises(ValueError):
+            Timer(-1, period=0, callback=lambda t: None)
+        with self.assertRaises(ValueError):
+            Timer(-1, period=10, callback=42)
 
     def test_context_manager_deinits(self):
-        hits = []
-        from multimer import polling
+        with Timer(-1, period=50, callback=lambda t: None) as tim:
+            self.assertTrue(tim.running)
+        self.assertFalse(tim.running)
+        self.assertNotIn(tim, multimer.timers())
 
-        with polling.Timer(-1) as t:
-            t.init(period=20, callback=lambda _t: hits.append(1))
-            for _ in range(8):
-                polling.sleep_ms(10)
-        self.assertGreaterEqual(len(hits), 1)
-        # After exit the timer must be disarmed.
-        n = len(hits)
-        polling.sleep_ms(50)
-        self.assertEqual(len(hits), n)
+    def test_repr_shows_state(self):
+        tim = multimer.every(10, lambda t: None, name="probe")
+        self.addCleanup(tim.deinit)
+        text = repr(tim)
+        self.assertIn("name='probe'", text)
+        self.assertIn("period=10", text)
+        self.assertIn("PERIODIC", text)
 
-    def test_provider_constructor_matches_machine_timer_initialization(self):
-        from multimer import polling
-
-        hits = []
-        timer = polling.Timer(
-            -1,
-            mode=polling.Timer.ONE_SHOT,
-            period=10,
-            callback=lambda _timer: hits.append(1),
-        )
-        try:
-            polling.sleep_ms(30)
-        finally:
-            timer.deinit()
-        self.assertEqual(hits, [1])
+    def test_report_names_source_and_timers(self):
+        tim = multimer.every(10, lambda t: None, name="reported")
+        self.addCleanup(tim.deinit)
+        buf = io.StringIO()
+        multimer.report(buf)
+        text = buf.getvalue()
+        self.assertIn("multimer on cpython", text)
+        self.assertIn("source=", text)
+        self.assertIn("name='reported'", text)
 
 
 class TestTicks(unittest.TestCase):
     def test_ticks_ms_in_range(self):
         t = ticks_ms()
-        self.assertIsInstance(t, int)
         self.assertGreaterEqual(t, 0)
         self.assertLessEqual(t, _TICKS_MAX)
 
-    def test_monotonic_advances(self):
-        start = monotonic()
-        self.assertIsInstance(start, (int, float))
-        sleep_ms(20)
-        self.assertGreaterEqual(monotonic(), start)
+    def test_ticks_us_advances(self):
+        a = multimer.ticks_us()
+        time.sleep(0.002)
+        self.assertGreater(ticks_diff(multimer.ticks_us(), a), 1000)
 
     def test_ticks_add_wrap(self):
         self.assertEqual(ticks_add(_TICKS_MAX, 1), 0)
 
-    def test_ticks_add_rejects_ambiguous_intervals(self):
-        with self.assertRaises(OverflowError):
-            ticks_add(0, _TICKS_HALFPERIOD)
-        with self.assertRaises(OverflowError):
-            ticks_add(0, -_TICKS_HALFPERIOD)
-
-    def test_host_native_tick_period_is_normalized(self):
-        from unittest import mock
-
-        native_add = mock.Mock(return_value=_TICKS_PERIOD)
-        native_diff = mock.Mock(return_value=1)
-        with mock.patch.object(
-            time, "ticks_ms", return_value=_TICKS_PERIOD + 7, create=True
-        ), mock.patch.object(
-            time, "ticks_add", native_add, create=True
-        ), mock.patch.object(
-            time, "ticks_diff", native_diff, create=True
-        ):
-            portable = runpy.run_path(os.path.join(_env.MULTIMER_DIR, "_ticks.py"))
-
-        self.assertEqual(portable["ticks_ms"](), 7)
-        self.assertEqual(portable["ticks_add"](_TICKS_MAX, 1), 0)
-        self.assertEqual(portable["ticks_diff"](0, _TICKS_MAX), 1)
-        native_add.assert_not_called()
-        native_diff.assert_not_called()
-
     def test_ticks_diff_wrap(self):
-        later = ticks_add(_TICKS_MAX, 10)
-        self.assertEqual(ticks_diff(later, _TICKS_MAX), 10)
+        self.assertEqual(ticks_diff(0, _TICKS_MAX), 1)
+        self.assertEqual(ticks_diff(_TICKS_MAX, 0), -1)
 
     def test_ticks_less(self):
-        self.assertTrue(ticks_less(100, 200))
+        self.assertTrue(ticks_less(1, 2))
+        self.assertFalse(ticks_less(2, 1))
 
-    def test_sleep_ms_advances_time(self):
-        start = ticks_ms()
-        sleep_ms(50)
-        self.assertGreaterEqual(ticks_diff(ticks_ms(), start), 40)
+    def test_deadlines_survive_wraparound(self):
+        # A timer whose deadline wraps past 2**29 must still be seen as due.
+        from multimer import _dispatch
+
+        tim = Timer(-1)
+        tim.init(period=10, callback=lambda t: None)
+        self.addCleanup(tim.deinit)
+        tim._due = ticks_add(ticks_ms(), -5)  # already due, wherever "now" is
+        self.assertEqual(0, _dispatch.next_delay_ms())
 
 
-class TestTimerSemantics(unittest.TestCase):
-    def test_periodic_fires(self):
+class TestDelivery(unittest.TestCase):
+    def tearDown(self):
+        multimer.stop_all()
+
+    def test_periodic_fires_on_schedule(self):
         hits = []
-        main_thread = threading.get_ident()
-        callback_threads = []
+        tim = multimer.every(10, lambda t: hits.append(ticks_ms()))
+        multimer.sleep_ms(205)
+        tim.deinit()
+        self.assertGreaterEqual(len(hits), 18, hits)
+        self.assertLessEqual(len(hits), 21, hits)
+        gaps = [ticks_diff(b, a) for a, b in zip(hits, hits[1:])]
+        self.assertLessEqual(max(gaps), 14, gaps)
+        self.assertGreaterEqual(min(gaps), 6, gaps)
 
-        def cb(t):
-            hits.append(t)
-            callback_threads.append(threading.get_ident())
-
-        t = Timer(-1)
-        t.init(period=50, callback=cb)
-        for _ in range(35):
-            sleep_ms(10)
-        t.deinit()
-        self.assertGreaterEqual(len(hits), 2)
-        self.assertIs(hits[0], t)
-        self.assertTrue(callback_threads)
-        self.assertEqual(set(callback_threads), {main_thread})
-
-    def test_one_shot_fires_once(self):
+    def test_one_shot_fires_once_and_retires(self):
         hits = []
-        main_thread = threading.get_ident()
-        callback_threads = []
+        tim = multimer.after(20, hits.append)
+        multimer.sleep_ms(80)
+        self.assertEqual(1, len(hits))
+        self.assertFalse(tim.running)
+        self.assertIsNone(tim.due_in)
+        self.assertEqual(1, tim.fired)
+        self.assertNotIn(tim, multimer.timers())
 
-        def cb(t):
-            hits.append(t)
-            callback_threads.append(threading.get_ident())
+    def test_callbacks_run_on_the_main_thread(self):
+        idents = []
+        tim = multimer.every(5, lambda t: idents.append(threading.get_ident()))
+        multimer.sleep_ms(40)
+        tim.deinit()
+        self.assertTrue(idents)
+        self.assertEqual({threading.main_thread().ident}, set(idents))
 
-        t = Timer(-1)
-        t.init(mode=Timer.ONE_SHOT, period=50, callback=cb)
-        for _ in range(25):
-            sleep_ms(10)
-        self.assertEqual(len(hits), 1)
-        self.assertEqual(callback_threads, [main_thread])
-
-    def test_freq_overrides_period(self):
-        hits = []
-
-        t = Timer(-1)
-        t.init(freq=20, period=1, callback=lambda _t: hits.append(1))
-        for _ in range(25):
-            sleep_ms(10)
-        t.deinit()
-        self.assertGreaterEqual(len(hits), 2)
-        self.assertLessEqual(len(hits), 12)
-
-    def test_soft_coalesce_under_threading(self):
-        """``hard=False`` must go through ``_deliver`` (coalesce), not raw invoke."""
-        try:
-            from multimer import threading as thread_timer
-        except ImportError:
-            self.skipTest("threading backend unavailable")
+    def test_self_deinit_from_callback(self):
         hits = []
 
-        def cb(_t):
+        def once(t):
             hits.append(1)
-            thread_timer.sleep_ms(40)
-
-        t = thread_timer.Timer(-1)
-        t.init(period=10, callback=cb, hard=False)
-        for _ in range(20):
-            thread_timer.sleep_ms(10)
-        t.deinit()
-        # Without coalesce a 10 ms period over ~200 ms would enqueue many more.
-        self.assertGreaterEqual(len(hits), 1)
-        self.assertLessEqual(len(hits), 8)
-
-
-class TestSelfDeinit(unittest.TestCase):
-    """``deinit()`` from inside a timer's own callback must return, not deadlock.
-
-    ``_deliver()`` holds ``_busy`` for the duration of the callback, and
-    ``deinit()`` -> ``_wait_idle()`` used to spin on it, so the delivering thread
-    waited on itself forever. ``machine.Timer`` permits self-deinit from an ISR,
-    so the software providers must too.
-
-    Delivery is forced onto the ``threading`` provider's worker thread so a
-    regression surfaces as a failed deadline rather than hanging the suite.
-    """
-
-    def _self_deinit(self, hard):
-        try:
-            from multimer import threading as thread_timer
-        except ImportError:
-            self.skipTest("threading backend unavailable")
-        done = []
-        t = thread_timer.Timer(-1)
-
-        def cb(tim):
-            tim.deinit()
-            done.append(1)
-
-        t.init(period=10, callback=cb, hard=hard)
-        deadline = time.monotonic() + 2.0
-        while not done and time.monotonic() < deadline:
-            thread_timer.sleep_ms(10)
-        self.assertTrue(done, "deinit() from inside the timer's own callback did not return")
-
-    def test_self_deinit_hard(self):
-        self._self_deinit(True)
-
-    def test_self_deinit_soft(self):
-        self._self_deinit(False)
-
-    def test_wait_idle_returns_while_delivering(self):
-        """The reentrancy marker, unit-tested without a live timer."""
-        from multimer._core import _TimerCore
-
-        core = _TimerCore.__new__(_TimerCore)
-        core._busy = True
-        core._delivering = True
-        core._wait_idle()  # must return immediately
-
-
-class TestMpAsyncioShim(unittest.TestCase):
-    """``_mpasyncio`` must match the interpreter it borrows ``_asyncio`` from.
-
-    Awaitables: CircuitPython requires ``__await__`` on the operand where
-    MicroPython accepts any iterator, and the shim is shared.
-
-    Ticks: due-times land in ``_asyncio.TaskQueue``, a C pairing heap that
-    orders them in the interpreter's own ticks domain.
-    """
-
-    def setUp(self):
-        try:
-            from multimer import _mpasyncio
-        except ImportError:
-            self.skipTest("_mpasyncio unavailable (build ships a real asyncio)")
-        self.mod = _mpasyncio
-
-    def test_sleep_is_awaitable(self):
-        self.assertTrue(hasattr(self.mod.sleep(0), "__await__"))
-        self.mod._sleep_ms_sgen.state = None
-        self.assertTrue(hasattr(self.mod.sleep_ms(0), "__await__"))
-        self.mod._sleep_ms_sgen.state = None
-
-    def test_event_wait_is_awaitable(self):
-        self.assertTrue(hasattr(self.mod.Event().wait(), "__await__"))
-
-    def test_ticks_domain_matches_the_task_queue(self):
-        """multimer's ticks_ms masks to 29 bits; time.ticks_ms is 30-bit.
-
-        Handing the C task queue the masked value made every key sort half a
-        period away, so tasks were never popped and an AsyncTimer armed under
-        this shim never fired.
-        """
-        native = getattr(time, "ticks_ms", None)
-        if native is None:
-            self.skipTest("interpreter has no time.ticks_ms")
-        self.assertIs(native, self.mod.ticks)
-
-
-class TestAsyncTimer(unittest.TestCase):
-    def test_requires_running_loop(self):
-        t = AsyncTimer(-1)
-        with self.assertRaises(RuntimeError):
-            t.init(period=20, callback=lambda _t: None)
-
-    def test_periodic_under_asyncio(self):
-        import asyncio as std_asyncio
-
-        hits = []
-        main_thread = threading.get_ident()
-        callback_threads = []
-
-        async def main():
-            t = AsyncTimer(-1)
-            t.init(
-                period=20,
-                callback=lambda tim: (
-                    hits.append(tim),
-                    callback_threads.append(threading.get_ident()),
-                ),
-            )
-            await std_asyncio.sleep(0.15)
             t.deinit()
 
-        std_asyncio.run(main())
-        self.assertGreaterEqual(len(hits), 2)
-        self.assertEqual(set(callback_threads), {main_thread})
+        multimer.every(5, once)
+        multimer.sleep_ms(40)
+        self.assertEqual(1, len(hits))
 
-
-class TestLoopRunning(unittest.TestCase):
-    def test_false_outside_a_loop(self):
-        self.assertFalse(multimer.loop_running())
-
-    def test_true_inside_a_loop(self):
-        from multimer import asyncio
-
-        async def main():
-            return multimer.loop_running()
-
-        self.assertTrue(asyncio.run(main()))
-
-    def test_ignores_get_event_loop(self):
-        """``get_event_loop`` returns a loop even when none runs, so it must not be used.
-
-        A backend offering only ``get_event_loop`` has to report "no loop" rather
-        than trusting it — the case that made appdev defer async timers forever
-        on MicroPython.
-        """
-        from multimer import _asyncio_loader
-
-        class OnlyGetEventLoop:
-            def get_event_loop(self):
-                return "a loop that is not running"
-
-        saved = _asyncio_loader._asyncio_mod
-        _asyncio_loader._asyncio_mod = OnlyGetEventLoop()
+    def test_raising_callback_keeps_its_schedule_and_prints_once(self):
+        err = io.StringIO()
+        real = sys.stderr
+        sys.stderr = err
         try:
-            self.assertFalse(_asyncio_loader.loop_running())
+            tim = multimer.every(5, lambda t: 1 / 0)
+            multimer.sleep_ms(60)
+            tim.deinit()
         finally:
-            _asyncio_loader._asyncio_mod = saved
+            sys.stderr = real
+        self.assertGreaterEqual(tim.fired, 5)
+        self.assertIsInstance(tim.error, ZeroDivisionError)
+        self.assertEqual(1, err.getvalue().count("ZeroDivisionError"))
 
-    def test_prefers_current_task_over_get_running_loop(self):
-        """CircuitPython's ``get_running_loop()`` succeeds with no loop running."""
-        from multimer import _asyncio_loader
-
-        class LyingGetRunningLoop:
-            def current_task(self):
-                return None
-
-            def get_running_loop(self):
-                return "a loop that is not running"
-
-        saved = _asyncio_loader._asyncio_mod
-        _asyncio_loader._asyncio_mod = LyingGetRunningLoop()
-        try:
-            self.assertFalse(_asyncio_loader.loop_running())
-        finally:
-            _asyncio_loader._asyncio_mod = saved
-
-
-class TestSchedule(unittest.TestCase):
-    def test_schedule_main_thread(self):
+    def test_schedule_runs_at_the_next_safe_point(self):
+        # On a bytecode host the next safe point is the very next bytecode,
+        # so the work may already be done by the next line; what is promised
+        # is that it never runs inside a hold, and has run once pump() returns.
         seen = []
-        multimer.schedule(seen.append, 42)
-        self.assertEqual(seen, [42])
+        with multimer.hold():
+            multimer.schedule(seen.append, "x")
+            t0 = ticks_ms()
+            while ticks_diff(ticks_ms(), t0) < 20:
+                pass
+            self.assertEqual([], seen, "a hold masks scheduled work too")
+        multimer.pump()
+        self.assertEqual(["x"], seen)
+
+    def test_schedule_from_another_thread_lands_on_main(self):
+        seen = []
+        th = threading.Thread(target=multimer.schedule, args=(lambda a: seen.append(threading.get_ident()), None))
+        th.start()
+        th.join()
+        _wait(lambda: seen)
+        self.assertEqual([threading.main_thread().ident], seen)
+
+    def test_run_until(self):
+        count = []
+        tim = multimer.every(5, lambda t: count.append(1))
+        multimer.run_until(lambda: len(count) >= 3)
+        tim.deinit()
+        self.assertGreaterEqual(len(count), 3)
+
+
+class TestRulesThatKeepOldBugsDead(unittest.TestCase):
+    """Each of these cost a night before the redesign. Each is shown to fail
+    without the rule: the assertions are on behaviour the dispatcher
+    enforces, and the numbers would come out the other way with today's
+    per-provider delivery (the baselines in proposals/timing record them)."""
+
+    def tearDown(self):
+        multimer.stop_all()
+
+    def test_hold_masks_delivery_and_flushes_at_exit(self):
+        # The audio-pump class: a scheduled tick re-entering Python inside a
+        # critical section. Inside hold() nothing is delivered; what came due
+        # is delivered once at exit, not in a burst.
+        hits = []
+        tim = multimer.every(5, lambda t: hits.append(ticks_ms()))
+        multimer.sleep_ms(12)
+        before = len(hits)
+        with multimer.hold():
+            t0 = ticks_ms()
+            while ticks_diff(ticks_ms(), t0) < 60:
+                pass
+            inside = len(hits)
+        after = len(hits)
+        tim.deinit()
+        self.assertEqual(before, inside, "delivered inside a hold")
+        self.assertEqual(inside + 1, after, "exactly one catch-up delivery at exit")
+
+    def test_a_callback_is_never_interrupted_by_another(self):
+        order = []
+
+        def slow(t):
+            order.append("slow-in")
+            t0 = ticks_ms()
+            while ticks_diff(ticks_ms(), t0) < 30:
+                pass
+            order.append("slow-out")
+
+        def fast(t):
+            order.append("fast")
+
+        a = multimer.every(50, slow)
+        b = multimer.every(5, fast)
+        multimer.sleep_ms(120)
+        a.deinit()
+        b.deinit()
+        text = " ".join(order)
+        self.assertIn("slow-in slow-out", text, text)
+
+    def test_overrun_lowers_the_rate_instead_of_taking_the_thread(self):
+        # lvgl-bindings#15: a 30 ms pass on a 10 ms timer must not run
+        # back-to-back. Between two passes the main line must get at least as
+        # long as the pass took.
+        starts = []
+        ends = []
+
+        def pass_(t):
+            starts.append(ticks_ms())
+            t0 = ticks_ms()
+            while ticks_diff(ticks_ms(), t0) < 30:
+                pass
+            ends.append(ticks_ms())
+
+        tim = multimer.every(10, pass_)
+        multimer.sleep_ms(250)
+        tim.deinit()
+        self.assertGreaterEqual(len(starts), 3, starts)
+        idle = [ticks_diff(s, e) for e, s in zip(ends, starts[1:])]
+        self.assertGreaterEqual(min(idle), 28, idle)
+        self.assertGreater(tim.missed, 0)
+
+    def test_yield_is_capped(self):
+        # lvgl-bindings#19: a 150 ms pass holds for the cap (100 ms by
+        # default), not for another 150 ms of idle.
+        starts = []
+        ends = []
+
+        def pass_(t):
+            starts.append(ticks_ms())
+            t0 = ticks_ms()
+            while ticks_diff(ticks_ms(), t0) < 150:
+                pass
+            ends.append(ticks_ms())
+
+        tim = multimer.every(10, pass_)
+        multimer.sleep_ms(600)
+        tim.deinit()
+        idle = [ticks_diff(s, e) for e, s in zip(ends, starts[1:])]
+        self.assertTrue(idle, starts)
+        self.assertGreaterEqual(min(idle), 98, idle)
+        self.assertLessEqual(max(idle), 125, idle)
+
+    def test_yield_cap_zero_keeps_only_the_grid(self):
+        starts = []
+
+        def pass_(t):
+            starts.append(ticks_ms())
+            t0 = ticks_ms()
+            while ticks_diff(ticks_ms(), t0) < 25:
+                pass
+
+        tim = multimer.every(10, pass_)
+        tim.yield_cap = 0
+        multimer.sleep_ms(200)
+        tim.deinit()
+        gaps = [ticks_diff(b, a) for a, b in zip(starts, starts[1:])]
+        self.assertLessEqual(max(gaps), 34, gaps)
+
+    def test_no_catch_up_burst_after_a_stall(self):
+        hits = []
+        tim = multimer.every(5, lambda t: hits.append(ticks_ms()))
+        multimer.sleep_ms(12)
+        with multimer.hold():
+            time.sleep(0.2)
+        multimer.sleep_ms(30)
+        tim.deinit()
+        gaps = [ticks_diff(b, a) for a, b in zip(hits, hits[1:])]
+        self.assertFalse([g for g in gaps if g < 2], gaps)
+        self.assertGreaterEqual(tim.missed, 30)
+
+    def test_deadlines_are_absolute(self):
+        # Delivery latency must not drift the schedule: after N periods the
+        # timer is still on the grid it started on.
+        hits = []
+        tim = multimer.every(10, lambda t: hits.append(ticks_ms()))
+        multimer.sleep_ms(505)
+        tim.deinit()
+        self.assertGreaterEqual(len(hits), 48, len(hits))
+        span = ticks_diff(hits[-1], hits[0])
+        self.assertAlmostEqual(span / (len(hits) - 1), 10, delta=0.3)
+
+
+class TestWakeSources(unittest.TestCase):
+    """Each source in its own interpreter."""
+
+    CODE = r"""
+import sys, threading, time, multimer
+from multimer import ticks_ms, ticks_diff
+hits = []
+idents = set()
+def cb(t):
+    hits.append(ticks_ms()); idents.add(threading.get_ident())
+tim = multimer.every(10, cb)
+multimer.sleep_ms(200)
+idle = len(hits)
+hits.clear()
+t0 = ticks_ms()
+while ticks_diff(ticks_ms(), t0) < 200:
+    pass
+busy = len(hits)
+hits.clear()
+time.sleep(0.2)          # a blocking sleep the source may or may not wake
+blocked = len(hits)
+multimer.sleep_ms(30)    # the burst check: at most one catch-up after the stall
+catchup = len(hits) - blocked
+tim.deinit()
+print(multimer.info()["source"], idle, busy, blocked, catchup, idents == {threading.main_thread().ident})
+"""
+
+    def _run(self, source):
+        p = _child(self.CODE, source=source)
+        self.assertEqual(0, p.returncode, p.stderr)
+        name, idle, busy, blocked, catchup, on_main = p.stdout.split()
+        return name, int(idle), int(busy), int(blocked), int(catchup), on_main == "True"
+
+    def test_signal_source_delivers_everywhere(self):
+        if sys.platform not in ("linux", "darwin"):
+            self.skipTest("POSIX only")
+        name, idle, busy, blocked, catchup, on_main = self._run("signal")
+        self.assertEqual("signal", name)
+        self.assertGreaterEqual(idle, 18)
+        self.assertGreaterEqual(busy, 18, "bytecode delivery while the main thread computes")
+        self.assertGreaterEqual(blocked, 18, "a signal wakes time.sleep too")
+        self.assertTrue(on_main)
+
+    def test_pending_source_delivers_between_bytecodes_on_the_main_thread(self):
+        # The Android class (SDL's timer thread refused by EGL) and the
+        # Windows class (APCs needing an alertable wait) both die here: the
+        # worker only keeps time, the callback lands on the main thread.
+        name, idle, busy, blocked, catchup, on_main = self._run("pending")
+        self.assertEqual("pending", name)
+        self.assertGreaterEqual(idle, 18)
+        self.assertGreaterEqual(busy, 15, "delivery between bytecodes, GIL switch interval permitting")
+        self.assertLessEqual(blocked, 1, "a pending call cannot wake time.sleep; documented")
+        self.assertLessEqual(catchup, 3, "no burst after the stall: one catch-up at most, then the grid")
+        self.assertTrue(on_main)
+
+    def test_none_source_delivers_only_at_idle_points(self):
+        name, idle, busy, blocked, catchup, on_main = self._run("none")
+        self.assertEqual("none", name)
+        self.assertGreaterEqual(idle, 18, "sleep_ms serves the heap itself")
+        self.assertEqual(0, busy, "the planted fault: nothing wakes a busy loop")
+        self.assertEqual(0, blocked)
+
+    def test_asyncio_source_rides_a_running_loop(self):
+        code = r"""
+import asyncio, multimer
+hits = []
+async def main():
+    tim = multimer.every(10, lambda t: hits.append(1))
+    await asyncio.sleep(0.2)
+    tim.deinit()
+    print(multimer.info()["source"], len(hits))
+asyncio.run(main())
+"""
+        p = _child(code, source="asyncio")
+        self.assertEqual(0, p.returncode, p.stderr)
+        name, n = p.stdout.split()
+        self.assertEqual("asyncio", name)
+        self.assertGreaterEqual(int(n), 17)
+
+    def test_unknown_source_fails_loud(self):
+        p = _child("import multimer; multimer.every(10, lambda t: None); print(multimer.info()['source'], multimer.info().get('source_error'))", source="bogus")
+        self.assertIn("none", p.stdout)
+        self.assertIn("unknown multimer source", p.stdout)
 
 
 if __name__ == "__main__":
