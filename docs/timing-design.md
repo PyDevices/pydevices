@@ -433,8 +433,11 @@ all three interpreters: 100 ms, readline's poll.
 
 ## Ledger
 
-Phase results in order. "Here" means measured in this cloud session;
-"bench" means built here and waiting for hardware.
+Phase results in order. "Here" means measured in the cloud session that
+designed this; "hardware" means measured on Brad's bench by the local session
+of 2026-09-26 that landed it (Windows 11, the ESP32-P4 panel, the LilyGO
+T-Embed S3, and a Galaxy S21 over adb). Numbers on the bench are their own
+runs, not the cloud's; the cloud's container was 4 cores, the bench is 8.
 
 - **Phase 0, survey and toolchain (here, 2026-09-26).** All 25 repositories
   cloned; MicroPython v1.29.0 prepared with overlay 1de7348 and built for
@@ -449,16 +452,16 @@ Phase results in order. "Here" means measured in this cloud session;
   signal handler that only calls `micropython.schedule` delivers in a busy
   loop (99/100), in `sleep_ms` (50/50) and at the REPL (250 after 2.5 s).
 
-- **Phase 1, desktop hosts (here).** The redesign is in `pydevices` (lib/multimer, appdev,
-  displaydev), with 558 unit tests passing but one that fails on `origin/main`
-  in this container too (`test_displaydev_capabilities`, the byteswap backend
-  reads `array` here). `prove_repl/prove.py` passes on CPython 3.12, 3.13 and
-  unix MicroPython: ticks grow at an idle `-i` prompt, `report()` answers,
-  keepalive holds a script until it stops, a crash exits; the planted fault
-  (no source, hook off) fails as it should. The numbers above are from this
-  phase. Pygame present or absent makes no difference to the source chosen
-  (`signal` on Linux either way); the `sdl2` provider is gone, so there is
-  no dual-SDL path to deadlock.
+- **Phase 1, desktop hosts (here; re-confirmed on the bench).** The redesign
+  is in `pydevices` (lib/multimer, appdev, displaydev). Its unit suite passes
+  (`python -m unittest discover -s tests` is green on the bench, 17 skipped).
+  `prove_repl/prove.py` passes on the bench on CPython 3.12 and unix
+  MicroPython (and CircuitPython-on-Linux, Phase 4): ticks grow at an idle
+  `-i` prompt, `report()` answers, keepalive holds a script until it stops, a
+  crash exits; the planted fault (no source, hook off) fails as it should. The
+  desktop-Linux numbers above are from this phase. Pygame present or absent
+  makes no difference to the source chosen (`signal` on Linux either way); the
+  `sdl2` provider is gone, so there is no dual-SDL path to deadlock.
 - **Phase 2, LVGL and pygraphics without `app.run()` (here).** `lv_test_timer.py
   kit` passes on CPython and unix MicroPython on the new `display_driver`
   (`status ok, taps 1`), and `prove_hostloop` (a pygraphics-shaped app with a
@@ -484,16 +487,50 @@ Phase results in order. "Here" means measured in this cloud session;
   under 0.7 ms, nothing while busy (by design), `multimer.repl()` on a pty
   keeps ticks growing between typed lines and answers `report()`, keepalive
   and crash modes pass.
-- **Phase 5, Windows, Android, boards (bench).** Built and planned in
-  [timing-hardware-tests.md](timing-hardware-tests.md): the `pending` source and
-  the input hook for Windows CPython and Android, the `machine` source for
-  boards, `repl()` for CircuitPython boards, and overlay patch 0015 (the
-  `_timing` module and the console wait) for micropython.exe, built here
-  with mingw and run under Wine: 50/50 idle and busy on the bytecode and
-  `sleep_ms` paths, `hold()` and the error path as designed. The console and
-  pipe paths are Wine's blind spot (it reports the console always signalled
-  and refuses `PeekNamedPipe`), so the REPL goal on micropython.exe is the
-  first thing the Windows plan runs.
+- **Phase 5, Windows, Android, boards (hardware, 2026-09-26).** Run on the
+  bench; the details and what each run saw are in
+  [timing-hardware-tests.md](timing-hardware-tests.md), and the numbers are in
+  [the hardware table below](#numbers-on-hardware). In short:
+  - **Windows CPython (`python.exe` 3.14) and MicroPython (`micropython.exe`,
+    overlay patch 0015).** The REPL goal holds in a real console (a Windows
+    pseudo console, ConPTY): about 100 callbacks a second at an idle `-i`
+    prompt on both, `report()` answers `source=pending` and `source=native`,
+    and the planted fault (no source, hook off) stands still. The `-m` freeze
+    of pydevices-examples#141 has no mechanism left. Two things the bench
+    found that Wine could not: Windows' default 15.6 ms timer resolution held
+    both layers back, so the `pending` source and `_timing` now ask for 1 ms
+    as SDL does; and a callback the port had already scheduled was taking a
+    second trip through the scheduler queue, which held `micropython.exe`'s
+    idle prompt to 20 a second until the `machine`/`native` sources were made
+    to deliver directly.
+  - **Android (Galaxy S21, `pending`).** `source=pending delivery=bytecode
+    host=cpython/android`: 100 callbacks a second with the main thread idle
+    and 99 with it spinning in pure Python, so callbacks run on the main GLES
+    thread with no `threading` fallback and no SDL-timer/EGL hazard. The old
+    layer there falls back to `threading`: 289 of 400 idle with 111 missed,
+    and 0 while busy. `MULTIMER_BACKEND=threading` in the runner's `boot.py`
+    is now dead weight (the redesign reads `MULTIMER_SOURCE`); deleting that
+    line is a one-line follow-up in android-runner.
+  - **MicroPython on boards (P4 panel, T-Embed S3, `machine`).** No
+    interpreter change. Idle jitter fell from a whole 10 ms period with
+    hundreds of catch-up bursts to well under a millisecond with none (P4:
+    p50 10 ms / 414 bursts → 0.03 ms / 0 bursts; T-Embed: 7 ms / 131 → 0.5 ms
+    / 0). LVGL runs on the panel with no `app.run()`: the arc animates and the
+    seconds count at the REPL, a tap registers, and a 300-iteration Python
+    loop finishes in 88 ms (P4) while the UI animates instead of being starved
+    — the frame-gate class of lvgl-bindings#15 stays dead. `report()` shows
+    the `lvgl`, `app.service` and display refresh timers with their periods
+    and misses.
+  - **CircuitPython on a board (T-Embed S3, `source=none`).** Idle-only
+    delivery, as designed: 84 callbacks a second through `sleep_ms` with the
+    main thread idle, 0 while it spins, and `report()` answers over the serial
+    console. Same mechanism as the unix build in Phase 4.
+  - **Pending:** the LVGL launcher and drum machine on the phone (kept the
+    screen at brightness 1 for photosensitivity and stayed within the P4/phone
+    windows); the mechanism they would exercise, main-thread bytecode
+    delivery, is what the Android numbers already prove. PyScript/Pyodide
+    pages (the `asyncio` source, the same code the Jupyter proof runs) and an
+    `mp-wasm` rebuild carrying the bridge fix remain the two browser follow-ups.
 - **Phase 6, the deliverables (here).** The four repository series were
   exported with `git format-patch` from branches on each repository's
   `origin/main`, then re-applied with `git am` onto a fresh checkout of each
@@ -502,3 +539,66 @@ Phase results in order. "Here" means measured in this cloud session;
   2026-09-26 (pydevices, lvgl-bindings and pydevices-examples on the
   recorded bases, which were still `main`; micropython-pydevices rebased
   over one commit with no conflict).
+
+## Numbers on hardware
+
+Measured on the bench on 2026-09-26, current multimer against the redesign,
+same `bench_timer.py`, one 10 ms timer for 5 s, quiet machine. Jitter is
+|interval − 10 ms|; lateness is deadline-to-callback, which only the redesign
+reports. "Bursts" is callbacks less than a quarter-period apart (catch-up
+storms). Idle is a main thread in `sleep_ms`; busy is a pure-Python loop that
+never yields.
+
+### Timer delivery, idle main thread
+
+| Host | Layer, source | Delivered / 500 | Jitter p50 / p99 (ms) | Lateness p99 (ms) | Bursts |
+|---|---|---|---|---|---|
+| Windows CPython 3.14 | current, `win32` | 301 | 6.0 / 13.6 | – | 0 |
+| Windows CPython 3.14 | current, `threading` | 435 | 0.7 / 6.9 | – | 0 |
+| Windows CPython 3.14 | **redesign, `pending`** | **502** | **0.4 / 1.3** | **1** | 0 |
+| Windows `micropython.exe` | current, `win32` | 304 | 5.9 / 13.0 | – | 0 |
+| Windows `micropython.exe` | **redesign, `native`** | **507** | **0.5 / 3.1** | **4** | 0 |
+| ESP32-P4, MicroPython | current, `machine` | 511 | 10.0 / 56.5 | – | 414 |
+| ESP32-P4, MicroPython | **redesign, `machine`** | **511** | **0.03 / 4.2** | **4** | 0 |
+| T-Embed S3, MicroPython | current, `machine` | 503 | 7.0 / 10.0 | – | 131 |
+| T-Embed S3, MicroPython | **redesign, `machine`** | **511** | **0.5 / 1.3** | **8** | 0 |
+| T-Embed S3, CircuitPython | **redesign, `none`** (idle only) | 84/s | – | – | 0 |
+| Galaxy S21, CPython | current, `threading` | 289 (of 400) | – | – | – |
+| Galaxy S21, CPython | **redesign, `pending`** | 100/s | – | 28 (max) | – |
+
+Windows figures are at the 1 ms timer resolution the redesign now requests; at
+the default 15.6 ms the `pending` idle run still delivered 502/500 but a busy
+main thread dropped to 327 with 23 ms p99 lateness, which is why the source
+raises the resolution while it runs. The board `machine` source needs no
+interpreter change. The Android and CircuitPython-board rows are rates over a
+1 s window (the probes ran a fixed second, not the 5 s bench).
+
+### Timer delivery, busy main thread (no yield)
+
+| Host | Layer, source | Delivered / 500 | Note |
+|---|---|---|---|
+| Windows CPython 3.14 | current, `win32` / `threading` | 0 | need `pump()` |
+| Windows CPython 3.14 | **redesign, `pending`** | **500** | lateness p99 8 ms (the GIL switch interval) |
+| Windows `micropython.exe` | **redesign, `native`** | **507** | jitter p99 2.3 ms, lateness p99 4 ms |
+| ESP32-P4, MicroPython | current, `machine` | 509 | jitter p99 10.0 ms |
+| ESP32-P4, MicroPython | **redesign, `machine`** | **503** | jitter p99 0.7 ms, lateness p99 1 ms |
+| T-Embed S3, MicroPython | **redesign, `machine`** | **502** | jitter p99 0.6 ms, lateness p99 1 ms |
+| Galaxy S21, CPython | current, `threading` | 0 (of 400) | need `pump()` |
+| Galaxy S21, CPython | **redesign, `pending`** | 99/s | on the main GLES thread, no EGL hazard |
+| T-Embed S3, CircuitPython | **redesign, `none`** | 0 | idle-only, by design |
+
+The one thing the interrupt providers were good at — delivering while the
+program computes — the redesign keeps, and gets on the *main* thread on every
+host that can interrupt. Where a host cannot (CircuitPython), busy delivery is
+0 by contract and the program yields with `sleep_ms`/`pump`, as before.
+
+### LVGL and the REPL on boards
+
+On both panels `import lv_test_timer` with no `app.run()` leaves the arc
+animating and the seconds counting at the REPL, a tap registers, and
+`report()` lists the `lvgl`, `app.service` and display refresh timers. The
+frame-gate class of lvgl-bindings#15 stays dead: a 300-iteration Python loop
+finished in 88 ms on the P4 while the UI animated, rather than being starved
+for tens of seconds. The REPL goal holds on `micropython.exe` and `python.exe`
+in a real console and on both boards over mpftp: a timer-driven script ends,
+the prompt returns, the timers keep firing, and `report()` answers.
