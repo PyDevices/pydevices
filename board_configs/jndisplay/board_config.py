@@ -10,7 +10,6 @@ height = 480
 display_drv = JNDisplay(width, height)
 
 host_read = display_drv.get_events
-timer_async = display_drv.requires_async_timer
 
 display_drv.fill(0)
 

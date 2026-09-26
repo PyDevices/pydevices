@@ -29,14 +29,14 @@ _MULTIMER_CHILD = textwrap.dedent(
 
     import multimer
     from multimer import (
-        AsyncTimer,
+        Timer,
         schedule,
+        sleep_ms,
         ticks_add,
         ticks_diff,
         ticks_less,
         ticks_ms,
     )
-    from multimer import auto as timer
 
     forbidden = [m for m in {siblings!r} if m in sys.modules]
     assert not forbidden, "multimer pulled in sibling modules: %r" % forbidden
@@ -44,17 +44,18 @@ _MULTIMER_CHILD = textwrap.dedent(
     assert ticks_ms() >= 0
     seen = []
     schedule(lambda x: seen.append(x), 1)
+    multimer.pump()
     assert seen == [1], seen
 
     hits = []
-    t = timer.Timer(-1)
+    t = Timer(-1)
     t.init(period=50, callback=lambda tim: hits.append(tim))
     deadline = time.monotonic() + 0.35
     while time.monotonic() < deadline:
-        timer.sleep_ms(10)
+        sleep_ms(10)
     t.deinit()
     assert hits, "standalone timer never fired"
-    assert AsyncTimer is not None, "AsyncTimer should be available on CPython"
+    assert multimer.info()["source"] is not None, "a wake source should have been chosen"
 
     print("STANDALONE_OK")
     """

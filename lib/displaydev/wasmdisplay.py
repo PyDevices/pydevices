@@ -252,14 +252,12 @@ class WasmDisplay(DesktopDisplay, FBDisplay):
             so draws that never call ``show()`` explicitly (e.g. a scroll
             timer) still reach the composited front buffer once double-
             buffered.
-        requires_async_timer (bool): True — single-threaded cooperative browser
-            WASM, like :class:`PSDisplay`/:class:`JNDisplay`: without the
-            async-driven host loop, ``app.every()`` timers (and the
-            ``needs_refresh`` timer above) never fire.
     """
 
     needs_refresh = True
-    requires_async_timer = True
+    # The browser scans the framebuffer each animation frame; 60 Hz is the
+    # common case and the bridge does not yet report the real rate.
+    refresh_period_ms = 16
     quit_chord = (keys.K_AC_BACK, 0)
 
     def __init__(

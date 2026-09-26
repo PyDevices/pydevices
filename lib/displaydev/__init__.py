@@ -413,6 +413,86 @@ def _blit_transparent_generic(blit_rect, buf, x, y, w, h, bpp, key):
                 colstart += bpp
 
 
+class FrameClock:
+    """A display's frame cadence as a subscription: ``subscribe(fn)`` calls
+    ``fn()`` once per frame, on the main thread, from ``multimer``.
+
+    ``period_ms`` is the frame period the backend knows about; ``count`` and
+    ``last`` (``ticks_ms``) say what has been delivered; ``stop()`` releases
+    the underlying timer. A backend with a host frame signal (vsync, the
+    browser's animation frame) subclasses this and overrides ``_start`` /
+    ``_stop`` to deliver from that signal instead of a timer.
+    """
+
+    def __init__(self, period_ms, name=None):
+        self._period_ms = max(1, int(period_ms))
+        self.name = name or "frame"
+        self.count = 0
+        self.last = None
+        self._subs = []
+        self._timer = None
+
+    @property
+    def period_ms(self):
+        return self._period_ms
+
+    @period_ms.setter
+    def period_ms(self, value):
+        value = max(1, int(value))
+        if value == self._period_ms:
+            return
+        self._period_ms = value
+        if self._timer is not None:
+            self._stop()
+            self._start()
+
+    @property
+    def running(self):
+        return self._timer is not None
+
+    def subscribe(self, fn):
+        if not callable(fn):
+            raise ValueError("fn must be callable")
+        if fn not in self._subs:
+            self._subs.append(fn)
+        if self._timer is None:
+            self._start()
+        return fn
+
+    def unsubscribe(self, fn):
+        try:
+            self._subs.remove(fn)
+        except ValueError:
+            pass
+        if not self._subs:
+            self.stop()
+
+    def stop(self):
+        self._stop()
+
+    def _start(self):
+        import multimer
+
+        self._timer = multimer.every(self._period_ms, self._tick, name=self.name)
+
+    def _stop(self):
+        t = self._timer
+        self._timer = None
+        if t is not None:
+            t.deinit()
+
+    def _tick(self, _timer=None):
+        self.count += 1
+        try:
+            from multimer import ticks_ms
+
+            self.last = ticks_ms()
+        except ImportError:
+            pass
+        for fn in tuple(self._subs):
+            fn()
+
+
 class DisplayDriver:
     """
     Base class for all display backends (BusDisplay, SDLDisplay, PGDisplay, FBDisplay, etc.).
@@ -432,12 +512,30 @@ class DisplayDriver:
     """
 
     needs_refresh = False
-    # True on async-native hosts (PSDisplay / JNDisplay); desktop PG/SDL keep False.
-    # Board configs decide appdev.App.timer_async via env_bool(..., display.requires_async_timer).
-    requires_async_timer = False
+    # The display's own frame period: what ``appdev.App`` presents at and what a
+    # GUI's refresh timer is set to. A backend that can measure its host's
+    # refresh (vsync, requestAnimationFrame) sets it; 33 ms otherwise.
+    refresh_period_ms = 33
     share_framebuffer = False
     # HostEventsDevice reads this ``(key, mod)`` tuple; None disables keyboard quit.
     quit_chord = None
+
+    @property
+    def frame_clock(self):
+        """This display's :class:`FrameClock`: "call me once per frame".
+
+        Created on first use. Backends with a real frame signal override
+        ``_make_frame_clock``; the default is a ``multimer`` timer at
+        :attr:`refresh_period_ms`.
+        """
+        fc = getattr(self, "_frame_clock", None)
+        if fc is None:
+            fc = self._make_frame_clock()
+            self._frame_clock = fc
+        return fc
+
+    def _make_frame_clock(self):
+        return FrameClock(self.refresh_period_ms, name="frame:%s" % (self.__class__.__name__,))
 
     def framebuffers(self):
         """Return panel buffers for direct GUI paint, or ``None``.

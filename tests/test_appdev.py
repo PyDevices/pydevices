@@ -181,9 +181,11 @@ class TestTimerSubscriptions(unittest.TestCase):
         def on_tick(t):
             hits_dec.append(t)
 
-        self.assertEqual(len(self.app._tick_callbacks), 2)
+        subs = [t for t in self.app.timers if t.name != "app.service"]
+        self.assertEqual(len(subs), 2)
         sub.cancel()
-        self.assertEqual(len(self.app._tick_callbacks), 1)
+        subs = [t for t in self.app.timers if t.name != "app.service"]
+        self.assertEqual(len(subs), 1)
 
 
 class TestDeviceAdapters(unittest.TestCase):

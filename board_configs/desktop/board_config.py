@@ -19,7 +19,6 @@ display_drv = AutoDisplay(
 )
 
 host_read = display_drv.get_events
-timer_async = env_bool("PYDEVICES_TIMER_ASYNC", display_drv.requires_async_timer)
 
 display_drv.fill(0)
 

@@ -323,7 +323,6 @@ class JNDisplay(DesktopDisplay):
     """
 
     needs_refresh = True
-    requires_async_timer = True
     quit_chord = (keys.K_AC_BACK, 0)
 
     _next_display_id = 0
