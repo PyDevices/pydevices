@@ -28,10 +28,11 @@ display_drv = ST7789(
     width=240,
     height=240,
     colstart=0,
-    rowstart=0,
+    rowstart=80,
     # The panel is mounted upside down against the controller: MX|MY (0xC0),
-    # which is the mirrored table's 180. Flipping rows moves the visible
-    # 240 of the controller's 320 to rows 0-239, so rowstart is 0, not 80.
+    # which is the mirrored table's 180. The glass is rows 80-319 of the
+    # controller's 320 in this orientation too (CircuitPython's board
+    # definition keeps MY set and offsets that axis by 80 as well).
     rotation=180,
     mirrored=True,
     color_depth=16,
