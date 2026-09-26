@@ -1,10 +1,13 @@
-"""Adafruit FunHouse ST7789 + TT21100 — MicroPython (ESP32-S2)"""
+"""Adafruit FunHouse ST7789 + three buttons — MicroPython (ESP32-S2)
+
+The FunHouse has no touchscreen: its touch inputs are capacitive pads and a
+slider, not a TT21100. GPIO21 is the TFT backlight, so nothing else may claim it.
+"""
 
 from keypad_gpio import GPIOButtons
 from machine import I2C, Pin
 from spibus import SPIBus
 from st7789 import ST7789
-from tt21100 import TT21100
 
 
 import keys
@@ -31,20 +34,11 @@ display_drv = ST7789(
     color_depth=16,
     bgr=False,
     reverse_bytes_in_word=True,
+    backlight_pin=21,
+    backlight_on_high=True,
 )
-# Shared UI I2C: touch + AHT20 + BMP280 + STEMMA
+# Board I2C: AHT20 (0x38), DPS310 (0x77) and the STEMMA port
 i2c = I2C(0, sda=Pin(34), scl=Pin(33), freq=400_000)
-touch = TT21100(i2c)
-
-
-def _touch_points():
-    touches = touch.touches
-    if not touches:
-        return ()
-    return tuple((t["x"], t["y"]) for t in touches)
-
-
-touch_rotation_table = (0, 0, 0, 0)
 
 # BUTTON_DOWN=3, BUTTON_SELECT=4, BUTTON_UP=5
 keypad = GPIOButtons(
@@ -55,7 +49,6 @@ keypad = GPIOButtons(
     }
 )
 
-touch_read = _touch_points
 keypad_read = keypad.read
 
 from board_peripherals import PERIPHERALS, load_peripherals
