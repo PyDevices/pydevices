@@ -505,7 +505,12 @@ runs, not the cloud's; the cloud's container was 4 cores, the bench is 8.
     pseudo console, ConPTY): about 100 callbacks a second at an idle `-i`
     prompt on both, `report()` answers `source=pending` and `source=native`,
     and the planted fault (no source, hook off) stands still. The `-m` freeze
-    of pydevices-examples#141 has no mechanism left. Two things the bench
+    of pydevices-examples#141 has no mechanism left, and the related hang
+    Brad found on 2026-09-27 — `python.exe -i -m examples.roku_remote`'s
+    WinDisplay window marked hung for as long as the prompt waits, because
+    only a timer pumps its message queue — is reproduced on the current
+    layer and gone on this one (`tools/prove_repl/win_window_alive.py`).
+    Two things the bench
     found that Wine could not: Windows' default 15.6 ms timer resolution held
     both layers back, so the `pending` source and `_timing` now ask for 1 ms
     as SDL does; and a callback the port had already scheduled was taking a

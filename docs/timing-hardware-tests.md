@@ -186,6 +186,22 @@ per-plan record of pass/fail and anything found.
   delivering directly from sources the port already schedules. Patch 0015 was
   revised to a high-resolution waitable timer whose event the port's waits
   block on.
+- **Windows, a windowed app at the prompt (`python.exe -i -m
+  examples.roku_remote`) — pass; reproduced first.** Brad's report: the
+  WinDisplay window is hung (`IsHungAppWindow`) for as long as the REPL sits
+  at the prompt, on the win32, threading and sdl2 providers alike. Why:
+  WinDisplay pumps its message queue only inside `get_events()`, which only
+  the App's 10 ms service tick and LVGL's host pump call, and none of the old
+  providers can deliver at `_pyrepl`'s non-alertable console wait, so nothing
+  pumps. `tools/prove_repl/win_window_alive.py` runs the app under a pseudo
+  console, samples `IsHungAppWindow`, captures with `PrintWindow` (which a
+  hung window cannot answer) and types into the REPL. Against the installed
+  0.5.5 (examples `main`): hung from the third second on, no capture, 3 of 5
+  checks fail. Against this series: never hung over 12 s, two captures with
+  content, `REPL-OK`, `report()` says `source=pending delivery=bytecode` with
+  `app.service` at 100/s and the `lvgl` timer running, 0 failures. The input
+  hook is the fix; nothing app-side changed. Only read-only ECP queries were
+  made (no keys).
 - **MicroPython boards (P4, T-Embed S3) — pass.** `machine` source, no
   interpreter change. Jitter and bursts as in the table. LVGL runs with no
   `app.run()`, a tap registers, the frame-gate loop finishes in 88 ms while
