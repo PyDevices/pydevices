@@ -169,7 +169,8 @@ everything in §2 has to run again.
 Worth knowing before you reflash rather than after: if the board is on Wi-Fi,
 keep `wifi.py` and `secrets.py` somewhere you can push back in two `mpremote`
 commands, because they are the two files that let the board fetch the rest for
-itself.
+itself. Keep `secrets.py` outside any repository, for example in
+`~/.pydevices/secrets/` with only you able to read it.
 
 ## 5. Iterating without installing
 
