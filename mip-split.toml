@@ -58,15 +58,19 @@ host-only = [
 ]
 
 [multimer]
-# `librt` is `timer_create` through ctypes/ffi, i.e. Linux. The asyncio pieces
-# (`_async_timer`, `_asyncio_loader`, `_mpasyncio`, `_schedule`) are portable and
-# stay with `machine`, `polling`, `_ticks` and `_core`.
+# The wake sources and the REPL hook that only a desktop, phone or browser
+# host can use: `_inputhook` (CPython's PyOS_InputHook), `_src_pending`
+# (CPython's worker thread + Py_AddPendingCall), `_src_signal` (POSIX timer
+# signals: CPython and unix MicroPython), `_src_native` (the windows port's
+# `_timing` helper) and `_src_wasm` (the browser). Boards keep the dispatcher,
+# `_hostloop`, `_repl`, `_ticks`, `_src_machine`, `_src_none`, `_src_asyncio`
+# and the asyncio loaders.
 host-only = [
-    "librt",
-    "sdl2",
-    "threading",
-    "wasm",
-    "win32",
+    "_inputhook",
+    "_src_native",
+    "_src_pending",
+    "_src_signal",
+    "_src_wasm",
 ]
 
 [bledev]
