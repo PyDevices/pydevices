@@ -228,7 +228,12 @@ class WasmBackendTests(unittest.TestCase):
             WasmPCMInput().open()
 
     def test_wasm_source_arms_one_browser_timer_and_polls_queued_firings(self):
-        from multimer import _src_wasm as src
+        # A fresh import against this test's bridge: ``from multimer import
+        # _src_wasm`` would hand back the package attribute an earlier test
+        # left, bound to that test's bridge.
+        src = importlib.import_module("multimer._src_wasm")
+        if getattr(src, "_wasm_bridge", None) is not self.bridge:
+            src = importlib.reload(src)
 
         woken = []
         src.start(lambda: woken.append(1))

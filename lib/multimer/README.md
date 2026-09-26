@@ -1,7 +1,8 @@
 # multimer
 
-Cross-platform `machine.Timer`-style providers, `AsyncTimer`, millisecond ticks,
-and scheduling helpers for MicroPython, CircuitPython, and CPython.
+One `machine.Timer`-shaped `Timer`, one clock, and one dispatcher, on every
+interpreter PyDevices runs on: CPython, MicroPython (boards, unix, windows,
+wasm) and CircuitPython.
 
 Canonical source: [pydevices/lib/multimer](https://github.com/PyDevices/pydevices/tree/main/lib/multimer).
 
@@ -29,31 +30,23 @@ mip.install("pydevices", index="https://PyDevices.github.io/mip")
 
 ## Quick start
 
-Choose a timer provider explicitly:
-
 ```python
-from multimer import machine as timer
+import multimer
+from multimer import Timer
 
-tim = timer.Timer(-1)
-tim.init(mode=timer.Timer.PERIODIC, period=500, callback=lambda t: print("tick"))
+tim = Timer(-1)
+tim.init(mode=Timer.PERIODIC, period=500, callback=lambda t: print("tick"))
 
-while True:
-    timer.sleep_ms(1000)
+multimer.sleep_ms(3000)      # or end the script and look at it from >>>
+multimer.report()
 ```
 
-Or let the host decide — the only change is the import:
+Callbacks run on the main thread at a safe point on every host; the script
+can end and the timers keep firing at the prompt. Importing `multimer`
+touches nothing until the first timer is armed.
 
-```python
-from multimer import auto as timer
-```
-
-Explicit providers are `machine`, `librt`, `win32`, `sdl2`, `threading`, and
-`polling`; each exposes the same surface. Importing `multimer` itself probes
-nothing and gives you `AsyncTimer`, the `ticks_*` helpers, and `schedule`.
-
-**Everything else — the provider-selection order, the interpreter matrix, async
-timers, `pump()` / `sleep_ms()`, hard versus soft delivery, and the
-`MULTIMER_BACKEND` override — is in
+**Everything else — the wake sources per host, `hold()`, `schedule()`,
+`keepalive`, `repl()` for hosts with no prompt, and the introspection — is in
 [docs/multimer.md](https://github.com/PyDevices/pydevices/blob/main/docs/multimer.md).**
 
 ## Links

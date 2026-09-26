@@ -2,7 +2,7 @@
 
 PyDevices runs in JupyterLab, Jupyter Notebook, and VS Code / Cursor notebooks
 through the **`JNDisplay`** backend. `displaydev.auto.AutoDisplay` detects the
-notebook (`get_ipython()`) and selects it with `timer_async=True`.
+notebook (`get_ipython()`) and selects it.
 
 Board config: [`board_configs/jndisplay/board_config.py`](../board_configs/jndisplay/board_config.py). It exports the Jupyter
 display and host reader; `appdev.App(board_config)`
@@ -54,8 +54,9 @@ See [Displays → how displays expose input](displaydev.md).
 ## Async execution model
 
 The kernel already runs an `asyncio` loop, so a blocking poll loop would starve it
-and never receive widget events. The Jupyter board config therefore exports
-`timer_async=True` and the application coordinator consumes that preference.
+and never receive widget events. `multimer` uses that loop as its wake source
+in a notebook (`multimer.report()` in a cell says `source=asyncio`), so timers
+armed in one cell keep firing between cells and nothing is configured.
 
 Subscribe callbacks and the app keeps itself alive — the kernel's loop is the
 host loop (`app.strategy == "ambient"`), so no trailing `app.run()` is needed.
@@ -66,18 +67,18 @@ Jupyter, `run_async` schedules `main` as a background task and returns
 immediately (the cell finishes while the coroutine continues); on desktop or MCU
 with no loop running yet it blocks via `asyncio.run`.
 
-Custom wait-for-touch loops should import `asyncio` from `multimer` and
-`await asyncio.sleep(0)` each iteration so the kernel can dispatch widget events
+Custom wait-for-touch loops should `await multimer.asleep_ms(0)` (or the
+loop's own sleep) each iteration so the kernel can dispatch widget events
 between polls. See [App and board config](app-and-board-config.md) and [multimer](multimer.md).
 
 ## Stopping a running example
 
 A task scheduled with `run_async` / `create_task` runs in the background on the
 kernel loop, so the cell returns immediately and the square **Stop** button will
-not interrupt it — use **Kernel → Restart**. Synchronous examples
-(`timer_async` false) keep the cell running, and **Stop** raises
-`KeyboardInterrupt` there; such examples should call `sleep_ms(1)` each iteration
-so Stop can take effect.
+not interrupt it — use **Kernel → Restart**. An example that blocks in its
+own loop keeps the cell running, and **Stop** raises `KeyboardInterrupt`
+there; such examples should call `multimer.sleep_ms(1)` each iteration so
+Stop can take effect.
 
 ## VS Code / Cursor
 

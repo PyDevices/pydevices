@@ -44,6 +44,7 @@ _PUBLIC_TIMER_MEMBERS = {
     "name",
     "id",
     "yield_cap",
+    "reschedule",
 }
 
 

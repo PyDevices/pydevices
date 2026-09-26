@@ -173,7 +173,6 @@ exports hardware only:
 ```python
 display_drv = AutoDisplay(...)
 host_read = display_drv.get_events
-timer_async = env_bool("PYDEVICES_TIMER_ASYNC", display_drv.requires_async_timer)
 ```
 
 An application opting into `appdev` then creates its own traffic controller:
@@ -187,31 +186,17 @@ app = appdev.App(board_config)
 
 LVGL instead creates an independent coordinator in `display_driver`.
 
-| Branch | `display_drv.requires_async_timer` | `timer_async` export |
-|--------|-----------------------------------|-------------------------------|
-| PyScript / Jupyter | `True` | `True` (default; **`PYDEVICES_TIMER_ASYNC=0` → appdev.App raises**) |
-| PG/SDL desktop | `False` | `False` unless **`PYDEVICES_TIMER_ASYNC`** is set |
-
-`appdev.App` rejects `timer_async=False` when any attached display has
-`requires_async_timer` (PS/JN), so a forced sync override fails at construction
-instead of hanging.
-
 Panel size overrides (before `import board_config`): `PYDEVICES_WIDTH`,
 `PYDEVICES_HEIGHT`, `PYDEVICES_ROTATION`, `PYDEVICES_SCALE`. Apps should read
 geometry from `display_drv`, not module-level names on `board_config`.
 
-Set the env var **before** `import board_config` (or any import that loads it).
-Truthy: `1`, `true`, `yes`, `on`. Falsey: `0`, `false`, `no`, `off`. Unknown
-values fall back to the desktop default (`False`). Parsing lives in
-[`displaydev.env_bool`](https://github.com/PyDevices/pydevices/blob/main/lib/displaydev/__init__.py).
+Set the env vars **before** `import board_config` (or any import that loads
+it). Parsing lives in
+[`displaydev.env_int`](https://github.com/PyDevices/pydevices/blob/main/lib/displaydev/__init__.py)
+and friends.
 
-```bash
-# Force asyncio timers on desktop (LVGL async smoke, matrix column)
-PYDEVICES_TIMER_ASYNC=1 python my_example.py
-```
-
-Per-board configs under `board_configs/` may export `timer_async`; they never
-construct a app.
+Per-board configs under `board_configs/` describe hardware; they never
+construct an app.
 
 ## Custom config
 
