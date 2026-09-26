@@ -121,6 +121,19 @@ class TestHostloop(unittest.TestCase):
         self._fake_impl("circuitpython", "rp2")
         self.assertFalse(_hostloop.interactive())
 
+    def test_cpython_dash_c_is_not_interactive(self):
+        """``python -c`` has no ``__main__.__file__``, and no prompt follows it."""
+        self._patch(_hostloop, "_impl", lambda: "cpython")
+        self._patch(_hostloop, "_main_file", lambda: None)
+        self._patch(_hostloop, "_cmdline_tokens", lambda: ("python", "-c", "import app"))
+        self.assertFalse(_hostloop.interactive())
+
+    def test_cpython_bare_prompt_is_interactive(self):
+        self._patch(_hostloop, "_impl", lambda: "cpython")
+        self._patch(_hostloop, "_main_file", lambda: None)
+        self._patch(_hostloop, "_cmdline_tokens", lambda: ("python",))
+        self.assertTrue(_hostloop.interactive())
+
     def test_circuitpython_firmware_takes_the_exit_hook(self):
         self._fake_impl("circuitpython", "rp2")
         self._patch(_hostloop, "_cmdline_tokens", lambda: ())

@@ -218,5 +218,9 @@ per-plan record of pass/fail and anything found.
   mechanism it exercises is what the numbers already prove. `--install-apk`
   installs the 0.2.3 release; a prior local-key debug build must be uninstalled
   first.
-- **Not run:** PyScript/Pyodide in a browser (the `asyncio` source, proven via
-  Jupyter in the cloud) and an `mp-wasm` rebuild carrying the bridge fix.
+- **Browsers, 2026-09-26 — pass.** PyScript/Pyodide: `lv_test_timer` reports
+  `Timer: asyncio/idle` and animates. The `mp-wasm` rebuild with the bridge fix
+  runs the same demo in the direct gallery host (`Timer: wasm/idle`, 298 → 495
+  deliveries in a second), all 20 portal heroes, and workbench's simulator. The
+  runtime that shipped with 0.6.1 threw `function signature mismatch` on every
+  timer callback. Details: [timing-design.md](timing-design.md#ledger).

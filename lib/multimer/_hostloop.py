@@ -94,6 +94,10 @@ def _cmdline_tokens():
             return _win32_cmdline()
         except Exception:
             pass
+    # CPython 3.10+ keeps the flags itself (macOS has no /proc).
+    argv = getattr(sys, "orig_argv", None)
+    if argv:
+        return tuple(argv)
     return ()
 
 
@@ -183,7 +187,9 @@ def interactive():
         flags = getattr(sys, "flags", None)
         if getattr(flags, "interactive", 0):
             return True
-        return _main_file() is None
+        # ``python -c`` has no ``__main__.__file__`` either, but no prompt
+        # follows it: it is a batch entry, like ``-m``.
+        return _main_file() is None and not batch()
     if _mcu() and _impl() == "circuitpython":
         # CircuitPython cannot tell code.py from the REPL, and delivers
         # nothing in the background either way: the exit hook is the only

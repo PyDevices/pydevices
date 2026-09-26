@@ -539,12 +539,21 @@ runs, not the cloud's; the cloud's container was 4 cores, the bench is 8.
     delivery, as designed: 84 callbacks a second through `sleep_ms` with the
     main thread idle, 0 while it spins, and `report()` answers over the serial
     console. Same mechanism as the unix build in Phase 4.
-  - **Pending:** the LVGL launcher and drum machine on the phone (kept the
-    screen at brightness 1 for photosensitivity and stayed within the P4/phone
-    windows); the mechanism they would exercise, main-thread bytecode
-    delivery, is what the Android numbers already prove. PyScript/Pyodide
-    pages (the `asyncio` source, the same code the Jupyter proof runs) and an
-    `mp-wasm` rebuild carrying the bridge fix remain the two browser follow-ups.
+  - **Follow-ups (2026-09-26, after 0.6.1).** The browser checks are done.
+    Under PyScript/Pyodide, `lv_test_timer` shows `Timer: asyncio/idle` and
+    its seconds count and arc keep moving. An `mp-wasm` rebuild carrying the
+    bridge fix passes `wasm_host.mjs` under node, runs `lv_test_timer` in the
+    direct gallery host (`Timer: wasm/idle`), brings all 20 portal heroes
+    up with no errors, and passes a new workbench timers test. The runtime
+    that shipped with 0.6.1 threw `function signature mismatch` on every
+    timer callback in all three places. The vendored runtimes are in
+    PyDevices.github.io#9 and workbench#1, and the runner's
+    `MULTIMER_BACKEND` line is dropped with its recipes moved to 0.6.1 in
+    android-runner#24.
+    **Still pending:** the LVGL launcher and drum machine visual pass on the
+    phone. An APK from android-runner#24 builds and installs, but the S21's
+    secure lock screen kept the activity from ever drawing, so nothing was
+    seen. The desktop launcher on 0.6.1 was checked under Xvfb instead.
 - **Phase 6, the deliverables (here).** The four repository series were
   exported with `git format-patch` from branches on each repository's
   `origin/main`, then re-applied with `git am` onto a fresh checkout of each
