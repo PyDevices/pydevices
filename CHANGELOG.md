@@ -1,3 +1,8 @@
+## v0.6.3 (2026-09-26)
+
+- ci: every reusable call moves from publishing-v11 to publishing-v12 (#108)
+- P4 panel: refuse the second direction on I2S(0) instead of losing the first (#109)
+
 ## v0.6.2 (2026-09-26)
 
 - multimer: python -c is a batch entry; the timing ledger's follow-ups (#106)
