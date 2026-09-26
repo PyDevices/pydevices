@@ -248,6 +248,42 @@ class ESP32P4AudioTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.board.audio_out(coalesce_ms=20)
 
+    def test_microphone_is_refused_while_the_speaker_holds_i2s0(self):
+        """pydevices#23: a second I2S(0) used to take the first one over silently.
+
+        On esp32, constructing I2S(0) again deinitialises the live instance,
+        so opening the microphone stopped the speaker with no error. The
+        board refuses the second direction instead, and opens nothing.
+        """
+        output = self.board.pcm_out()
+        output.open()
+        self.assertEqual(1, len(FakeI2S.constructed))
+        capture = self.board.pcm_in()
+        with self.assertRaises(OSError) as ctx:
+            capture.open()
+        self.assertIn("I2S(0)", str(ctx.exception))
+        self.assertIn("speaker", str(ctx.exception))
+        self.assertEqual(1, len(FakeI2S.constructed))
+        self.assertFalse(capture.is_open)
+        self.assertEqual([], self.board._INPUT_SESSION._owners)
+        output.close()
+        capture.open()
+        self.assertEqual(FakeI2S.RX, capture.i2s.options["mode"])
+        capture.close()
+
+    def test_speaker_is_refused_while_the_microphone_holds_i2s0(self):
+        capture = self.board.pcm_in()
+        capture.open()
+        output = self.board.pcm_out()
+        with self.assertRaises(OSError) as ctx:
+            output.open()
+        self.assertIn("microphone", str(ctx.exception))
+        self.assertEqual(1, len(FakeI2S.constructed))
+        self.assertEqual([], self.board._SESSION._owners)
+        capture.close()
+        output.open()
+        output.close()
+
     def test_input_uses_es7210_codec_and_gain(self):
         capture = self.board.pcm_in()
         capture.set_gain(35)
