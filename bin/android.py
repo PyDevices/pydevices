@@ -129,6 +129,16 @@ def shutil_which(cmd: str) -> Optional[str]:
     return None
 
 
+# adb lists a device whose USB descriptor has no serial (seen on WSL with
+# adb.exe) as "(no serial number)\tdevice". It can't be named with -s, but
+# as the only device it needs no -s.
+NO_SERIAL = "(no serial number)"
+
+
+def _serial_args(serial: Optional[str]) -> List[str]:
+    return ["-s", serial] if serial and serial != NO_SERIAL else []
+
+
 class AdbClient:
     def __init__(self, adb_bin: str, serial: Optional[str] = None, verbose: int = 0):
         self.adb_bin = adb_bin
@@ -137,8 +147,7 @@ class AdbClient:
 
     def _build_cmd(self, args: List[str]) -> List[str]:
         cmd = [self.adb_bin]
-        if self.serial:
-            cmd.extend(["-s", self.serial])
+        cmd.extend(_serial_args(self.serial))
         cmd.extend(args)
         return cmd
 
@@ -153,8 +162,8 @@ class AdbClient:
         lines = res.stdout.strip().splitlines()
         devices = []
         for line in lines[1:]:
-            parts = line.strip().split()
-            if len(parts) >= 2 and parts[1] == "device":
+            parts = line.strip().rsplit(None, 1)
+            if len(parts) == 2 and parts[1] == "device":
                 devices.append(parts[0])
         return devices
 
@@ -1020,8 +1029,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.logcat and not args.repl:
         adb.run(["logcat", "-c"], check=False)
         cmd = [adb_path]
-        if adb.serial:
-            cmd.extend(["-s", adb.serial])
+        cmd.extend(_serial_args(adb.serial))
         cmd.extend(["logcat", "-v", "time", "python:V", "SDL:V", "AndroidRuntime:E", "*:S"])
         return subprocess.run(cmd).returncode
 
