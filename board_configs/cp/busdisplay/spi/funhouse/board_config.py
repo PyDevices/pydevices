@@ -25,9 +25,12 @@ display_drv = ST7789(
     width=240,
     height=240,
     colstart=0,
-    rowstart=80,
-    rotation=0,
-    mirrored=False,
+    rowstart=0,
+    # The panel is mounted upside down against the controller: MX|MY (0xC0),
+    # which is the mirrored table's 180. Flipping rows moves the visible
+    # 240 of the controller's 320 to rows 0-239, so rowstart is 0, not 80.
+    rotation=180,
+    mirrored=True,
     color_depth=16,
     bgr=False,
     reverse_bytes_in_word=True,
