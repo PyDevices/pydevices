@@ -303,22 +303,31 @@ current multimer on the same board.
 `micropython.exe` has no signals, and the `uwin32` APC route needs the main
 thread in an alertable wait, which the console REPL is not. The overlay
 patch (micropython-pydevices, patch 0015) adds a `_timing`
-native module to the windows port: a Win32 timer-queue timer whose callback
-calls `mp_sched_schedule`, and a console wait in `mp_hal_stdin_rx_chr` that
-services pending callbacks while it waits (`WaitForSingleObject` on the
-console handle with a timeout, then `mp_handle_pending`). Justification: no
-Python-level route delivers on the main thread of a build without threads,
-and the REPL goal is the charter's first requirement.
+native module to the windows port: one waitable timer (high resolution where
+Windows offers it, so it is not bound to the 15.6 ms system tick), waited on
+by a helper thread that only sets a flag and signals an event when the
+deadline passes. The main thread notices the flag between bytecodes, in
+`mp_event_wait_ms`, and in the console wait, and hands the callback to
+`mp_sched_schedule` from its own context. The port's own waits —
+`MICROPY_INTERNAL_WFE`, the console wait in `mp_hal_stdin_rx_chr`, and the
+piped-stdin path — block on that event, so a sleep or a REPL waiting for a
+key is served the moment a deadline passes, not at the end of a time slice;
+`init()` also asks Windows for its 1 ms timer resolution, as SDL does.
+Justification: no Python-level route delivers on the main thread of a build
+without threads, and the REPL goal is the charter's first requirement.
 
-It was built here with mingw and run under Wine. The bytecode and
-`sleep_ms` paths deliver: 50/50 at 10 ms and 20/20 at 25 ms with the main
-thread idle, 50 and 19 with it busy; `hold()` masks delivery; a raising
-callback is counted and printed once; `report()` says `source=native
-delivery=bytecode`. What Wine cannot show is the console. It reports the
-console handle as always signalled and refuses `PeekNamedPipe` (error 50),
-so the prompt's idle wait and the pipe path, which is where the REPL goal is
-decided, wait for a real Windows console: the first item of the Windows
-plan.
+The cloud session's first version used a timer-queue timer and 10 ms wait
+slices, built with mingw and run under Wine (the bytecode and `sleep_ms`
+paths delivered there, but Wine reports the console handle always signalled
+and refuses `PeekNamedPipe`, so it could not show the prompt). On a real
+Windows console the bench found that version pinned to the 15.6 ms system
+tick — 348/500 idle, 20 callbacks a second at the prompt — which is what the
+waitable timer and the 1 ms request fix. On the bench now: `report()` says
+`source=native delivery=bytecode`, 507/500 idle and busy with 0.5 ms median
+jitter and 4 ms p99 lateness, about 100 a second at the prompt, `hold()`
+masks delivery, and a raising callback is counted and printed once. What Wine
+could not show — the console and the pipe path, where the REPL goal is
+decided — passed on a real Windows console on the bench (`tools/prove_repl/prove_windows.py`).
 
 ### CircuitPython
 
