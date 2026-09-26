@@ -1,94 +1,114 @@
-# Timer backend internals & platform capabilities
+# multimer internals: the dispatcher and the wake sources
 
-This document explains the internal architecture of `multimer`: how timer providers are selected, the underlying C-binding and threading capabilities of each Python interpreter, and how PyDevices bridges hardware interrupts, OS signals, and SDL2 event pumps.
+How `multimer` delivers a callback on each host, for anyone changing it or
+deciding what a library may do from a callback. The user guide is
+[multimer.md](multimer.md).
 
-Importing `multimer` itself never selects a synchronous timer provider. An
-application imports a provider explicitly, such as
-`from multimer import librt as timer`, or opts into platform selection with
-`from multimer import auto as timer`. The final column below describes what
-`multimer.auto` normally selects; it is not a package-root default.
+## Shape
 
-For the general user guide and quickstart, see [multimer](multimer.md). For display driver integration, see [Display backend internals](displaydev-internals.md) and [App and board config](app-and-board-config.md).
+```
+Timer ──► one list of armed timers, each with an absolute deadline
+                 │
+                 ▼
+          _dispatch.deliver()   runs what is due, re-arms the source
+                 ▲
+   ┌─────────────┼─────────────────────────────┐
+   │ wake source │ idle points                  │
+   │  arm(ms)    │  sleep_ms, pump, the REPL's  │
+   │  → deliver  │  input hook, asleep_ms, the  │
+   │             │  exit-hook loop, repl()      │
+```
 
----
+`_dispatch.py` owns the list, `deliver()`, the guards (no nested delivery,
+no re-entering a running timer, `hold()`), the overrun rule, the stats
+behind `info()`, and the portable `schedule()` queue. It picks a wake source
+on the first arm (`_select_source`) and asks it for one thing: wake me in
+*N* ms. Sources are tiny modules with `start(wake)`, `arm(delay_ms)`,
+`cancel()`, `stop()`, and two constants, `delivery` and `wakes_blocking`.
 
-## Platform capabilities matrix
+`_hostloop.py` decides who owns the main thread after the script body ends
+(ambient host loop, an interpreter exit hook, or nothing), unchanged from its
+life in `appdev` except that the exit-hook loop runs while `keepalive` is
+set and a timer is armed. `_inputhook.py` is the CPython REPL hook.
+`_repl.py` is the in-loop line REPL.
 
-The table below details the underlying system capabilities available to `multimer` across all supported interpreters:
+## The sources
 
-| Interpreter / Executable | Target Platform | FFI / C-Bindings | Threading Support | SDL2 Provider | Signal / Interrupt Timers | Normal `multimer.auto` Provider |
-|---|---|---|---|---|---|---|
-| **CPython** (`python`) | Linux Desktop | `ctypes` | Full `threading` + `_thread` | `usdl2.py` (via `ctypes`) or `pygame` | POSIX real-time signals (`librt`) | `librt` (`uses_interrupts=True`) |
-| **MicroPython** (`micropython`) | Linux Unix port | `ffi` + `uctypes` | Built-in `_thread` | `usdl2.py` (via `ffi`) | POSIX real-time signals (`librt`) | `librt` (`uses_interrupts=True`) |
-| **CircuitPython** (`circuitpython`) | Linux port | None | Built-in `_thread` | `displayif` (compiled C module) | None | `sdl2` / `polling` (`uses_interrupts=False`) |
-| **CPython** (`python.exe`) | Windows | `ctypes` | Full `threading` + `_thread` | `usdl2.py` (via `ctypes`) or `pygame-ce` | Waitable Timer APCs (`uwin32.py`) | `win32` (`uses_interrupts=True`) |
-| **MicroPython** (`micropython.exe`) | Windows Win32 port | `ffi` + `uctypes` | None | `displayif` (compiled C module) | Waitable Timer APCs (`uwin32.py`) | `win32` (`uses_interrupts=True`) |
-| **CPython** (`python`) | Android | `ctypes` | Full `threading` + `_thread` | `pygame` / native Android surface | None | `threading` (`uses_interrupts=False`) |
-| **MicroPython** | MCU Boards | None / Native C | Port-dependent `_thread` | N/A (Direct panel bus) | Hardware interrupts (`machine.Timer`) | `machine` (`uses_interrupts=True`) |
-| **CircuitPython** | MCU Boards | None | None | N/A (Direct panel bus) | None | `polling` (`uses_interrupts=False`) |
+| Source | Host | Mechanism | Delivery | Wakes a blocked main thread |
+|---|---|---|---|---|
+| `machine` | MicroPython on a board | one `machine.Timer`, ONE_SHOT, re-armed to the next deadline; its callback is `micropython.schedule`d | bytecode boundary | yes: the REPL and `sleep_ms` run pending callbacks |
+| `signal` | unix / macOS CPython and MicroPython | `timer_create` on `SIGRTMIN+4` (Linux) or `setitimer` (elsewhere). CPython: a Python handler at the next bytecode; MicroPython: an ffi handler that only calls `micropython.schedule` | bytecode boundary | yes: EINTR, then the interrupted call is retried (PEP 475 on CPython, `MP_HAL_RETRY_SYSCALL` on unix MicroPython) |
+| `native` | MicroPython windows | the `_timing` module from the micropython-pydevices overlay: a Win32 timer queue whose expiry calls `mp_sched_schedule` | bytecode boundary | yes, with the console wait servicing pending callbacks |
+| `wasm` | direct MicroPython WebAssembly | `_wasm_bridge.timer_start`, one browser timer; the bridge calls in once the VM is idle, or queues the firing for `sleep_ms` to poll | idle (the page loop) | the loop owns the thread |
+| `pending` | CPython Windows, Android (and anywhere as a fallback) | a daemon thread keeps time and calls `Py_AddPendingCall`, at most one outstanding | bytecode boundary | no; `sleep_ms` sleeps only until the next deadline, and the input hook covers the prompt |
+| `asyncio` | CPython with a running loop | `loop.call_later` | idle (await points) | the loop owns the thread |
+| `none` | CircuitPython, any build with nothing above | – | idle points only | no |
 
-| **PyScript / Pyodide** | Browser / WASM | `js` / `pyodide` FFI | None (single-threaded WASM) | HTML5 Canvas | Browser host loop / Web APIs | internal async provider (`uses_interrupts=False`) |
+Selection order: `MULTIMER_SOURCE` if set; `wasm` when `_wasm_bridge`
+imports; on MicroPython `machine`, `native`, `signal`; on CPython `asyncio`
+when a loop is running or the host is a notebook or PyScript page, then
+`signal` on Linux and macOS, then `pending`; `none` last. A source that
+fails to start is skipped, and `info()["source_error"]` says why.
 
----
+## What "between bytecodes" costs
 
-## How SDL2 is bridged (`usdl2.py` vs `displayif`)
+A callback delivered at a bytecode boundary runs in the middle of whatever
+the main thread was doing in Python. That is the contract `machine.Timer`
+has always had on a board, and it is why the audio pump's Python side went
+wrong three times on 2026-09 nights: a tick landed between two statements
+that assumed they ran together. Two things make it safe now:
 
-Hosted desktop and simulation targets often use SDL2 for window management, frame presentation, and input polling. PyDevices provides two distinct mechanisms to connect to SDL2 depending on the host's FFI capabilities:
+- **`hold()`**: a critical section says so, and the dispatcher masks delivery
+  until the block ends.
+- **Callbacks never interrupt callbacks**: a wake that arrives while
+  `deliver()` is running is answered when it returns. So a library's timer
+  callback sees the library's own state whole, as long as the library's
+  main-line code uses `hold()` around its critical sections.
 
-### 1. Pure-Python FFI Bridge (`usdl2.py`)
-When running on **CPython** (Linux/Windows) or **MicroPython Unix** (Linux), the interpreter has access to dynamic foreign function interfaces (`ctypes` or `ffi`):
-* [`usdl2.py`](../utils/usdl2.py) dynamically loads the system `libSDL2.so` or `SDL2.dll` at app.
-* No C compilation or custom binary build is needed.
-* Timer ticks and window pump hooks can be called directly from Python code.
+The old layer's fragility came from the *delivery paths*: `librt` ran the
+whole callback inside the signal handler on MicroPython (heap locked; hence
+the `MemoryError` guards), `sdl2` ran it on SDL's thread (which Android's
+GLES refused), and `threading` on MicroPython let `micropython.schedule`
+drain on the worker. None of those paths exists any more.
 
-### 2. Compiled User C Module (`displayif`)
-When running on interpreters **without FFI** (such as CircuitPython, or a custom
-MicroPython build that omits `ffi`):
-* Python cannot load DLLs or shared libraries dynamically.
-* The org's [optional aggregator workspace](https://github.com/PyDevices/cmods) compiles `displayif` directly into the interpreter binary as a native C module (`usdl2`).
-* Python code imports `usdl2` as a built-in module, exposing identical SDL function signatures without requiring runtime FFI.
+## The overrun rule
 
----
+After a callback ends, its next slot is `due += period`. If that slot has
+already passed (the callback overran), the grid is stepped past now (each
+skipped slot counts in `missed`), and if the callback took longer than a
+period, the next slot is pushed to at least `end + min(took, yield_cap)`.
+This is the LVGL frame gate of lvgl-bindings#15 and its cap from #19,
+applied to every timer: a slow pass halves its own rate rather than taking
+the thread, and a pass much longer than a period does not idle the thread
+for as long again. `yield_cap = 0` keeps the grid only.
 
-## Signal & Interrupt Timer Delivery
+## `schedule()`
 
-Providers with `uses_interrupts is True` deliver callbacks directly to the
-main thread through interrupts, signals, or equivalent OS delivery. This
-eliminates the need for an application-level timer pump and enables the
-**Interactive REPL** debugging workflow. `uses_interrupts` is provider metadata,
-not a `Timer` class method, because it describes delivery by the provider as a
-whole and also governs `sleep_ms` and `pump` behavior.
+On MicroPython it *is* `micropython.schedule`. Elsewhere the call is queued
+and the source is asked to wake now, so on a bytecode host it runs between
+the caller's next two bytecodes, and on an idle host at the next idle
+point. A `hold()` masks scheduled work too. The queue is locked for callers
+on other threads.
 
-### 1. Linux `librt` (POSIX Signals)
-* Uses `timer_create` and `timer_settime` with `SIGEV_THREAD_ID` targeting the main thread.
-* On CPython, signal handlers are registered via `signal.signal()`.
-* On MicroPython Unix, signal handlers use `ffi` and `uctypes`.
-* When a timer expires, the kernel interrupts execution on the main thread and runs the Python callback immediately.
+## The input hook
 
-### 2. Windows `uwin32.py` (Alertable APCs)
-* Uses `CreateWaitableTimerExW` and `SetWaitableTimer` with completion APCs (`TIMERAPCROUTINE`).
-* When the main thread enters an **alertable wait state** (via `SleepEx(..., alertable=True)` in `multimer.win32.sleep_ms()`, or console I/O read in `python.exe -i`), the Windows kernel delivers the queued APC to the main thread.
-* This provides signal-like background execution on Windows without spinning worker threads.
+readline calls `PyOS_InputHook` about every 100 ms while idle and after each
+keystroke; Python 3.13's `_pyrepl` calls it from its own wait loop on the
+Unix and the Windows console. `_inputhook.py` waits on stdin *itself*
+inside the hook, delivering as deadlines pass and returning the moment a key
+arrives (`select` on Unix, `WaitForSingleObject` on the console handle on
+Windows), so delivery at the prompt is as punctual as anywhere. The hook is
+installed only when the slot is empty (matplotlib and IPython own it
+otherwise) and never in a notebook.
 
-### 3. Microcontroller `machine.Timer` (Hardware Interrupts)
-* On MicroPython boards (ESP32, RP2040, STM32, etc.), `machine.Timer` is backed directly by hardware timer peripherals and ISRs.
-* Callbacks are scheduled via `micropython.schedule()`, executing safely on the main VM thread between bytecodes.
+## The host loop
 
----
+| Strategy | When | What |
+|---|---|---|
+| `ambient` | a browser page, a notebook, a MicroPython board's REPL, `-i` | the host's loop outlives the script; register teardown only |
+| `exit_hook` | script mode on CPython, MicroPython, CircuitPython | an exit hook takes the main thread after the last line and delivers until `keepalive` is cleared or no timer is armed |
+| `none` | `-m` / `-c`, or no hook available | the program blocks itself (`run_until`) |
 
-## MicroPython & CircuitPython Roadmap Considerations
-
-### `micropython.exe` (Windows)
-The PyDevices Windows build includes `ffi` and `uctypes`, allowing the shared
-[`uwin32.py`](../utils/uwin32.py) module to call Win32 directly. `multimer.auto` therefore selects
-the `win32` provider and uses alertable waitable-timer APCs, matching
-`python.exe`. A custom build without `ffi` cannot import that provider and
-falls through to `sdl2` (when its compiled `usdl2` module is present) or
-`polling`.
-
-Asyncio remains a build-time option. When a MicroPython build provides none of
-`asyncio`, `uasyncio`, or `_asyncio`, the backend-neutral tick and synchronous
-timer APIs still work, while arming `AsyncTimer` raises `ImportError`.
-
-### CircuitPython
-CircuitPython intentionally omits `machine.Timer` and low-level FFI in favor of high-level board abstractions and cooperative `asyncio`. Applications running on CircuitPython boards or the Linux port always use `multimer.AsyncTimer` or active sleep-pump loops.
+A script that crashed does not enter the loop (the crash guard). On
+CircuitPython boards the loop drains the serial ring each pass, so Ctrl-C
+still means stop.

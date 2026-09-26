@@ -45,6 +45,14 @@ class _RefreshClaim:
         self._app.resume_refresh()
 
 
+class _PollingClaim:
+    def __init__(self, app):
+        self._app = app
+
+    def release(self):
+        self._app.resume_polling()
+
+
 class _RefreshPaused:
     def __init__(self, app):
         self._app = app
@@ -107,6 +115,7 @@ class App:
         self._refresh_paused = False
         self._refresh_claim = None
         self._service_timer = None
+        self._polling_claim = None
         self._app_drives_poll = False
         self._in_service_poll = False
         self._teardown_done = False
@@ -407,6 +416,21 @@ class App:
         """Context manager to pause display refresh within a block."""
         return _RefreshPaused(self)
 
+    def pause_polling(self):
+        """Stop the service tick reading the devices: the caller reads them.
+
+        A GUI that polls the input devices itself (LVGL reads its indevs
+        from its own timers) claims the devices with this, or the service
+        tick consumes the events first. ``release()`` the claim to resume.
+        """
+        if self._polling_claim is not None:
+            raise RuntimeError("device polling already claimed")
+        self._polling_claim = _PollingClaim(self)
+        return self._polling_claim
+
+    def resume_polling(self):
+        self._polling_claim = None
+
     def _wire_display_refresh(self, refresh_period):
         self._arm_service()
         for display in self._displays:
@@ -443,7 +467,7 @@ class App:
         self._service_timer = multimer.every(SERVICE_TICK_MS, self._service_tick, name="app.service")
 
     def _service_tick(self, timer_obj):
-        if self._quit_requested or self._app_drives_poll:
+        if self._quit_requested or self._app_drives_poll or self._polling_claim is not None:
             return
         self._in_service_poll = True
         try:
