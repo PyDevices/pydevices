@@ -1,3 +1,8 @@
+## v0.6.0 (2026-09-26)
+
+- multimer: one Timer, one dispatcher, one wake source per host (the timing redesign) (#101)
+- board-bringup: keep secrets.py outside any repository
+
 ## v0.5.5 (2026-09-26)
 
 - audiodev: wait for the pump's first block without starving it (#98)
