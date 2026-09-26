@@ -165,3 +165,42 @@ Do not run `tools/build_interpreters.sh` with no target on a machine that
 has the portal or workbench checked out beside it: `mp-wasm` writes the
 runtime into `PyDevices.github.io/vendor/micropython/` and
 `workbench/assets/pydevices/`. Run `--only mp-unix` and friends.
+
+## What the runs saw (2026-09-26)
+
+Run on the bench by the local session that landed the series. The numbers are
+in [timing-design.md](timing-design.md#numbers-on-hardware); this is the
+per-plan record of pass/fail and anything found.
+
+- **Windows, `python.exe` 3.14 — pass.** The REPL goal holds in a real console
+  (a ConPTY harness, `tools/prove_repl/prove_windows.py`): ~100 ticks/s at an
+  idle `-i` prompt, `report()` says `source=pending delivery=bytecode`, and the
+  planted fault (no source, hook off) stands still. Keepalive and crash modes
+  pass. Numbers as in the table.
+- **Windows, `micropython.exe` (overlay patch 0015) — pass.** Built with mingw
+  under the build lock, `_timing` links (`report()` says `source=native`),
+  ~100 ticks/s at the prompt in a real console, planted fault stands still.
+  Two things the real console showed that Wine could not: the default 15.6 ms
+  timer resolution (both layers), fixed by requesting 1 ms as SDL does; and a
+  redundant scheduler hop that held the idle prompt to 20 ticks/s, fixed by
+  delivering directly from sources the port already schedules. Patch 0015 was
+  revised to a high-resolution waitable timer whose event the port's waits
+  block on.
+- **MicroPython boards (P4, T-Embed S3) — pass.** `machine` source, no
+  interpreter change. Jitter and bursts as in the table. LVGL runs with no
+  `app.run()`, a tap registers, the frame-gate loop finishes in 88 ms while
+  animating, and `report()` lists the timers. REPL goal holds over mpftp.
+- **CircuitPython board (T-Embed S3, 10.3.0) — pass.** `source=none`,
+  idle-only: 84 ticks/s idle, 0 while busy, `report()` over the serial console.
+  The board was flashed to CircuitPython for this and back to MicroPython
+  after (a native-USB S3 needs a physical reset to leave DFU ROM mode).
+- **Android (S21) — pass.** `source=pending delivery=bytecode
+  host=cpython/android`, 100 ticks/s idle and 99 busy on the main GLES thread;
+  the old layer's `threading` fallback managed 289/400 idle and 0 busy. The
+  LVGL launcher/drum-machine visual pass was not run (screen kept at
+  brightness 1 for photosensitivity, and within the phone window); the
+  mechanism it exercises is what the numbers already prove. `--install-apk`
+  installs the 0.2.3 release; a prior local-key debug build must be uninstalled
+  first.
+- **Not run:** PyScript/Pyodide in a browser (the `asyncio` source, proven via
+  Jupyter in the cloud) and an `mp-wasm` rebuild carrying the bridge fix.
