@@ -71,6 +71,16 @@ class TestAndroidCli(unittest.TestCase):
             devices = client.list_devices()
             self.assertEqual(devices, ["emulator-5554"])
 
+    def test_adb_client_device_without_a_serial(self):
+        # adb.exe on WSL can list a phone as "(no serial number)"; it must
+        # count as a device and be addressed without -s.
+        client = android_cli.AdbClient("/path/to/adb")
+        mock_res = MagicMock()
+        mock_res.stdout = "List of devices attached\n(no serial number)\tdevice\n"
+        with patch.object(client, "run", return_value=mock_res):
+            self.assertEqual(client.ensure_device(), "(no serial number)")
+        self.assertEqual(client._build_cmd(["shell", "ls"]), ["/path/to/adb", "shell", "ls"])
+
     def test_adb_client_version_parsing(self):
         client = android_cli.AdbClient("/path/to/adb")
         mock_res = MagicMock()
