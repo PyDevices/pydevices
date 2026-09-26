@@ -11,6 +11,7 @@ board configs. Prefer single-file modules; MIP manifests live under `../packages
 | `imu/bmi270.py` | Bosch BMI270 IMU (CoreS3; from micropython-lib) |
 | `env/ahtx0.py` | AHT10/AHT20 humidity + temperature |
 | `env/bmp280.py` | BMP280 pressure + temperature ([dafvid/micropython-bmp280](https://github.com/dafvid/micropython-bmp280)) |
+| `env/dps310.py` | DPS310 pressure (hPa) + temperature (the FunHouse barometer) |
 | `led/dotstar.py` | APA102 / DotStar ([mattytrentini/micropython-dotstar](https://github.com/mattytrentini/micropython-dotstar)) |
 | `codec/es8311.py` | ES8311 DAC/ADC init for I2S |
 | `codec/es7210.py` | Minimal ES7210 ADC init for I2S mics (`profile="m5"` for CoreS3/Tab5) |

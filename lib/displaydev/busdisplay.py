@@ -270,7 +270,9 @@ class BusDisplay(DisplayDriver):
         index = (self._rotation // 90) % len(self.rotation_table)
 
         # Set the display MADCTL bits for the given rotation.
-        self._param_buf[0] = self.rotation_table[index] | _BGR if self.bgr else _RGB
+        # Parenthesised: without them this parsed as ``(table | _BGR) if bgr else _RGB``,
+        # so every bgr=False panel got MADCTL 0 whatever its rotation.
+        self._param_buf[0] = self.rotation_table[index] | (_BGR if self.bgr else _RGB)
         self.send(_MADCTL, self._param_mv[:1])
 
         # Set the display inversion mode

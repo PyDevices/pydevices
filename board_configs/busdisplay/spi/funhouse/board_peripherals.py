@@ -2,7 +2,12 @@
 import boarddev
 import sys
 
-PERIPHERALS = frozenset({"temperature", "humidity", "pressure", "pixels", "audio_out", "wlan"})
+from audiodev import AudioCapability
+from audiodev.pwm_tone import PWMToneOutput
+
+PERIPHERALS = frozenset(
+    {"temperature", "humidity", "pressure", "light", "motion", "pixels", "audio_out", "wlan"}
+)
 
 # A PWM buzzer, not a PCM path: no sample rate, no channels, nothing to
 # configure. kind="tone" says so, and negotiate() refuses a format here
@@ -10,11 +15,8 @@ PERIPHERALS = frozenset({"temperature", "humidity", "pressure", "pixels", "audio
 # zero-argument role -- there is no format to pass, so it is not a factory.
 AUDIO_OUT = AudioCapability(None, kind="tone")
 
-from audiodev import AudioCapability
-from audiodev.pwm_tone import PWMToneOutput
-
 _aht = None
-_bmp = None
+_dps = None
 
 
 def load_peripherals(ns):
@@ -32,16 +34,16 @@ def _aht20():
     return _aht
 
 
-def _bmp280():
-    global _bmp
-    if _bmp is not None:
-        return _bmp
+def _dps310():
+    global _dps
+    if _dps is not None:
+        return _dps
     import board_config as bc
-    from bmp280 import BMP280
+    from dps310 import DPS310
 
-    # FunHouse BMP280 is at 0x77
-    _bmp = BMP280(bc.i2c, addr=0x77)
-    return _bmp
+    # The FunHouse barometer is a DPS310 at 0x77 (not a BMP280)
+    _dps = DPS310(bc.i2c, address=0x77)
+    return _dps
 
 
 def temperature():
@@ -55,18 +57,36 @@ def humidity():
 
 
 def pressure():
-    """BMP280 on the shared board I2C."""
-    return _bmp280()
+    """DPS310 on the board I2C: ``pressure`` in hPa, ``temperature`` in C."""
+    return _dps310()
+
+
+def light():
+    """Ambient light sensor on GPIO18 (ADC2). ``read_u16()``: 0 dark .. 65535."""
+    from machine import ADC, Pin
+
+    return ADC(Pin(18), atten=ADC.ATTN_11DB)
+
+
+def motion():
+    """PIR motion sensor on GPIO16. ``value()``: 1 while it sees motion."""
+    from machine import Pin
+
+    return Pin(16, Pin.IN)
 
 
 def pixels():
-    """5× DotStar (APA102) on GPIO14/15."""
-    from machine import Pin, SoftSPI
+    """5x DotStar (APA102): clock GPIO15, data GPIO14. Starts dim (0.1).
+
+    Hardware SPI with no MISO: the FunHouse has no spare pin for one, and
+    GPIO21, which an earlier version claimed, is the TFT backlight.
+    """
+    from machine import Pin, SPI
 
     from dotstar import DotStar
 
-    spi = SoftSPI(baudrate=1_000_000, sck=Pin(15), mosi=Pin(14), miso=Pin(21))
-    return DotStar(spi, 5, auto_write=True)
+    spi = SPI(2, baudrate=1_000_000, sck=Pin(15), mosi=Pin(14))
+    return DotStar(spi, 5, brightness=0.1, auto_write=True)
 
 
 def audio_out():

@@ -13,8 +13,8 @@
       "github:PyDevices/pydevices/drivers/display/st7789.py"
     ],
     [
-      "tt21100.py",
-      "github:PyDevices/pydevices/drivers/touch/tt21100.py"
+      "spibus.py",
+      "github:PyDevices/pydevices/drivers/bus/spibus.py"
     ],
     [
       "keypad_gpio.py",
@@ -29,8 +29,8 @@
       "github:PyDevices/pydevices/drivers/env/ahtx0.py"
     ],
     [
-      "bmp280.py",
-      "github:PyDevices/pydevices/drivers/env/bmp280.py"
+      "dps310.py",
+      "github:PyDevices/pydevices/drivers/env/dps310.py"
     ]
   ],
   "deps": [
@@ -40,5 +40,5 @@
     ]
   ],
   "version": "0.2",
-  "notes": "Split board_peripherals; AHT20/BMP280/DotStar/keypad/wlan."
+  "notes": "AHT20/DPS310/light/PIR/DotStar/keypad/wlan; spibus fallback for stock firmware; no touchscreen."
 }

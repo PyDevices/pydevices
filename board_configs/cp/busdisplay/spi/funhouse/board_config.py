@@ -1,6 +1,9 @@
-"""Adafruit FunHouse ST7789 + TT21100 touch — CircuitPython"""
+"""Adafruit FunHouse ST7789 + three buttons — CircuitPython
 
-from adafruit_tt21100 import TT21100
+The FunHouse has no touchscreen (its touch inputs are capacitive pads), so no
+TT21100: nothing answers at 0x24 on the board I2C.
+"""
+
 import board
 from displayio import release_displays
 from fourwire import FourWire
@@ -26,24 +29,17 @@ display_drv = ST7789(
     height=240,
     colstart=0,
     rowstart=80,
-    rotation=0,
-    mirrored=False,
+    # The panel is mounted upside down against the controller: MX|MY (0xC0),
+    # which is the mirrored table's 180. The glass is rows 80-319 of the
+    # controller's 320 in this orientation too (CircuitPython's board
+    # definition keeps MY set and offsets that axis by 80 as well).
+    rotation=180,
+    mirrored=True,
     color_depth=16,
     bgr=False,
     reverse_bytes_in_word=True,
 )
-i2c = board.I2C()
-touch = TT21100(i2c)
-
-
-def _touch_points():
-    touches = touch.touches
-    if not touches:
-        return ()
-    return tuple((t["x"], t["y"]) for t in touches)
-
-
-touch_rotation_table = (0, 0, 0, 0)
+i2c = board.I2C()  # AHT20 (0x38), DPS310 (0x77), STEMMA
 
 keypad = GPIOButtons(
     {
@@ -53,5 +49,4 @@ keypad = GPIOButtons(
     }
 )
 
-touch_read = _touch_points
 keypad_read = keypad.read
