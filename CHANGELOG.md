@@ -1,3 +1,7 @@
+## v0.6.1 (2026-09-26)
+
+- mip-split: list the new multimer host-only modules; test every listed name exists (#104)
+
 ## v0.6.0 (2026-09-26)
 
 - multimer: one Timer, one dispatcher, one wake source per host (the timing redesign) (#101)
