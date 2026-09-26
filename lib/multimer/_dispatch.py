@@ -80,17 +80,20 @@ def _deliver_scheduled(_arg):
     deliver()
 
 
-def wake_from_source():
+def wake_from_source(safe=False):
     """What a wake source calls when its deadline passes.
 
-    On MicroPython the source is in an interrupt or signal context and the
-    callback must run at a bytecode boundary, so this only queues one
-    ``micropython.schedule`` entry. Elsewhere the source is already at a
+    On MicroPython a source in an interrupt or signal context passes
+    ``safe=False``: the callback must run at a bytecode boundary, so this only
+    queues one ``micropython.schedule`` entry. A source whose callback the
+    port already delivers through ``micropython.schedule`` (``machine``,
+    ``native``) passes ``safe=True`` and delivery runs here, without a second
+    trip through the scheduler queue. Elsewhere the source is already at a
     safe point (a Python signal handler, a pending call, an asyncio callback)
     and delivery runs here.
     """
     _stats["wakes"] += 1
-    if _mp_schedule is not None:
+    if _mp_schedule is not None and not safe:
         if _sched_pending[0]:
             return
         _sched_pending[0] = True

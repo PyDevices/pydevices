@@ -38,6 +38,23 @@ _pending = False
 
 _CB = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)
 
+# Windows wakes a waiting thread on its system timer, 15.6 ms apart unless a
+# process asks for finer. Measured on Windows 11 with a busy main thread: a
+# 10 ms timer delivered 327 of 500 with 23 ms p99 lateness at the default,
+# 501 of 500 with 8 ms (the GIL switch interval) at 1 ms. SDL and pygame ask
+# for the same.
+_WIN_PERIOD_MS = 1
+
+
+def _timer_resolution(begin):
+    if sys.platform != "win32":
+        return
+    try:
+        winmm = ctypes.windll.winmm
+        (winmm.timeBeginPeriod if begin else winmm.timeEndPeriod)(_WIN_PERIOD_MS)
+    except Exception:
+        pass
+
 
 def _on_main(_arg):
     global _pending
@@ -90,6 +107,7 @@ def start(wake):
     global _wake, _thread, _stop
     _wake = wake
     _stop = False
+    _timer_resolution(True)
     if _thread is None or not _thread.is_alive():
         _thread = threading.Thread(target=_worker, name="multimer-pending", daemon=True)
         _thread.start()
@@ -111,3 +129,4 @@ def stop():
         _stop = True
         _set_deadline_locked(None)
     _wake = None
+    _timer_resolution(False)

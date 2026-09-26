@@ -20,9 +20,10 @@ _wake = None
 
 
 def _cb(_arg):
+    # Already at a bytecode boundary: the port scheduled this call.
     w = _wake
     if w is not None:
-        w()
+        w(True)
 
 
 def start(wake):

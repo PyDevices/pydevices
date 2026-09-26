@@ -25,9 +25,11 @@ _armed_ms = None
 
 
 def _cb(_t):
+    # A soft machine.Timer callback: the port already delivered it through
+    # micropython.schedule, so this is a bytecode boundary of the main thread.
     w = _wake
     if w is not None:
-        w()
+        w(True)
 
 
 def start(wake):
