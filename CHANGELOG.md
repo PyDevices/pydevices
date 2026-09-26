@@ -1,3 +1,7 @@
+## v0.6.2 (2026-09-26)
+
+- multimer: python -c is a batch entry; the timing ledger's follow-ups (#106)
+
 ## v0.6.1 (2026-09-26)
 
 - mip-split: list the new multimer host-only modules; test every listed name exists (#104)
