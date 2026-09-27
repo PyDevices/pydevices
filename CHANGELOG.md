@@ -1,3 +1,7 @@
+## v0.6.5 (2026-09-27)
+
+- multimer: the machine source never re-inits its timer while it could be firing (drum machine panic on the P4) (#115)
+
 ## v0.6.4 (2026-09-27)
 
 - FunHouse board package works on stock MicroPython; board_peripherals import order on seven boards; MADCTL rotation on RGB panels (#112)
