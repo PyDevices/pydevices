@@ -157,7 +157,7 @@ import, in this order, taking the first that imports:
 
 | Host | Source | Delivery | Wakes a blocked main thread |
 |---|---|---|---|
-| MicroPython on a board | `machine`: one `machine.Timer`, ONE_SHOT, re-armed to the next deadline; its callback is `micropython.schedule`d | bytecode | yes: the REPL and `sleep_ms` run pending callbacks |
+| MicroPython on a board | `machine`: one `machine.Timer`, ONE_SHOT, re-armed to the next deadline but never while it may be firing (micropython-pydevices#14); its callback is `micropython.schedule`d | bytecode | yes: the REPL and `sleep_ms` run pending callbacks |
 | MicroPython unix, macOS | `signal`: `timer_create` on an RT signal; the ffi handler only calls `micropython.schedule` | bytecode | yes: `read()` returns EINTR and the port runs pending callbacks before retrying (`ports/unix/mphalport.h:94-108`) |
 | MicroPython windows | `native`: a C helper thread calling `mp_sched_schedule` (overlay patch, see [MCU and Windows phases](#micropython-on-windows)) | bytecode | with the console-wait patch |
 | MicroPython wasm | `wasm`: `_wasm_bridge.timer_start`; the bridge calls the dispatcher when the VM is idle | idle (the page loop) | the loop owns the thread |
@@ -566,6 +566,25 @@ runs, not the cloud's; the cloud's container was 4 cores, the bench is 8.
   recorded bases, which were still `main`; micropython-pydevices rebased
   over one commit with no conflict).
 
+- **The `machine` source stops touching a timer that may be firing
+  (hardware, 2026-09-27).** The drum machine rebooted the P4 within seconds
+  of PLAY: `Instruction access fault`, MEPC 0, in the esp32 port's
+  `machine_timer_isr_virtual`. Re-arming called `machine.Timer.init()`, whose
+  internal `deinit()` clears the port's handler pointer while a fire already
+  dispatched on the other core is still to call it
+  (micropython-pydevices#14). A minimal split (timers re-arming the shared
+  one-shot from callbacks and the main loop, `gc.collect()` every 2 s, no
+  LVGL, no audio) panicked within a second. The source now keeps the
+  deadline it armed and re-inits only when that fire is more than 2 ms away
+  or more than 20 ms past; `cancel()` never deinits. It also aims each fire
+  at its millisecond edge in microseconds (`tick_hz`), which removed the
+  sub-millisecond creep of re-arming whole milliseconds from the callback.
+  On the P4 the split then ran 10 minutes (419,398 wakes) and the drum
+  machine played 10.5 minutes (170,968 deliveries) with no panic; the
+  T-Embed ran the split 2 minutes. The firmware half is overlay patch 0016.
+  Numbers: [the table below](#after-the-rearm-fix-2026-09-27); the runs:
+  [timing-hardware-tests.md](timing-hardware-tests.md#what-the-runs-saw-2026-09-27).
+
 ## Numbers on hardware
 
 Measured on the bench on 2026-09-26, current multimer against the redesign,
@@ -617,6 +636,30 @@ The one thing the interrupt providers were good at — delivering while the
 program computes — the redesign keeps, and gets on the *main* thread on every
 host that can interrupt. Where a host cannot (CircuitPython), busy delivery is
 0 by contract and the program yields with `sleep_ms`/`pump`, as before.
+
+### After the rearm fix (2026-09-27)
+
+The same `bench_timer.py` `run()`, but with a 1 s warm-up run first in the
+same session and the 5 s run measured after it: the cold run's worst
+samples are the first imports of the `.py` set (about 60 ms each, on both
+versions), and they decide its p99. Warm, old and new source alternated on
+one boot. Ranges are over the runs; jitter in ms.
+
+| Board, main thread | Source | Runs | Delivered | Jitter p50 | Jitter p99 | Lateness p99 (ms) |
+|---|---|---|---|---|---|---|
+| ESP32-P4, idle | 0.6.4 `machine` | 3 | 503-504 | 0.09-0.11 | 0.98-1.01 | 1 |
+| ESP32-P4, idle | **rearm fix** | 3 | 503-504 | **0.001-0.18** | **0.33-0.60** | **0** |
+| ESP32-P4, busy | 0.6.4 `machine` | 3 | 504 | 0.26 | 0.74 | 1 |
+| ESP32-P4, busy | **rearm fix** | 3 | 504 | **0.002** | **0.20-0.27** | **0** |
+| T-Embed S3, idle | 0.6.1 `machine` (mip) | 2 | 502-504 | 0.50 | 0.97 | 1 |
+| T-Embed S3, idle | **rearm fix** | 2 | 503-504 | **0.010-0.013** | **0.37-0.42** | **0** |
+| T-Embed S3, busy | 0.6.1 `machine` (mip) | 2 | 502 | 0.45-0.47 | 0.62-0.81 | 1 |
+| T-Embed S3, busy | **rearm fix** | 2 | 502 | **0.005-0.014** | **0.24-0.54** | **0** |
+
+Before the microsecond aiming, the fix alone was worse at p50 (P4 idle about
+0.33 ms, busy 0.41), because a one-shot re-armed in whole milliseconds from
+its own callback drifts by the delivery latency every period; the old code
+hid that at idle by re-arming on every `sleep_ms` slice.
 
 ### LVGL and the REPL on boards
 
