@@ -1,3 +1,9 @@
+## v0.6.4 (2026-09-27)
+
+- FunHouse board package works on stock MicroPython; board_peripherals import order on seven boards; MADCTL rotation on RGB panels (#112)
+- android.py: accept a device adb lists as "(no serial number)" (#113)
+- docs: the Android launcher and drum machine visual pass, run on the S21 (#111)
+
 ## v0.6.3 (2026-09-26)
 
 - ci: every reusable call moves from publishing-v11 to publishing-v12 (#108)
