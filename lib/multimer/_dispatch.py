@@ -425,7 +425,11 @@ def _arm(timer):
     _arm_next()
     from . import _hostloop
 
-    _hostloop.ensure_installed()
+    # A timer armed from a callback that ran while the first arm was still
+    # importing _hostloop sees the half-made module; that first arm installs.
+    install = getattr(_hostloop, "ensure_installed", None)
+    if install is not None:
+        install()
 
 
 def hold():

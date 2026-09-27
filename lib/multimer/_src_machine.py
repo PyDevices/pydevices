@@ -11,25 +11,82 @@ bytecodes of the main thread, and at the REPL while it waits for a key.
 
 Boards have few timers (four on an ESP32); this uses one for every
 ``multimer.Timer`` in the program.
+
+**It never calls** ``init()`` **or** ``deinit()`` **while the timer could be
+firing.** On esp32 a virtual timer's callback runs on the ``esp_timer`` task,
+on the other core from the interpreter, and ``init()`` begins with a
+``deinit()`` that clears the port's handler pointer before setting it again.
+A fire that lands in that gap calls a NULL pointer and the board reboots
+(micropython-pydevices#14; the drum machine did it within seconds). So the
+source keeps the hardware deadline it armed and re-inits only when that
+deadline is comfortably far away, or long past:
+
+* a new deadline no earlier than the armed one: nothing. The pending fire
+  wakes the dispatcher, which finds nothing due and re-arms to the earliest.
+* an earlier deadline with the armed one within ``_PRE_MS``: nothing. The
+  pending fire comes first, at most ``_PRE_MS`` late for the new deadline.
+* an armed deadline passed less than ``_POST_MS`` ago whose callback has not
+  arrived: nothing. Its C callback may still be running; the Python one
+  follows and re-arms.
+* ``cancel()`` never deinits. The callback finds nothing wanted and does
+  not wake the dispatcher.
+
+Each ``init()`` carries a generation, so a callback from a fire the source
+has since replaced is recognised: it still wakes the dispatcher, but it does
+not mark the hardware idle.
 """
 
 from machine import Timer as _HW
+
+try:
+    # The port's own clocks: native calls, and ticks_ms/ticks_us share a base.
+    from time import ticks_add, ticks_diff, ticks_ms, ticks_us
+except ImportError:  # CPython, for the unit tests' fake machine.Timer
+    from ._ticks import ticks_add, ticks_diff, ticks_ms
+
+    ticks_us = None
 
 name = "machine"
 delivery = "bytecode"
 wakes_blocking = True
 
+# Re-init only when the armed fire is more than this many ms away...
+_PRE_MS = 2
+# ...or passed this long ago without its callback arriving (a lost callback,
+# or one queued behind a long delivery; either way its C side is long done).
+_POST_MS = 20
+
 _wake = None
 _hw = None
-_armed_ms = None
+_due = None  # ticks_ms the hardware fires at; None once its callback came
+_gen = 0  # bumped on every init(); a callback from an older one is stale
+_wanted = False  # the dispatcher wants a wake (cleared by cancel())
+# A ticks_ms edge and the ticks_us it happened at, so a deadline can be aimed
+# at its millisecond edge in microseconds. Arming whole milliseconds from a
+# callback lets the fire's sub-millisecond phase creep by the delivery's own
+# latency every period, which is a third of a millisecond of jitter on a P4.
+_m0 = None
+_u0 = None
+_us_ok = True  # the port's init() takes tick_hz
 
 
-def _cb(_t):
+def _cb(gen):
     # A soft machine.Timer callback: the port already delivered it through
     # micropython.schedule, so this is a bytecode boundary of the main thread.
+    global _due
+    if gen == _gen:
+        _due = None
+    # A fire the source has since replaced still wakes the dispatcher (a
+    # spare delivery costs nothing), but leaves the pending deadline alone.
+    if not _wanted:
+        return
     w = _wake
     if w is not None:
         w(True)
+
+
+def _make_cb(gen):
+    return lambda _t: _cb(gen)
 
 
 def start(wake):
@@ -49,25 +106,87 @@ def start(wake):
             raise last
 
 
+def _quiet(now):
+    """True when the hardware cannot be firing: never armed, its callback
+    came, its deadline is comfortably ahead, or long past."""
+    if _due is None:
+        return True
+    left = ticks_diff(_due, now)
+    return left > _PRE_MS or left < -_POST_MS
+
+
 def arm(delay_ms):
-    global _armed_ms
+    global _wanted, _due, _gen
     ms = int(delay_ms)
     if ms < 1:
         ms = 1
-    _armed_ms = ms
-    _hw.init(mode=_HW.ONE_SHOT, period=ms, callback=_cb)
+    now = ticks_ms()
+    want = ticks_add(now, ms)
+    _wanted = True
+    if _due is not None:
+        left = ticks_diff(_due, now)
+        if left >= -_POST_MS:
+            if ticks_diff(want, _due) >= 0:
+                return  # the pending fire is no later; it wakes us
+            if left <= _PRE_MS:
+                return  # too close to touch; it fires within _PRE_MS
+    _gen += 1
+    _due = want
+    cb = _make_cb(_gen)
+    if _us_ok and ticks_us is not None:
+        us = _us_until(want)
+        try:
+            _hw.init(mode=_HW.ONE_SHOT, period=us, tick_hz=1000000, callback=cb)
+            return
+        except TypeError:
+            _no_us()
+    _hw.init(mode=_HW.ONE_SHOT, period=ms, callback=cb)
+
+
+def _no_us():
+    global _us_ok
+    _us_ok = False
+
+
+def _us_until(want):
+    """Microseconds from now to just past the ticks_ms edge of *want*."""
+    global _m0, _u0
+    if _m0 is None or ticks_diff(want, _m0) < 0:
+        # Find an edge: spin until ticks_ms moves (at most 1 ms, once). A
+        # clock that never moves (a test's) takes the reading as it stands.
+        m = ticks_ms()
+        _m0 = m
+        _u0 = ticks_us()
+        for _ in range(20000):
+            m1 = ticks_ms()
+            if m1 != m:
+                _u0 = ticks_us()
+                _m0 = m1
+                break
+    dm = ticks_diff(want, _m0)
+    while dm > 100000:
+        # Keep the offsets small: ms and us come from one counter, so moving
+        # the anchor by whole seconds is exact.
+        _m0 = ticks_add(_m0, 100000)
+        _u0 = ticks_add(_u0, 100000000)
+        dm -= 100000
+    # 20 us past the edge, so ticks_ms already reads *want* when it fires.
+    us = ticks_diff(ticks_add(_u0, dm * 1000 + 20), ticks_us())
+    return us if us > 1 else 1
 
 
 def cancel():
-    global _armed_ms
-    _armed_ms = None
-    try:
-        _hw.deinit()
-    except Exception:
-        pass
+    global _wanted
+    _wanted = False
 
 
 def stop():
-    global _wake
+    global _wake, _due
     cancel()
     _wake = None
+    if _hw is not None and _quiet(ticks_ms()):
+        _due = None
+        try:
+            _hw.deinit()
+        except Exception:
+            pass
