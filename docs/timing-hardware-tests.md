@@ -166,6 +166,36 @@ has the portal or workbench checked out beside it: `mp-wasm` writes the
 runtime into `PyDevices.github.io/vendor/micropython/` and
 `workbench/assets/pydevices/`. Run `--only mp-unix` and friends.
 
+## What the runs saw (2026-09-27)
+
+The rearm fix for micropython-pydevices#14, on the P4 panel (cast image,
+MicroPython 1.29.0 plus the overlay) and the T-Embed S3. Consoles were
+captured read-only with `mpftp monitor COM4`.
+
+- **Reproduced, drum machine.** Stock drum machine on pydevices 0.6.4's
+  multimer, PLAY pressed by a script: `Guru Meditation Error: Core 0
+  panic'ed (Instruction access fault)`, MEPC 0x00000000, RA 0x401e8602,
+  about 20 s after PLAY (a first 47 s run happened not to hit it).
+- **Reproduced, minimal split.** Two periodic `multimer.Timer`s plus a
+  one-shot re-armed about 1 ms apart from a timer callback and from the
+  main loop, `gc.collect()` every 2 s, no LVGL or audio: the same panic
+  within a second. The same split with periodic timers only, or with the
+  main loop re-arming every `sleep_ms(1)`, ran 60 s clean: the re-arm has to
+  land near a due fire. A plain `machine.Timer(-1)` loop doing that
+  (no multimer) panicked in under 2 s.
+- **Fixed, multimer.** The split ran 10 minutes (419,398 wakes) and the
+  drum machine played 10.5 minutes (170,968 deliveries) with no panic, at
+  the panel's 85 %. The T-Embed ran the split 2 minutes clean; on its
+  released 0.6.1 multimer one of two runs restarted mid-run (cause not
+  readable over its CDC console) and the other ran clean, so the S3 is not
+  a reliable repro. The split also found an import race: a timer armed from
+  a callback while the first arm was still importing `_hostloop` raised
+  `AttributeError`; fixed in the same change.
+- **Fixed, firmware (overlay patch 0016).** The cast image rebuilt with the
+  patch: the plain `machine.Timer` loop ran 60 s (32,693 fires) and the
+  unfixed multimer ran the split 10 minutes (288,667 wakes), no panic.
+- **Numbers.** In [timing-design.md](timing-design.md#after-the-rearm-fix-2026-09-27).
+
 ## What the runs saw (2026-09-26)
 
 Run on the bench by the local session that landed the series. The numbers are
