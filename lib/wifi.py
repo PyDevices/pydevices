@@ -18,7 +18,8 @@ native CP radio object). On MicroPython, use ``network``/``socket`` or a
 third-party HTTP client instead.
 
 ``connect()`` returns ``None`` (like CP). ``ipv4_address`` is ``None`` until
-DHCP assigns a non-zero address.
+the station is associated and has a non-zero address (from DHCP, or a static
+address set with ``ifconfig()``).
 """
 
 from time import sleep_ms, ticks_diff, ticks_ms
@@ -52,14 +53,25 @@ class Radio:
         self._wlan = network.WLAN(network.STA_IF)
 
     def _ipv4(self):
-        # Prefer ifconfig over isconnected(): ESP-IDF "got ip" is ifconfig;
-        # isconnected() can lag on debug builds.
+        # Connected means an address AND a link. The address alone is not
+        # enough: a static address set with ifconfig() before connect() reads
+        # back at once, while the station is still unassociated, and stays
+        # there after the link drops. On esp32, isconnected() is ESP-IDF's
+        # "got ip" (a static address raises the same event on association),
+        # so it covers DHCP and static alike; it can trail ifconfig by a
+        # moment on debug builds, which only costs the wait loop a poll.
         try:
             ip = self._wlan.ifconfig()[0]
         except Exception:
             return None
         if not _valid_ipv4(ip):
             return None
+        try:
+            if not self._wlan.isconnected():
+                return None
+        except Exception:
+            # A port without a usable isconnected(): the address is all we have.
+            pass
         return ip
 
     def connect(self, ssid, password):
@@ -107,7 +119,8 @@ radio = Radio()
 def connect_from_secrets(module="secrets"):
     """Connect using ``WIFI_SSID`` / ``WIFI_PASSWORD`` (or ``ssid`` / ``password``).
 
-    Returns ``True`` if an IPv4 address is assigned after ``connect()``.
+    Returns ``True`` if the station is associated with an IPv4 address after
+    ``connect()``. Safe to call again to rejoin after the link drops.
     """
     try:
         s = __import__(module)
@@ -116,7 +129,7 @@ def connect_from_secrets(module="secrets"):
         return False
     ssid = getattr(s, "WIFI_SSID", None) or getattr(s, "ssid", None)
     password = getattr(s, "WIFI_PASSWORD", None) or getattr(s, "password", None)
-    # Already online (e.g. NVS auto-reconnect) — do not call connect() again.
+    # Already online (associated with an address) — do not call connect() again.
     if radio.ipv4_address is not None:
         print("\nAlready connected.\nNetwork config:", radio._wlan.ifconfig(), "\n")
         _sync_time()
