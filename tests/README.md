@@ -32,6 +32,7 @@ Do not run audiodev tests while another process is playing audio — see
 | `test_multimer.py` | public multimer API |
 | `test_events.py` / `test_keys.py` | shared event types and key codes |
 | `test_boarddev.py` | `boarddev.bind_lazy` |
+| `test_wifi.py` | `wifi.connect_from_secrets()` counts a board as connected only with a link, so a static address joins at boot and rejoins after a drop |
 | `test_standalone.py` | displaydev and multimer import in isolation |
 | `test_mip_portable.py` | portable `utils/mip.py` |
 | `test_audiodev*.py`, `test_*_audio.py`, `test_auto.py` | audiodev (see audio README) |
