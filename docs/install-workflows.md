@@ -137,14 +137,13 @@ include("../manifest.py")                               # your app
 
 [`manifest-desktop.py`](../manifest-desktop.py) freezes everything in `lib/`,
 the desktop board config, and the pure-Python SDL2 and Win32 bindings. For a
-board image, include [`manifest-core.py`](../manifest-core.py) (just `lib/`)
-and freeze your board config yourself.
+board image, include [`manifest.py`](../manifest.py) (just `lib/`) and freeze
+your board config yourself.
 
 Frozen modules come before `lib` on `sys.path`, so a frozen PyDevices shadows
 any copy installed with `mip`, and updating it means rebuilding. That's why
 the published interpreters don't freeze it; do this only when one
-self-contained binary is the point. [`manifest.py`](../manifest.py) is the
-install manifest, not a freeze manifest.
+self-contained binary is the point.
 
 ## Connected-device installation
 

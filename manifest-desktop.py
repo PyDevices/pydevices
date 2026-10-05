@@ -11,7 +11,7 @@ standard content and the app itself::
 
 It freezes, all at top level:
 
-- everything ``manifest-core.py`` freezes (the whole of ``lib/``);
+- everything ``manifest.py`` freezes (the whole of ``lib/``);
 - the desktop board config, ``board_config.py`` and ``board_peripherals.py``
   from ``board_configs/desktop``;
 - ``usdl2.py`` and ``uwin32.py`` from ``utils/``, the pure-Python SDL2 and
@@ -26,9 +26,6 @@ firmware's own ``mip``) or ``utils/micropython.py`` (a CPython shim).
 The binary still needs the SDL2 shared library on the machine when a display
 opens through SDL (unix, and Windows' fallback path); Windows' own path uses
 only system DLLs.
-
-This is not ``manifest.py``. That one packages the source tree for
-installation, and it is the only manifest the publisher reads.
 
 **What freezing costs you.** Frozen modules come before ``lib`` on
 ``sys.path`` (``.frozen`` is searched first), so a frozen PyDevices shadows any
@@ -47,7 +44,7 @@ if 0:
         pass
 
 
-include("manifest-core.py")  # type: ignore[name-defined]  # noqa: PGH003
+include("manifest.py")  # type: ignore[name-defined]  # noqa: PGH003
 
 for _name in ("board_config.py", "board_peripherals.py"):
     module(_name, base_path="board_configs/desktop", opt=3)  # type: ignore[name-defined]  # noqa: PGH003

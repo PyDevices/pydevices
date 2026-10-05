@@ -1,25 +1,38 @@
-"""Package the PyDevices source tree for installation.
+"""PyDevices as a micropython-lib package: freeze it into a firmware, or
+require() it from another manifest.
 
-Target paths are ``lib/...`` and ``utils/...``, so installing with ``target="."``
-lays the tree out the way the documented search paths expect::
+It carries everything in ``lib/`` at top level, so ``appdev``, ``audiodev``,
+``bledev``, ``displaydev``, ``multimer``, ``boarddev``, ``events``, ``keys``
+and ``wifi`` import under their own names, exactly as they do after a ``mip``
+install. The list is read from ``lib/`` itself, so a new module there is
+included without anyone editing this file. ``utils/`` is not: its ``mip.py``
+must never sit in front of the firmware's own ``mip``.
 
-    MICROPYPATH=".:.frozen:lib:utils:~/.micropython/lib:/usr/lib/micropython"
-    PYTHONPATH=".:lib:utils"
+With micropython-pydevices, ``build_mp.py --modules pydevices`` (or ``all``)
+freezes it. From your own freeze manifest::
 
-``lib`` holds the importable packages (``appdev``, ``audiodev``, ``displaydev``,
-``multimer``) and the flat modules beside them; ``utils`` holds the host-side
-helpers, including the portable ``mip.py`` that stands in for firmware ``mip``
-on CPython, CircuitPython and Pyodide. Keeping ``utils`` *after* ``.frozen``
-matters: MicroPython ships ``mip`` in firmware, and ``utils/mip.py`` raises
-ImportError if the search order ever lets it shadow that.
+    include("path/to/pydevices")
 
-Note this is not a freeze manifest -- the target paths are prefixed, so frozen
-modules would import as ``lib.appdev`` rather than ``appdev``. Nor does the
-org's interpreter build freeze this tree: hosts install it with ``mip``, so
-what runs is always the published or staged code, never a build-time snapshot.
+For a desktop interpreter, include ``manifest-desktop.py`` instead; it adds
+the desktop board config and the pure-Python SDL2 and Win32 bindings.
+
+This file is not what ``mip`` installs from. The org's publisher builds the
+``pydevices`` and ``pydevices-desktop`` mip packages from ``lib/``, ``utils/``
+and ``mip-split.toml`` directly, with manifests of its own.
+
+**What freezing costs you.** Frozen modules come before ``lib`` on
+``sys.path`` (``.frozen`` is searched first), so a frozen PyDevices shadows any
+copy installed with ``mip``. Updating it means rebuilding the firmware. Freeze
+it where one self-contained image is the point, or where a page should load
+without fetching it (the webassembly build); elsewhere, install with ``mip``.
 """
 
+import os
+
 if 0:
+
+    def metadata(*args, **kwargs):
+        pass
 
     def package(*args, **kwargs):
         pass
@@ -28,5 +41,22 @@ if 0:
         pass
 
 
-package("lib", base_path=".", opt=3)  # type: ignore[name-defined]  # noqa: PGH003
-package("utils", base_path=".", opt=3)  # type: ignore[name-defined]  # noqa: PGH003
+with open("VERSION") as _f:
+    _version = _f.read().strip()
+
+metadata(  # type: ignore[name-defined]  # noqa: PGH003
+    description="PyDevices: display, audio, input, timing and app support for MicroPython, CircuitPython and CPython",
+    version=_version,
+    license="MIT",
+    author="Brad Barnett",
+)
+
+# The manifest tools run this file with its own directory as the working
+# directory, so "lib" is this checkout's lib/ wherever the build runs from.
+for _name in sorted(os.listdir("lib")):
+    if _name.startswith(".") or _name in ("__pycache__", "build", "dist"):
+        continue
+    if os.path.isdir(os.path.join("lib", _name)):
+        package(_name, base_path="lib", opt=3)  # type: ignore[name-defined]  # noqa: PGH003
+    elif _name.endswith(".py"):
+        module(_name, base_path="lib", opt=3)  # type: ignore[name-defined]  # noqa: PGH003
