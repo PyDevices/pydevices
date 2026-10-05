@@ -126,24 +126,22 @@ CircuitPython or CPython.
 ## Freezing PyDevices into one binary
 
 If you want a single `micropython.exe` (or board image) that runs with nothing
-installed, freeze PyDevices into it instead. Add one line to your app's freeze
-manifest:
+installed, freeze PyDevices into it with micropython-pydevices' `build_mp.py`.
+A desktop or browser build also takes the universal desktop board config:
 
-```python
-include("$(PORT_DIR)/variants/standard/manifest.py")    # the port's usual content
-include("$(MPY_DIR)/../pydevices/manifest-desktop.py")  # PyDevices + desktop board config
-include("../manifest.py")                               # your app
+```bash
+build_mp.py --port windows --variant pydevices \
+    --modules pydevices,<pydevices>/board_configs/desktop,<your app>
 ```
 
-[`manifest-desktop.py`](../manifest-desktop.py) freezes everything in `lib/`,
-the desktop board config, and the pure-Python SDL2 and Win32 bindings. For a
-board image, include [`manifest.py`](../manifest.py) (just `lib/`) and freeze
-your board config yourself.
+[`manifest.py`](../manifest.py) freezes everything in `lib/`;
+[`board_configs/desktop/manifest.py`](../board_configs/desktop/manifest.py)
+freezes the desktop board config and the pure-Python SDL2 and Win32 bindings.
+A `board_config.py` beside your script still wins over the frozen one. For a
+board image, freeze `lib/` only and install the board's own config.
 
 Frozen modules come before `lib` on `sys.path`, so a frozen PyDevices shadows
-any copy installed with `mip`, and updating it means rebuilding. That's why
-the published interpreters don't freeze it; do this only when one
-self-contained binary is the point.
+any copy installed with `mip`, and updating it means rebuilding.
 
 ## Connected-device installation
 

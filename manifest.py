@@ -13,8 +13,9 @@ freezes it. From your own freeze manifest::
 
     include("path/to/pydevices")
 
-For a desktop interpreter, include ``manifest-desktop.py`` instead; it adds
-the desktop board config and the pure-Python SDL2 and Win32 bindings.
+A desktop or browser build also names ``board_configs/desktop``, whose own
+manifest freezes the desktop board config and the pure-Python SDL2 and Win32
+bindings.
 
 This file is not what ``mip`` installs from. The org's publisher builds the
 ``pydevices`` and ``pydevices-desktop`` mip packages from ``lib/``, ``utils/``
