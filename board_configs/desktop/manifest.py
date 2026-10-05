@@ -12,9 +12,10 @@ It freezes ``board_config``, ``board_peripherals``, and the desktop-only
 helpers from ``utils/``: the pure-Python SDL2 and Win32 bindings the desktop
 display, audio and timer backends open a window and a sound device through
 (a native ``usdl2`` built in still wins), and ``frame_recorder``. It does not
-bring pydevices itself; name both:
+bring pydevices itself.
 
-    build_mp.py --port unix --variant pydevices --modules pydevices,<pydevices>/board_configs/desktop
+micropython-pydevices' desktop and browser variants (``--variant pydevices`` on
+unix, windows and webassembly) include this file, so a build never names it.
 """
 
 if 0:

@@ -127,11 +127,10 @@ CircuitPython or CPython.
 
 If you want a single `micropython.exe` (or board image) that runs with nothing
 installed, freeze PyDevices into it with micropython-pydevices' `build_mp.py`.
-A desktop or browser build also takes the universal desktop board config:
+Its `pydevices` variant also freezes the universal desktop board config:
 
 ```bash
-build_mp.py --port windows --variant pydevices \
-    --modules pydevices,<pydevices>/board_configs/desktop,<your app>
+build_mp.py --port windows --variant pydevices --modules pydevices,<your app>
 ```
 
 [`manifest.py`](../manifest.py) freezes everything in `lib/`;
