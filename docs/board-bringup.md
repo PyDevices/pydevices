@@ -18,8 +18,8 @@ marginal signal: measured on an ESP32-P4 at RSSI −85 dBm, connect 9.8 s,
 
 ## 1. What the firmware already has, and what it does not
 
-Check before installing anything. On an image built with the kitchen-sink
-preset (micropython-pydevices' `manifests/kitchen-sink.py`) the following are
+Check before installing anything. On an image built with every module
+(micropython-pydevices' `build_mp.py --modules all`) the following are
 **frozen or built in** — installing them is wasted effort:
 
 - `lvgl` and `display_driver` (from lvgl-bindings)
