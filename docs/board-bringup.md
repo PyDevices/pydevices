@@ -18,9 +18,10 @@ marginal signal: measured on an ESP32-P4 at RSSI −85 dBm, connect 9.8 s,
 
 ## 1. What the firmware already has, and what it does not
 
-Check before installing anything. On an image built with the kitchen-sink
-preset (micropython-pydevices' `manifests/kitchen-sink.py`) the following are
-**frozen or built in** — installing them is wasted effort:
+Check before installing anything. On an image built with the PyDevices C
+modules (micropython-pydevices' `build_mp.py --modules
+displayif,lvgl-micropython,usbif,pygraphics,audiodsp,ulab`, say) the following
+are **frozen or built in** — installing them is wasted effort:
 
 - `lvgl` and `display_driver` (from lvgl-bindings)
 - `dotclockframebuffer` (from displayif) — the RGB panel interface
@@ -31,6 +32,9 @@ preset (micropython-pydevices' `manifests/kitchen-sink.py`) the following are
 and the following are **not**, and must be installed:
 
 - `displaydev`, `appdev`, `multimer`, `audiodev`, `boarddev`, `events`, `keys`
+  (pydevices). An image built with `--modules all` freezes these too, and
+  `.frozen` comes before `/lib` on `sys.path`, so there a mip-installed copy
+  never runs: rebuild to update them.
 - `board_config` and `board_peripherals` for the specific board
 - the board's Python drivers (`ch422g`, `gt911`, ...)
 
