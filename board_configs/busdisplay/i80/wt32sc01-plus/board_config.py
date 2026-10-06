@@ -13,9 +13,11 @@ from st7796 import ST7796
 #    ST7796(reset=4)
 reset = Pin(4, Pin.OUT, value=1)
 
+# Pins from the board's datasheet (Panlee ZX3D50CE02S-USRC-4832, Tab. 5). The
+# LCD has no chip-select line; GPIO 6 is the touch controller's SDA.
 display_bus = I80Bus(
     command=0,
-    chip_select=6,
+    chip_select=None,
     write=47,
     data_pins=[9, 46, 3, 8, 18, 17, 16, 15],
 )
@@ -40,7 +42,7 @@ display_drv = ST7796(
     power_pin=None,
     power_on_high=True,
 )
-i2c = I2C(0, sda=Pin(6), scl=Pin(5), frequency=100_000)
+i2c = I2C(0, sda=Pin(6), scl=Pin(5), freq=100_000)
 touch = FT6x36(i2c)
 touch_rotation_table = None
 

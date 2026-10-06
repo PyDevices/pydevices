@@ -34,7 +34,7 @@ display_drv = ILI9341(
     power_pin=None,
     power_on_high=True,
 )
-i2c = I2C(0, sda=Pin(16), scl=Pin(17), frequency=100_000)
+i2c = I2C(0, sda=Pin(16), scl=Pin(17), freq=100_000)
 touch = FT6x36(i2c)
 touch_rotation_table = None
 
