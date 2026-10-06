@@ -10,12 +10,12 @@ def load_peripherals(ns):
 
 
 def sdcard():
-    """SPI microSD when present (CS=GPIO41 common on WT32-SC01 Plus)."""
+    """The microSD slot over SPI (datasheet Tab. 4: CS 41, MOSI 40, CLK 39, MISO 38)."""
     from machine import Pin, SoftSPI
 
     from sdcard import SDCard
 
-    spi = SoftSPI(baudrate=1_000_000, sck=Pin(12), mosi=Pin(11), miso=Pin(13))
+    spi = SoftSPI(baudrate=1_000_000, sck=Pin(39), mosi=Pin(40), miso=Pin(38))
     return SDCard(spi, Pin(41, Pin.OUT, value=1))
 
 
