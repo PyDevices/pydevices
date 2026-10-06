@@ -28,6 +28,7 @@ variant (`C6_WIFI`).
 | Product / nickname | `board_config` dir | Resolution | Panel / bus | Touch | Expander / IO |
 |---|---|---|---|---|---|
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `esp32-p4-wifi6-touch-lcd-4b` | 720×720 | ST7703 **MIPI DSI** (`mipidsi`) | GT911 | — |
+| Waveshare ESP32-P4-WIFI6-DEV-KIT + KeDei 5" DSI | `esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | 800×480 | ICN6211 bridge, **MIPI DSI** (`mipidsi`, `non_burst`, `continuous_clock`) | FocalTech (`ft6x36`) | — |
 | Adafruit Qualia S3 + TL040HDS20 | `qualia_tl040hds20` (+ CP under `cp/fbdisplay/qualia_tl040hds20`) | 720×720 | RGB-666→565 **DotClock** | FT6x36 @ `0x48` | PCA9554 @ `0x3f` |
 | Waveshare ESP32-S3-Touch-LCD-4.3 | `esp32-s3-touch-lcd-4_3` | 800×480 | ST7262 RGB **DotClock** | GT911 @ `0x5D` | CH422G |
 | LILYGO T-RGB 2.1″ round | `t-rgb_480` | 480×480 | ST7701 RGB **DotClock** | CST820 (`cst8xx`) | XL9535 |
