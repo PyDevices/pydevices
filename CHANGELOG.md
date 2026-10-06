@@ -1,3 +1,12 @@
+## v0.6.6 (2026-10-06)
+
+- Board config: the P4 DEV-KIT with a KeDei 5" DSI display; ft6x36 no longer reads an idle 0xFF status as 15 touches (#123)
+- wt32sc01-plus: pins from the datasheet, freq=, and a 10 MHz bus (#122)
+- board-bringup: images built with build_mp.py, and why a mip-installed pydevices doesn't run on an all image (#120)
+- board_configs/desktop gets a freeze manifest; manifest-desktop.py goes (#121)
+- manifest.py is a micropython-lib package manifest: freeze it or require() it (#119)
+- wifi: connected means a link, not just an address (#117)
+
 ## v0.6.5 (2026-09-27)
 
 - multimer: the machine source never re-inits its timer while it could be firing (drum machine panic on the P4) (#115)
