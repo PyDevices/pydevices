@@ -38,7 +38,7 @@ installers already include the drivers they require.
 
 | File | Chip | Typical boards |
 |------|------|----------------|
-| `ft6x36.py` | FocalTech FT6x36 | ESP32-S3 dev boards, Wokwi |
+| `ft6x36.py` | FocalTech FT6x36 (and the FT5426-family part on a KeDei 5" DSI) | ESP32-S3 dev boards, Wokwi, the P4 DEV-KIT with a KeDei 5" |
 | `tt21100.py` | TT21100 | PyPortal, FunHouse |
 | `stmpe610.py` | STMPE610 | PiTFT FeatherWing |
 | `xpt2046.py` | XPT2046 | Resistive SPI touch |

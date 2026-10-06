@@ -85,6 +85,7 @@ An exact match for all four is rare; bus + display controller is usually enough 
 |-----------|----------|
 | `fbdisplay/qualia_tl040hds20` | MicroPython Qualia RGB |
 | `fbdisplay/esp32-p4-wifi6-touch-lcd-4b` | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B (MIPI-DSI, touch, ES8311) |
+| `fbdisplay/esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | Waveshare ESP32-P4-WIFI6-DEV-KIT with a KeDei 5" Raspberry Pi-style DSI display (ICN6211 bridge, FocalTech touch) |
 | `fbdisplay/t-rgb_480` | LilyGO T-RGB 480×480 ST7701 (ESP32-S3; RGB via pydevices/displayif) |
 | `fbdisplay/pico2_dvi_sock_640x480` | Pico 2 + Adafruit DVI Sock or PiCowbell HSTX |
 | `fbdisplay/pico2w_dvi_sock_640x480` | Pico 2 W + Sock / PiCowbell HSTX |

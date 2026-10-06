@@ -24,6 +24,7 @@ Boards whose display is the reason to buy them.
 | Product | `board_config` path | Eager UI | Lazy `PERIPHERALS` |
 |---|---|---|---|
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `fbdisplay/esp32-p4-wifi6-touch-lcd-4b` | `touch` | `audio_out`, `audio_in`, `sdcard`, `camera`, `radio`, `wlan`, `ble`, `usb_device` |
+| Waveshare ESP32-P4-WIFI6-DEV-KIT + KeDei 5" DSI | `fbdisplay/esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | `touch` | `wlan`, `ble` |
 | Adafruit Qualia S3 + TL040HDS20 | `fbdisplay/qualia_tl040hds20` | `touch`, `keypad`, `io_expander` | `wlan`, `ble` |
 | Waveshare ESP32-S3-Touch-LCD-4.3 | `fbdisplay/esp32-s3-touch-lcd-4_3` | `touch`, `io_expander` | `sdcard`, `can`, `rs485`, `usb_device`, `wlan`, `ble` |
 | Waveshare ESP32-S3-Touch-LCD-7 | `fbdisplay/esp32-s3-touch-lcd-7` | `touch`, `io_expander` | `sdcard`, `can`, `rs485`, `usb_device`, `wlan`, `ble` |

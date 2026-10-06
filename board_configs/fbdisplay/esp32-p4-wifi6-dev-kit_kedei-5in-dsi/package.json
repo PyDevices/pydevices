@@ -1,0 +1,24 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/fbdisplay/esp32-p4-wifi6-dev-kit_kedei-5in-dsi/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/fbdisplay/esp32-p4-wifi6-dev-kit_kedei-5in-dsi/board_peripherals.py"
+    ],
+    [
+      "ft6x36.py",
+      "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1",
+  "notes": "KeDei 5in DSI (ICN6211) on the DEV-KIT's DSI connector; needs displayif with mipidsi non_burst/continuous_clock. Radio only; codec/SD/camera not yet described."
+}

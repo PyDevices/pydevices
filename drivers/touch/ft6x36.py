@@ -93,7 +93,11 @@ class FT6x36:
 
     def get_positions(self) -> list:
         positions = []
-        num_points = self._i2c.readfrom_mem(self._address, _TD_STATUS_REG, 1)[0] & 0x0F
+        status = self._i2c.readfrom_mem(self._address, _TD_STATUS_REG, 1)[0]
+        # Some FocalTech firmware (an FT5426-family part on a KeDei 5" DSI
+        # panel) reports 0xFF here with nothing touching; read as 15 points it
+        # was a permanent phantom press. This driver reads at most two.
+        num_points = 0 if status == 0xFF else status & 0x0F
         if num_points > 0:
             positions.append(self._get_p1())
         if num_points > 1:
