@@ -20,7 +20,9 @@ display_bus = I80Bus(
     chip_select=None,
     write=47,
     data_pins=[9, 46, 3, 8, 18, 17, 16, 15],
-    frequency=20_000_000,  # the bus's 30 MHz default is past what the ST7796 takes
+    # 10 MHz, proven on the glass 2026-10-05: at the bus's 30 MHz default the
+    # panel showed noise, and at 20 MHz LVGL's updates landed on the wrong rows.
+    frequency=10_000_000,
 )
 
 display_drv = ST7796(
