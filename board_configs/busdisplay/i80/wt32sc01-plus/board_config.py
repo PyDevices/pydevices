@@ -20,6 +20,7 @@ display_bus = I80Bus(
     chip_select=None,
     write=47,
     data_pins=[9, 46, 3, 8, 18, 17, 16, 15],
+    frequency=20_000_000,  # the bus's 30 MHz default is past what the ST7796 takes
 )
 
 display_drv = ST7796(
