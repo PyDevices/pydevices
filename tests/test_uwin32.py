@@ -181,3 +181,33 @@ class Uwin32MidiTests(unittest.TestCase):
             self.assertIsInstance(w.midiOutGetDevName(i), str)
         for i in range(w.midiInGetNumDevs()):
             self.assertIsInstance(w.midiInGetDevName(i), str)
+
+
+@unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+class Uwin32KeyMappingTests(unittest.TestCase):
+    """WinDisplay's keys arrive as the codes SDLDisplay gives for the same keys."""
+
+    def test_numpad_is_the_keypad(self):
+        import keys
+        import uwin32 as w
+
+        digits = [keys.K_KP_0, keys.K_KP_1, keys.K_KP_2, keys.K_KP_3, keys.K_KP_4,
+                  keys.K_KP_5, keys.K_KP_6, keys.K_KP_7, keys.K_KP_8, keys.K_KP_9]
+        for n, want in enumerate(digits):
+            self.assertEqual(want, w.virtual_key_to_sdl(0x60 + n), "VK_NUMPAD%d" % n)
+        for vk, want in ((0x6A, keys.K_KP_MULTIPLY), (0x6B, keys.K_KP_PLUS), (0x6D, keys.K_KP_MINUS),
+                         (0x6E, keys.K_KP_PERIOD), (0x6F, keys.K_KP_DIVIDE)):
+            self.assertEqual(want, w.virtual_key_to_sdl(vk), hex(vk))
+
+    def test_main_row_punctuation_is_its_character(self):
+        import uwin32 as w
+
+        for vk, ch in ((0xBA, ";"), (0xBB, "="), (0xBC, ","), (0xBD, "-"), (0xBE, "."), (0xBF, "/"),
+                       (0xC0, "`"), (0xDB, "["), (0xDC, "\\"), (0xDD, "]"), (0xDE, "'")):
+            self.assertEqual(ord(ch), w.virtual_key_to_sdl(vk), hex(vk))
+
+    def test_letters_and_digits_are_unchanged(self):
+        import uwin32 as w
+
+        self.assertEqual(ord("a"), w.virtual_key_to_sdl(0x41))
+        self.assertEqual(ord("7"), w.virtual_key_to_sdl(0x37))
