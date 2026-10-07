@@ -171,6 +171,43 @@ pydevices-examples does not include a task scheduler. Options:
 - **`asyncio`** — works on CPython, MicroPython, and PyScript (required there)
 - **[multimer](multimer.md)** — one `Timer` on every host; it rides the page's loop on PyScript
 
+## Frame rate
+
+To see how fast an app draws, switch on the display's meter and read it:
+
+```python
+display_drv.measure_fps(True)        # or PYDEVICES_FPS=1 in the environment
+...
+display_drv.fps()
+# {"fps": 29.8, "avg_fps": 29.5, "frames": 1180, "seconds": 40.0,
+#  "present_ms": 4.2, "present_ms_max": 12.0, "busy": 0.13,
+#  "flushes": 0, "pixels": 0}
+display_drv.fps_reset()              # start a fresh measurement
+display_drv.fps_print(5)             # one line every 5 s; 0 stops it
+```
+
+`PYDEVICES_FPS=1` measures any example without editing it, and
+`PYDEVICES_FPS_PRINT=5` also prints a line every five seconds, for tailing a
+log:
+
+```text
+fps 29.8 avg 29.5 frames 1180 present 4.2 ms (max 12.0) busy 13%
+```
+
+`fps` is the last whole second and `avg_fps` everything since it was switched
+on or reset. `present_ms` is the time spent inside the present call per frame,
+and `busy` is the share of wall time spent there: a slow frame rate with a high
+`busy` means the display is the bottleneck, a low one means the app is.
+
+A frame is one `show()`. On a panel LVGL draws into directly, LVGL presents
+with `flush_rect()` once per dirty area, so `display_driver` calls
+`frame_done()` when a frame's last area is out; those `flush_rect()` calls are
+counted as `flushes` and `pixels`, not frames.
+
+It is off by default and costs nothing then: `show` and `flush_rect` are the
+class's own methods until you switch it on, and again after
+`measure_fps(False)`.
+
 ## Vertical scrolling
 
 Many drivers expose **ILI9341-style** vertical scroll: a top fixed band (TFA), a scrollable middle (VSA), and a bottom fixed band (BFA). You define regions with `set_vscroll(tfa, bfa)` or `vscrdef`, then move content with the `vscroll` property (wrapper around `vscsad`).

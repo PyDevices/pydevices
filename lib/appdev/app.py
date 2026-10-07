@@ -445,14 +445,15 @@ class App:
             period = int(refresh_period)
             if period <= 0:
                 return
-        show = getattr(display, "show", None)
-        if not callable(show):
+        if not callable(getattr(display, "show", None)):
             return
 
-        def _show(timer_obj, _display=display, _show=show):
+        # Look show up on every tick: a wrapper installed after the App started
+        # (displaydev's measure_fps) must be the one that is called.
+        def _show(timer_obj, _display=display):
             if self._refresh_paused:
                 return
-            _show(timer_obj)
+            _display.show(timer_obj)
 
         name = "refresh:%s" % (getattr(display, "__class__", type(display)).__name__,)
         tim = multimer.every(period, _show, name=name)
