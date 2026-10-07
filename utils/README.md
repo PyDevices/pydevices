@@ -9,6 +9,7 @@ in `pydevices-desktop.toml`. Utilities do not publish as separate packages.
 | `mip.py` | Portable `mip` for CPython, CircuitPython, and Pyodide |
 | `micropython.py` | CPython compatibility shim for common MicroPython decorators and helpers |
 | `frame_recorder.py` | FFmpeg recording for desktop displays |
+| `pngio.py` | PNG encode and decode, MicroPython's `pngio` API over Pillow; says how to install Pillow when it's missing |
 | `usdl2.py` | Pure-Python SDL2 FFI fallback |
 | `uwin32.py` | Pure-Python Win32 FFI fallback |
 
