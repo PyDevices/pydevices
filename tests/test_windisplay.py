@@ -304,6 +304,32 @@ class TestScrollBands(_WinDisplayTest):
         self.assertEqual((p["src_y"], p["src_h"]), (0, self.H))
 
 
+class TestRotationRefitsTheWindow(_WinDisplayTest):
+    """A quarter turn swaps width and height, so the scale is fitted again:
+    the window never runs off the work area, and a scale shrunk for one
+    orientation grows back in the other."""
+
+    def test_rotation_refits_and_restores_the_scale(self):
+        import displaydev.windisplay as windisplay
+
+        sizes = []
+        self.win.SetWindowPos = lambda hwnd, x, y, w, h: sizes.append((w, h)) or 1
+        # off Windows the real lookup reports no work area; give it one
+        saved = windisplay.desktop_work_area
+        windisplay.desktop_work_area = lambda *a: (0, 0, 1920, 1080)
+        self.addCleanup(setattr, windisplay, "desktop_work_area", saved)
+        d = self.WinDisplay(width=1280, height=720, scale=1.0, quiet=True)
+        try:
+            self.assertEqual(d._scale, 1.0)  # 1280x720 fits a 1920x1080 work area
+            d.rotation = 90  # now 720x1280: too tall at scale 1
+            self.assertLess(d._scale, 1.0)
+            self.assertLessEqual(sizes[-1][1], 1080)
+            d.rotation = 0
+            self.assertEqual(d._scale, 1.0)
+        finally:
+            d.deinit()
+
+
 class TestRotation(_WinDisplayTest):
     def _corners(self):
         d = self.d
