@@ -493,6 +493,156 @@ class FrameClock:
             fn()
 
 
+_fps_clock_cache = None
+
+
+def _fps_clock():
+    """``(now, diff)`` for timing presents: ``diff(later, earlier)`` is in µs.
+
+    ``time.ticks_us`` on MicroPython, ``perf_counter_ns`` on CPython,
+    ``monotonic_ns`` on CircuitPython, and ``supervisor.ticks_ms`` (ms steps)
+    on a CircuitPython build without long ints. Chosen on first use, so a
+    driver that never measures never pays for it.
+    """
+    global _fps_clock_cache
+    if _fps_clock_cache is None:
+        import time
+
+        ticks_us = getattr(time, "ticks_us", None)
+        ns = getattr(time, "perf_counter_ns", None) or getattr(time, "monotonic_ns", None)
+        if ticks_us is not None:
+            _fps_clock_cache = (ticks_us, time.ticks_diff)
+        elif ns is not None:
+
+            def now():
+                return ns() // 1000
+
+            def diff(a, b):
+                return a - b
+
+            _fps_clock_cache = (now, diff)
+        else:
+            from supervisor import ticks_ms
+
+            def diff_ms(a, b):
+                return (((a - b) + 0x10000000) & 0x1FFFFFFF) - 0x10000000
+
+            def diff(a, b):
+                return diff_ms(a, b) * 1000
+
+            _fps_clock_cache = (ticks_ms, diff)
+    return _fps_clock_cache
+
+
+class _FpsMeter:
+    """Frame and present-time counters for one display (see ``measure_fps``).
+
+    Counts go into a window that is folded into the totals once a second, so
+    the per-frame arithmetic stays on small ints (no heap on a board) and the
+    last whole second's rate falls out of the fold. Wall time is added up
+    between events rather than read against a start time, so a 32-bit
+    board's wrapping ``ticks_us`` is fine as long as something happens every
+    few minutes (a frame, ``fps()``, the ``fps_print`` line).
+    """
+
+    def __init__(self, now, diff):
+        self.now = now
+        self.diff = diff
+        self.reset()
+
+    def reset(self):
+        self.mark = self.now()
+        self.win_us = 0
+        self.win_frames = 0
+        self.win_present = 0
+        self.win_flushes = 0
+        self.win_pixels = 0
+        self.frame_us = 0
+        self.frame_max = 0
+        self.last_fps = None
+        self.seconds = 0.0
+        self.frames = 0
+        self.present_us = 0.0
+        self.flushes = 0
+        self.pixels = 0
+
+    def _advance(self, t):
+        self.win_us += self.diff(t, self.mark)
+        self.mark = t
+        if self.win_us >= 1000000:
+            self._fold()
+
+    def _fold(self):
+        w = self.win_us
+        if w > 0:
+            self.last_fps = self.win_frames * 1000000 / w
+        self.seconds += w / 1000000
+        self.frames += self.win_frames
+        self.present_us += self.win_present
+        self.flushes += self.win_flushes
+        self.pixels += self.win_pixels
+        self.win_us = 0
+        self.win_frames = 0
+        self.win_present = 0
+        self.win_flushes = 0
+        self.win_pixels = 0
+
+    def frame(self, t, dt):
+        """A present ended at ``t`` after ``dt`` µs; it finished a frame."""
+        f = self.frame_us + dt
+        self.frame_us = 0
+        if f > self.frame_max:
+            self.frame_max = f
+        self.win_present += dt
+        self.win_frames += 1
+        self._advance(t)
+
+    def flush(self, t, dt, pixels):
+        """A ``flush_rect`` ended at ``t`` after ``dt`` µs: part of a frame."""
+        self.frame_us += dt
+        self.win_present += dt
+        self.win_flushes += 1
+        self.win_pixels += pixels
+        self._advance(t)
+
+    def snapshot(self):
+        self._advance(self.now())
+        seconds = self.seconds + self.win_us / 1000000
+        frames = self.frames + self.win_frames
+        present = self.present_us + self.win_present
+        if self.last_fps is not None:
+            fps = self.last_fps
+        elif self.win_us > 0:
+            fps = self.win_frames * 1000000 / self.win_us
+        else:
+            fps = 0.0
+        return {
+            "fps": round(fps, 1),
+            "avg_fps": round(frames / seconds, 1) if seconds > 0 else 0.0,
+            "frames": frames,
+            "seconds": round(seconds, 1),
+            "present_ms": round(present / frames / 1000, 2) if frames else 0.0,
+            "present_ms_max": round(self.frame_max / 1000, 2),
+            "busy": round(present / (seconds * 1000000), 3) if seconds > 0 else 0.0,
+            "flushes": self.flushes + self.win_flushes,
+            "pixels": self.pixels + self.win_pixels,
+        }
+
+
+def _fps_line(s):
+    line = "fps %.1f avg %.1f frames %d present %.1f ms (max %.1f) busy %d%%" % (
+        s["fps"],
+        s["avg_fps"],
+        s["frames"],
+        s["present_ms"],
+        s["present_ms_max"],
+        round(s["busy"] * 100),
+    )
+    if s["flushes"]:
+        line += " flushes %d" % s["flushes"]
+    return line
+
+
 class DisplayDriver:
     """
     Base class for all display backends (BusDisplay, SDLDisplay, PGDisplay, FBDisplay, etc.).
@@ -509,12 +659,20 @@ class DisplayDriver:
     buffer(s) from :meth:`framebuffers` for direct rendering (e.g. LVGL
     ``DISPLAY_RENDER_MODE.DIRECT``). Default False — desktop/bus drivers keep
     their own draw buffers.
+
+    Frame rate: :meth:`measure_fps` (or ``PYDEVICES_FPS=1``) counts frames and
+    times presents; :meth:`fps` reads them. Off by default, and nothing is
+    wrapped or timed while it is off.
     """
 
     needs_refresh = False
+    # The frame-rate meter while measuring (measure_fps); None means off.
+    _fps = None
+    _fps_timer = None
     # The display's own frame period: what ``appdev.App`` presents at and what a
     # GUI's refresh timer is set to. A backend that can measure its host's
     # refresh (vsync, requestAnimationFrame) sets it; 33 ms otherwise.
+    # ``PYDEVICES_REFRESH_MS`` overrides it per instance when the driver starts.
     refresh_period_ms = 33
     share_framebuffer = False
     # HostEventsDevice reads this ``(key, mod)`` tuple; None disables keyboard quit.
@@ -567,6 +725,7 @@ class DisplayDriver:
         self.init()
         gc.collect()
         self._deinitialized = False
+        self._apply_refresh_override()
         if not self._quiet:
             print(f"{self.__class__.__name__}: initialized.")
             if self.requires_byteswap:
@@ -579,6 +738,29 @@ class DisplayDriver:
                         f"{self.__class__.__name__}: warning: slow byteswap fallback; "
                         "install utils/byteswap (GitHub MIP) for viper/numpy swap"
                     )
+        every = env_float("PYDEVICES_FPS_PRINT", 0)
+        if every > 0:
+            self.fps_print(every)
+        elif env_bool("PYDEVICES_FPS"):
+            self.measure_fps(True)
+
+    def _apply_refresh_override(self):
+        """``PYDEVICES_REFRESH_MS=N`` replaces this display's frame period.
+
+        Read once, when the driver starts, after the backend's own ``init()``
+        has had its say, so it wins over a backend's default (33 ms, or the
+        browser's 16). ``appdev.App``'s refresh timer, the frame clock and
+        ``display_driver``'s LVGL refresh timer all read
+        :attr:`refresh_period_ms`, so LVGL and non-LVGL apps both follow it.
+        Unset, empty, zero or not a number leaves the backend's period alone.
+        """
+        period = env_int("PYDEVICES_REFRESH_MS", 0)
+        if period <= 0:
+            return
+        self.refresh_period_ms = period
+        fc = getattr(self, "_frame_clock", None)
+        if fc is not None:
+            fc.period_ms = period
 
     def __del__(self):
         self.deinit()
@@ -867,6 +1049,132 @@ class DisplayDriver:
         """
         return (0, self.tfa + self.vsa, self.width, self.bfa)
 
+    ############### Frame rate ################
+
+    def measure_fps(self, on=True):
+        """Count frames and time presents (``on=True``), or stop (``on=False``).
+
+        Switched on, the instance's ``show`` and ``flush_rect`` are wrapped
+        with timers; switched off they are the class's own methods again. A
+        frame is one ``show()``, or one :meth:`frame_done` from a GUI that
+        presents with ``flush_rect`` (LVGL on a direct-framebuffer panel).
+        ``flush_rect`` calls are counted as ``flushes`` and ``pixels``, not
+        frames. ``PYDEVICES_FPS=1`` switches it on when the driver starts.
+
+        Returns:
+            bool: Whether it is measuring now.
+        """
+        if on:
+            if self._fps is None:
+                now, diff = _fps_clock()
+                self._fps = _FpsMeter(now, diff)
+                self._fps_wrapped = []
+                self._fps_wrap("show")
+                self._fps_wrap("flush_rect")
+        elif self._fps is not None:
+            self.fps_print(0)
+            for name, wrapper, prev in self._fps_wrapped:
+                if getattr(self, name, None) is not wrapper:
+                    continue  # someone wrapped ours since: leave theirs alone
+                if prev is None:
+                    delattr(self, name)
+                else:
+                    setattr(self, name, prev)
+            self._fps_wrapped = []
+            self._fps = None
+        return self._fps is not None
+
+    def _fps_wrap(self, name):
+        orig = getattr(self, name, None)
+        if orig is None:
+            return
+        try:
+            own = name in self.__dict__
+        except AttributeError:
+            own = False
+        meter = self._fps
+        now = meter.now
+        diff = meter.diff
+        if name == "flush_rect":
+
+            def wrapper(x, y, w, h, *args, **kwargs):
+                t = now()
+                try:
+                    return orig(x, y, w, h, *args, **kwargs)
+                finally:
+                    t1 = now()
+                    meter.flush(t1, diff(t1, t), w * h)
+
+        else:
+
+            def wrapper(*args, **kwargs):
+                t = now()
+                try:
+                    return orig(*args, **kwargs)
+                finally:
+                    t1 = now()
+                    meter.frame(t1, diff(t1, t))
+
+        self._fps_wrapped.append((name, wrapper, orig if own else None))
+        setattr(self, name, wrapper)
+
+    def frame_done(self):
+        """A GUI that presents with ``flush_rect`` says a frame's last area is done.
+
+        ``display_driver`` calls this on a direct-framebuffer panel when the
+        last area was presented by ``flush_rect`` and no ``show()`` followed.
+        Does nothing unless :meth:`measure_fps` is on.
+        """
+        meter = self._fps
+        if meter is not None:
+            meter.frame(meter.now(), 0)
+
+    def fps(self):
+        """The frame rate and present times, or ``None`` when not measuring.
+
+        Returns a dict: ``fps`` (the last whole second), ``avg_fps`` (since
+        :meth:`measure_fps` or :meth:`fps_reset`), ``frames``, ``seconds``,
+        ``present_ms`` / ``present_ms_max`` (mean and worst time presenting a
+        frame, its ``flush_rect`` calls included), ``busy`` (the share of
+        wall time spent presenting: high means the display is the
+        bottleneck, low means the app is), ``flushes`` and ``pixels``.
+        """
+        meter = self._fps
+        return None if meter is None else meter.snapshot()
+
+    def fps_reset(self):
+        """Start a fresh measurement (does nothing when not measuring)."""
+        if self._fps is not None:
+            self._fps.reset()
+
+    def fps_print(self, seconds=5):
+        """Print a one-line summary every ``seconds``; ``0`` stops it.
+
+        Switches :meth:`measure_fps` on. The line is short, for agents
+        tailing a log::
+
+            fps 29.8 avg 29.5 frames 1180 present 4.2 ms (max 12.0) busy 13%
+
+        ``PYDEVICES_FPS_PRINT=N`` starts it when the driver starts.
+        """
+        timer = self._fps_timer
+        self._fps_timer = None
+        if timer is not None:
+            timer.deinit()
+        if not seconds or seconds <= 0:
+            return
+        self.measure_fps(True)
+        import multimer
+
+        def _print(_timer=None):
+            meter = self._fps
+            if meter is not None:
+                print(_fps_line(meter.snapshot()))
+
+        self._fps_timer = multimer.every(
+            max(1, int(seconds * 1000)), _print, name="fps:%s" % (self.__class__.__name__,)
+        )
+
     ############### Common API Methods, sometimes overridden ################
 
     def vscrdef(self, tfa: int, vsa: int, bfa: int) -> None:
@@ -992,6 +1300,8 @@ class DisplayDriver:
         if getattr(self, "_deinitialized", False):
             return
         self._deinitialized = True
+        if self._fps_timer is not None:
+            self.fps_print(0)  # the counts stay readable after quit
         self._deinit()
 
     def _deinit(self) -> None:

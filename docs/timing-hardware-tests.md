@@ -96,7 +96,7 @@ re-armed from its own (scheduled) callback. Nothing in the interpreter
 changes.
 
 1. Flash the kitchen-sink image; `mpftp put` the changed `pydevices/lib`
-   (multimer, appdev, displaydev) and `lvgl-bindings/python/display_driver.py`
+   (multimer, appdev, displaydev, display_driver.py)
    to `/lib`, which beats the frozen copies.
 2. **Function check, no display:** `mpftp exec` the body of
    `demo_timers.py` (or put it as `/demo_timers.py` and `import demo_timers`).

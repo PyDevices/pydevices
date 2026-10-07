@@ -38,6 +38,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/board_configs/desktop/board_config.py" = "/lib/board_config.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/board_configs/desktop/board_peripherals.py" = "/lib/board_peripherals.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/boarddev.py" = "/lib/boarddev.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/display_driver.py" = "/lib/display_driver.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/displaydev/__init__.py" = "/lib/displaydev/__init__.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/displaydev/_desktop.py" = "/lib/displaydev/_desktop.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/displaydev/_domkeys.py" = "/lib/displaydev/_domkeys.py"
