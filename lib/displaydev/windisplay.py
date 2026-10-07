@@ -287,6 +287,7 @@ class WinDisplay(DesktopDisplay):
         self.color_depth = color_depth
         self._title = title
         self._scale = scale
+        self._requested_scale = scale  # refit from this after a rotation
         # _wndproc already maps mouse coords into panel space (_map_coords),
         # so the appdev pointer pipeline must not divide again: touch_scale
         # stays 1.0, same contract as SDLDisplay's logical renderer size.
@@ -378,6 +379,11 @@ class WinDisplay(DesktopDisplay):
 
     def init(self):
         _ensure_class()
+        # A rotation swaps width and height, so the scale that fit one
+        # orientation can run the window off the screen in the other: refit.
+        _ux, _uy, uw, uh = self._work_area
+        self._scale = self._fit_scale(uw, uh, True, requested=self._requested_scale)
+        self._can_band = self._scale >= 1 and self._scale == int(self._scale)
         win_w = int(self.width * self._scale)
         win_h = int(self.height * self._scale)
         outer_w, outer_h = win.AdjustWindowRectEx(win_w, win_h, win.WS_DISPLAY)

@@ -196,8 +196,8 @@ class DesktopDisplay(DisplayDriver):
             self._scroll_changed()
         return self._vssa
 
-    def _fit_scale(self, desktop_w, desktop_h, quiet):
-        """Return the largest scale <= ``self._scale`` that fits the work area.
+    def _fit_scale(self, desktop_w, desktop_h, quiet, requested=None):
+        """Return the largest scale <= ``requested`` that fits the work area.
 
         Announces the override when board_config asked for more than fits.
 
@@ -205,11 +205,15 @@ class DesktopDisplay(DisplayDriver):
             desktop_w (int): Usable work area width, or 0 when unknown.
             desktop_h (int): Usable work area height, or 0 when unknown.
             quiet (bool): When True, skip the override notice.
+            requested (float): The scale board_config asked for (default:
+                ``self._scale``). Pass it again to refit after a rotation, so a
+                scale shrunk for one orientation can grow back in the other.
 
         Returns:
             float: The fitted scale.
         """
-        requested = self._scale
+        if requested is None:
+            requested = self._scale
         fitted = fit_scale_to_desktop(
             self.width,
             self.height,
