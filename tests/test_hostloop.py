@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: MIT
 """multimer._hostloop: who owns the main thread after the script body ends."""
 
+import contextlib
+import io
 import unittest
 
 import _env  # noqa: F401
@@ -77,8 +79,40 @@ class TestHostloop(unittest.TestCase):
         multimer.every(5, lambda t: count.append(1))
         self._force(_hostloop.EXIT_HOOK)
         _hostloop.mark_crashed()
-        _hostloop._exit_hook()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            _hostloop._exit_hook()
         self.assertEqual(0, len(count))
+        self.assertIn("uncaught exception", err.getvalue(), "a skipped loop must say why")
+
+    def test_micropython_ignores_a_stale_exc_info(self):
+        """MicroPython's sys.exc_info() can outlive a handled exception
+        (windows port), so it never counts as a crash there."""
+        self._patch(_hostloop, "_impl", lambda: "micropython")
+        try:
+            raise AttributeError("handled")
+        except AttributeError:
+            self.assertFalse(_hostloop._crashed())
+
+    def test_cpython_reads_exc_info(self):
+        try:
+            raise AttributeError("in flight")
+        except AttributeError:
+            self.assertTrue(_hostloop._crashed())
+
+    def test_a_failing_loop_says_so(self):
+        multimer.keepalive()
+        multimer.every(5, lambda t: None)
+        self._force(_hostloop.EXIT_HOOK)
+
+        def boom():
+            raise RuntimeError("boom")
+
+        self._patch(_hostloop, "_run_loop", boom)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            _hostloop._exit_hook()
+        self.assertIn("RuntimeError", err.getvalue())
 
     def test_no_keepalive_means_the_hook_returns_at_once(self):
         """A bare timer script behaves like a daemon thread."""

@@ -1961,6 +1961,35 @@ _VK_SPECIAL = {
     VK_PRIOR: 1073741899,
     VK_NEXT: 1073741902,
     VK_INSERT: 1073741897,
+    # Numeric keypad (NumLock on) -> SDL keypad keycodes, as SDLDisplay delivers
+    # them; without these VK_NUMPAD0..9 fell through as 'a'..'i'.
+    0x60: 1073741922,  # VK_NUMPAD0 -> K_KP_0
+    0x61: 1073741913,  # VK_NUMPAD1 -> K_KP_1
+    0x62: 1073741914,
+    0x63: 1073741915,
+    0x64: 1073741916,
+    0x65: 1073741917,
+    0x66: 1073741918,
+    0x67: 1073741919,
+    0x68: 1073741920,
+    0x69: 1073741921,  # VK_NUMPAD9 -> K_KP_9
+    0x6A: 1073741909,  # VK_MULTIPLY -> K_KP_MULTIPLY
+    0x6B: 1073741911,  # VK_ADD -> K_KP_PLUS
+    0x6D: 1073741910,  # VK_SUBTRACT -> K_KP_MINUS
+    0x6E: 1073741923,  # VK_DECIMAL -> K_KP_PERIOD
+    0x6F: 1073741908,  # VK_DIVIDE -> K_KP_DIVIDE
+    # Main-row punctuation (US layout), which fell through as raw VK_OEM_* codes.
+    0xBA: 59,  # VK_OEM_1 ;
+    0xBB: 61,  # VK_OEM_PLUS =
+    0xBC: 44,  # VK_OEM_COMMA ,
+    0xBD: 45,  # VK_OEM_MINUS -
+    0xBE: 46,  # VK_OEM_PERIOD .
+    0xBF: 47,  # VK_OEM_2 /
+    0xC0: 96,  # VK_OEM_3 `
+    0xDB: 91,  # VK_OEM_4 [
+    0xDC: 92,  # VK_OEM_5 \
+    0xDD: 93,  # VK_OEM_6 ]
+    0xDE: 39,  # VK_OEM_7 '
 }
 
 

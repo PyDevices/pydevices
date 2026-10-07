@@ -239,6 +239,14 @@ def _crashed():
     """True when the script body died with an uncaught exception."""
     if _state["crashed"]:
         return True
+    if _impl() != "cpython":
+        # MicroPython's sys.exc_info() (only some ports have it: windows does,
+        # unix doesn't) can still report an exception that was raised and
+        # handled -- appdev's own getattr(board_config, "joystick_driver", None)
+        # leaves one -- so it can't tell a crash from a clean end, and trusting
+        # it skipped the keep-alive loop at random. Without it every MicroPython
+        # port behaves as unix always has.
+        return False
     try:
         return sys.exc_info()[0] is not None
     except Exception:
@@ -343,14 +351,30 @@ def _run_loop():
             break
 
 
+def _note(msg):
+    """One line on stderr: the exit hook has no caller to raise to."""
+    try:
+        print("multimer: " + msg, file=sys.stderr)
+    except Exception:
+        pass
+
+
 def _exit_hook():
     # Never let an exception escape: MicroPython turns an uncaught exception
     # in sys.atexit into "FATAL: uncaught NLR", CPython prints a traceback.
+    # But say why the program didn't stay up, or a skipped loop looks exactly
+    # like a clean exit.
     try:
-        if not _state["claimed"] and not _crashed():
+        if _state["claimed"]:
+            pass  # run_until() drove the loop itself
+        elif _crashed():
+            _note("not keeping the program alive: the script ended with an uncaught exception")
+        else:
             _run_loop()
-    except BaseException:
+    except (KeyboardInterrupt, SystemExit):
         pass
+    except BaseException as e:
+        _note("the keep-alive loop stopped: " + repr(e))
     _stop()
     try:
         from . import _dispatch
