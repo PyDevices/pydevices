@@ -672,6 +672,7 @@ class DisplayDriver:
     # The display's own frame period: what ``appdev.App`` presents at and what a
     # GUI's refresh timer is set to. A backend that can measure its host's
     # refresh (vsync, requestAnimationFrame) sets it; 33 ms otherwise.
+    # ``PYDEVICES_REFRESH_MS`` overrides it per instance when the driver starts.
     refresh_period_ms = 33
     share_framebuffer = False
     # HostEventsDevice reads this ``(key, mod)`` tuple; None disables keyboard quit.
@@ -724,6 +725,7 @@ class DisplayDriver:
         self.init()
         gc.collect()
         self._deinitialized = False
+        self._apply_refresh_override()
         if not self._quiet:
             print(f"{self.__class__.__name__}: initialized.")
             if self.requires_byteswap:
@@ -741,6 +743,24 @@ class DisplayDriver:
             self.fps_print(every)
         elif env_bool("PYDEVICES_FPS"):
             self.measure_fps(True)
+
+    def _apply_refresh_override(self):
+        """``PYDEVICES_REFRESH_MS=N`` replaces this display's frame period.
+
+        Read once, when the driver starts, after the backend's own ``init()``
+        has had its say, so it wins over a backend's default (33 ms, or the
+        browser's 16). ``appdev.App``'s refresh timer, the frame clock and
+        ``display_driver``'s LVGL refresh timer all read
+        :attr:`refresh_period_ms`, so LVGL and non-LVGL apps both follow it.
+        Unset, empty, zero or not a number leaves the backend's period alone.
+        """
+        period = env_int("PYDEVICES_REFRESH_MS", 0)
+        if period <= 0:
+            return
+        self.refresh_period_ms = period
+        fc = getattr(self, "_frame_clock", None)
+        if fc is not None:
+            fc.period_ms = period
 
     def __del__(self):
         self.deinit()

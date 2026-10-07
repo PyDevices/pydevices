@@ -208,6 +208,27 @@ It is off by default and costs nothing then: `show` and `flush_rect` are the
 class's own methods until you switch it on, and again after
 `measure_fps(False)`.
 
+### Refresh rate
+
+To run any app at another frame rate without touching its code or its board
+config, set `PYDEVICES_REFRESH_MS`:
+
+```bash
+PYDEVICES_REFRESH_MS=16 PYDEVICES_FPS_PRINT=5 micropython lv_test_timer.py   # about 60 fps
+PYDEVICES_REFRESH_MS=50 PYDEVICES_FPS_PRINT=5 micropython lv_test_timer.py   # about 20 fps
+```
+
+It replaces the display's `refresh_period_ms` (33 ms, or 16 in the browser)
+when the driver starts. Everything that paces frames reads that one attribute:
+`appdev.App`'s refresh timer, the display's frame clock, and
+`display_driver`'s LVGL refresh timer, so LVGL and non-LVGL apps both follow
+it. A board config can set it with `displaydev.env_set("PYDEVICES_REFRESH_MS",
+16)` before it builds the display, on hosts where there is no environment.
+
+Unset, zero or not a number leaves the display's own period. An app that
+passes `appdev.App(..., refresh_period=N)` has chosen its rate in code and keeps
+it; `refresh_period=0` still means the app presents frames itself.
+
 ## Vertical scrolling
 
 Many drivers expose **ILI9341-style** vertical scroll: a top fixed band (TFA), a scrollable middle (VSA), and a bottom fixed band (BFA). You define regions with `set_vscroll(tfa, bfa)` or `vscrdef`, then move content with the `vscroll` property (wrapper around `vscsad`).
