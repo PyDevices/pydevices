@@ -5,7 +5,8 @@
 
 Each test copies *only* one package into a temporary directory and imports it
 in a fresh subprocess whose path contains nothing else from the repository.
-``displaydev`` also receives shared ``events.py`` / ``keys.py``.
+``displaydev`` also receives shared ``events.py`` / ``keys.py``, and
+``boarddev.py``, whose environment helpers a driver reads when it starts.
 """
 
 import os
@@ -149,6 +150,9 @@ class TestStandalone(unittest.TestCase):
             shutil.copytree(_env.DISPLAYDEV_DIR, os.path.join(tmp, "displaydev"))
             shutil.copyfile(_env.EVENTS_PY, os.path.join(tmp, "events.py"))
             shutil.copyfile(_env.KEYS_PY, os.path.join(tmp, "keys.py"))
+            shutil.copyfile(
+                os.path.join(_env.ROOT, "lib", "boarddev.py"), os.path.join(tmp, "boarddev.py")
+            )
 
             env = dict(os.environ)
             env["PYTHONPATH"] = tmp

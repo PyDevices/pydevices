@@ -63,7 +63,7 @@ def AutoDisplay(
         A ``PSDisplay``, ``JNDisplay``, ``WinDisplay``, ``PGDisplay``, or
         ``SDLDisplay`` with ``get_events`` set for board_config wiring.
     """
-    from displaydev import env_get
+    from boarddev import env_get
     if canvas_id is None:
         canvas_id = env_get("PYDEVICES_CANVAS_ID", "display_canvas")
 
@@ -120,7 +120,7 @@ def AutoDisplay(
             pass
         # pygame / SDL fallback: SDL2 WASAPI glitches with pygame small-chunk
         # playback; DirectSound does not. Must land before PGDisplay.pg.init().
-        from displaydev import env_get, env_set
+        from boarddev import env_get, env_set
 
         if env_get("SDL_AUDIODRIVER") is None:
             env_set("SDL_AUDIODRIVER", "directsound")

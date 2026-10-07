@@ -5,7 +5,7 @@ Board configuration for PyGame.
 import sys
 
 if sys.platform == "win32":
-    from displaydev import env_get, env_set
+    from boarddev import env_get, env_set
 
     # SDL2's default Windows audio driver (WASAPI) has a compatibility issue
     # with pygame.mixer.Channel's play()/queue() small-chunk playback pattern

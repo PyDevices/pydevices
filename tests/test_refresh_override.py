@@ -16,7 +16,7 @@ from unittest import mock
 import _env  # noqa: F401
 from _support import quiet
 
-import displaydev
+import boarddev
 import multimer
 from appdev import App
 from displaydev import DisplayDriver
@@ -57,13 +57,13 @@ class MeasuringPanel(Panel):
 
 class _Env:
     def _env(self, **env):
-        displaydev._overrides.pop("PYDEVICES_REFRESH_MS", None)
+        boarddev._overrides.pop("PYDEVICES_REFRESH_MS", None)
         clean = {k: v for k, v in os.environ.items() if not k.startswith("PYDEVICES_")}
         clean.update(env)
         return mock.patch.dict(os.environ, clean, clear=True)
 
     def tearDown(self):
-        displaydev._overrides.pop("PYDEVICES_REFRESH_MS", None)
+        boarddev._overrides.pop("PYDEVICES_REFRESH_MS", None)
         app = App.current()
         if app is not None:
             app._perform_teardown()
@@ -98,7 +98,7 @@ class TestTheDisplayPeriod(_Env, unittest.TestCase):
     def test_env_set_feeds_it_without_an_environment(self):
         """A board config on a host with no os.environ uses env_set."""
         with self._env():
-            displaydev.env_set("PYDEVICES_REFRESH_MS", 40)
+            boarddev.env_set("PYDEVICES_REFRESH_MS", 40)
             self.assertEqual(40, Panel().refresh_period_ms)
 
     def test_the_frame_clock_follows(self):

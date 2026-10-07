@@ -36,7 +36,7 @@ from unittest import mock
 import _env
 from _support import quiet
 
-import displaydev
+import boarddev
 from displaydev import DisplayDriver
 
 DISPLAY_DRIVER = _env.ROOT / "lib" / "display_driver.py"
@@ -377,7 +377,7 @@ class _Display(DisplayDriver):
 
 class TestFramePeriod(unittest.TestCase):
     def _lvgl_period(self, **env):
-        displaydev._overrides.pop("PYDEVICES_REFRESH_MS", None)
+        boarddev._overrides.pop("PYDEVICES_REFRESH_MS", None)
         clean = {k: v for k, v in os.environ.items() if not k.startswith("PYDEVICES_")}
         clean.update(env)
         with mock.patch.dict(os.environ, clean, clear=True), quiet():

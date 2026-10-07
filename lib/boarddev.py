@@ -10,6 +10,20 @@ and attribute access instead of importing this module.
 It also carries the one thing neither ``audiodev`` nor a board can answer on
 its own: whether this machine's audio comes from a board or from a host
 backend. See :func:`pcm_out`.
+
+And it is where the portable environment helpers live -- :func:`env_get`,
+:func:`env_int`, :func:`env_float`, :func:`env_bool` and :func:`env_set` --
+because a board config, an app and every PyDevices package read their
+``PYDEVICES_*`` settings through them, on interpreters where ``os.environ``
+may not exist::
+
+    from boarddev import env_int, env_set
+
+    env_set("PYDEVICES_WIDTH", 800)   # before board_config is imported
+    period = env_int("PYDEVICES_REFRESH_MS", 0)
+
+This module imports nothing at module scope, so any package -- ``displaydev``
+included -- can import from it without a cycle. Keep it that way.
 """
 
 
@@ -122,3 +136,108 @@ def pcm_in(format=None, **kwargs):
 def audio_out(format=None, **kwargs):
     """:class:`~audiodev.sample_out.AudioOut` sample player, board or host."""
     return _role("audio_out", format, kwargs)
+
+
+# --- portable environment variables ---------------------------------------
+#
+# CPython has ``os.environ``; MicroPython and CircuitPython have ``getenv``
+# and sometimes ``putenv``, and some ports have neither. ``env_set`` records
+# every value in a process-local table as well as in whatever the host
+# offers, so a value a page or a board config sets is visible to every
+# reader in the same process, on every interpreter.
+
+# Process-local overrides for ports without ``os.environ`` / ``os.putenv``.
+_overrides = {}
+
+
+def env_set(name, value):
+    """Set an environment variable portably (CPython, MicroPython, CircuitPython).
+
+    Always records a process-local override so ``env_bool`` sees the value even
+    when the host ``os`` module has no ``environ``. When available, also updates
+    ``os.environ`` or calls ``os.putenv``.
+    """
+    text = "" if value is None else str(value)
+    _overrides[name] = text
+
+    import os
+
+    environ = getattr(os, "environ", None)
+    if environ is not None:
+        try:
+            environ[name] = text
+            return
+        except Exception:
+            pass
+    putenv = getattr(os, "putenv", None)
+    if putenv is not None:
+        try:
+            putenv(name, text)
+        except Exception:
+            pass
+
+
+def env_bool(name, default=False):
+    """Read a truthy/falsey environment variable with a portable fallback chain."""
+    raw = _env_raw(name)
+    if raw is None:
+        return bool(default)
+    text = str(raw).strip().lower()
+    if text in ("1", "true", "yes", "on"):
+        return True
+    if text in ("0", "false", "no", "off"):
+        return False
+    return bool(default)
+
+
+def env_get(name, default=None):
+    """Read a string environment variable portably (honors ``env_set`` overrides)."""
+    raw = _env_raw(name)
+    if raw is None:
+        return default
+    return raw
+
+
+def env_int(name, default=0):
+    """Read an integer environment variable portably (honors ``env_set`` overrides)."""
+    raw = _env_raw(name)
+    if raw is None:
+        return int(default)
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def env_float(name, default=0.0):
+    """Read a floating-point environment variable portably."""
+    raw = _env_raw(name)
+    if raw is None:
+        return float(default)
+    try:
+        return float(str(raw).strip())
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _env_raw(name):
+    if name in _overrides:
+        return _overrides[name]
+
+    import os
+
+    environ = getattr(os, "environ", None)
+    if environ is not None:
+        try:
+            value = environ.get(name)
+        except Exception:
+            value = None
+        if value is not None:
+            return value
+    getenv = getattr(os, "getenv", None)
+    if getenv is None:
+        return None
+    try:
+        return getenv(name)
+    except Exception:
+        return None
