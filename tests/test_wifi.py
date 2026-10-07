@@ -76,8 +76,18 @@ class FakeWLAN:
     def _no_isconnected(self):
         raise OSError("not supported")
 
-    def status(self):
+    def status(self, param=None):
+        if param == "rssi":
+            return -50
         return 1010 if self.linked else 1001
+
+    def config(self, key):
+        return {"ssid": "bench", "channel": 6, "mac": b"\x00\x11\x22\x33\x44\x55"}[key]
+
+    def disconnect(self):
+        """Leave the network: the link falls, a static address stays."""
+        self._assoc_at = self._link_at = None
+        self.drop()
 
     def connect(self, ssid, password):
         self.connects.append(ssid)
@@ -174,12 +184,12 @@ class WifiLinkTests(unittest.TestCase):
         self.assertEqual(wifi.radio.ipv4_address, "10.0.0.42")
 
     def test_dhcp_already_connected_does_not_reconnect(self):
-        # What the old comment protects: a live DHCP link is left alone.
+        # A live DHCP link is left alone, and the clock it already set is too.
         wlan = FakeWLAN(ip="10.0.0.77", linked=True)
         wifi, ntp = _load(wlan)
         self.assertTrue(wifi.connect_from_secrets("_wifi_test_secrets"))
         self.assertEqual(wlan.connects, [])
-        self.assertEqual(ntp.calls, 1)
+        self.assertEqual(ntp.calls, 0)
 
     def test_dhcp_connect_waits_out_isconnected_lag(self):
         wlan = FakeWLAN()
