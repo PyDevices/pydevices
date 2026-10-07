@@ -1,3 +1,7 @@
+## v0.6.7rc1 (2026-10-07)
+
+- pngio.py: MicroPython's pngio, on CPython over Pillow (#125)
+
 ## v0.6.6 (2026-10-06)
 
 - Board config: the P4 DEV-KIT with a KeDei 5" DSI display; ft6x36 no longer reads an idle 0xFF status as 15 touches (#123)
