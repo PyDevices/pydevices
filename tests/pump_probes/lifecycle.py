@@ -11,8 +11,6 @@
 #         leak   (a stop that leaves the pump running must be caught),
 #         short  (a loop that plays once must not read as looping).
 #
-# The sitting that wrote it: live-audio-path-audiodev.md in the anchor.
-#
 # Run by tests/test_pump_interpreter.py under a MicroPython or CircuitPython
 # build carrying the audiodsp usermod. It is a probe and not a unittest on
 # purpose: what it measures needs a real pump, and there is none under the
@@ -20,8 +18,7 @@
 # without one the same loop runs on the interpreter's thread and everything
 # here still holds.
 #
-# It came from the live-audio-path spike, where it was
-# docs/spikes/probes/audiodev_lifecycle.py in the workspace anchor.
+# It began as a probe in the live-audio-path spike.
 
 import os
 import sys

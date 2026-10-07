@@ -27,7 +27,7 @@ ROOT = _env.ROOT
 
 INTERPRETERS = ("micropython", "micropython.exe", "circuitpython")
 
-#: The workspace anchor's provenance stamper, when this checkout sits there.
+#: A provenance stamper in ../tools, when one sits beside this checkout.
 PROVENANCE = ROOT.parent / "tools" / "provenance.py"
 
 #: The sources that decide what a render sounds like. Two interpreters built
@@ -177,7 +177,7 @@ class AudioPlaybackGoldenTests(unittest.TestCase):
 
             # An interpreter with no stamp cannot answer the question above,
             # and silence is not agreement: `bin/circuitpython` predates the
-            # stamping in the anchor's tools/build_interpreters.sh, so it reaches the diff
+            # interpreter build's stamping, so it reaches the diff
             # carrying whatever audiodsp was current when it was last built.
             # It is still compared -- a real port difference is worth knowing
             # -- but a failure says which participants could not be checked,

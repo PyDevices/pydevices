@@ -864,8 +864,8 @@ class ServiceDriver(RingDriver):
     **look-ahead**: everything produced in this tick has to last until the
     next one. A tick of T milliseconds therefore needs a ring longer than T,
     and measurably so -- 10 ms wants 4 blocks, 50 ms wants 16 and 200 ms
-    wants 64 (``docs/spikes/probes/wasm_timer.py``). That is the whole of the
-    difference a missing thread makes; the audio is byte-identical either way.
+    wants 64. That is the whole of the difference a missing thread makes;
+    the audio is byte-identical either way.
     """
 
     def __init__(self, frame_size, *, chunk_bytes=0, max_block=0, ahead_ms=0):

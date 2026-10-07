@@ -30,7 +30,7 @@
 # That it SOUNDED right. Nobody's ears are on this bench, and a digest cannot
 # hear. What this establishes is the three things a digest can: a real device
 # opened, the pump's bytes arrived at it unchanged, and the device took them.
-# Whether the result is music is a listen, and the listen is Brad's.
+# Whether the result is music is a listen, and the listen is a person's.
 #
 # It also does not claim the device played every byte it accepted. A queued
 # transport holds PCM in its own buffer, and at the end of a short run some of
