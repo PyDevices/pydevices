@@ -1,7 +1,7 @@
 """board_peripherals for a QT Py ESP32 Pico carrying an Adafruit Audio BFF.
 
 HEARD WORKING 2026-09-15, on a QT Py ESP32 Pico with the BFF stacked on it.
-Brad listened to: a sustained 440 Hz tone at 16 kHz mono; an A-C#-E-A
+Listened to: a sustained 440 Hz tone at 16 kHz mono; an A-C#-E-A
 arpeggio; and a 44.1 kHz stereo pair with 440 Hz left and 660 Hz right. All
 correct, at half and at full scale.
 

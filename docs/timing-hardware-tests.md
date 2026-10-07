@@ -217,7 +217,7 @@ per-plan record of pass/fail and anything found.
   revised to a high-resolution waitable timer whose event the port's waits
   block on.
 - **Windows, a windowed app at the prompt (`python.exe -i -m
-  examples.roku_remote`) — pass; reproduced first.** Brad's report: the
+  examples.roku_remote`) — pass; reproduced first.** The report: the
   WinDisplay window is hung (`IsHungAppWindow`) for as long as the REPL sits
   at the prompt, on the win32, threading and sdl2 providers alike. Why:
   WinDisplay pumps its message queue only inside `get_events()`, which only

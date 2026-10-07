@@ -4,7 +4,7 @@
 """CircuitPython's own BLE file service, reached with bledev's file client.
 
 This is the other half of "one client serves both interpreters"
-(docs/ble.md §4): ``files_client.py`` checks a MicroPython board serving
+(docs/bledev.md): ``files_client.py`` checks a MicroPython board serving
 ``bledev.filetransfer``, and this checks a CircuitPython board's supervisor,
 which serves the same protocol and wants pairing ("just works") first.
 

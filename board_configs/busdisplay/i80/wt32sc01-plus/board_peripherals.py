@@ -26,7 +26,7 @@ def wlan():
 
 
 def ble():
-    # A bledev adapter (docs/ble.md §2). It also answers every bluetooth.BLE
+    # A bledev adapter (docs/bledev.md). It also answers every bluetooth.BLE
     # method, so code written for the raw radio keeps working. Without bledev
     # (or aioble) installed, the raw radio, as before.
     try:
