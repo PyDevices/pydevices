@@ -23,7 +23,7 @@ modules (micropython-pydevices' `build_mp.py --modules
 displayif,lvgl-micropython,usbif,pygraphics,audiodsp,ulab`, say) the following
 are **frozen or built in** — installing them is wasted effort:
 
-- `lvgl` and `display_driver` (from lvgl-bindings)
+- `lvgl` (from lvgl-micropython)
 - `dotclockframebuffer` (from displayif) — the RGB panel interface
 - `_usbif` and the `usbif` Python package: usbif's manifest freezes its
   Python half beside its C half, because the two version together
@@ -32,7 +32,8 @@ are **frozen or built in** — installing them is wasted effort:
 and the following are **not**, and must be installed:
 
 - `displaydev`, `appdev`, `multimer`, `audiodev`, `boarddev`, `events`, `keys`
-  (pydevices). An image built with `--modules all` freezes these too, and
+  and `display_driver`, LVGL's coordinator (pydevices). An image built with
+  `--modules all` freezes these too, and
   `.frozen` comes before `/lib` on `sys.path`, so there a mip-installed copy
   never runs: rebuild to update them.
 - `board_config` and `board_peripherals` for the specific board
@@ -50,13 +51,15 @@ for m in ("lvgl", "display_driver", "dotclockframebuffer", "mipidsi",
 (`mipidsi` is the panel interface on the ESP32-P4 boards, `dotclockframebuffer`
 on the RGB-panel S3 boards; whichever is not yours will simply be missing.)
 
-**Trap.** `import display_driver` fails with `ImportError` on a bare board even
-though it is frozen — because `display_driver` imports `appdev`, and it is
-*that* import failing (`no module named 'appdev'`). The same shape hides
-behind `usbif`, which trips on `events`. The probe prints the exception text
-so you can see which module is really absent; a frozen module that reports
-`MISS` with somebody else's name in the message is present and fine. Install
-`pydevices` (which carries `appdev` and `events`), then re-probe.
+**Trap.** `import usbif` fails with `ImportError` on a bare board even
+though it is frozen — because `usbif` imports `events`, and it is *that*
+import failing (`no module named 'events'`). The probe prints the exception
+text so you can see which module is really absent; a frozen module that
+reports `MISS` with somebody else's name in the message is present and fine.
+Install `pydevices` (which carries `events`, `appdev` and `display_driver`),
+then re-probe. Firmware built before display_driver moved to pydevices
+(2026-10) froze it from lvgl-micropython, where it showed the same trap with
+`appdev`.
 
 ## 2. Installing, over Wi-Fi
 
