@@ -29,7 +29,7 @@ remote and gamepad, and types, taps and moves what you tell it::
 
 Its name, appearance and Report Map follow from which of the three it
 offers, the same way every time, because hosts cache a device's services
-against its identity (``docs/ble.md`` in the anchor repo, section 7).
+against its identity.
 
 A laptop (bleak) or a browser can't advertise, so they are hosts only.
 Windows keeps HID devices for itself once paired; don't pair a board you are

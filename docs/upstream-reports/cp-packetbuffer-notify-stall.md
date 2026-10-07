@@ -2,7 +2,7 @@
 
 **Target:** adafruit/circuitpython, an issue with a PR (the fix is small and
 local to `ports/espressif/common-hal/_bleio/PacketBuffer.c`).
-**Status:** ready to file, awaiting Brad's word. Post only what is below the
+**Status:** ready to file, awaiting the maintainer's word. Post only what is below the
 `---`. The patch is `cp-packetbuffer-notify-stall.patch` beside this file,
 against tag 10.3.0. The upstream-emissary agent can turn it into a branch
 and a PR body; nothing has been pushed.

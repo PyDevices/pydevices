@@ -90,7 +90,7 @@ Ordered by layer. Each item is a targeted change with acceptance criteria.
 - **Where:** comment or normalize in ``sdldisplay`` if hosts emit
   ``SDL_SCANCODE_TO_KEYCODE`` for letters (``key | 0x40000000``) instead of
   ASCII.
-- **Fix:** If observed on Brad's WSLg path: normalize using
+- **Fix:** If observed on a WSLg path: normalize using
   ``SDL_GetKeyName`` → ASCII/control codes at **sdldisplay** (affects all
   consumers), not only in ``display_driver``.
 - **Accept:** Letter ``KEYDOWN`` ``event.key`` in 32..126 on that host;

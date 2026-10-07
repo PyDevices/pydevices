@@ -873,7 +873,7 @@ there makes one level, where bledev's server makes the parents too.
 discovered, subscribed and wrote, with every write with a response (making the
 subscription is one) taking 2 s, because CircuitPython's ESP32 port waits out
 its whole timeout for a status to leave 0, and success is 0. The full nus gate
-in that direction didn't run; see ble.md.
+in that direction didn't run ([#91](https://github.com/PyDevices/pydevices/issues/91)).
 
 **mpftp on CircuitPython**, noticed on the way: a long `exec` or `run` sent
 over the serial REPL arrived garbled now and then (a base64 chunk of 6,000

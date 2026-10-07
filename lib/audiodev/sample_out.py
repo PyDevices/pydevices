@@ -30,8 +30,7 @@ from a C callback. The premise was wrong: the pull is allocation-free under a
 cold ``micropython.heap_lock()`` across 313 targets, byte-exact off the
 interpreter thread, and safe under audiodsp's pump lock with no park. What
 made the old path necessary was never the DSP -- it was that nobody had
-written the thread. See ``docs/spikes/live-audio-path-audiodev.md`` in the
-workspace anchor.
+written the thread.
 
 Requires ``audiocore`` when :class:`AudioOut` is constructed.  Importing
 ``audiodev`` and using a raw PCM transport remain independent of audiodsp.
