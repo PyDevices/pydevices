@@ -11,6 +11,7 @@ except ImportError:  # pragma: no cover
 import time
 
 from audiodev import AudioFormat, PCMInput, PCMOutput, check_latency
+from audiodev.bytequeue import ByteQueue
 
 try:
     from js import AudioContext, Object, navigator
@@ -300,16 +301,20 @@ class WebPCMInput(PCMInput):
         self._processor = None
         self._source = None
         self._proxy = None
-        self._pending = bytearray()
+        # A callback past the limit drops the oldest whole frames.
+        self._pending = ByteQueue(self._queue_limit + fmt.frame_size)
 
     def _on_audio(self, event):
         input_buffer = event.inputBuffer
         channel = input_buffer.getChannelData(0)
-        pcm = _f32_to_pcm16(channel)
-        self._pending.extend(pcm)
-        overflow = len(self._pending) - self._queue_limit
+        pcm = memoryview(_f32_to_pcm16(channel))
+        overflow = len(self._pending) + len(pcm) - self._queue_limit
         if overflow > 0:
-            del self._pending[: overflow - (overflow % self.format.frame_size)]
+            drop = overflow - (overflow % self.format.frame_size)
+            old = self._pending.consume(drop)
+            if drop > old:
+                pcm = pcm[drop - old :]
+        self._pending.write(pcm)
 
     def _open(self):
         _require_browser()
@@ -333,9 +338,7 @@ class WebPCMInput(PCMInput):
             count = min(needed, len(self._pending))
             count -= count % self.format.frame_size
             if count > 0:
-                buf[:count] = self._pending[:count]
-                del self._pending[:count]
-                return count
+                return self._pending.readinto(buf, count)
             _sleep_ms(self.poll_ms)
 
     async def _areadinto(self, buf):
@@ -344,9 +347,7 @@ class WebPCMInput(PCMInput):
             count = min(needed, len(self._pending))
             count -= count % self.format.frame_size
             if count > 0:
-                buf[:count] = self._pending[:count]
-                del self._pending[:count]
-                return count
+                return self._pending.readinto(buf, count)
             await _asleep_ms(self.poll_ms)
 
     def _close(self):
@@ -382,7 +383,7 @@ class WebPCMInput(PCMInput):
             except Exception:
                 pass
             self._ctx = None
-        self._pending = bytearray()
+        self._pending.clear()
 
 
 def pcm_out(format=None, *, latency=None, poll_ms=4):

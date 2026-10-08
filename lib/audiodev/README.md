@@ -135,7 +135,14 @@ on the first write, which is why they survive review.
 | assuming `threading` | the guarded `threading is not None` paths | Bare MicroPython and CircuitPython have no `threading`, so `_lock` is `None` and the async rebuild degrades to a synchronous one. |
 
 Lists are unaffected — `del self._samples[:]` is fine everywhere; only
-`bytearray` (`_coalesce`, `_shadow`, `_pending`) has the restriction.
+`bytearray` has the restriction.
+
+Pending PCM (`_coalesce`, `_shadow`, `_pending`) lives in a
+`bytequeue.ByteQueue`, not a bytearray grown at the back and cut at the front.
+Growing a bytearray needs one contiguous block the size of everything pending,
+about a megabyte at 44.1 kHz stereo, and a MicroPython heap shared with a UI
+sometimes has none: `MemoryError` mid-playback. `ByteQueue` keeps the same
+bytes in 8 KB chunks.
 
 `pygame_audio.py` and `web_audio.py` cannot run on MicroPython or CircuitPython at
 all (they need pygame-ce and Pyodide's `js` module), so a CPython-only idiom is
@@ -442,7 +449,7 @@ fights the GIL under CPython with LVGL.
 ### How playback works
 
 PCM passes through two buffers. `write()` appends to a software `_coalesce`
-buffer; pieces of roughly 100 ms are handed to SDL until its queue reaches
+queue; pieces of roughly 100 ms are handed to SDL until its queue reaches
 `_queue_limit` (`queue_ms`, default 2 s). `queued_size()` reports both, so
 "`queued_size() == 0`" means playback finished no matter which buffer held what.
 
