@@ -156,6 +156,17 @@ Draw through `display_drv` only; `_pixel_framebuf` is an internal wiring detail.
 | `cp/busdisplay/i80/wt32sc01-plus` | WT32-SC01 Plus I80 |
 | `cp/busdisplay/spi/*` | CircuitPython variants of MP configs |
 
+## Headless configs (no display)
+
+A board with no display has no `board_config.py`, because there's nothing to
+construct up front; an app imports `board_peripherals` directly, and an app
+that also runs with a display treats `board_config` as optional.
+
+| Directory | Board |
+|-----------|-------|
+| `nodisplay/qtpy_esp32_pico_audio_bff` | QT Py ESP32 Pico + Adafruit Audio BFF (MicroPython; `audio_out` on I2S) |
+| `cp/nodisplay/qtpy_esp32_pico_audio_bff` | the same, on CircuitPython (`audio_out` is `audiobusio.I2SOut`) |
+
 ## Desktop / browser configs
 
 | Directory | Platform |
