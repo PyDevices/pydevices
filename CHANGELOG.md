@@ -1,5 +1,7 @@
 ## v0.7.0 (2026-10-08)
 
+**Breaking:** the environment helpers live in `boarddev` now. Change `from displaydev import env_get` (and `env_int`, `env_float`, `env_bool`, `env_set`) to `from boarddev import ...`; `displaydev` no longer has them, so the old import raises ImportError (#131).
+
 - docs/lvgl.md: Using LVGL with PyDevices moves here from lvgl-bindings (#132)
 - The env helpers move from displaydev to boarddev (a hard break) (#131)
 - Board config: Adafruit 3.5" TFT FeatherWing (HX8357D) (#139)
