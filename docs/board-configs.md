@@ -139,11 +139,14 @@ Draw through `display_drv` only; `_pixel_framebuf` is an internal wiring detail.
 | `cp/busdisplay/spi/hallowing_m4` | HalloWing M4 |
 | `busdisplay/spi/hallowing_m4` | HalloWing M4 ST7735 (MP) |
 | `cp/busdisplay/spi/pitft_ili9341_featherwing` | PiTFT FeatherWing + STMPE610 |
+| `cp/busdisplay/spi/pitft_hx8357_featherwing` | 3.5" TFT FeatherWing (HX8357D) + STMPE610 |
 | `busdisplay/spi/pitft_ili9341_featherwing` | PiTFT FeatherWing (MP Feather + STMPE610) |
+| `busdisplay/spi/pitft_hx8357_featherwing` | 3.5" TFT FeatherWing, HX8357D (MP Feather + STMPE610) |
 | `cp/busdisplay/spi/funhouse` | FunHouse ST7789 + touch |
 | `cp/busdisplay/spi/pygamer` | PyGamer ST7789 |
 | `busdisplay/spi/pygamer` | PyGamer ST7789 (MP SAMD51) |
 | `cp/busdisplay/spi/pitft_ili9341_featherwing` | PiTFT FeatherWing + STMPE610 |
+| `cp/busdisplay/spi/pitft_hx8357_featherwing` | 3.5" TFT FeatherWing (HX8357D) + STMPE610 |
 | `cp/busdisplay/spi/ssd1331_096_oled` | SSD1331 color OLED |
 | `busdisplay/spi/ssd1331_096_oled` | SSD1331 color OLED (MP) |
 | `cp/busdisplay/spi/ssd1351_128_oled` | SSD1351 color OLED |

@@ -1,0 +1,27 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/pitft_hx8357_featherwing/board_config.py"
+    ],
+    [
+      "ili9341.py",
+      "github:PyDevices/pydevices/drivers/display/ili9341.py"
+    ],
+    [
+      "stmpe610.py",
+      "github:PyDevices/pydevices/drivers/touch/stmpe610.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/pitft_hx8357_featherwing/board_peripherals.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.2"
+}

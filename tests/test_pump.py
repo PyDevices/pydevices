@@ -123,7 +123,7 @@ class FakeMixer:
         same bytes as a second client that was mixed in perfectly, so no test
         driving the live retarget could ever have caught a silent voice. That
         is the defect the fold found with a probe and nothing in here could
-        see (``docs/spikes/live-audio-path-land3.md``).
+        see.
         """
         blocks = []
         for sample, _voice, loop in self.played:
@@ -1334,9 +1334,8 @@ class ASecondClientJoinsAPumpThatIsSTILLRUNNING(PumpFixture):
 
     Two branches leave this method and only one of them had ever been driven
     by a test. A pump that has already stopped -- which a looping player's
-    first lap used to cause, and which
-    ``docs/spikes/live-audio-path-land3.md`` records as the reason the gate
-    was green -- goes down the ``shutdown()`` + ``spawn()`` path, and that
+    first lap used to cause, and which was the reason the gate was green
+    -- goes down the ``shutdown()`` + ``spawn()`` path, and that
     path works. Fix the pump so it is still alive when the second client
     arrives and the other branch runs, for the first time, with nothing
     watching it.
