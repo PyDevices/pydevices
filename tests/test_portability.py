@@ -129,7 +129,7 @@ class BytearrayDeletionTests(unittest.TestCase):
 class OsEnvironTests(unittest.TestCase):
     """Only CPython has ``os.environ``; the others have getenv/putenv only."""
 
-    def test_portable_modules_use_displaydev_env_helpers(self):
+    def test_portable_modules_use_boarddev_env_helpers(self):
         for rel in PORTABLE:
             for node in ast.walk(_parse(rel)):
                 if (
@@ -139,7 +139,7 @@ class OsEnvironTests(unittest.TestCase):
                     and node.value.id == "os"
                 ):
                     self.fail(
-                        "{}:{}: os.environ is CPython-only. Use displaydev "
+                        "{}:{}: os.environ is CPython-only. Use boarddev "
                         "env_get / env_set, which fall back to "
                         "os.putenv.".format(rel, node.lineno)
                     )

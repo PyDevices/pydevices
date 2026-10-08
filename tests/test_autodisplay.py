@@ -125,7 +125,7 @@ class TestAutoDisplay(unittest.TestCase):
         pg_mod.PGDisplay = mock.Mock(name="PGDisplay_should_not_be_used")
         with mock.patch.object(ad, "host_kind", return_value="desktop"), mock.patch.object(
             ad.sys, "platform", "win32"
-        ), mock.patch("displaydev.env_set") as env_set, mock.patch.dict(
+        ), mock.patch("boarddev.env_set") as env_set, mock.patch.dict(
             sys.modules, {"displaydev.windisplay": win_mod, "displaydev.pgdisplay": pg_mod}
         ):
             result = AutoDisplay(width=10, height=10, quiet=True)
@@ -141,8 +141,8 @@ class TestAutoDisplay(unittest.TestCase):
         pg_mod.PGDisplay = mock.Mock(return_value=display)
         with mock.patch.object(ad, "host_kind", return_value="desktop"), mock.patch.object(
             ad.sys, "platform", "win32"
-        ), mock.patch("displaydev.env_get", return_value=None) as env_get, mock.patch(
-            "displaydev.env_set"
+        ), mock.patch("boarddev.env_get", return_value=None) as env_get, mock.patch(
+            "boarddev.env_set"
         ) as env_set, mock.patch.dict(
             sys.modules, {"displaydev.windisplay": None, "displaydev.pgdisplay": pg_mod}
         ):
@@ -158,7 +158,7 @@ class TestAutoDisplay(unittest.TestCase):
         ps_mod.PSDisplay = mock.Mock(return_value=display)
         with mock.patch.object(ad, "host_kind", return_value="pyscript"), mock.patch.object(
             ad.sys, "platform", "win32"
-        ), mock.patch("displaydev.env_set") as env_set, mock.patch.dict(
+        ), mock.patch("boarddev.env_set") as env_set, mock.patch.dict(
             sys.modules, {"displaydev.psdisplay": ps_mod}
         ):
             AutoDisplay(width=10, height=10, canvas_id="c", quiet=True)

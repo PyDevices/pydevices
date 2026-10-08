@@ -34,7 +34,7 @@ A board config exposes neutral hardware capabilities; it does not create an appl
 | lib/appdev/ | Optional application event dispatcher and coordinator. |
 | lib/multimer/ | Portable timer providers and scheduling primitives. |
 | lib/events.py and lib/keys.py | Neutral input event and key definitions. |
-| lib/boarddev.py | Lazy peripheral access for MicroPython board configurations. |
+| lib/boarddev.py | Lazy peripheral access for MicroPython board configurations, and the portable environment helpers (`env_get`, `env_int`, `env_float`, `env_bool`, `env_set`). |
 | docs/ | Product, board, driver, installation, and architecture documentation. |
 | tests/ | Cross-platform unit tests. |
 

@@ -76,9 +76,9 @@ def probe_env_helpers():
     environment variable, so that path alone would leave this unguarded.
     """
     try:
-        from displaydev import env_get, env_set
+        from boarddev import env_get, env_set
     except ImportError:
-        print("  skip: displaydev is not installed for this interpreter")
+        print("  skip: boarddev is not installed for this interpreter")
         return
 
     name = "PYDEVICES_PROBE_VAR"
@@ -173,7 +173,7 @@ def probe_board_config():
     try:
         import displaydev  # noqa: F401
     except ImportError:
-        print("  skip: displaydev is not installed for this interpreter")
+        print("  skip: boarddev is not installed for this interpreter")
         return
 
     import board_config

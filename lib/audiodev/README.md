@@ -130,7 +130,7 @@ on the first write, which is why they survive review.
 | Instead of | Write | Why |
 |------------|-------|-----|
 | `del buf[:n]` | `buf[:n] = b""` | MicroPython and CircuitPython bytearrays support no item deletion at all (`TypeError`). Slice assignment behaves identically on all four interpreters, including `[:]`, `n == len`, and `n > len`. |
-| `os.environ` | `displaydev.env_get` / `env_set` | Only CPython has `os.environ`; the others have `getenv`/`putenv` only. `env_set` walks `os.environ` → `os.putenv` → a process-local override. |
+| `os.environ` | `boarddev.env_get` / `env_set` | Only CPython has `os.environ`; the others have `getenv`/`putenv` only. `env_set` walks `os.environ` → `os.putenv` → a process-local override. |
 | `time.monotonic()` | the module's `_monotonic_ms()` / `_elapsed_ms()` | MicroPython measures time with `ticks_ms`, which wraps; comparisons need `ticks_diff`. |
 | assuming `threading` | the guarded `threading is not None` paths | Bare MicroPython and CircuitPython have no `threading`, so `_lock` is `None` and the async rebuild degrades to a synchronous one. |
 

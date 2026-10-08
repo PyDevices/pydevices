@@ -11,7 +11,7 @@ Must be set before SDL_Init (inside SDLDisplay).
 
 import sys
 
-from displaydev import env_set
+from boarddev import env_set
 
 # Why: force SDL's KMS/DRM backend before SDLDisplay constructs the window.
 env_set("SDL_VIDEODRIVER", "kmsdrm")

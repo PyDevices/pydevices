@@ -70,11 +70,6 @@ __all__ = [
     "color565",
     "color565_swapped",
     "color_rgb",
-    "env_bool",
-    "env_float",
-    "env_get",
-    "env_int",
-    "env_set",
 ]
 
 _DEFAULT_AUTO_REFRESH_PERIOD = 33
@@ -83,103 +78,6 @@ _DESKTOP_SCALE_MARGIN = 48
 # bounds exclude the taskbar/dock but not chrome; reserve these when fitting.
 _DESKTOP_WINDOW_CHROME_W = 16
 _DESKTOP_WINDOW_CHROME_H = 48
-
-# Process-local overrides for ports without ``os.environ`` / ``os.putenv``.
-_overrides = {}
-
-
-def env_set(name, value):
-    """Set an environment variable portably (CPython, MicroPython, CircuitPython).
-
-    Always records a process-local override so ``env_bool`` sees the value even
-    when the host ``os`` module has no ``environ``. When available, also updates
-    ``os.environ`` or calls ``os.putenv``.
-    """
-    text = "" if value is None else str(value)
-    _overrides[name] = text
-
-    import os
-
-    environ = getattr(os, "environ", None)
-    if environ is not None:
-        try:
-            environ[name] = text
-            return
-        except Exception:
-            pass
-    putenv = getattr(os, "putenv", None)
-    if putenv is not None:
-        try:
-            putenv(name, text)
-        except Exception:
-            pass
-
-
-def env_bool(name, default=False):
-    """Read a truthy/falsey environment variable with a portable fallback chain."""
-    raw = _env_raw(name)
-    if raw is None:
-        return bool(default)
-    text = str(raw).strip().lower()
-    if text in ("1", "true", "yes", "on"):
-        return True
-    if text in ("0", "false", "no", "off"):
-        return False
-    return bool(default)
-
-
-def env_get(name, default=None):
-    """Read a string environment variable portably (honors ``env_set`` overrides)."""
-    raw = _env_raw(name)
-    if raw is None:
-        return default
-    return raw
-
-
-def env_int(name, default=0):
-    """Read an integer environment variable portably (honors ``env_set`` overrides)."""
-    raw = _env_raw(name)
-    if raw is None:
-        return int(default)
-    try:
-        return int(str(raw).strip())
-    except (TypeError, ValueError):
-        return int(default)
-
-
-def env_float(name, default=0.0):
-    """Read a floating-point environment variable portably."""
-    raw = _env_raw(name)
-    if raw is None:
-        return float(default)
-    try:
-        return float(str(raw).strip())
-    except (TypeError, ValueError):
-        return float(default)
-
-
-def _env_raw(name):
-    if name in _overrides:
-        return _overrides[name]
-
-    import os
-
-    environ = getattr(os, "environ", None)
-    if environ is not None:
-        try:
-            value = environ.get(name)
-        except Exception:
-            value = None
-        if value is not None:
-            return value
-    getenv = getattr(os, "getenv", None)
-    if getenv is None:
-        return None
-    try:
-        return getenv(name)
-    except Exception:
-        return None
-
 
 def capabilities():
     """Static metadata for the modular displaydev install model (no backend imports)."""
@@ -738,6 +636,10 @@ class DisplayDriver:
                         f"{self.__class__.__name__}: warning: slow byteswap fallback; "
                         "install utils/byteswap (GitHub MIP) for viper/numpy swap"
                     )
+        # The environment helpers are boarddev's, imported where they are read
+        # so displaydev never re-exports them.
+        from boarddev import env_bool, env_float
+
         every = env_float("PYDEVICES_FPS_PRINT", 0)
         if every > 0:
             self.fps_print(every)
@@ -754,6 +656,8 @@ class DisplayDriver:
         :attr:`refresh_period_ms`, so LVGL and non-LVGL apps both follow it.
         Unset, empty, zero or not a number leaves the backend's period alone.
         """
+        from boarddev import env_int
+
         period = env_int("PYDEVICES_REFRESH_MS", 0)
         if period <= 0:
             return

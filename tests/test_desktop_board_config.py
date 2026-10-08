@@ -48,9 +48,6 @@ class DesktopBoardConfigContractTests(unittest.TestCase):
         display.fill = mock.Mock()
         display.get_events = mock.Mock(name="get_events")
         displaydev_mod = types.ModuleType("displaydev")
-        displaydev_mod.env_bool = lambda name, default=False: default
-        displaydev_mod.env_float = lambda name, default=0.0: default
-        displaydev_mod.env_int = lambda name, default=0: default
         displaydev_auto = types.ModuleType("displaydev.auto")
         displaydev_auto.AutoDisplay = mock.Mock(return_value=display)
         displaydev_mod.auto = displaydev_auto
