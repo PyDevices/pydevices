@@ -59,6 +59,8 @@ landing page.
 - [Direct MicroPython WebAssembly](docs/wasm.md)
 - [Newcomer's guide](docs/newcomers.md) — installation, board contract, architecture, and repository map
 
+What's planned next is in [ROADMAP.md](ROADMAP.md).
+
 ## Installation
 
 ```bash

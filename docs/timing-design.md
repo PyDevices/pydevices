@@ -1,7 +1,7 @@
 # The timing layer: multimer, redesigned
 
 The design behind [multimer](multimer.md), the layer under PyDevices'
-displays, LVGL, input, audio pumps, sequencers and apps. Chartered by Brad
+displays, LVGL, input, audio pumps, sequencers and apps. Chartered
 on 2026-09-25, designed and built in a cloud session on 2026-09-26, then
 landed and run on hardware by a local session the same day. The code is on
 the `timing-redesign` branches of pydevices, lvgl-bindings,
@@ -443,7 +443,7 @@ all three interpreters: 100 ms, readline's poll.
 ## Ledger
 
 Phase results in order. "Here" means measured in the cloud session that
-designed this; "hardware" means measured on Brad's bench by the local session
+designed this; "hardware" means measured on the maintainer's bench by the local session
 of 2026-09-26 that landed it (Windows 11, the ESP32-P4 panel, the LilyGO
 T-Embed S3, and a Galaxy S21 over adb). Numbers on the bench are their own
 runs, not the cloud's; the cloud's container was 4 cores, the bench is 8.
@@ -506,7 +506,7 @@ runs, not the cloud's; the cloud's container was 4 cores, the bench is 8.
     prompt on both, `report()` answers `source=pending` and `source=native`,
     and the planted fault (no source, hook off) stands still. The `-m` freeze
     of pydevices-examples#141 has no mechanism left, and the related hang
-    Brad found on 2026-09-27 — `python.exe -i -m examples.roku_remote`'s
+    found on 2026-09-27 — `python.exe -i -m examples.roku_remote`'s
     WinDisplay window marked hung for as long as the prompt waits, because
     only a timer pumps its message queue — is reproduced on the current
     layer and gone on this one (`tools/prove_repl/win_window_alive.py`).

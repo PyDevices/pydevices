@@ -2,7 +2,7 @@
 
 **Target:** micropython/micropython, an issue (not a PR — the fix is a design
 choice between raising and reference-counting, and that is theirs to make).
-**Status:** ready to file, awaiting Brad's word. Post only what is below the `---`.
+**Status:** ready to file, awaiting the maintainer's word. Post only what is below the `---`.
 
 Our second report upstream; the first is
 [#19667](https://github.com/micropython/micropython/issues/19667). House posture

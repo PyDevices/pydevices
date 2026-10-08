@@ -14,7 +14,7 @@ introduce.
 **What it does not measure.** Whether it sounds *good*. Timbre, balance, and
 "is this the instrument it claims to be" are outside it. That gap is not
 theoretical: a full set of mechanical traits passed while a kick drum and a
-snare were structurally wrong, and only Brad's ears caught it. Use this to
+snare were structurally wrong, and only a listener's ears caught it. Use this to
 prove a format is *right*, never to conclude a sound is *good*.
 
 ## Which board
