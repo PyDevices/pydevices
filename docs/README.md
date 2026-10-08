@@ -23,6 +23,7 @@
 - [audio.md](audio.md) — `audiodev` interfaces
 - [bledev.md](bledev.md) — Bluetooth Low Energy: one async API on boards, laptops and browsers
 - [app-and-board-config.md](app-and-board-config.md) — the application loop
+- [lvgl.md](lvgl.md) — LVGL on PyDevices: `display_driver`, the three sister projects, sync and async timers
 
 ## Drivers
 
