@@ -28,9 +28,10 @@ whether there is a thread to land them from:
     :meth:`RingDriver.produce`.
 
 ``ServiceDriver``
-    WebAssembly, which has no threads. ``audiopump.service()`` runs the same
-    C loop on the interpreter thread, filling the same ring, and the audio is
-    byte-identical to the unix build's. What changes is that the ring is
+    WebAssembly and CPython, where the pump has no thread of its own.
+    ``audiopump.service()`` runs the same loop on the interpreter thread,
+    filling the same ring, and the audio is byte-identical to the unix
+    build's. What changes is that the ring is
     look-ahead rather than slack: a tick of T milliseconds needs a ring
     longer than T.
 
@@ -852,7 +853,7 @@ class RingDriver(_Driver):
 
 
 class ServiceDriver(RingDriver):
-    """WebAssembly: there is no thread, so this tick *is* the pump.
+    """WebAssembly and CPython: there is no thread, so this tick *is* the pump.
 
     Same ring, same drain, same bytes. What changes is where the loop runs:
     ``audiopump.service()`` enters the C pull loop on the interpreter thread

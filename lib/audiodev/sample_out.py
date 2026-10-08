@@ -498,9 +498,9 @@ class AudioOut:
                       "audio transport - playing on machine.I2S instead")
             return None
         if not pump_mod.threaded():
-            # WebAssembly: no thread, so the loop runs inside this player's
-            # own service tick and the ring has to hold a tick's worth of
-            # look-ahead rather than just absorb a racing thread.
+            # WebAssembly and CPython: no pump thread, so the loop runs inside
+            # this player's own service tick and the ring has to hold a tick's
+            # worth of look-ahead rather than just absorb a racing thread.
             return pump_mod.ServiceDriver(
                 self.transport.format.frame_size,
                 chunk_bytes=self._chunk_bytes(),
