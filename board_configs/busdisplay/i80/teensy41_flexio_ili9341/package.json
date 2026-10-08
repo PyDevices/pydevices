@@ -7,6 +7,10 @@
     [
       "board_peripherals.py",
       "github:PyDevices/pydevices/board_configs/busdisplay/i80/teensy41_flexio_ili9341/board_peripherals.py"
+    ],
+    [
+      "ili9341.py",
+      "github:PyDevices/pydevices/drivers/display/ili9341.py"
     ]
   ],
   "deps": [
@@ -15,5 +19,5 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.3"
 }

@@ -17,6 +17,10 @@
       "github:PyDevices/pydevices/drivers/codec/es8311.py"
     ],
     [
+      "es7210.py",
+      "github:PyDevices/pydevices/drivers/codec/es7210.py"
+    ],
+    [
       "keypad_gpio.py",
       "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
     ]
@@ -27,6 +31,6 @@
       "latest"
     ]
   ],
-  "version": "0.2",
-  "notes": "ES8311 audio; SDIO sdcard; C6 radio=wlan; no ethernet on this SKU."
+  "version": "0.3",
+  "notes": "ES8311 speaker, ES7210 microphone; SDIO sdcard; C6 radio=wlan; no ethernet on this SKU."
 }
