@@ -9,6 +9,12 @@ with each kind of peripheral described honestly by its role.
   MIDI themselves and encode from a mic, so they get a role of their own
   beside `pcm_out` and `pcm_in` instead of passing as PCM.
 
+## MIDI
+
+- `mididev`, one home for MIDI: the port contract, one MIDI 1.0 parser and the
+  desktop OS ports live here, and USB and BLE MIDI become transports that add
+  their ports to it.
+
 ## BLE
 
 - A measurement of how much BLE slows Wi-Fi on the ESP32-S3, to sit beside the
