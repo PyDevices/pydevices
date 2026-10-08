@@ -1,3 +1,18 @@
+## v0.7.0 (2026-10-08)
+
+- docs/lvgl.md: Using LVGL with PyDevices moves here from lvgl-bindings (#132)
+- The env helpers move from displaydev to boarddev (a hard break) (#131)
+- Board config: Adafruit 3.5" TFT FeatherWing (HX8357D) (#139)
+- Roadmap: MIDI moves to mididev (#136)
+- audiodev.pump: CPython takes the ServiceDriver path too, now that the CPython wheel has audiopump (#135)
+- Comments: reword notes for users (#134)
+- Add ROADMAP.md for planned work, and make public text stand on its own (#133)
+- displaydev: frames per second and PYDEVICES_REFRESH_MS; display_driver moves here (#129)
+- WinDisplay refits its scale after a rotation (#130)
+- Windows: examples stay up on micropython.exe, and the numpad types (#128)
+- wifi: CircuitPython's wifi.radio API on network.WLAN (#127)
+- Release PRs from publishing-v13: the description says what the PR changes and what merging does
+
 ## v0.6.7rc1 (2026-10-07)
 
 - pngio.py: MicroPython's pngio, on CPython over Pillow (#125)
