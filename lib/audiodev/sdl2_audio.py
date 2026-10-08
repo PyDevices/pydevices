@@ -65,6 +65,7 @@ import sys
 import time
 
 from audiodev import AudioFormat, PCMInput, PCMOutput, check_latency
+from audiodev.bytequeue import ByteQueue
 import usdl2 as sdl
 
 try:
@@ -275,7 +276,6 @@ class SDLPCMOutput(PCMOutput):
         # several of them no matter what ``queue_ms`` a caller asked for.
         period_bytes = self.samples * fmt.frame_size
         self._queue_limit = max(self._queue_limit, 3 * period_bytes)
-        self._coalesce = bytearray()
         self.coalesce_ms = int(coalesce_ms)
         self._coalesce_bytes = max(
             fmt.frame_size,
@@ -300,6 +300,11 @@ class SDLPCMOutput(PCMOutput):
         # Backstop for callers that ignore ``queued_size()`` backpressure: a
         # rebuild only needs a couple of seconds of headroom here.
         self._max_pending = 4 * self._queue_limit
+        # Both buffers are chunked. Growing a bytearray needs a contiguous
+        # block the size of everything pending, and a MicroPython heap shared
+        # with a UI may not have one. Writes past the backstop wait (bounded);
+        # past twice the backstop, what doesn't fit is dropped and counted.
+        self._coalesce = ByteQueue(2 * self._max_pending)
         # Must cover every byte SDL can still hold, or a rebuild cannot restore
         # the whole unplayed queue.
         self._shadow_limit = self._queue_limit + self._coalesce_bytes
@@ -322,7 +327,7 @@ class SDLPCMOutput(PCMOutput):
         # Copy of the most recently queued PCM (never more than one full queue).
         # A recycle discards whatever SDL still held, so the unplayed tail is
         # re-queued from here instead of being dropped.
-        self._shadow = bytearray()
+        self._shadow = ByteQueue(self._shadow_limit)
         self.recycles = 0
         self.lost_bytes = 0
         self.requeued_bytes = 0
@@ -382,8 +387,8 @@ class SDLPCMOutput(PCMOutput):
         """
         self._wait_rebuild()
         self._close_device()
-        self._coalesce = bytearray()
-        self._shadow = bytearray()
+        self._coalesce.clear()
+        self._shadow.clear()
         self._queued_total = 0
         del self._samples[:]
         self._prime_pause = True
@@ -468,10 +473,7 @@ class SDLPCMOutput(PCMOutput):
             rc = sdl.SDL_QueueAudio(self.device, data, len(data))
             if rc == 0:
                 self._queued_total += len(data)
-                self._shadow.extend(data)
-                if len(self._shadow) > self._shadow_limit:
-                    # Slice assignment: MP/CP bytearrays cannot ``del``.
-                    self._shadow[: len(self._shadow) - self._shadow_limit] = b""
+                self._shadow.push(data)
         finally:
             if self._lock is not None:
                 self._lock.release()
@@ -495,7 +497,9 @@ class SDLPCMOutput(PCMOutput):
             pending = len(self._coalesce)
             if not force and pending < self._coalesce_bytes:
                 break
-            take = pending if force else self._coalesce_bytes
+            # One coalesce window at a time even when forced, so no piece is
+            # bigger than that.
+            take = min(pending, self._coalesce_bytes)
             take -= take % frame
             if take <= 0:
                 break
@@ -503,10 +507,7 @@ class SDLPCMOutput(PCMOutput):
                 # Full: keep the rest buffered rather than blocking the caller,
                 # which may be the UI thread.
                 break
-            piece = bytes(self._coalesce[:take])
-            # Slice assignment: MP/CP bytearrays cannot ``del``.
-            self._coalesce[:take] = b""
-            self._queue_bytes(piece)
+            self._queue_bytes(self._coalesce.take(take))
         # Start (or not) once, after everything that fits has been queued, so the
         # device never begins on the first small chunk of a large flush.
         self._unpause_if_primed(force=force)
@@ -529,7 +530,7 @@ class SDLPCMOutput(PCMOutput):
             waited += self.poll_ms
         # While the device is being rebuilt the PCM just accumulates here; the
         # next service tick queues it in order behind the re-queued tail.
-        self._coalesce.extend(buf)
+        self._accept(buf)
         if self._recycling:
             return len(buf)
         self._flush_coalesce(force=False)
@@ -552,20 +553,26 @@ class SDLPCMOutput(PCMOutput):
         while len(self._coalesce) >= self._max_pending and waited < 500:
             await _asleep_ms(self.poll_ms)
             waited += self.poll_ms
-        self._coalesce.extend(buf)
+        self._accept(buf)
         if not self._recycling:
             self._flush_coalesce(force=False)
         return len(buf)
 
+    def _accept(self, buf):
+        taken = self._coalesce.write(buf)
+        if taken < len(buf):
+            # Full even after the wait: the caller is far ahead of realtime.
+            self.lost_bytes += len(buf) - taken
+
     def clear(self):
         """Drop queued PCM now (abort); keep the device and re-prime on next write."""
-        self._coalesce = bytearray()
+        self._coalesce.clear()
         if not self.device:
             return
         sdl.SDL_PauseAudioDevice(self.device, 1)
         sdl.SDL_ClearQueuedAudio(self.device)
         self._prime_pause = True
-        self._shadow = bytearray()
+        self._shadow.clear()
         self._queued_total = 0
         del self._samples[:]
 
@@ -661,14 +668,14 @@ class SDLPCMOutput(PCMOutput):
         if self._recycling:
             return
         stuck = min(int(stalled_bytes), len(self._shadow))
-        tail = bytes(self._shadow[-stuck:]) if stuck else b""
+        tail = self._shadow.tail(stuck) if stuck else b""
         self.lost_bytes += int(stalled_bytes) - len(tail)
         self.requeued_bytes += len(tail)
         self.recycles += 1
         self._recycling = True
         del self._samples[:]
         if tail:
-            self._coalesce[:0] = tail
+            self.lost_bytes += len(tail) - self._coalesce.unread(tail)
         if self._lock is None:
             self._rebuild_device()
         else:
@@ -698,8 +705,8 @@ class SDLPCMOutput(PCMOutput):
                 except Exception as exc:
                     error = exc
             self.lost_bytes += len(self._coalesce)
-            self._coalesce[:] = b""
-            self._shadow = bytearray()
+            self._coalesce.clear()
+            self._shadow.clear()
             print("[sdl2_audio] reopen after stall failed: %s" % (error,))
         finally:
             self._grace_until = _deadline_ms(RECOVER_GRACE_MS)

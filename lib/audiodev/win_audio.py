@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover
 import time
 
 from audiodev import AudioFormat, PCMInput, PCMOutput, check_latency
+from audiodev.bytequeue import ByteQueue
 import uwin32 as win
 
 DEFAULT_PLAY_SAMPLES = 4096
@@ -123,7 +124,9 @@ class WinPCMOutput(PCMOutput):
             max(fmt.frame_size, self._bytes_per_second * _prebuffer_ms // 1000),
         )
         self._max_pending = 4 * self._queue_limit
-        self._coalesce = bytearray()
+        # Chunked: a bytearray grown here needed one contiguous block the size of
+        # all pending audio, which a heap shared with a UI may not have.
+        self._coalesce = ByteQueue(2 * self._max_pending)
         self._enumerator = None
         self._endpoint = None
         self._client = None
@@ -158,7 +161,7 @@ class WinPCMOutput(PCMOutput):
         return self.queued_size() > 0
 
     def clear(self):
-        self._coalesce = bytearray()
+        self._coalesce.clear()
         self._pushed_total = 0
         self._samples = []
         self._play_origin_ms = None
@@ -201,7 +204,7 @@ class WinPCMOutput(PCMOutput):
         self._last_push_ms = None
         self._play_origin_ms = None
         if not keep_coalesce:
-            self._coalesce = bytearray()
+            self._coalesce.clear()
 
     def _available_frames(self):
         if not self._client:
@@ -288,7 +291,9 @@ class WinPCMOutput(PCMOutput):
             pending = len(self._coalesce)
             if not force and pending < self._coalesce_bytes:
                 break
-            take = pending if force else self._coalesce_bytes
+            # One coalesce window at a time, forced or not, so no push copies
+            # more than that out of the ring.
+            take = min(pending, self._coalesce_bytes)
             take -= take % frame
             if take <= 0:
                 break
@@ -296,10 +301,10 @@ class WinPCMOutput(PCMOutput):
                 break
             if not force and self._pushed_total >= budget:
                 break
-            written = self._push_frames(bytes(self._coalesce[:take]))
+            written = self._push_frames(self._coalesce.head(take))
             if written <= 0:
                 break
-            self._coalesce[:written] = b""
+            self._coalesce.consume(written)
         self._start_if_primed(force=force)
 
     def _write(self, buf):
@@ -314,9 +319,10 @@ class WinPCMOutput(PCMOutput):
                 break
             _sleep_ms(self.poll_ms)
             waited += self.poll_ms
-        if len(self._coalesce) >= 2 * self._max_pending:
-            return len(buf)
-        self._coalesce.extend(buf)
+        taken = self._coalesce.write(buf)
+        if taken < len(buf):
+            # Full even after the wait: the caller is far ahead of realtime.
+            self.lost_bytes += len(buf) - taken
         self._flush_coalesce(force=False)
         return len(buf)
 
@@ -440,7 +446,8 @@ class WinPCMInput(PCMInput):
         self._endpoint = None
         self._client = None
         self._capture = None
-        self._pending = bytearray()
+        # Two capture queues of headroom, chunked (see WinPCMOutput).
+        self._pending = ByteQueue(2 * max(fmt.frame_size, fmt.rate * fmt.frame_size * self.queue_ms // 1000))
 
     def queued_size(self):
         return len(self._pending)
@@ -467,7 +474,7 @@ class WinPCMInput(PCMInput):
             if punk:
                 win.IUnknown_Release(punk)
         self._capture = self._client = self._endpoint = self._enumerator = None
-        self._pending = bytearray()
+        self._pending.clear()
 
     def _pull(self):
         if not self._capture:
@@ -479,7 +486,12 @@ class WinPCMInput(PCMInput):
             ptr, frames, _flags = win.IAudioCaptureClient_GetBuffer(self._capture)
             nbytes = frames * self.format.frame_size
             if ptr and nbytes:
-                self._pending.extend(win.string_at(ptr, nbytes))
+                pcm = win.string_at(ptr, nbytes)
+                over = len(pcm) - self._pending.free()
+                if over > 0:
+                    # Nobody is reading: keep the newest audio, as a device would.
+                    self._pending.consume(over + (-over) % self.format.frame_size)
+                self._pending.write(pcm)
             win.IAudioCaptureClient_ReleaseBuffer(self._capture, frames)
 
     def _readinto(self, buf):
@@ -491,10 +503,7 @@ class WinPCMInput(PCMInput):
         self._pull()
         take = min(needed, len(self._pending))
         take -= take % self.format.frame_size
-        view = memoryview(buf)
-        view[:take] = self._pending[:take]
-        self._pending[:take] = b""
-        return take
+        return self._pending.readinto(buf, take)
 
     async def _areadinto(self, buf):
         needed = len(buf)
@@ -505,10 +514,7 @@ class WinPCMInput(PCMInput):
         self._pull()
         take = min(needed, len(self._pending))
         take -= take % self.format.frame_size
-        view = memoryview(buf)
-        view[:take] = self._pending[:take]
-        self._pending[:take] = b""
-        return take
+        return self._pending.readinto(buf, take)
 
 
 def pcm_out(

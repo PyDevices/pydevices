@@ -102,7 +102,7 @@ def probe_buffer_consumption():
 
     # Small enough that the first queued piece overflows it, so the trim branch
     # runs without writing megabytes.
-    device._shadow_limit = 1024
+    device._shadow_limit = device._shadow.limit = 1024
 
     # A recognizable ramp, so the checks below can tell the tail of the buffer
     # from the head -- a slice that trimmed the wrong end would still have the
@@ -130,7 +130,7 @@ def probe_buffer_consumption():
     )
     check(
         "_shadow kept the tail, not the head",
-        bytes(device._shadow)
+        device._shadow.head(len(device._shadow))
         == bytes(written[: device._queued_total])[-device._shadow_limit :],
     )
 

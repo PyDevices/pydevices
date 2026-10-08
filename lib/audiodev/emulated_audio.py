@@ -6,6 +6,7 @@ Never selected by :mod:`audiodev.auto`. Import this module explicitly.
 import math
 
 from audiodev import AudioFormat, PCMInput, PCMOutput, queue_bytes
+from audiodev.bytequeue import ByteQueue
 
 _WAVES = ("sine", "square", "noise", "silence")
 
@@ -178,16 +179,21 @@ class LoopbackBuffer:
         self.format = format
         limit = queue_bytes(format, None, queue_ms, default=format.rate * format.frame_size)
         self.limit = max(format.frame_size, int(limit))
-        self._pending = bytearray()
+        # A write past the limit drops the oldest whole frames,
+        # so the queue holds at most limit plus part of one frame.
+        self._pending = ByteQueue(self.limit + format.frame_size)
 
     def write(self, buf):
         view = memoryview(buf)
-        self._pending.extend(view)
-        overflow = len(self._pending) - self.limit
+        overflow = len(self._pending) + len(view) - self.limit
         if overflow > 0:
             drop = overflow - (overflow % self.format.frame_size)
-            if drop > 0:
-                self._pending[:drop] = b""
+            old = self._pending.consume(drop)
+            if drop > old:
+                # Bigger than the whole queue: only its newest end is kept.
+                self._pending.write(view[drop - old :])
+                return len(view)
+        self._pending.write(view)
         return len(view)
 
     def readinto(self, buf):
@@ -195,15 +201,13 @@ class LoopbackBuffer:
         count -= count % self.format.frame_size
         if count <= 0:
             return 0
-        buf[:count] = self._pending[:count]
-        self._pending[:count] = b""
-        return count
+        return self._pending.readinto(buf, count)
 
     def queued_size(self):
         return len(self._pending)
 
     def clear(self):
-        self._pending = bytearray()
+        self._pending.clear()
 
 
 class LoopbackPCMOutput(PCMOutput):
