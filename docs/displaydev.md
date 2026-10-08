@@ -222,7 +222,7 @@ It replaces the display's `refresh_period_ms` (33 ms, or 16 in the browser)
 when the driver starts. Everything that paces frames reads that one attribute:
 `appdev.App`'s refresh timer, the display's frame clock, and
 `display_driver`'s LVGL refresh timer, so LVGL and non-LVGL apps both follow
-it. A board config can set it with `displaydev.env_set("PYDEVICES_REFRESH_MS",
+it. A board config can set it with `boarddev.env_set("PYDEVICES_REFRESH_MS",
 16)` before it builds the display, on hosts where there is no environment.
 
 Unset, zero or not a number leaves the display's own period. An app that

@@ -195,9 +195,10 @@ Panel size overrides (before `import board_config`): `PYDEVICES_WIDTH`,
 geometry from `display_drv`, not module-level names on `board_config`.
 
 Set the env vars **before** `import board_config` (or any import that loads
-it). Parsing lives in
-[`displaydev.env_int`](https://github.com/PyDevices/pydevices/blob/main/lib/displaydev/__init__.py)
-and friends.
+it). On a host with no environment, `boarddev.env_set("PYDEVICES_WIDTH", 800)`
+does the same from Python. Parsing lives in
+[`boarddev.env_int`](https://github.com/PyDevices/pydevices/blob/main/lib/boarddev.py)
+and friends (`env_get`, `env_float`, `env_bool`, `env_set`).
 
 Per-board configs under `board_configs/` describe hardware; they never
 construct an app.

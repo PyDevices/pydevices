@@ -26,7 +26,8 @@ Do not run audiodev tests while another process is playing audio — see
 | `test_displaydev_auto.py` | backends must not import `displaydev.auto` |
 | `test_displaydev_lifecycle.py` / `test_displaydev_capabilities.py` | quit lifecycle and `capabilities()` |
 | `test_displaydev_fps.py` | frame-rate meter: nothing wrapped while off, frames/present/busy counted while on, `flush_rect` as flushes not frames, the appdev refresh calling a wrapper installed late |
-| `test_env.py` / `test_color.py` / `test_byteswap.py` / `test_desktop_scale.py` | displaydev helpers |
+| `test_color.py` / `test_byteswap.py` / `test_desktop_scale.py` | displaydev helpers |
+| `test_env.py` | `boarddev`'s environment helpers, and that `displaydev` no longer carries them |
 | `test_needs_refresh.py` / `test_backend_isolation.py` | backend flags and imports |
 | `test_jndisplay_scroll.py` | JNDisplay scroll (needs IPython + Pillow) |
 | `test_pgdisplay_frame_recorder.py` | frame-recorder surface |

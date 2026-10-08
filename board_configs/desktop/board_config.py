@@ -2,7 +2,7 @@
 
 import sys
 
-from displaydev import env_bool, env_float, env_int
+from boarddev import env_float, env_int
 from displaydev.auto import AutoDisplay
 
 _width = env_int("PYDEVICES_WIDTH", 320)

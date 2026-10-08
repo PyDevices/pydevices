@@ -13,6 +13,7 @@ from unittest import mock
 import _env  # noqa: F401
 from _support import quiet
 
+import boarddev
 import displaydev
 import multimer
 from appdev import App
@@ -240,7 +241,7 @@ class TestEnvironmentAndPrint(unittest.TestCase):
 
     def _clean_env(self, **env):
         for k in ("PYDEVICES_FPS", "PYDEVICES_FPS_PRINT"):
-            displaydev._overrides.pop(k, None)
+            boarddev._overrides.pop(k, None)
         patched = {k: v for k, v in os.environ.items() if not k.startswith("PYDEVICES_FPS")}
         patched.update(env)
         return mock.patch.dict(os.environ, patched, clear=True)
