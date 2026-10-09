@@ -55,6 +55,7 @@ An exact match for all four is rare; bus + display controller is usually enough 
 | `busdisplay/spi/t-display-s3` | (I80 variant under `i80/t-display-s3`) |
 | `busdisplay/spi/t-dongle-s3` | LilyGO T-Dongle S3 |
 | `busdisplay/spi/t-embed` | LilyGO T-Embed |
+| `busdisplay/spi/t-watch-s3` | LilyGO T-Watch S3 |
 | `busdisplay/spi/t-qt-pro` | LilyGO T-QT Pro |
 | `busdisplay/spi/m5stack-cores3` | M5Stack CoreS3 |
 | `busdisplay/spi/wt32sc01-plus` | (I80 under `i80/wt32sc01-plus`) |
@@ -157,6 +158,7 @@ Draw through `display_drv` only; `_pixel_framebuf` is an internal wiring detail.
 | `cp/busdisplay/i80/t-hmi` | LilyGO T-HMI I80 + touch |
 | `cp/busdisplay/i80/wt32sc01-plus` | WT32-SC01 Plus I80 |
 | `cp/busdisplay/spi/seeed_gc9a01_on_xiao_nrf52840` | Seeed Round Display for XIAO on a XIAO nRF52840, stock CircuitPython |
+| `cp/busdisplay/spi/t-watch-s3` | LilyGO T-Watch S3 (CircuitPython's `lilygo_twatch_s3`) |
 | `cp/busdisplay/spi/*` | CircuitPython variants of MP configs |
 
 ## Headless configs (no display)

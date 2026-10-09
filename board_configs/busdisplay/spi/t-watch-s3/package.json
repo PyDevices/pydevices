@@ -1,0 +1,48 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/t-watch-s3/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/t-watch-s3/board_peripherals.py"
+    ],
+    [
+      "st7789.py",
+      "github:PyDevices/pydevices/drivers/display/st7789.py"
+    ],
+    [
+      "ft6x36.py",
+      "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
+    ],
+    [
+      "keypad_gpio.py",
+      "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
+    ],
+    [
+      "axp2101.py",
+      "github:PyDevices/pydevices/drivers/power/axp2101.py"
+    ],
+    [
+      "bma423.py",
+      "github:PyDevices/pydevices/drivers/imu/bma423.py"
+    ],
+    [
+      "pcf8563.py",
+      "github:PyDevices/pydevices/drivers/rtc/pcf8563.py"
+    ],
+    [
+      "drv2605.py",
+      "github:PyDevices/pydevices/drivers/haptic/drv2605.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1.0",
+  "notes": "AXP2101 powers display/touch/audio/haptic first; FT6336 touch; crown (PMU power key) + BOOT keypad; MAX98357A audio_out/pcm_out; BMA423, PCF8563, DRV2605, IR (esp32.RMT), battery from the PMU. No pcm_in: machine.I2S has no PDM mode."
+}

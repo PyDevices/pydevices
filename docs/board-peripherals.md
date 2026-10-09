@@ -41,6 +41,9 @@ Omit the name entirely when the hardware is absent. Canonical symbols:
 | Audio | `audio_out`, `pcm_out`, `pcm_in` | One name, one return type — see below. MicroPython has no `audio_in`. |
 | Audio (CircuitPython) | `audio_out`, `audio_in` | CircuitPython's native player and recorder — see [Audio on CircuitPython](#audio-on-circuitpython) |
 | Audio power | `audio_power` | `audio_power(enable=True, *, volume=None)`: codec and amplifier up or down without opening a stream |
+| Real-time clock | `rtc` | A battery-backed clock chip with `datetime()` to read and `datetime(t)` to set, in `machine.RTC`'s 8-tuple; omit when the board has only the microcontroller's own RTC |
+| Haptics | `haptic` | A vibration motor driver: `play(effect, …)` plays effects from the chip's library, `stop()` ends them; omit when absent |
+| Infrared | `ir` | An IR LED with its carrier set: an `esp32.RMT` with `tx_carrier` on MicroPython, a `pulseio.PulseOut` on CircuitPython; send marks and spaces in microseconds; omit when absent |
 | Storage | `sdcard` | Driver object only; no auto-mount |
 | Camera | `camera` | |
 | Expansion I2C | `i2c` | Dedicated STEMMA/Qwiic/Grove only (not internal-only) |
