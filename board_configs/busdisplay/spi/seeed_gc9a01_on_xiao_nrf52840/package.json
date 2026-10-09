@@ -1,0 +1,40 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/seeed_gc9a01_on_xiao_nrf52840/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/seeed_gc9a01_on_xiao_nrf52840/board_peripherals.py"
+    ],
+    [
+      "gc9a01.py",
+      "github:PyDevices/pydevices/drivers/display/gc9a01.py"
+    ],
+    [
+      "chsc6x.py",
+      "github:PyDevices/pydevices/drivers/touch/chsc6x.py"
+    ],
+    [
+      "sdcard.py",
+      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+    ],
+    [
+      "pcf8563.py",
+      "github:PyDevices/pydevices/drivers/rtc/pcf8563.py"
+    ],
+    [
+      "battery_adc.py",
+      "github:PyDevices/pydevices/drivers/power/battery_adc.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1",
+  "notes": "Stock MicroPython on the nRF52840 has no mip or network; copy these files (see board_config.py)."
+}

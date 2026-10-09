@@ -125,6 +125,32 @@ When it finishes, reset the board (`machine.reset()`, or the button) before you
 while Wi-Fi is connected — [§10](#10-odds-and-ends-worth-knowing) has the
 numbers — and in your own programs the display comes up first.
 
+### Without Wi-Fi: a ROMFS image
+
+A board with no network, the XIAO nRF52840 on stock MicroPython among them,
+has no `mip` to fetch with, so you copy files from the computer. Its
+filesystem fills sooner than the byte count suggests: littlefs gives every
+file at least one 4 KB block, and the XIAO's is 64 blocks, so pydevices plus
+`pygraphics` as separate `.mpy` files didn't fit.
+
+Where the firmware has a ROMFS partition (the stock XIAO nRF52840 build has
+256 KB), put the libraries there instead, as one image:
+
+```bash
+# stage/lib holds the libraries, laid out as they would be in /lib
+mpremote romfs deploy stage
+```
+
+`mpremote` compiles `.py` files to `.mpy` on the way (`--no-mpy` keeps
+sources, or `.mpy` files you compiled yourself).
+
+It mounts at `/rom` with `/rom/lib` on `sys.path`. Modules there run in
+place from flash, so importing them costs less RAM: on the XIAO,
+`import board_config` for the round display took 35 KB of heap from `/flash`
+and 19 KB from `/rom`. Keep `board_config.py` and your own program on the
+writable filesystem, where you can edit them; a new image replaces the whole
+partition.
+
 ## 3. Choosing what to install, and from where
 
 `mip.install("pydevices", index=INDEX)` and
