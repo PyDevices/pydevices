@@ -7,7 +7,9 @@ blocks but can't be mounted; a card formatted with ``os.VfsLfs2.mkfs(card)``
 mounts with ``os.mount(os.VfsLfs2(card), "/sd")``.
 
 ``rtc`` is the PCF8563 clock on the board I2C; ``rtc.datetime()`` reads and
-sets it like ``machine.RTC``. Its backup cell keeps time with the XIAO off.
+sets it like ``machine.RTC``. ``rtc.lost_power`` turns True
+when its supply dropped since it was last set, which without a backup
+cell happens at every unplug, though a short one can leave the time right.
 
 ``battery`` reads the LiPo on the display's battery connector through the
 display's divider on A0 (D0); ``battery.voltage`` is in volts. Without a
