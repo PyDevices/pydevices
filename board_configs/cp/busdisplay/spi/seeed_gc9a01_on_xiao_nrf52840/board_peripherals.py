@@ -6,6 +6,12 @@ board SPI (chip select D2). Mount it yourself::
     import storage
     storage.mount(storage.VfsFat(board_config.sdcard), "/sd")
 
+While ``/sd`` is mounted, CircuitPython also shows the card to the computer
+as a second USB drive. Don't write to it from the board while the computer
+has that drive open, and ``storage.umount("/sd")`` before a reset. The
+computer then lists the drive with no media, so cancel any prompt to insert
+or format a disk.
+
 ``rtc`` is the PCF8563 clock on the board I2C; ``rtc.datetime()`` reads and
 sets it with the same tuple as MicroPython's ``machine.RTC``.
 ``rtc.lost_power`` turns True when its supply dropped since it was last set,
@@ -28,13 +34,31 @@ def load_peripherals(ns):
     boarddev.bind_lazy(ns, sys.modules[__name__])
 
 
+_sd_cs = None
+
+
 def sdcard():
-    """microSD on the board SPI, chip select D2."""
+    """microSD on the board SPI, chip select D2.
+
+    The chip select is a ``DigitalInOut`` this module keeps for good, rather
+    than a pin. When no card answers, CircuitPython 10.3's ``sdcardio.SDCard``
+    frees a chip select it made itself, yet the failed object's finaliser
+    still uses it when the garbage collector runs: it takes the SPI lock,
+    fails, and never gives the lock back, and the display's next transfer on
+    the shared bus waits forever. A chip select that stays alive lets the
+    finaliser finish and unlock.
+    """
+    global _sd_cs
     import board
     import board_config as bc
     import sdcardio
 
-    return sdcardio.SDCard(bc.spi, board.D2)
+    if _sd_cs is None:
+        import digitalio
+
+        _sd_cs = digitalio.DigitalInOut(board.D2)
+        _sd_cs.switch_to_output(value=True)
+    return sdcardio.SDCard(bc.spi, _sd_cs)
 
 
 def rtc():

@@ -1,6 +1,9 @@
-"""Seeed Studio Round Display for XIAO on a XIAO nRF52840 (or nRF52840 Sense) — CircuitPython.
+"""Seeed Studio Round Display for XIAO on a XIAO nRF52840 — CircuitPython.
 
-For stock CircuitPython's Seeed_XIAO_nRF52840_Sense build. The GC9A01
+For the standard XIAO nRF52840, running stock CircuitPython's
+``Seeed_XIAO_nRF52840_Sense`` build (the one build CircuitPython has for
+either board). The Sense-only ``board`` pins (IMU, microphone) point at parts
+the standard board doesn't have, so there are no roles for them. The GC9A01
 240x240 panel is a ``fourwire.FourWire`` on the board SPI (D8 SCK, D10 MOSI)
 with chip select on D1, data/command on D3 and the backlight on D6. The
 CHSC6X touch controller is on the board I2C (D4 SDA, D5 SCL) with its
