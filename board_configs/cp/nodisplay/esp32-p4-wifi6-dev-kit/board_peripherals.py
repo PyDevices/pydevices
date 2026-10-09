@@ -10,6 +10,9 @@ the board I2C and the speaker amplifier (GPIO53) is switched on. I2SOut
 clocks MCLK at 256 times the sample rate, the tree the ES8311 driver
 programs, so any rate plays. The speaker header and the 3.5 mm jack carry
 the same DAC; headphones in the jack cut the speaker in hardware.
+
+``camera()`` is the OV5647 (or another MIPI-CSI sensor) on the CSI connector,
+through cameraif, when the firmware has it.
 """
 
 import board
@@ -22,7 +25,7 @@ import displayio
 # any leftover display here leaves a headless app with no console to redraw.
 displayio.release_displays()
 
-PERIPHERALS = frozenset({"audio_out", "audio_in", "audio_power", "i2c", "sdcard", "boot_button"})
+PERIPHERALS = frozenset({"audio_out", "audio_in", "audio_power", "i2c", "sdcard", "camera", "boot_button"})
 
 _VOLUME = 100  # 0 dB: the loudest the ES8311 plays without clipping
 
@@ -137,6 +140,24 @@ def sdcard():
         data=[board.IO39, board.IO40, board.IO41, board.IO42],
         frequency=40_000_000,
     )
+
+
+def camera(**kwargs):
+    """MIPI-CSI camera on the CSI connector (an OV5647 has run on it).
+
+    Any ``cameraif.Camera`` keyword passes straight through. The SCCB bus is
+    the board I2C: cameraif joins the ``board.I2C()`` bus rather than opening
+    a second master on the same pins, which would leave the codec and touch
+    controller timing out.
+    """
+    import cameraif
+
+    if not cameraif.available():
+        raise NotImplementedError("cameraif is not in this firmware, or it has no camera sensor driver")
+    kwargs.setdefault("sda", 7)
+    kwargs.setdefault("scl", 8)
+    kwargs.setdefault("i2c", i2c())
+    return cameraif.Camera(**kwargs)
 
 
 def boot_button():
