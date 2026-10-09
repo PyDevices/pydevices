@@ -59,14 +59,43 @@ def log(*parts):
 
 
 def pattern(n, seed):
-    return bytes(((i * 7 + (i >> 8) * 13 + seed) & 0xFF) for i in range(n))
+    # Filled in place: bytes() of a generator regrows its buffer, and on a
+    # small heap the copies fragment it until 16 KB no longer fits. Returned
+    # as bytes, which Link.write() sends without copying.
+    gc.collect()
+    out = bytearray(n)
+    for i in range(n):
+        out[i] = (i * 7 + (i >> 8) * 13 + seed) & 0xFF
+    out = bytes(out)
+    gc.collect()
+    return out
 
 
-def compare(got, want):
+async def receive_into(link, buf):
+    """Fill ``buf`` from the link; returns how many bytes came.
+
+    One buffer, allocated once and reused: a CircuitPython nRF52840 hasn't
+    the heap to gather 16 KB and copy it, and checking each byte as it
+    arrives is too slow to keep up with the notifications.
+    """
+    mv = memoryview(buf)
+    got = 0
+    n = len(buf)
+    while got < n:
+        chunk = await link.read(n - got)
+        if not chunk:
+            break
+        mv[got : got + len(chunk)] = chunk
+        got += len(chunk)
+    return got
+
+
+def check(buf, got, want):
+    """(mismatches, first) of ``buf[:got]`` against ``want(i)``."""
     bad = 0
     first = -1
-    for i in range(min(len(got), len(want))):
-        if got[i] != want[i]:
+    for i in range(got):
+        if buf[i] != want(i):
             bad += 1
             if first < 0:
                 first = i
@@ -79,7 +108,13 @@ def kbps(n, ms):
 
 async def main():
     gc.collect()
-    ble = backend.get() if MICROPYTHON else bledev.bleak.BleakBLE()
+    if CIRCUITPYTHON:
+        # Each queued notification is a bytes object of up to 244: the default
+        # 64 of them, beside the gate's buffers, is more than a CircuitPython
+        # nRF52840's heap has left.
+        ble = backend.CPBLE(queue_limit=32)
+    else:
+        ble = backend.get() if MICROPYTHON else bledev.bleak.BleakBLE()
     t0 = ticks_ms()
     link = await nus.connect(ble, name="bledev-gate", timeout_ms=20000, **CONN)
     log("connected in", ticks_diff(ticks_ms(), t0), "ms, mtu", link.connection.mtu, "conn", CONN, "plant", PLANT)
@@ -99,32 +134,38 @@ async def main():
     ms = int(reply[2])
     log("UP", reply[1], N, "bytes: server received in", ms, "ms =", kbps(N, ms), "(our send", sent_ms, "ms) mismatches", reply[3], "first", reply[4])
     ok = ok and reply[1] == "OK"
+    # A CircuitPython nRF52840 has about 100 KB of heap: let the UP buffer go.
+    data = None
+    gc.collect()
 
     # DOWN: the server sends, we check.
     await link.write("DOWN {}\n".format(N).encode())
     t0 = ticks_ms()
+    rbuf = bytearray(N)
     try:
-        got = await asyncio.wait_for(link.readexactly(N), 15)
+        got = await asyncio.wait_for(receive_into(link, rbuf), 15)
     except asyncio.TimeoutError:
         log("DOWN stalled: buffered", len(link._buf), "bytes_in", link.bytes_in, "connected", link.connection.is_connected())
         raise
     ms = ticks_diff(ticks_ms(), t0)
-    bad, first = compare(got, pattern(N, 2))
-    verdict = "OK" if bad == 0 and len(got) == N else "BAD"
-    log("DOWN", verdict, len(got), "bytes in", ms, "ms =", kbps(N, ms), "mismatches", bad, "first", first)
+    bad, first = check(rbuf, got, lambda i: (i * 7 + (i >> 8) * 13 + 2) & 0xFF)
+    verdict = "OK" if bad == 0 and got == N else "BAD"
+    log("DOWN", verdict, got, "bytes in", ms, "ms =", kbps(N, ms), "mismatches", bad, "first", first)
     ok = ok and verdict == "OK"
 
     # ECHO: round trip through the server.
     await link.write("ECHO {}\n".format(N).encode())
+    rbuf = None  # made again below, so pattern() has room to build its bytes
     data = pattern(N, 3)
+    rbuf = bytearray(N)
     t0 = ticks_ms()
     sender = asyncio.create_task(link.write(data))
-    got = await link.readexactly(N)
+    got = await receive_into(link, rbuf)
     ms = ticks_diff(ticks_ms(), t0)
     await sender
-    bad, first = compare(got, data)
-    verdict = "OK" if bad == 0 and len(got) == N else "BAD"
-    log("ECHO", verdict, len(got), "bytes round trip in", ms, "ms =", kbps(N, ms), "each way; mismatches", bad, "first", first)
+    bad, first = check(rbuf, got, lambda i: data[i])
+    verdict = "OK" if bad == 0 and got == N else "BAD"
+    log("ECHO", verdict, got, "bytes round trip in", ms, "ms =", kbps(N, ms), "each way; mismatches", bad, "first", first)
     ok = ok and verdict == "OK"
 
     await link.write(b"BYE\n")
