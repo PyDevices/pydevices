@@ -15,6 +15,10 @@
     [
       "es8311.py",
       "github:PyDevices/pydevices/drivers/codec/es8311.py"
+    ],
+    [
+      "keypad_gpio.py",
+      "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
     ]
   ],
   "deps": [
@@ -23,6 +27,6 @@
       "latest"
     ]
   ],
-  "version": "0.2",
+  "version": "0.3",
   "notes": "KeDei 5in DSI (ICN6211) on the DEV-KIT's DSI connector; needs displayif with mipidsi non_burst/continuous_clock. The board's peripherals come from nodisplay/esp32-p4-wifi6-dev-kit."
 }
