@@ -69,7 +69,9 @@ display_drv = ST7789(
 # to sleep without losing touch until the next power cycle.
 touch_i2c = I2C(1, sda=Pin(39), scl=Pin(40), freq=400_000)
 touch = FT6x36(touch_i2c)
-touch_rotation_table = None
+# The FT6336 reports points already in the frame the panel shows at
+# rotation=180, so that rotation needs no mapping; the others follow from it.
+touch_rotation_table = (0b110, 0b011, 0b000, 0b101)
 touch_read = touch.read_points
 
 # The crown is the PMU's power key, read from its latched press and release

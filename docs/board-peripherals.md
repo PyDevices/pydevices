@@ -43,7 +43,7 @@ Omit the name entirely when the hardware is absent. Canonical symbols:
 | Audio power | `audio_power` | `audio_power(enable=True, *, volume=None)`: codec and amplifier up or down without opening a stream |
 | Real-time clock | `rtc` | A battery-backed clock chip with `datetime()` to read and `datetime(t)` to set, in `machine.RTC`'s 8-tuple; omit when the board has only the microcontroller's own RTC |
 | Haptics | `haptic` | A vibration motor driver: `play(effect, …)` plays effects from the chip's library, `stop()` ends them; omit when absent |
-| Infrared | `ir` | An IR LED with its carrier set: an `esp32.RMT` with `tx_carrier` on MicroPython, a `pulseio.PulseOut` on CircuitPython; send marks and spaces in microseconds; omit when absent |
+| Infrared | `ir` | An IR LED with its carrier set: an `esp32.RMT` with `tx_carrier` on MicroPython, a `pulseio.PulseOut` on CircuitPython; send marks and spaces in microseconds (`ir_nec.send(ir, address, command)` for NEC remote codes); omit when absent |
 | Storage | `sdcard` | Driver object only; no auto-mount |
 | Camera | `camera` | |
 | Expansion I2C | `i2c` | Dedicated STEMMA/Qwiic/Grove only (not internal-only) |
@@ -53,6 +53,8 @@ Omit the name entirely when the hardware is absent. Canonical symbols:
 | Bluetooth LE | `ble` | Omit when absent |
 | Bluetooth Classic | `bt` | BR/EDR; omit when absent |
 | RF co-processor | `radio` | AirLift/C6/etc.; may coexist with `wlan`/`ble` |
+| LoRa transceiver | `lora` | A LoRa radio chip (SX1262, …) driven by the board's own SPI: `configure(freq_mhz, …)`, `send(data)`, `receive(timeout_ms)`, `channel_active()`; omit when absent |
+| Sleep | `sleep` | `sleep(ms=None, *, deep=False, wake=(…))`: light or deep sleep until the time passes or a named wake source fires (the board lists them in `WAKE_SOURCES`); light sleep returns the source's name. A factory role: list it in `FACTORY_ROLES` |
 | Runtime USB device | `usb_device` | Non-tooling `machine.USBDevice`; omit tooling CDC bridge |
 
 ### The three audio roles

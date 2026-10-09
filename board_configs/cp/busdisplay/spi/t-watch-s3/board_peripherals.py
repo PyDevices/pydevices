@@ -117,12 +117,18 @@ def pmu():
         _pmu_obj = _driver("axp2101").AXP2101(_bus())
         _pmu_obj.enable_adc()
         _pmu_obj.set_backup_battery(3300)
+        # No thermistor on the TS pin (the charger would read a cold battery
+        # and never start); LILYGO's currents, cut off at 4.2 V. As on
+        # MicroPython, whether the charger is on is left as it is.
+        _pmu_obj.set_ts_pin(False)
+        _pmu_obj.charger(current_ma=125, precharge_ma=50, termination_ma=25, voltage_mv=4200)
     return _pmu_obj
 
 
 def battery():
-    """The AXP2101: ``voltage`` (volts, ``None`` with no battery), ``percent``,
-    ``charging``, ``vbus_voltage``."""
+    """The AXP2101: ``voltage`` (volts, ``None`` with no battery), ``percent``
+    (``None`` when missing or dead), ``charging``, ``battery_status``,
+    ``charge_state``, ``charger(enable)``, ``vbus_voltage``."""
     return pmu()
 
 

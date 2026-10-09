@@ -17,11 +17,23 @@ and agree with CircuitPython's lilygo_twatch_s3 board definition:
     MAX98357A                            BCLK 48, WS 15, DOUT 46
     PDM microphone                       CLK 44, DATA 47
     IR LED                               GPIO2
-    interrupts                           PMU 21, RTC 17, BMA423 14
+    SX1262 LoRa radio                    SCK 3, MOSI 1, MISO 4, CS 5, RESET 8,
+                                         BUSY 7, DIO1 9
+    interrupts                           PMU 21, RTC 17, BMA423 14, touch 16
 
-The PDM microphone has no role here: MicroPython's ``machine.I2S`` has no PDM
-mode, so there is nothing to capture it with. The SX1262 radio has no role
-either: there is no driver for it in this repository.
+``pcm_in`` needs firmware whose ``machine.I2S`` has PDM receive
+(``I2S.PDM_RX``, in PyDevices' MicroPython builds), on I2S0, so the speaker
+is on I2S1 and the two can run at once.
+
+The battery charger is the AXP2101's own. There is no thermistor on this
+watch, so ``pmu()`` turns the TS pin's temperature sensing off (as LILYGO's
+firmware does; otherwise the charger never starts) and sets 125 mA charging
+to 4.2 V, safe for any healthy single Li-ion cell. ``battery.charger(False)``
+stops charging; ``battery.charger(True)`` starts it again.
+
+``sleep()`` puts the watch into light or deep sleep until a wake source
+fires: the crown, a touch, a wrist tilt or double tap (the BMA423's feature
+engine, see ``accelerometer``), or the clock's alarm or countdown.
 """
 
 import boarddev
@@ -36,6 +48,9 @@ PERIPHERALS = frozenset(
         "rtc",
         "haptic",
         "ir",
+        "lora",
+        "pcm_in",
+        "sleep",
         "battery",
         "boot_button",
         "wlan",
@@ -45,10 +60,10 @@ PERIPHERALS = frozenset(
 
 # Audio roles are factories: first attribute access must not construct, so a
 # caller can pass a format. See boarddev.bind_lazy.
-FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "audio_power"})
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in", "audio_power", "sleep"})
 
 from audiodev import AudioCapability, AudioFactory, AudioFormat, I2SWire, adapt_channels, negotiate
-from audiodev.i2s_audio import I2SPCMOutput
+from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput
 
 # Main I2C, shared with board_config (port 0). Hooks hand drivers the one bus
 # object _i2c_bus() returns, never these pins. See docs/board-peripherals.md.
@@ -58,10 +73,19 @@ _I2C_SCL = 11
 _IIS_BCLK = 48
 _IIS_WS = 15
 _IIS_DOUT = 46
+_MIC_CLK = 44
+_MIC_DATA = 47
 _IR_PIN = 2
 _IR_CARRIER = 38_000
+_PMU_INT = 21
+_RTC_INT = 17
+_ACCEL_INT = 14
+_TOUCH_INT = 16
 
-_OUT_PORT = 0
+# The microphone needs I2S0 (only it has the PDM-to-PCM filter), so the
+# speaker takes I2S1.
+_OUT_PORT = 1
+_IN_PORT = 0
 _IBUF = 20000
 _MIN_IBUF = 4096
 
@@ -70,6 +94,7 @@ _pmu_obj = None
 _accel = None
 _rtc = None
 _haptic = None
+_lora = None
 
 # --- what this board can actually do --------------------------------------
 #
@@ -87,6 +112,19 @@ AUDIO_OUT = AudioCapability(
     native_channels=1,
     bits=(16,),
     wire=I2SWire(_OUT_PORT, sck=_IIS_BCLK, ws=_IIS_WS, sd=_IIS_DOUT),
+)
+
+
+# The PDM microphone, through I2S0's hardware PDM-to-PCM filter. Measured on
+# this watch: 16000 Hz mono 16-bit, a 1 kHz tone from the watch's own speaker
+# well above the room (see pcm_in).
+_IN_DEFAULT = AudioFormat(16000, 1, 16)
+AUDIO_IN = AudioCapability(
+    _IN_DEFAULT,
+    rates=(16000,),
+    channels=(1,),
+    native_channels=1,
+    bits=(16,),
 )
 
 
@@ -127,12 +165,21 @@ def pmu():
         _pmu_obj = AXP2101(_i2c_bus())
         _pmu_obj.enable_adc()
         _pmu_obj.set_backup_battery(3300)
+        # No thermistor on the TS pin: without this the charger reads a cold
+        # battery and never starts. Then LILYGO's currents, cut off at 4.2 V.
+        # Whether the charger is on is left as it is (the chip powers up
+        # with it on).
+        _pmu_obj.set_ts_pin(False)
+        _pmu_obj.charger(current_ma=125, precharge_ma=50, termination_ma=25, voltage_mv=4200)
     return _pmu_obj
 
 
 def battery():
     """The AXP2101 itself: ``voltage`` (volts, ``None`` with no battery),
-    ``percent``, ``charging``, ``vbus_voltage``."""
+    ``percent`` (``None`` when missing or dead), ``charging``,
+    ``battery_status`` ("missing", "dead", "charging", "full",
+    "discharging"), ``charge_state``, ``charger(enable)``, ``vbus_voltage``,
+    ``die_temperature``."""
     return pmu()
 
 
@@ -143,6 +190,17 @@ def accelerometer():
     LILYGO's library selects Bosch's "bottom layer, top right corner" remap
     (register value 0x81 in SensorLib v0.2.6), which is board X = chip Y,
     board Y = chip X, board Z = -chip Z. Face up on a table reads +1 g on Z.
+
+    For the step counter, wrist tilt and double tap, load the chip's
+    feature firmware first (BMA423 only; about 200 ms)::
+
+        from bma423 import STEP_COUNTER, WRIST_WEAR, DOUBLE_TAP
+        accel.load_features()
+        accel.enable_features(STEP_COUNTER | WRIST_WEAR | DOUBLE_TAP)
+        accel.steps
+
+    The firmware stays loaded while the watch has power, across resets
+    and deep sleep; ``sleep(wake=("motion",))`` wakes on its interrupt.
     """
     global _accel
     if _accel is None:
@@ -187,6 +245,83 @@ def ir():
     from machine import Pin
 
     return esp32.RMT(0, pin=Pin(_IR_PIN), resolution_hz=1_000_000, tx_carrier=(_IR_CARRIER, 33, 1))
+
+
+def lora():
+    """The SX1262 LoRa radio (``sx1262.SX1262``), powered from ALDO4, reset
+    and in standby. ``configure(freq_mhz, ...)`` before ``send()`` or
+    ``receive()``; use a frequency your region allows."""
+    global _lora
+    if _lora is None:
+        import time
+
+        from machine import SPI, Pin
+        from sx1262 import SX1262
+
+        pmu().set_rail("aldo4", 3300)
+        time.sleep_ms(5)
+        spi = SPI(1, baudrate=8_000_000, sck=Pin(3), mosi=Pin(1), miso=Pin(4))
+        _lora = SX1262(spi, cs=Pin(5), busy=Pin(7), reset=Pin(8), dio1=Pin(9))
+    return _lora
+
+
+WAKE_SOURCES = ("crown", "touch", "motion", "rtc")
+
+
+def _sleep(ms=None, *, deep=False, wake=("crown",)):
+    """Sleep until ``ms`` pass or one of ``wake`` fires; ``wake`` names come
+    from ``WAKE_SOURCES``:
+
+    * ``"crown"``: a press of the crown (the PMU's IRQ line; this routes only
+      key events to it)
+    * ``"touch"``: a finger on the screen (the FT6336's INT line)
+    * ``"motion"``: the BMA423's INT1, after ``accelerometer.load_features()``
+      and ``map_interrupts()`` for the gestures wanted
+    * ``"rtc"``: the PCF8563's alarm or countdown, set on ``rtc`` first
+
+    Light sleep (the default) returns the source that woke it, or
+    ``"timer"``. Deep sleep restarts the watch on wake, so it never returns;
+    ``machine.reset_cause()`` and ``wake_reason()`` say why it woke. The
+    screen and backlight stay as they are: turn them off first to save power.
+    """
+    import esp32
+    import machine
+    from machine import Pin
+
+    for name in wake:
+        if name not in WAKE_SOURCES:
+            raise ValueError("wake sources are %s" % (WAKE_SOURCES,))
+    low = []
+    if "crown" in wake:
+        p = pmu()
+        p.irq_pin_only()
+        low.append(Pin(_PMU_INT, Pin.IN, Pin.PULL_UP))
+    if "touch" in wake:
+        low.append(Pin(_TOUCH_INT, Pin.IN, Pin.PULL_UP))
+    if "rtc" in wake:
+        low.append(Pin(_RTC_INT, Pin.IN, Pin.PULL_UP))
+    # the ESP32-S3's ext1 wakes when any listed pin is low
+    esp32.wake_on_ext1(pins=tuple(low) if low else None, level=esp32.WAKEUP_ALL_LOW)
+    if "motion" in wake:
+        accelerometer().interrupt_status()  # release a latched INT1 first
+        esp32.wake_on_ext0(pin=Pin(_ACCEL_INT, Pin.IN), level=esp32.WAKEUP_ANY_HIGH)
+    else:
+        esp32.wake_on_ext0(pin=None, level=esp32.WAKEUP_ANY_HIGH)
+    if deep:
+        machine.deepsleep(ms) if ms else machine.deepsleep()
+    machine.lightsleep(ms) if ms else machine.lightsleep()
+    if "crown" in wake and not Pin(_PMU_INT).value():
+        return "crown"
+    if "touch" in wake and not Pin(_TOUCH_INT).value():
+        return "touch"
+    if "rtc" in wake and not Pin(_RTC_INT).value():
+        return "rtc"
+    if "motion" in wake and Pin(_ACCEL_INT).value():
+        return "motion"
+    return "timer" if machine.wake_reason() == machine.TIMER_WAKE else "unknown"
+
+
+sleep = _sleep
 
 
 def _audio_power(enable=True, *, volume=None):
@@ -253,7 +388,40 @@ def _audio_out(format=None, **kwargs):
     return AudioOut(_pcm_out(format, **kwargs), **pump)
 
 
+def _in_stream(ibuf, fmt):
+    from machine import I2S, Pin
+
+    return I2S(
+        _IN_PORT,
+        sck=Pin(_MIC_CLK),
+        sd=Pin(_MIC_DATA),
+        mode=I2S.PDM_RX,
+        bits=fmt.bits,
+        format=I2S.MONO,
+        rate=fmt.rate,
+        ibuf=ibuf,
+    )
+
+
+def _pcm_in(format=None, *, latency=None, queue_ms=None):
+    """The PDM microphone: a raw ``PCMInput`` of 16-bit mono. Needs
+    firmware with ``I2S.PDM_RX``."""
+    from machine import I2S
+
+    from audiodev import check_latency, queue_bytes
+
+    if not hasattr(I2S, "PDM_RX"):
+        raise OSError("this firmware's machine.I2S has no PDM_RX: the microphone needs a PyDevices build")
+    check_latency(latency)
+    wire, source = negotiate(AUDIO_IN, format)
+    if source is not wire:
+        raise ValueError("this watch captures %s; capture cannot be converted" % (wire,))
+    ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
+    return I2SPCMInput(lambda: _in_stream(ibuf, wire), wire)
+
+
 pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
+pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
 audio_out = AudioFactory(_audio_out, AUDIO_OUT)
 audio_power = _audio_power
 
