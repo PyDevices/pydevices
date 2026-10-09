@@ -63,8 +63,17 @@ _REG37_DAC_EQ   = const(0x37)  # DAC equalizer / ramp-rate control
 # SDP format word: slave mode (bit7=0), 16-bit resolution (bits[4:2]=011)
 _SDP_16BIT_SLAVE = const(0x0C)
 
-# Default DAC volume at init: 85% using Espressif formula (volume*256/100)−1
-_DEFAULT_VOL_REG = const(0xD8)  # = (85*256//100) - 1 ≈ 85% output volume
+# DAC volume register: 0x00 = -95.5 dB, then 0.5 dB a step, 0xBF = 0 dB,
+# 0xFF = +32 dB. Everything above 0xBF is digital gain, so a full-scale signal
+# clips there. Volume percent maps one step per percent ending at 0 dB:
+# 100% = 0xBF (0 dB), 50% = -25 dB, 1% = -49.5 dB, 0% = muted.
+_VOL_REG_0DB = const(0xBF)
+_DEFAULT_VOLUME = const(85)  # -7.5 dB
+
+
+def _volume_register(percent):
+    """REG32 for a volume percent: half a dB per percent, 100% = 0 dB."""
+    return 0 if percent <= 0 else _VOL_REG_0DB - (100 - percent)
 
 
 class ES8311:
@@ -86,7 +95,7 @@ class ES8311:
             raise ValueError("mclk_multiplier must be 256 or 512")
         self._i2c = i2c
         self.mclk_multiplier = mclk_multiplier
-        self.dac_volume = 85
+        self.dac_volume = _DEFAULT_VOLUME
         self.adc_volume = 100
         self.dac_muted = True
         self.output_enabled = False
@@ -148,7 +157,7 @@ class ES8311:
         self._wr(_REG1C_ADC_EQ,  0x6A)  # ADC equalizer bypass, cancel DC offset
 
         # --- DAC (speaker) ---
-        self._wr(_REG32_DAC_VOL, _DEFAULT_VOL_REG)  # set output volume (~85%)
+        self._wr(_REG32_DAC_VOL, _volume_register(_DEFAULT_VOLUME))
         self._wr(_REG37_DAC_EQ,  0x08)              # bypass DAC equalizer
 
         # Soft-mute the DAC at boot — unmuted by on_open callback when playback starts
@@ -178,14 +187,10 @@ class ES8311:
         Set DAC (speaker) volume.
 
         Args:
-            percent: 0 (mute) … 100 (maximum)
+            percent: 0 (mute) … 100 (0 dB, the loudest that never clips)
         """
         percent = max(0, min(100, percent))
-        if percent == 0:
-            val = 0
-        else:
-            val = (percent * 256 // 100) - 1
-        self._wr(_REG32_DAC_VOL, val)
+        self._wr(_REG32_DAC_VOL, _volume_register(percent))
         self.dac_volume = percent
 
     def set_adc_volume(self, percent):
