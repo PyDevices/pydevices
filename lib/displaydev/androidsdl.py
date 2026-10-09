@@ -67,6 +67,68 @@ def _set_activity_orientation(landscape):
         pass
 
 
+def _activity_views():
+    """The Activity's decor view and SDL's SurfaceView, or ``[]`` off-Android."""
+    if sys.platform != "android":
+        return []
+    try:
+        from jnius import autoclass
+    except ImportError:
+        return []
+    try:
+        activity = autoclass("org.kivy.android.PythonActivity").mActivity
+        if activity is None:
+            return []
+        views = [activity.getWindow().getDecorView()]
+        surface = autoclass("org.libsdl.app.SDLActivity").mSurface
+        if surface is not None:
+            views.append(surface)
+        return views
+    except Exception:
+        return []
+
+
+def _wait_activity_shape(landscape, timeout_s=3.0, settled=5, poll_s=0.02):
+    """Wait for the Activity's views to take the locked shape, before CreateWindow.
+
+    ``setRequestedOrientation`` returns at once and the turn happens later.
+    An SDL window and renderer created while the Activity is still turning
+    can draw a frame that never reaches the screen, and an app that draws
+    once and waits for input then stays black. Waiting until the decor view
+    and SDL's surface have the new shape, unchanged for ``settled`` polls,
+    gives the renderer a settled surface to start on. When the Activity is
+    already in that orientation this costs ``settled`` polls (about 0.1 s).
+    """
+    views = _activity_views()
+    if not views:
+        return False
+
+    def shapes():
+        try:
+            return tuple((int(v.getWidth()), int(v.getHeight())) for v in views)
+        except Exception:
+            return None
+
+    deadline = time.monotonic() + float(timeout_s)
+    last = None
+    stable = 0
+    while time.monotonic() < deadline:
+        now = shapes()
+        if (
+            now is not None
+            and now == last
+            and all(w > 0 and h > 0 and (w > h) == landscape for w, h in now)
+        ):
+            stable += 1
+            if stable >= settled:
+                return True
+        else:
+            stable = 0
+        last = now
+        time.sleep(poll_s)
+    return False
+
+
 def _android_surface_sizes():
     """``(dm_wh, decor_wh)`` from the Activity, or ``(None, None)`` off-Android."""
     if sys.platform != "android":
@@ -193,8 +255,10 @@ class AndroidSDLDisplay(SDLDisplay):
         lw, lh = _logical_size(width, height, rotation)
         landscape = lw > lh
         _set_orientation_hint(landscape)
-        # Lock before CreateWindow so the first SurfaceView matches aspect.
+        # Lock before CreateWindow, and let the turn finish, so the window and
+        # renderer start on a surface that already has the locked shape.
         _set_activity_orientation(landscape)
+        _wait_activity_shape(landscape)
 
         # scale=1: CreateWindow uses logical panel size, not desktop scale.
         # _fit_scale below keeps it there.
