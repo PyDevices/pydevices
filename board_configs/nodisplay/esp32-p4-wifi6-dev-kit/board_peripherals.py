@@ -15,6 +15,11 @@ datasheet) and wiki:
   jack's detect switch: plugging headphones in silences the speaker whatever
   GPIO53 says. The onboard microphone is the ES8311's own analog input, so
   capture comes back on ASDOUT, not from a separate ADC.
+  The jack's left and right contacts carry the codec's two differential
+  outputs, OUTP and OUTN: the same signal in opposite polarity. Headphones
+  play it, but a speaker that mixes its input to mono cancels it almost to
+  silence. The codec has no single-ended mode, so no software setting
+  changes that; use one channel of the jack, or the onboard speaker.
 - MicroSD on SDMMC slot 0 (CLK 43, CMD 44, D0-D3 39-42), powered from the
   P4's LDO channel 4 through a P-FET whose gate is GPIO45 (pulled low, so
   the card is powered unless GPIO45 is driven high).
