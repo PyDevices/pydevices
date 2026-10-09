@@ -13,6 +13,7 @@ import _env  # noqa: E402, F401
 
 ROOT = _env.ROOT
 BOARD = ROOT / "board_configs" / "fbdisplay" / "esp32-p4-wifi6-touch-lcd-4b"
+DEV_KIT = ROOT / "board_configs" / "nodisplay" / "esp32-p4-wifi6-dev-kit"
 
 
 class FakeI2C:
@@ -91,7 +92,11 @@ class FakePWM:
         self.closed = True
 
 
-class ESP32P4AudioTests(unittest.TestCase):
+class P4BoardFixture(unittest.TestCase):
+    """Loads the panel's board_peripherals against fake machine and codecs."""
+
+    BOARD_DIR = BOARD
+
     @classmethod
     def setUpClass(cls):
         cls.saved_modules = {
@@ -104,7 +109,9 @@ class ESP32P4AudioTests(unittest.TestCase):
         sys.modules["machine"] = types.SimpleNamespace(
             I2S=FakeI2S, Pin=FakePin, PWM=FakePWM, I2C=FakeI2C
         )
-        spec = importlib.util.spec_from_file_location("p4_board_peripherals", BOARD / "board_peripherals.py")
+        spec = importlib.util.spec_from_file_location(
+            "p4_board_peripherals_" + cls.BOARD_DIR.name, cls.BOARD_DIR / "board_peripherals.py"
+        )
         cls.board = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.board)
 
@@ -135,6 +142,8 @@ class ESP32P4AudioTests(unittest.TestCase):
         self.board._mclk_rate = self.board._RATE
         self.board._i2c_own = None
 
+
+class ESP32P4AudioTests(P4BoardFixture):
     def test_output_format_is_24khz_mono_pcm(self):
         from audiodev import AudioFormat
 
@@ -344,6 +353,129 @@ class ESP32P4AudioTests(unittest.TestCase):
             output.close()
         finally:
             sys.modules["board_config"] = saved
+
+
+class PanelRecordsWhilePlaying(P4BoardFixture):
+    """With the audio pump, pcm_in reads the RX half of the pump's channel.
+
+    The ES8311 and the ES7210 share I2S0's clocks, so machine.I2S can have one
+    of them at a time (pydevices#23). The pump's driver opens the port as a
+    TX/RX pair instead; the board publishes the microphone's pin on its wire
+    and builds a PumpPCMInput, so audio_out plays while pcm_in records.
+    """
+
+    def setUp(self):
+        from _duplex_fake import FakeDuplexDriver
+        from audiodev import pump
+
+        self.pump = pump
+        self._saved_driver = (pump._driver, pump._driver_looked)
+        self.driver = FakeDuplexDriver()
+        pump._driver = self.driver
+        pump._driver_looked = True
+
+    def tearDown(self):
+        self.pump._driver, self.pump._driver_looked = self._saved_driver
+        super().tearDown()
+
+    def test_the_wire_publishes_the_microphone_pin(self):
+        self.assertEqual(11, self.board.AUDIO_OUT.wire.sd_in)
+
+    def test_pcm_in_reads_the_pump_channel(self):
+        capture = self.board.pcm_in()
+        self.assertIsInstance(capture, self.pump.PumpPCMInput)
+        capture.set_gain(35)
+        capture.open()
+        opened = self.driver.opened_with
+        self.assertEqual((0, 12, 10, 9, 11, 24000, 13, 256),
+                         (opened["port"], opened["bclk"], opened["ws"],
+                          opened["dout"], opened["din"], opened["rate"],
+                          opened["mclk"], opened["mclk_fs"]))
+        self.assertEqual(2, opened["take"], "the two microphones are averaged")
+        self.assertEqual(20000, opened["ring"])
+        self.assertEqual(35, capture.codec.gain)
+        self.assertEqual([], FakeI2S.constructed, "machine.I2S was opened")
+        capture.close()
+        self.assertEqual(["rx_open", "rx_close"], self.driver.calls)
+        self.assertFalse(capture.codec.enabled)
+
+    def test_no_pwm_clock_while_the_channel_drives_gpio13(self):
+        """A PWM started on GPIO13 while the channel runs takes the pin from
+        it, and both codecs lose their clock mid-stream."""
+        self.driver.output_opens()
+        capture = self.board.pcm_in()
+        capture.open()
+        self.board.audio_power(True)
+        self.assertEqual([], FakePWM.instances)
+        capture.close()
+
+    def test_a_running_pwm_is_released_when_the_channel_is_up(self):
+        self.board._ensure_mclk()
+        pwm = FakePWM.instances[-1]
+        self.driver.output_opens()
+        self.board._ensure_mclk()
+        self.assertTrue(pwm.closed)
+        self.assertIsNone(self.board._mclk)
+
+    def test_pcm_out_still_refuses_alongside_a_recording(self):
+        """pcm_out is machine.I2S whatever the firmware."""
+        capture = self.board.pcm_in()
+        capture.open()
+        output = self.board.pcm_out()
+        with self.assertRaises(OSError) as ctx:
+            output.open()
+        self.assertIn("audio_out", str(ctx.exception))
+        self.assertEqual([], FakeI2S.constructed)
+        capture.close()
+
+    def test_a_recording_is_refused_while_pcm_out_holds_the_port(self):
+        output = self.board.pcm_out()
+        output.open()
+        capture = self.board.pcm_in()
+        with self.assertRaises(OSError):
+            capture.open()
+        self.assertEqual([], self.driver.calls, "the channel was opened anyway")
+        output.close()
+
+
+class DevKitRecordsWhilePlaying(P4BoardFixture):
+    """The DEV-KIT's microphone is the ES8311's own ADC on the same port."""
+
+    BOARD_DIR = DEV_KIT
+
+    def setUp(self):
+        from _duplex_fake import FakeDuplexDriver
+        from audiodev import pump
+
+        self.pump = pump
+        self._saved_driver = (pump._driver, pump._driver_looked)
+        self.driver = FakeDuplexDriver()
+        pump._driver = self.driver
+        pump._driver_looked = True
+
+    def tearDown(self):
+        self.pump._driver, self.pump._driver_looked = self._saved_driver
+        self.board._es8311 = None
+        super().tearDown()
+
+    def test_pcm_in_reads_the_pump_channel_one_slot(self):
+        self.assertEqual(11, self.board.AUDIO_OUT.wire.sd_in)
+        capture = self.board.pcm_in()
+        self.assertIsInstance(capture, self.pump.PumpPCMInput)
+        capture.open()
+        opened = self.driver.opened_with
+        self.assertEqual((9, 11, 0), (opened["dout"], opened["din"], opened["take"]))
+        self.assertEqual([], FakeI2S.constructed)
+        self.assertEqual([], FakePWM.instances, "a PWM clock started on the running channel")
+        capture.close()
+        self.assertEqual(["rx_open", "rx_close"], self.driver.calls)
+
+    def test_pcm_out_still_refuses_alongside_a_recording(self):
+        capture = self.board.pcm_in()
+        capture.open()
+        with self.assertRaises(OSError):
+            self.board.pcm_out().open()
+        capture.close()
 
 
 if __name__ == "__main__":

@@ -266,6 +266,31 @@ Codec-specific features remain reachable through `device.codec`. Shared
 half-duplex hardware uses `AudioSession`; opening the opposite direction while
 one direction owns the session raises `OSError`.
 
+### Recording while you play, on one I2S port
+
+Some boards put the speaker codec and the microphone on one I2S port (the
+ESP32-P4 boards do). `machine.I2S` opens one direction per port, so there you
+can't record and play at the same time through it. On firmware with the audio
+pump you can: `audio_out` opens the port as a TX/RX pair, and `pcm_in` returns
+an `audiodev.pump.PumpPCMInput` that reads the RX half of the same channel.
+Open them in either order; closing one leaves the other running.
+
+```python
+out = board_peripherals.audio_out()
+mic = board_peripherals.pcm_in()
+out.play(sample, loop=True)
+mic.open()
+buf = bytearray(48000)          # one second at 24 kHz mono
+mic.readinto(buf)               # the speaker keeps playing
+print(mic.stats())              # {'captured': ..., 'dropped': 0, 'waiting': ...}
+```
+
+The two share one clock, so they share one rate. A recorder at another rate
+than the speaker is refused, and so is a sample at another rate while a
+recorder is open. `pcm_out` is `machine.I2S`, so it still can't open
+alongside a recording. A board joins in by publishing `sd_in=`, the
+microphone's pin, on its `I2SWire`.
+
 ## Host backends (transports under `AudioOut`, or usable raw)
 
 `audiodev.sdl2_audio` is the reference playback and real-microphone backend for
@@ -322,7 +347,8 @@ needed. See [`tests/test_audiodev.py`](../tests/test_audiodev.py).
 
 ## ESP32-P4 status
 
-The Waveshare ESP32-P4 configuration uses one half-duplex session for its I2S
-peripheral and ES8311. Playback exposes hardware DAC volume/mute and controls
+The Waveshare ESP32-P4 configuration shares one I2S port between the ES8311
+and the ES7210; with the audio pump, `audio_out` and `pcm_in` run at once (see
+"Recording while you play" above), and without it the two refuse each other. Playback exposes hardware DAC volume/mute and controls
 the speaker amplifier through `AudioOut`; capture exposes hardware ADC gain.
 Register, stream, session, and GPIO behavior is covered by host simulations.
