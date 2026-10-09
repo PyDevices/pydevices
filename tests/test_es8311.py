@@ -35,12 +35,23 @@ class ES8311Tests(unittest.TestCase):
         self.codec.set_dac_volume(50)
         self.codec.set_adc_volume(50)
         self.codec.dac_mute(False)
-        self.assertEqual(self.register(0x32), 127)
+        self.assertEqual(self.register(0x32), 0xBF - 50)
         self.assertEqual(self.register(0x17), 100)
         self.assertEqual(self.register(0x31) & 0x60, 0)
         self.assertEqual(self.codec.dac_volume, 50)
         self.assertEqual(self.codec.adc_volume, 50)
         self.assertFalse(self.codec.dac_muted)
+
+    def test_full_volume_is_0db_and_never_gain(self):
+        # 0xBF is 0 dB; anything above it is digital gain that clips a
+        # full-scale signal, which the 0-100 range must never reach.
+        for percent, reg in ((100, 0xBF), (85, 0xB0), (1, 0xBF - 99), (0, 0)):
+            self.codec.set_dac_volume(percent)
+            self.assertEqual(self.register(0x32), reg)
+        self.codec.set_dac_volume(150)
+        self.assertEqual(self.register(0x32), 0xBF)
+        fresh = ES8311(FakeI2C())
+        self.assertLessEqual(fresh._i2c.registers[(0x18, 0x32)], 0xBF)
 
     def test_signal_path_lifecycle(self):
         self.codec.enable_output(True)
