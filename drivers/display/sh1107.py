@@ -1,217 +1,323 @@
-from displaydev.busdisplay import BusDisplay
-
 # SPDX-FileCopyrightText: 2017 Scott Shawcroft, written for Adafruit Industries
 # SPDX-FileCopyrightText: Copyright (c) 2020 Mark Roberts for Adafruit Industries
 # SPDX-FileCopyrightText: 2021 James Carr
 #
 # SPDX-License-Identifier: MIT
-"""
-`adafruit_displayio_sh1107`
-================================================================================
-
-DisplayIO driver for SH1107 monochrome displays
-
-
-* Author(s): Scott Shawcroft, Mark Roberts (mdroberts1243), James Carr
-
-Implementation Notes
---------------------
-
-**Hardware:**
-
-* `Adafruit FeatherWing 128 x 64 OLED - SH1107 128x64 OLED <https://www.adafruit.com/product/4650>`_
-
-**Software and Dependencies:**
-
-* Adafruit CircuitPython (version 6+) firmware for the supported boards:
-  https://github.com/adafruit/circuitpython/releases
 
 """
+sh1107 — SH1107 monochrome OLED driver for MicroPython, CircuitPython and CPython.
 
-import sys
+Drawing takes the usual RGB565 colors and buffers (``color_depth`` is 16, as
+for every displaydev driver). A pixel lights when any of its red, green or blue
+is at half intensity or more. The driver keeps a one-bit copy of the panel in
+RAM (``width * height / 8`` bytes, 1 KB for a 128x64) and writes each change
+through to the panel as it is drawn, so there is no ``show()`` to call.
 
-from fourwire import FourWire
-from micropython import const
+The SH1107 drives its common lines from the RAM's columns and its segments
+from its pages, so its native picture stands on end: ``width`` is the number
+of common lines (at most 128) and ``height`` the number of segments (at most
+128). A landscape 128x64 panel, such as Adafruit's 128x64 OLED FeatherWing,
+is ``width=64, height=128, rotation=90``; a 128x128 panel is
+``width=128, height=128``.
 
-from displaydev.busdisplay import BusDisplay as Display
+``display_offset`` is the common line the panel's first row is wired to. It
+defaults to 0x60 for a 64-line panel (the FeatherWing's wiring) and 0 for
+any other.
 
-try:
-    from typing import Union
+The bus is any object with the ``send(command, data)`` contract:
 
-    from i2cdisplaybus import I2CDisplayBus
-except ImportError:
-    pass
+* ``i2cbus.I2CBus`` (MicroPython or CircuitPython) and displayif's ``I2CBus``
+  send command parameters in the command stream and pixels with ``send_data``.
+* SPI buses (``spibus.SPIBus``, CircuitPython's ``fourwire.FourWire``) send a
+  command with D/C low and its data with D/C high, so commands go one byte at
+  a time, and pixels follow a no-op command as data.
 
+CircuitPython's ``i2cdisplaybus.I2CDisplayBus`` is refused: its ``send()``
+puts everything in the command stream, so it cannot write pixels. Use
+``i2cbus.I2CBus(board.I2C(), device_address=0x3C)`` instead.
 
-
-
-
-DISPLAY_OFFSET_ADAFRUIT_FEATHERWING_OLED_4650 = const(0x60)
-"""
-The hardware display offset to use when configuring the SH1107 for the
-`Adafruit Featherwing 128x64 OLED <https://www.adafruit.com/product/4650>`_.
-This is the default if not passed in.
-
-.. code-block::
-
-    from adafruit_displayio_sh1107 import SH1107, DISPLAY_OFFSET_ADAFRUIT_FEATHERWING_OLED_4650
-
-    # Constructor for the Adafruit FeatherWing 128x64 OLED
-    display = SH1107(bus, width=128, height=64,
-        display_offset=DISPLAY_OFFSET_ADAFRUIT_FEATHERWING_OLED_4650)
-    # Or as it's the default
-    display = SH1107(bus, width=128, height=64)
-"""
-
-DISPLAY_OFFSET_ADAFRUIT_128x128_OLED_5297 = const(0x00)
-"""
-The hardware display offset to use when configuring the SH1107 for the
-`Adafruit Monochrome 1.12" 128x128 OLED <https://www.adafruit.com/product/5297>`_.
-
-.. code-block::
-
-    from adafruit_displayio_sh1107 import SH1107, DISPLAY_OFFSET_ADAFRUIT_128x128_OLED_5297
-
-    # Constructor for the Adafruit Monochrome 1.12" 128x128 OLED
-    display = SH1107(bus, width=128, height=128,
-        display_offset=DISPLAY_OFFSET_ADAFRUIT_128x128_OLED_5297, rotation=90)
+Init sequence from Adafruit's adafruit_displayio_sh1107; commands checked
+against the Sino Wealth SH1107 datasheet, command table (pages 41-42) and the
+RAM map in figure 10 (page 18).
 """
 
-DISPLAY_OFFSET_PIMORONI_MONO_OLED_PIM374 = const(0x00)
-"""
-The hardware display offset to use when configuring the SH1107 for the
-`Pimoroni Mono 128x128 OLED <https://shop.pimoroni.com/products/1-12-oled-breakout>`_
+from time import sleep
 
-.. code-block::
+from displaydev import DisplayDriver
 
-    from adafruit_displayio_sh1107 import SH1107, DISPLAY_OFFSET_PIMORONI_MONO_OLED_PIM374
+# Each command is: command byte, parameter count (top bit set: a delay byte,
+# in milliseconds, follows the parameters), parameters.
+_INIT_SEQUENCE = (
+    b"\xae\x00"  # display off
+    b"\xdc\x01\x00"  # display start line 0
+    b"\x81\x01\x4f"  # contrast
+    b"\x20\x00"  # page addressing mode
+    b"\xa0\x00"  # segment re-map: down rotation
+    b"\xc0\x00"  # COM scan from COM0 to COM[N-1]
+    b"\xa8\x01\x7f"  # multiplex ratio (patched to the number of common lines)
+    b"\xd3\x01\x60"  # display offset (patched)
+    b"\xd9\x01\x22"  # discharge / precharge period
+    b"\xdb\x01\x35"  # VCOM deselect level
+    b"\xa4\x00"  # output follows RAM
+    b"\xa6\x00"  # normal (not reversed) display
+    b"\xaf\x80\x64"  # display on, then wait 100 ms
+)
+_MUX = 16  # offset of the multiplex ratio parameter in _INIT_SEQUENCE
+_OFFSET = 19  # offset of the display offset parameter
 
-    # Constructor for the Pimoroni Mono 128x128 OLED
-    display = SH1107(bus, width=128, height=128,
-        display_offset=DISPLAY_OFFSET_PIMORONI_MONO_OLED_PIM374)
-"""
+_LOW_COLUMN = 0x00
+_HIGH_COLUMN = 0x10
+_SET_PAGE = 0xB0
+_CONTRAST = 0x81
+_NORMAL = 0xA6
+_INVERT = 0xA7
+_DISPLAY_OFF = 0xAE
+_DISPLAY_ON = 0xAF
+_NOP = 0xE3
 
-
-# Sequence from sh1107 framebuf driver formatted for displayio init
-# we fixed sh110x addressing in 7, so we have slightly different setups
-if sys.implementation.name == "circuitpython" and sys.implementation.version[0] < 7:
-    # if sys.implementation.version[0] < 7:
-    _INIT_SEQUENCE = (
-        b"\xae\x00"  # display off, sleep mode
-        b"\xdc\x01\x00"  # display start line = 0 (POR = 0)
-        b"\x81\x01\x2f"  # contrast setting = 0x2f
-        b"\x21\x00"  # vertical (column) addressing mode (POR=0x20)
-        b"\xa0\x00"  # segment remap = 1 (POR=0, down rotation)
-        b"\xcf\x00"  # common output scan direction = 15 (n-1 to 0) (POR=0)
-        b"\xa8\x01\x7f"  # multiplex ratio = 128 (POR)
-        b"\xd3\x01\x60"  # set display offset mode = 0x60
-        b"\xd5\x01\x51"  # divide ratio/oscillator: divide by 2, fOsc (POR)
-        b"\xd9\x01\x22"  # pre-charge/dis-charge period mode: 2 DCLKs/2 DCLKs (POR)
-        b"\xdb\x01\x35"  # VCOM deselect level = 0.770 (POR)
-        b"\xb0\x00"  # set page address = 0 (POR)
-        b"\xa4\x00"  # entire display off, retain RAM, normal status (POR)
-        b"\xa6\x00"  # normal (not reversed) display
-        b"\xaf\x80\x64"  # DISPLAY_ON + 100ms delay
-    )
-    _PIXELS_IN_ROW = True
-else:
-    _INIT_SEQUENCE = (
-        b"\xae\x00"  # display off, sleep mode
-        b"\xdc\x01\x00"  # set display start line 0
-        b"\x81\x01\x4f"  # contrast setting = 0x4f
-        b"\x20\x00"  # vertical (column) addressing mode (POR=0x20)
-        b"\xa0\x00"  # segment remap = 1 (POR=0, down rotation)
-        b"\xc0\x00"  # common output scan direction = 0 (0 to n-1 (POR=0))
-        b"\xa8\x01\x7f"  # multiplex ratio = 128 (POR=0x7F)
-        b"\xd3\x01\x60"  # set display offset mode = 0x60
-        # b"\xd5\x01\x51"  # divide ratio/oscillator: divide by 2, fOsc (POR)
-        b"\xd9\x01\x22"  # pre-charge/dis-charge period mode: 2 DCLKs/2 DCLKs (POR)
-        b"\xdb\x01\x35"  # VCOM deselect level = 0.770 (POR)
-        # b"\xb0\x00"  # set page address = 0 (POR)
-        b"\xa4\x00"  # entire display off, retain RAM, normal status (POR)
-        b"\xa6\x00"  # normal (not reversed) display
-        b"\xaf\x80\x64"  # DISPLAY_ON + 100ms delay
-    )
-    _PIXELS_IN_ROW = False
+# Any of red, green or blue at half intensity or more lights the pixel.
+_LIT = 0x8410
 
 
-class SH1107(Display):
+class SH1107(DisplayDriver):
     """
-    SH1107 driver for use with DisplayIO
+    SH1107 driver.
 
-    :param bus: The bus that the display is connected to.
-    :param int width: The width of the display. Maximum of 128
-    :param int height: The height of the display. Maximum of 128
-    :param int rotation: The rotation of the display. 0, 90, 180 or 270.
-    :param int display_offset: The display offset that the first column is wired to.
-        This will be dependent on the OLED display and two displays with the
-        same dimensions could have different offsets. This defaults to
-        `DISPLAY_OFFSET_ADAFRUIT_FEATHERWING_OLED_4650`
+    :param bus: the display bus (see the module docstring).
+    :param int width: common lines (RAM columns), at most 128.
+    :param int height: segments (RAM page bits), at most 128.
+    :param int rotation: 0, 90, 180 or 270 degrees, applied in software.
+    :param int display_offset: the common line of the panel's first row;
+        None is 0x60 for a 64-line panel and 0 otherwise.
+    :param float brightness: contrast from 0 to 1; None keeps the init value.
     """
 
     def __init__(
         self,
-        bus: Union[I2CDisplayBus, FourWire],
-        display_offset: int = DISPLAY_OFFSET_ADAFRUIT_FEATHERWING_OLED_4650,
-        rotation: int = 90,
-        **kwargs,
-    ) -> None:
-        if rotation in {0, 180}:
-            multiplex = kwargs["width"] - 1
-        else:
-            multiplex = kwargs["height"] - 1
+        bus,
+        *,
+        width,
+        height,
+        rotation=0,
+        display_offset=None,
+        brightness=None,
+        invert=False,
+        quiet=False,
+    ):
+        if type(bus).__name__ == "I2CDisplayBus":
+            raise TypeError(
+                "SH1107 can't write pixels through I2CDisplayBus; "
+                "use i2cbus.I2CBus(board.I2C(), device_address=0x3C)"
+            )
+        if not (0 < width <= 128 and 0 < height <= 128):
+            raise ValueError("SH1107 panels are at most 128x128")
+        self.display_bus = bus
+        self._send = bus.send
+        self._send_data = getattr(bus, "send_data", None)
+        self._width = width
+        self._height = height
+        self._rotation = rotation
+        self.color_depth = 16
+        self._requires_byteswap = False
+        self._invert = invert
+        self._brightness = 0x4F / 255
+        self._is_awake = True
+        self._pages = (height + 7) // 8
+        self._buffer = bytearray(width * self._pages)
+
+        if display_offset is None:
+            display_offset = 0x60 if width == 64 else 0
         init_sequence = bytearray(_INIT_SEQUENCE)
-        init_sequence[16] = multiplex
-        init_sequence[19] = display_offset
-        super().__init__(
-            bus,
-            init_sequence,
-            **kwargs,
-            color_depth=1,
-            grayscale=True,
-            pixels_in_byte_share_row=_PIXELS_IN_ROW,  # in vertical (column) mode
-            data_as_commands=True,  # every byte will have a command byte preceding
-            brightness_command=0x81,
-            single_byte_bounds=True,
-            rotation=rotation,
-            # for sh1107 use column and page addressing.
-            #                lower column command = 0x00 - 0x0F
-            #                upper column command = 0x10 - 0x17
-            #                set page address     = 0xB0 - 0xBF (16 pages)
-            SH1107_addressing=True,
-        )
-        self._is_awake = True  # Display starts in active state (_INIT_SEQUENCE)
+        init_sequence[_MUX] = width - 1
+        init_sequence[_OFFSET] = display_offset
+        self._init_sequence = init_sequence
+
+        super().__init__(quiet=quiet)
+        if brightness is not None:
+            self.brightness = brightness
+
+    ############### Bus ################
+
+    def _command(self, *values):
+        if self._send_data is not None:
+            self._send(values[0], bytes(values[1:]))
+        else:
+            for value in values:
+                self._send(value, b"")
+
+    def _data(self, buf):
+        if self._send_data is not None:
+            self._send_data(buf)
+        else:
+            self._send(_NOP, buf)
+
+    def init(self):
+        seq = self._init_sequence
+        i = 0
+        while i < len(seq):
+            count = seq[i + 1] & 0x7F
+            self._command(seq[i], *seq[i + 2 : i + 2 + count])
+            if seq[i + 1] & 0x80:
+                sleep(seq[i + 2 + count] / 1000)
+                i += 1
+            i += 2 + count
+        if self._invert:
+            self._command(_INVERT)
+        self._flush(0, 0, self._width - 1, self._height - 1)
+
+    def _flush(self, x0, y0, x1, y1):
+        """Write the panel rectangle (x0, y0)-(x1, y1), native coordinates, from RAM.
+
+        In page addressing mode the column advances within a page, so each
+        page gets its own page and column address.
+        """
+        mv = memoryview(self._buffer)
+        w = self._width
+        for page in range(y0 >> 3, (y1 >> 3) + 1):
+            self._command(_SET_PAGE | page, _HIGH_COLUMN | (x0 >> 4), _LOW_COLUMN | (x0 & 0x0F))
+            self._data(mv[page * w + x0 : page * w + x1 + 1])
+
+    ############### Coordinates ################
+
+    def _native(self, x, y):
+        """Native panel coordinates of logical (x, y)."""
+        r = (self._rotation // 90) & 3
+        if r == 0:
+            return x, y
+        if r == 1:
+            return self._width - 1 - y, x
+        if r == 2:
+            return self._width - 1 - x, self._height - 1 - y
+        return y, self._height - 1 - x
+
+    def _native_rect(self, x, y, w, h):
+        """Clip a logical rectangle; return its native corners or None."""
+        if x < 0:
+            w += x
+            x = 0
+        if y < 0:
+            h += y
+            y = 0
+        w = min(w, self.width - x)
+        h = min(h, self.height - y)
+        if w <= 0 or h <= 0:
+            return None
+        ax, ay = self._native(x, y)
+        bx, by = self._native(x + w - 1, y + h - 1)
+        return min(ax, bx), min(ay, by), max(ax, bx), max(ay, by)
+
+    ############### Drawing ################
+
+    def fill_rect(self, x, y, w, h, c):
+        rect = self._native_rect(x, y, w, h)
+        if rect is None:
+            return None
+        x0, y0, x1, y1 = rect
+        lit = bool(c & _LIT)
+        buf = self._buffer
+        width = self._width
+        for page in range(y0 >> 3, (y1 >> 3) + 1):
+            lo = max(y0, page * 8) & 7
+            hi = min(y1, page * 8 + 7) & 7
+            mask = (0xFF >> (7 - hi)) & (0xFF << lo) & 0xFF
+            base = page * width
+            for i in range(base + x0, base + x1 + 1):
+                buf[i] = (buf[i] | mask) if lit else (buf[i] & ~mask)
+        self._flush(x0, y0, x1, y1)
+        return (x, y, w, h)
+
+    def pixel(self, x, y, c):
+        if not (0 <= x < self.width and 0 <= y < self.height):
+            return None
+        px, py = self._native(x, y)
+        i = (py >> 3) * self._width + px
+        bit = 1 << (py & 7)
+        if c & _LIT:
+            self._buffer[i] |= bit
+        else:
+            self._buffer[i] &= ~bit
+        self._flush(px, py, px, py)
+        return (x, y, 1, 1)
+
+    def blit_rect(self, buf, x, y, w, h):
+        rect = self._native_rect(x, y, w, h)
+        if rect is None:
+            return None
+        src = memoryview(buf)
+        fb = self._buffer
+        width = self._width
+        native = self._native
+        lw = self.width
+        lh = self.height
+        for row in range(h):
+            ly = y + row
+            if not 0 <= ly < lh:
+                continue
+            at = row * w * 2
+            for col in range(w):
+                lx = x + col
+                if 0 <= lx < lw:
+                    px, py = native(lx, ly)
+                    i = (py >> 3) * width + px
+                    bit = 1 << (py & 7)
+                    if (src[at] | (src[at + 1] << 8)) & _LIT:
+                        fb[i] |= bit
+                    else:
+                        fb[i] &= ~bit
+                at += 2
+        self._flush(*rect)
+        return (x, y, w, h)
+
+    def _rotation_helper(self, value):
+        # Rotation is applied as pixels are drawn; what is on the panel stays.
+        pass
+
+    ############### Panel controls ################
 
     @property
-    def is_awake(self) -> bool:
-        """
-        The power state of the display. (read-only)
+    def brightness(self):
+        return self._brightness
 
-        `True` if the display is active, `False` if in sleep mode.
+    @brightness.setter
+    def brightness(self, value):
+        value = min(max(value, 0.0), 1.0)
+        self._brightness = value
+        self._command(_CONTRAST, int(value * 255))
 
-        :type: bool
-        """
+    def invert_colors(self, value):
+        self._invert = bool(value)
+        self._command(_INVERT if value else _NORMAL)
+
+    @property
+    def power(self):
         return self._is_awake
 
-    def sleep(self) -> None:
-        """
-        Put display into sleep mode. The display uses < 5uA in sleep mode
+    @power.setter
+    def power(self, value):
+        if value:
+            self.wake()
+        else:
+            self.sleep()
 
-        Sleep mode does the following:
+    def sleep_mode(self, value):
+        if value:
+            self.sleep()
+        else:
+            self.wake()
 
-            1) Stops the oscillator and DC-DC circuits
-            2) Stops the OLED drive
-            3) Remembers display data and operation mode active prior to sleeping
-            4) The MP can access (update) the built-in display RAM
-        """
+    @property
+    def is_awake(self):
+        """True while the panel is on, False in sleep mode."""
+        return self._is_awake
+
+    def sleep(self):
+        """Put the panel to sleep; it keeps what it shows."""
         if self._is_awake:
-            self.bus.send(0xAE, b"")  # 0xAE = display off, sleep mode
+            self._command(_DISPLAY_OFF)
             self._is_awake = False
 
-    def wake(self) -> None:
-        """
-        Wake display from sleep mode
-        """
+    def wake(self):
+        """Wake the panel from sleep mode."""
         if not self._is_awake:
-            self.bus.send(0xAF, b"")  # 0xAF = display on
+            self._command(_DISPLAY_ON)
             self._is_awake = True
