@@ -3,11 +3,9 @@
 import time
 
 from gt911 import GT911
-from keypad_gpio import GPIOButtons
 from machine import I2C, Pin
 
 from displaydev.fbdisplay import FBDisplay
-import keys
 
 try:
     from mipidsi import Bus, Display
@@ -96,11 +94,7 @@ touch_rotation_table = (0, 0, 0, 0)
 
 display_drv = FBDisplay(fb)
 
-# Active-low BOOT button; GPIO35 is shared with Ethernet TXD1.
-keypad = GPIOButtons({"boot": (Pin(35, Pin.IN, Pin.PULL_UP), keys.K_LCTRL)})
-
 touch_read = touch.read_points
-keypad_read = keypad.read
 
 from board_peripherals import PERIPHERALS, load_peripherals
 

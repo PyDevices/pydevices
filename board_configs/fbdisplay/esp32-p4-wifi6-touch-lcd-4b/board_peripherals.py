@@ -14,6 +14,7 @@ PERIPHERALS = frozenset(
         "wlan",
         "ble",
         "usb_device",
+        "boot_button",
     }
 )
 
@@ -555,3 +556,12 @@ def usb_device():
     from machine import USBDevice
 
     return USBDevice()
+
+
+def boot_button():
+    """The BOOT button (GPIO35, low when pressed): a strap at reset, a plain
+    input after. GPIO35 is also the Ethernet PHY's TXD1, so don't use the
+    button and Ethernet together."""
+    from machine import Pin
+
+    return Pin(35, Pin.IN, Pin.PULL_UP)

@@ -35,7 +35,7 @@ Omit the name entirely when the hardware is absent. Canonical symbols:
 | Joystick | `joystick` + `joystick_driver` | Separate from keypad |
 | Addressable LEDs | `pixels` | NeoPixel / DotStar / APA102 |
 | Discrete LED | `led` | Primary user LED only |
-| BOOT button | `boot_button` | The BOOT/IO0 button as a raw input, where the board leaves it free for apps; a board with a display also puts it in `keypad` |
+| BOOT button | `boot_button` | The BOOT/IO0 button as a raw input, where the board leaves it free for apps. Always this name: a config never also puts it in `keypad`. An app that wants it as a key wraps it in its own layer (for example `keypad_gpio.GPIOButtons`) |
 | Motion | `accelerometer`, `gyroscope`, `magnetometer` | Separate; omit missing axes |
 | Environment | `temperature`, `humidity`, `pressure` | Same driver may bind to several names |
 | Audio | `audio_out`, `pcm_out`, `pcm_in` | One name, one return type — see below. MicroPython has no `audio_in`. |
