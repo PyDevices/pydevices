@@ -16,11 +16,9 @@ white; with Linux's TC358762 timing the picture shears.
 import time
 
 from ft6x36 import FT6x36
-from keypad_gpio import GPIOButtons
 from machine import I2C, Pin
 
 from displaydev.fbdisplay import FBDisplay
-import keys
 
 try:
     from mipidsi import Bus, Display
@@ -71,11 +69,6 @@ touch_rotation_table = (0b110, 0b011, 0b000, 0b101)
 display_drv = FBDisplay(fb)
 
 touch_read = touch.read_points
-
-# Active-low BOOT button; GPIO35 is shared with Ethernet TXD1, so don't use
-# it with ethernet(). appdev turns it into ordinary key events.
-keypad = GPIOButtons({"boot": (Pin(35, Pin.IN, Pin.PULL_UP), keys.K_LCTRL)})
-keypad_read = keypad.read
 
 from board_peripherals import PERIPHERALS, load_peripherals
 
