@@ -38,8 +38,10 @@ class PCF8563:
         self._busio = hasattr(i2c, "try_lock")
         self._reg = bytearray(1)
         self._buf = bytearray(7)
-        # Make sure the oscillator runs (STOP bit clear, normal mode).
-        self._write(_CONTROL1, b"\x00")
+        # Make sure the oscillator runs (STOP bit clear, normal mode). A
+        # bytes(1) made here rather than a literal: on the nRF52 the I2C
+        # peripheral reads only RAM, and a frozen or ROMFS literal is in flash.
+        self._write(_CONTROL1, bytes(1))
 
     def _read(self, reg, buf):
         if self._busio:

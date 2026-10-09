@@ -151,6 +151,13 @@ and 19 KB from `/rom`. Keep `board_config.py` and your own program on the
 writable filesystem, where you can edit them; a new image replaces the whole
 partition.
 
+**On the nRF52, a driver must send from RAM.** A `b"..."` literal in a ROMFS
+or frozen module stays in flash, and the nRF52's SPI and I2C peripherals read
+only RAM. MicroPython's nrf port then sends nothing and raises nothing:
+`sdcard.py` timed out initialising a card from `/rom` until its filler byte
+became a `bytearray`. If a driver works from `/flash` and fails from `/rom`,
+look for literals passed to `write()`.
+
 ## 3. Choosing what to install, and from where
 
 `mip.install("pydevices", index=INDEX)` and
