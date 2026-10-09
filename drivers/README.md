@@ -22,6 +22,9 @@ board configs. Prefer single-file modules; MIP manifests live under `../packages
 | `uwin32.py` | Pure-Python Win32/WASAPI ctypes binding for Windows CPython |
 | `power/battery_adc.py` | ADC + divider → volts |
 | `rtc/pcf8563.py` | NXP PCF8563 / BM8563 real-time clock, MicroPython and CircuitPython |
+| `power/axp2101.py` | X-Powers AXP2101 PMU: rails, battery, power key (T-Watch S3) |
+| `imu/bma423.py` | Bosch BMA423 / BMA456 accelerometer |
+| `haptic/drv2605.py` | TI DRV2605 haptic motor driver |
 | `bus/rs485.py` | UART (+ optional DE) |
 | `bus/canbus.py` | `machine.CAN` helper when firmware exposes TWAI |
 | `bus/`, `touch/`, `display/`, `io_expander/`, `input/`, `joystick/` | Existing display/touch/bus helpers |

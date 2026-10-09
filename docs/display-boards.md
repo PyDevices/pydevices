@@ -34,6 +34,7 @@ variant (`C6_WIFI`).
 | LILYGO T-RGB 2.1″ round | `t-rgb_480` | 480×480 | ST7701 RGB **DotClock** | CST820 (`cst8xx`) | XL9535 |
 | Waveshare ESP32-S3-Touch-LCD-7 (sku 27078) | `esp32-s3-touch-lcd-7` (+ CP under `cp/fbdisplay/esp32-s3-touch-lcd-7`) | 800×480 | ST7262 RGB **DotClock** | GT911 @ `0x5D` | CH422G |
 | LILYGO T-Embed | `busdisplay/spi/t-embed` | 170×320 | ST7789 **SPI** (`spibus`) | — (rotary) | GPIO46 power |
+| LILYGO T-Watch S3 | `busdisplay/spi/t-watch-s3` | 240×240 | ST7789 **SPI** (`spibus`) | FT6336 (`ft6x36`) | AXP2101 rails |
 | LILYGO T-HMI | `busdisplay/i80/t-hmi` | 240×320 | ST7789 **I80** (`i80bus`) | XPT2046 SPI | GPIO14/10 power |
 | Waveshare RP2040-Touch-LCD-1.28 | `busdisplay/spi/rp2040-touch-lcd-1.28` (+ CP under `cp/busdisplay/spi/rp2040-touch-lcd-1.28`) | 240×240 round | GC9A01A **SPI** (`spibus` / FourWire) | CST816 (`cst8xx` / `cst816`) | — |
 | Adafruit Metro M7 + 2.8″ TFT Touch Shield (1947) | `busdisplay/spi/metro_m7_tft_touch_shield_1947` | 240×320 | ILI9341 **SPI** (`spibus` SoftSPI or SPI0) | FT6206 @ `0x38` | Onboard AirLift (NINA) |

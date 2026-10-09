@@ -55,6 +55,7 @@ An exact match for all four is rare; bus + display controller is usually enough 
 | `busdisplay/spi/t-display-s3` | (I80 variant under `i80/t-display-s3`) |
 | `busdisplay/spi/t-dongle-s3` | LilyGO T-Dongle S3 |
 | `busdisplay/spi/t-embed` | LilyGO T-Embed |
+| `busdisplay/spi/t-watch-s3` | LilyGO T-Watch S3 |
 | `busdisplay/spi/t-qt-pro` | LilyGO T-QT Pro |
 | `busdisplay/spi/m5stack-cores3` | M5Stack CoreS3 |
 | `busdisplay/spi/wt32sc01-plus` | (I80 under `i80/wt32sc01-plus`) |
