@@ -36,7 +36,10 @@ display_drv = GC9A01(
     colstart=0,
     rowstart=0,
     rotation=0,
-    mirrored=False,
+    # The default table's rotation 0 sets MADCTL MX, which draws this panel
+    # mirrored left to right against its touch controller; mirrored=True
+    # clears it, so display and touch agree with no touch rotation.
+    mirrored=True,
     color_depth=16,
     bgr=True,
     reverse_bytes_in_word=True,
