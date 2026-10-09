@@ -142,7 +142,7 @@ class Link:
             data = bytes(self._buf)
             self._buf = bytearray()
         else:
-            data = bytes(self._buf[:n])
+            data = bytes(memoryview(self._buf)[:n])
             self._buf = self._buf[n:]
         return data
 
@@ -155,7 +155,10 @@ class Link:
                     "link closed after {} of {} bytes".format(len(self._buf), n)
                 )
             await self._wait()
-        data = bytes(self._buf[:n])
+        # Through a memoryview, so the bytes are copied once: slicing the
+        # bytearray first would copy them twice, and on a board with 100 KB of
+        # heap a 16 KB read then fails for want of a third 16 KB block.
+        data = bytes(memoryview(self._buf)[:n])
         self._buf = self._buf[n:]
         return data
 
@@ -164,7 +167,7 @@ class Link:
         while True:
             i = self._buf.find(b"\n")
             if i >= 0:
-                data = bytes(self._buf[: i + 1])
+                data = bytes(memoryview(self._buf)[: i + 1])
                 self._buf = self._buf[i + 1 :]
                 return data
             self._check_error()

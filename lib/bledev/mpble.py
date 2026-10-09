@@ -223,11 +223,31 @@ def _irq(event, data):
         _early_mtu.pop(data[0], None)
     elif event == _IRQ_CENTRAL_DISCONNECT:
         conn_handle = data[0]
+        if data[1] == 0xFF and conn_handle != 0xFFFF and conn_handle not in _AioConnection._connected:
+            # "Connection failed" for a handle that is in fact live. ESP-IDF's
+            # NimBLE holds back a peripheral's connect event until it has read
+            # the central's version and features, then posts it with the
+            # status of that read. Some centrals (an nRF52840 running
+            # CircuitPython, for one) answer the read with an error while
+            # the link carries on, and MicroPython reports any non-zero status
+            # as a failed connection, so aioble's advertise() never returned.
+            # A real failure follows a live link with a real disconnect.
+            _connected_late(conn_handle)
+            return None
         _early_mtu.pop(conn_handle, None)
         aconn = _AioConnection._connected.get(conn_handle)
         if aconn is not None and aconn._task is None:
             _forget(conn_handle, aconn)
     return None
+
+
+def _connected_late(conn_handle):
+    """Announce a central's connection that MicroPython reported as failed."""
+    from aioble import peripheral
+
+    # The central's address isn't in the event; peripherals here don't need it.
+    peripheral._peripheral_irq(_IRQ_CENTRAL_CONNECT, (conn_handle, 0, bytes(6)))
+    _irq(_IRQ_CENTRAL_CONNECT, (conn_handle, 0, bytes(6)))
 
 
 def _forget(conn_handle, aconn):

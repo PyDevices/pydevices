@@ -872,8 +872,22 @@ there makes one level, where bledev's server makes the parents too.
 **CircuitPython as central**, against the LCD-7 serving nus: found, connected,
 discovered, subscribed and wrote, with every write with a response (making the
 subscription is one) taking 2 s, because CircuitPython's ESP32 port waits out
-its whole timeout for a status to leave 0, and success is 0. The full nus gate
-in that direction didn't run ([#91](https://github.com/PyDevices/pydevices/issues/91)).
+its whole timeout for a status to leave 0, and success is 0.
+
+The full nus gate in that direction passes since
+[#91](https://github.com/PyDevices/pydevices/issues/91): a XIAO nRF52840 on
+stock CircuitPython 10.3.1 as central, the LCD-7 on MicroPython 1.29 serving,
+2026-10-09: UP 87.4 KB/s, DOWN 23.9 KB/s, ECHO 10.9 KB/s each way, every byte
+checked; a planted bit flip at 5000 fails. Before the fix the central
+connected, subscribed and wrote, and the server never saw the connection.
+ESP-IDF's NimBLE holds back a peripheral's connect event until it has read
+the central's version and features, and posts it with the status of that
+read. The nRF52840 answered with an error while the link carried on, and
+MicroPython reports any non-zero status as a failed connection, so
+`aioble.advertise()` never returned. `bledev.mpble` now announces such a
+connection itself. To fit in that board's heap, `nus_client.py` receives into
+one reused buffer and checks afterwards, and `Link.read()` and `readexactly()`
+copy once instead of twice.
 
 **mpftp on CircuitPython**, noticed on the way: a long `exec` or `run` sent
 over the serial REPL arrived garbled now and then (a base64 chunk of 6,000
