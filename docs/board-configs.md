@@ -114,7 +114,7 @@ Draw through `display_drv` only; `_pixel_framebuf` is an internal wiring detail.
 | `cp/fbdisplay/matrixportal_m4_64x32` | MatrixPortal M4 HUB75 64×32 |
 | `cp/busdisplay/spi/hallowing_m4` | HalloWing M4 |
 | `cp/busdisplay/spi/pyportal_titano` | PyPortal Titano + touch |
-| `cp/busdisplay/i2c/sh1107_oled_128x64` | SH1107 OLED |
+| `cp/busdisplay/i2c/sh1107_oled_128x64` | SH1107 OLED 128×64 (`i2cbus`) |
 | `cp/busdisplay/spi/ssd1351_128_oled` | SSD1351 color OLED |
 
 ## I2C OLED configs
