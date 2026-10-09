@@ -41,11 +41,22 @@ class FBDisplay(DisplayDriver):
     Attributes:
         color_depth (int): The color depth of the display
         share_framebuffer (bool): True — GUIs may bind panel FBs via
-            :meth:`framebuffers` for direct paint.
+            :meth:`framebuffers` for direct paint — unless ``display`` was
+            given, which then owns the scanout buffer.
         needs_refresh (bool): Computed, not fixed — see below.
     """
 
-    share_framebuffer = True
+    @property
+    def share_framebuffer(self):
+        """Whether a GUI may paint the scanout buffer directly.
+
+        Not when a ``framebufferio.FramebufferDisplay`` was given: it composites
+        its own root group into that buffer at the panel rate (and keeps PSRAM's
+        cache in step for the scanout), so direct paint would race it and could
+        reach the panel late. The GUI paints through :meth:`blit_rect` instead,
+        into ``bitmap`` when there is one.
+        """
+        return self._display is None
 
     @property
     def needs_refresh(self):
@@ -152,8 +163,12 @@ class FBDisplay(DisplayDriver):
                 b0 = fbs[0]
                 return b0, None, len(memoryview(b0)), stride
 
+        # The length is in bytes: a uint16 view (DotClockFramebuffer on
+        # CircuitPython) has half as many elements.
+        if self._buffer_u16 and self._pixel_bytes is not None:
+            return self._pixel_bytes, None, len(self._pixel_bytes), stride
         mv = memoryview(raw)
-        return mv, None, len(mv), stride
+        return mv, None, len(mv) * (2 if self._buffer_u16 else 1), stride
 
     ############### Required API Methods ################
 

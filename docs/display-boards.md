@@ -32,7 +32,7 @@ variant (`C6_WIFI`).
 | Adafruit Qualia S3 + TL040HDS20 | `qualia_tl040hds20` (+ CP under `cp/fbdisplay/qualia_tl040hds20`) | 720×720 | RGB-666→565 **DotClock** | FT6x36 @ `0x48` | PCA9554 @ `0x3f` |
 | Waveshare ESP32-S3-Touch-LCD-4.3 | `esp32-s3-touch-lcd-4_3` | 800×480 | ST7262 RGB **DotClock** | GT911 @ `0x5D` | CH422G |
 | LILYGO T-RGB 2.1″ round | `t-rgb_480` | 480×480 | ST7701 RGB **DotClock** | CST820 (`cst8xx`) | XL9535 |
-| Waveshare ESP32-S3-Touch-LCD-7 (sku 27078) | `esp32-s3-touch-lcd-7` | 800×480 | ST7262 RGB **DotClock** | GT911 @ `0x5D` | CH422G |
+| Waveshare ESP32-S3-Touch-LCD-7 (sku 27078) | `esp32-s3-touch-lcd-7` (+ CP under `cp/fbdisplay/esp32-s3-touch-lcd-7`) | 800×480 | ST7262 RGB **DotClock** | GT911 @ `0x5D` | CH422G |
 | LILYGO T-Embed | `busdisplay/spi/t-embed` | 170×320 | ST7789 **SPI** (`spibus`) | — (rotary) | GPIO46 power |
 | LILYGO T-HMI | `busdisplay/i80/t-hmi` | 240×320 | ST7789 **I80** (`i80bus`) | XPT2046 SPI | GPIO14/10 power |
 | Waveshare RP2040-Touch-LCD-1.28 | `busdisplay/spi/rp2040-touch-lcd-1.28` (+ CP under `cp/busdisplay/spi/rp2040-touch-lcd-1.28`) | 240×240 round | GC9A01A **SPI** (`spibus` / FourWire) | CST816 (`cst8xx` / `cst816`) | — |
@@ -105,6 +105,12 @@ variant (`C6_WIFI`).
 
 - **board_config title:** `Waveshare ESP32-S3-Touch-LCD-7 — 800x480 RGB565 (ST7262) + GT911`
 - **Dir:** `esp32-s3-touch-lcd-7`
+- **CircuitPython:** `cp/fbdisplay/esp32-s3-touch-lcd-7`, for firmware built
+  from the `waveshare_esp32s3_touch_lcd_7` board definition, which wakes the
+  panel through the CH422G at boot and hands it over as `board.DISPLAY` (at
+  14 MHz PCLK). The config paints a PSRAM `displayio.Bitmap` that display
+  composites, so LVGL renders PARTIAL through `blit_rect`. GT911 answered at
+  `0x14` there.
 - **Resolution:** 800×480 @ 16 MHz PCLK (same timings/pins as 4.3″ sibling)
 - **Display:** ST7262 RGB DotClock
 - **Touch:** GT911 @ `0x5D`; **identity** coords (no diagonal remap — unlike 4.3″)
