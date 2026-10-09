@@ -1639,10 +1639,24 @@ class DisplayDriver:
 
     def _flush_cb_direct(self, disp_drv, area, color_p):
         """DIRECT: LVGL already painted the panel FB; present on last area."""
+        done = False
+        try:
+            done = self._present_direct(area)
+        finally:
+            # LVGL waits, spinning, until the flush is ready. If anything got
+            # past the handlers below (SystemExit from machine.soft_reset(),
+            # KeyboardInterrupt from Ctrl-C), that wait never ends: the
+            # interpreter is stuck inside the timer callback, and neither the
+            # REPL nor MicroPython's USB, which runs from the scheduler,
+            # answers again until a hard reset (micropython-pydevices#48).
+            if self._blocking or not done:
+                self.lv_display.flush_ready()
+
+    def _present_direct(self, area):
+        """The DIRECT flush's work. True once it has finished normally."""
         panel = self.display_drv
         if hasattr(panel, "_sdl_active") and not panel._sdl_active():
-            self.lv_display.flush_ready()
-            return
+            return False
         try:
             last = self.lv_display.flush_is_last()
         except Exception:
@@ -1676,25 +1690,30 @@ class DisplayDriver:
                 self.presents += 1
             except Exception:
                 pass
-        if self._blocking:
-            self.lv_display.flush_ready()
+        return True
 
     def _flush_cb(self, disp_drv, area, color_p):
-        panel = self.display_drv
-        if hasattr(panel, "_sdl_active") and not panel._sdl_active():
-            self.lv_display.flush_ready()
-            return
-        width = area.x2 - area.x1 + 1
-        height = area.y2 - area.y1 + 1
+        started = False
+        try:
+            panel = self.display_drv
+            if hasattr(panel, "_sdl_active") and not panel._sdl_active():
+                return
+            width = area.x2 - area.x1 + 1
+            height = area.y2 - area.y1 + 1
 
-        if self._needs_swap:
-            lv.draw_sw_rgb565_swap(color_p, width * height)
+            if self._needs_swap:
+                lv.draw_sw_rgb565_swap(color_p, width * height)
 
-        data = color_p.__dereference__(width * height * self._color_size)
-        panel.blit_rect(data, area.x1, area.y1, width, height)
-        self._dirty = True
-        if self._blocking:
-            self.lv_display.flush_ready()
+            data = color_p.__dereference__(width * height * self._color_size)
+            panel.blit_rect(data, area.x1, area.y1, width, height)
+            started = True
+            self._dirty = True
+        finally:
+            # As in _flush_cb_direct: whatever happened, LVGL must not be left
+            # waiting. Without blocking, the bus's callback reports a transfer
+            # that started; one that never started is reported here.
+            if self._blocking or not started:
+                self.lv_display.flush_ready()
 
 
 # Import-time bootstrap (same as before the probe split).
