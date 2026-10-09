@@ -21,6 +21,7 @@ board configs. Prefer single-file modules; MIP manifests live under `../packages
 | `usdl2.py` | Pure-Python SDL2 ctypes/ffi binding for desktop SDL |
 | `uwin32.py` | Pure-Python Win32/WASAPI ctypes binding for Windows CPython |
 | `power/battery_adc.py` | ADC + divider → volts |
+| `rtc/pcf8563.py` | NXP PCF8563 / BM8563 real-time clock, MicroPython and CircuitPython |
 | `bus/rs485.py` | UART (+ optional DE) |
 | `bus/canbus.py` | `machine.CAN` helper when firmware exposes TWAI |
 | `bus/`, `touch/`, `display/`, `io_expander/`, `input/`, `joystick/` | Existing display/touch/bus helpers |

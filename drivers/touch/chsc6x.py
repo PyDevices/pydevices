@@ -19,20 +19,24 @@ class CHSC6X:
     def __init__(self, i2c, addr=CHSC6X_I2C_ID, irq_pin=None):
         self._i2c = i2c
         self._addr = addr
-        self._irq = Pin(irq_pin, Pin.IN, Pin.PULL_UP) if irq_pin else None
+        self._irq = Pin(irq_pin, Pin.IN, Pin.PULL_UP) if irq_pin is not None else None
         self._buffer = bytearray(CHSC6X_READ_POINT_LEN)
         sleep_ms(100)
 
     def is_touched(self):
         if self._irq is not None:
-            return self._irq.value() is False
+            # The interrupt line is active low. Pin.value() returns 0 or 1,
+            # never False, so this must not be an identity test.
+            return not self._irq.value()
         return self.touch_read() is not None
 
     def touch_read(self):
         if self._irq is not None:
-            if self.is_touched() is True:
+            if not self.is_touched():
+                return None
+            try:
                 self._i2c.readfrom_into(self._addr, self._buffer)
-            else:
+            except OSError:
                 return None
         else:
             try:

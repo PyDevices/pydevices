@@ -49,7 +49,7 @@ installers already include the drivers they require.
 
 ## CircuitPython shims
 
-Adafruit touch libraries vendored under `drivers/touch/circuitpython/`:
+Touch drivers for CircuitPython under `drivers/touch/circuitpython/`, Adafruit's vendored and a few of our own:
 
 | File | Chip |
 |------|------|
@@ -59,6 +59,8 @@ Adafruit touch libraries vendored under `drivers/touch/circuitpython/`:
 | `adafruit_tt21100.py` | TT21100 (PyPortal) |
 | `adafruit_stmpe610.py` | STMPE610 (PiTFT) |
 | `adafruit_touchscreen.py` | 4-wire analog resistive |
+| `chsc6x.py` | CHSC6x (Seeed Round Display), on `busio.I2C` |
+| `cst816.py` | CST816 |
 
 The authoritative list is the source tree itself: [`drivers/touch/`](../drivers/touch/).
 

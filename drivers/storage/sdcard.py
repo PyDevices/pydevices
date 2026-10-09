@@ -55,6 +55,11 @@ class SDCard:
         self.cmdbuf = bytearray(6)
         self.dummybuf = bytearray(512)
         self.tokenbuf = bytearray(1)
+        # A buffer, not a b"\xff" literal: a literal in a frozen or ROMFS
+        # module lives in flash, and on the nRF52 the SPI peripheral reads
+        # only RAM, so MicroPython's nrf port clocked nothing out for it and
+        # every command after the first went astray.
+        self._ff = bytearray(b"\xff")
         for i in range(512):
             self.dummybuf[i] = 0xFF
         self.dummybuf_memoryview = memoryview(self.dummybuf)
@@ -81,7 +86,7 @@ class SDCard:
 
         # clock card at least 100 cycles with cs high
         for i in range(16):
-            self.spi.write(b"\xff")
+            self.spi.write(self._ff)
 
         # CMD0: init card; should return _R1_IDLE_STATE (allow 5 attempts)
         for _ in range(5):
@@ -180,15 +185,15 @@ class SDCard:
                     self.spi.readinto(self.tokenbuf, 0xFF)
                     final = -1 - final
                 for j in range(final):
-                    self.spi.write(b"\xff")
+                    self.spi.write(self._ff)
                 if release:
                     self.cs(1)
-                    self.spi.write(b"\xff")
+                    self.spi.write(self._ff)
                 return response
 
         # timeout
         self.cs(1)
-        self.spi.write(b"\xff")
+        self.spi.write(self._ff)
         return -1
 
     def readinto(self, buf):
@@ -211,11 +216,11 @@ class SDCard:
         self.spi.write_readinto(mv, buf)
 
         # read checksum
-        self.spi.write(b"\xff")
-        self.spi.write(b"\xff")
+        self.spi.write(self._ff)
+        self.spi.write(self._ff)
 
         self.cs(1)
-        self.spi.write(b"\xff")
+        self.spi.write(self._ff)
 
     def write(self, token, buf):
         self.cs(0)
@@ -223,13 +228,13 @@ class SDCard:
         # send: start of block, data, checksum
         self.spi.read(1, token)
         self.spi.write(buf)
-        self.spi.write(b"\xff")
-        self.spi.write(b"\xff")
+        self.spi.write(self._ff)
+        self.spi.write(self._ff)
 
         # check the response
         if (self.spi.read(1, 0xFF)[0] & 0x1F) != 0x05:
             self.cs(1)
-            self.spi.write(b"\xff")
+            self.spi.write(self._ff)
             return
 
         # wait for write to finish
@@ -237,23 +242,23 @@ class SDCard:
             pass
 
         self.cs(1)
-        self.spi.write(b"\xff")
+        self.spi.write(self._ff)
 
     def write_token(self, token):
         self.cs(0)
         self.spi.read(1, token)
-        self.spi.write(b"\xff")
+        self.spi.write(self._ff)
         # wait for write to finish
         while self.spi.read(1, 0xFF)[0] == 0x00:
             pass
 
         self.cs(1)
-        self.spi.write(b"\xff")
+        self.spi.write(self._ff)
 
     def readblocks(self, block_num, buf):
         # workaround for shared bus, required for (at least) some Kingston
         # devices, ensure MOSI is high before starting transaction
-        self.spi.write(b"\xff")
+        self.spi.write(self._ff)
 
         nblocks = len(buf) // 512
         assert nblocks and not len(buf) % 512, "Buffer length is invalid"
@@ -284,7 +289,7 @@ class SDCard:
     def writeblocks(self, block_num, buf):
         # workaround for shared bus, required for (at least) some Kingston
         # devices, ensure MOSI is high before starting transaction
-        self.spi.write(b"\xff")
+        self.spi.write(self._ff)
 
         nblocks, err = divmod(len(buf), 512)
         assert nblocks and not err, "Buffer length is invalid"
