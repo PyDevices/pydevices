@@ -120,6 +120,36 @@ class TestFBDisplayU16Buffer(unittest.TestCase):
         self.assertEqual(fb.data[1], 0xF800)
         self.assertEqual(fb.data[2], 0)
 
+    def test_framebuffers_length_is_in_bytes(self):
+        # LVGL's DIRECT mode checks the buffer against width * height * 2 and
+        # asserts when given the element count.
+        d, _ = make_u16_fbdisplay(4, 2)
+        buf, second, nbytes, stride = d.framebuffers()
+        self.assertIsNone(second)
+        self.assertEqual(nbytes, 16)
+        self.assertEqual(len(memoryview(buf)), 16)
+        self.assertEqual(stride, 8)
+
+
+class TestFBDisplaySharing(unittest.TestCase):
+    def test_shares_the_framebuffer_on_its_own(self):
+        d, _ = make_fbdisplay(4, 2)
+        self.assertTrue(d.share_framebuffer)
+
+    def test_not_shared_when_a_display_composites_it(self):
+        # A framebufferio.FramebufferDisplay owns the scanout buffer; a GUI
+        # painting it directly would race the display's own refresh.
+        from _support import FakeFrameBuffer, quiet
+
+        from displaydev.fbdisplay import FBDisplay
+
+        class _Display:
+            auto_refresh = True
+
+        with quiet():
+            d = FBDisplay(FakeFrameBuffer(4, 2), display=_Display())
+        self.assertFalse(d.share_framebuffer)
+
 
 class TestFBDisplayBitmapKwargs(unittest.TestCase):
     def test_accepts_bitmap_without_bitmaptools(self):
