@@ -16,5 +16,5 @@
     ]
   ],
   "version": "0.1.0",
-  "notes": "Headless: no board_config.py. ES8311 speaker, headphone jack and microphone; SDMMC sdcard; IP101 Ethernet (lan); CSI camera; C6 radio=wlan."
+  "notes": "Headless: no board_config.py. ES8311 speaker, headphone jack and microphone; SDMMC sdcard; IP101 Ethernet (ethernet); CSI camera; C6 radio=wlan."
 }

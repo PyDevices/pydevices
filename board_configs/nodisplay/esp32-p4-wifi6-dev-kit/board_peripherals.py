@@ -31,7 +31,7 @@ datasheet) and wiki:
 - ESP32-C6 Wi-Fi 6 / BLE over SDIO (CLK 18, CMD 19, D0-D3 14-17), reset on
   GPIO54.
 - BOOT button on GPIO35 (low when pressed). GPIO35 is also the Ethernet
-  PHY's TXD1, so the button is an input only while ``lan`` isn't in use.
+  PHY's TXD1, so the button is an input only while ``ethernet`` isn't in use.
 - I3C header on GPIO32 (SCL) / GPIO33 (SDA); a 4-pin I2C header on 7/8.
 - USB: the high-speed OTG controller reaches the two USB-A ports through a
   switch set by jumper H3 (hub = host, direct = device); USB Serial/JTAG is
@@ -52,7 +52,7 @@ PERIPHERALS = frozenset(
         "i2c",
         "sdcard",
         "camera",
-        "lan",
+        "ethernet",
         "radio",
         "wlan",
         "ble",
@@ -460,7 +460,7 @@ def camera(**kwargs):
     return cameraif.Camera(**kwargs)
 
 
-def lan():
+def ethernet():
     """The RJ45 port: an IP101 PHY at address 1 on the P4's RMII EMAC.
 
     The PHY supplies the 50 MHz reference clock on GPIO50.
@@ -511,7 +511,7 @@ def ble():
 def boot_button():
     """The BOOT button (GPIO35, low when pressed): a strap at reset, a plain
     input once the board is running. GPIO35 is also RMII TXD1, so don't use
-    the button and ``lan`` together."""
+    the button and ``ethernet`` together."""
     from machine import Pin
 
     return Pin(_BOOT, Pin.IN, Pin.PULL_UP)
