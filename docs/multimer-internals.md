@@ -36,7 +36,7 @@ set and a timer is armed. `_inputhook.py` is the CPython REPL hook.
 
 | Source | Host | Mechanism | Delivery | Wakes a blocked main thread |
 |---|---|---|---|---|
-| `machine` | MicroPython on a board | one `machine.Timer`, ONE_SHOT, re-armed to the next deadline; its callback is `micropython.schedule`d | bytecode boundary | yes: the REPL and `sleep_ms` run pending callbacks |
+| `machine` | MicroPython on a board | one `machine.Timer`, ONE_SHOT, re-armed to the next deadline; its callback is `micropython.schedule`d. The nrf port's timer has no `init()` and a hard callback, so there the source rebuilds it per deadline and its callback only schedules | bytecode boundary | yes: the REPL and `sleep_ms` run pending callbacks |
 | `signal` | unix / macOS CPython and MicroPython | `timer_create` on `SIGRTMIN+4` (Linux) or `setitimer` (elsewhere). CPython: a Python handler at the next bytecode; MicroPython: an ffi handler that only calls `micropython.schedule` | bytecode boundary | yes: EINTR, then the interrupted call is retried (PEP 475 on CPython, `MP_HAL_RETRY_SYSCALL` on unix MicroPython) |
 | `native` | MicroPython windows | the `_timing` module from the micropython-pydevices overlay: a Win32 timer queue whose expiry calls `mp_sched_schedule` | bytecode boundary | yes, with the console wait servicing pending callbacks |
 | `wasm` | direct MicroPython WebAssembly | `_wasm_bridge.timer_start`, one browser timer; the bridge calls in once the VM is idle, or queues the firing for `sleep_ms` to poll | idle (the page loop) | the loop owns the thread |
