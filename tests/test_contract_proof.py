@@ -32,6 +32,7 @@ EXPECTED = {
             "wlan",
             "ble",
             "usb_device",
+            "boot_button",
         },
     },
     "qualia_tl040hds20": {
