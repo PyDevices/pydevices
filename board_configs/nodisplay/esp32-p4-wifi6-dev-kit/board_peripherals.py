@@ -107,10 +107,18 @@ AUDIO_OUT = AudioCapability(
     channels=(1, 2),
     native_channels=1,
     bits=(16,),
-    wire=I2SWire(0, sck=_SCLK, ws=_LRCK, sd=_DSDIN, mck=_MCLK, mck_fs=_MCLK_FS),
+    # sd_in is the ES8311's ADC output. Publishing it is what lets audio_out
+    # and pcm_in run at once on firmware whose audio pump can read the RX
+    # half of its own channel: the port opens as one TX/RX pair on one clock.
+    wire=I2SWire(
+        0, sck=_SCLK, ws=_LRCK, sd=_DSDIN, mck=_MCLK, mck_fs=_MCLK_FS, sd_in=_ASDOUT
+    ),
 )
 
-# The microphone is the ES8311's ADC on the same I2S port and clocks.
+# The microphone is the ES8311's ADC on the same I2S port and clocks. With the
+# audio pump (audiodev.pump.duplex()), pcm_in reads the RX half of the pump's
+# channel, so it records while audio_out plays. Without it, pcm_in is
+# machine.I2S, and it and the speaker refuse each other.
 AUDIO_IN = AudioCapability(
     _FORMAT,
     rates=None,
@@ -154,12 +162,37 @@ def i2c():
     return _i2c_own
 
 
+def _pump_clock_running():
+    try:
+        from audiodev import pump
+    except ImportError:
+        return False
+    return pump.clock_running()
+
+
+def _duplex_pump():
+    """``audiodev.pump`` when this firmware records while it plays, else None."""
+    try:
+        from audiodev import pump
+    except ImportError:
+        return None
+    return pump if pump.duplex() else None
+
+
 def _ensure_mclk(multiplier=_MCLK_FS, rate=None):
+    """PWM-bootstrap MCLK on GPIO13 until I2S takes the pin.
+
+    Never while the audio pump's channel is running: it already drives GPIO13,
+    and a PWM started now would take the pin from it mid-stream.
+    """
     global _mclk, _mclk_rate
     from machine import PWM, Pin
 
     if rate is not None:
         _mclk_rate = int(rate)
+    if _pump_clock_running():
+        _stop_mclk()
+        return None
     freq = _mclk_rate * multiplier
     if _mclk is None:
         _mclk = PWM(Pin(_MCLK), freq=freq, duty_u16=32768)
@@ -233,12 +266,16 @@ def _refuse_if_held(session, wanted, holder):
 
     Constructing machine.I2S(0) while it is in use doesn't raise on esp32:
     it deinitialises the live instance and hands the same object back in the
-    new direction, so the speaker would just go quiet.
+    new direction, so the speaker would just go quiet. pcm_out is always
+    machine.I2S, so this holds with the audio pump too; audio_out plays
+    through the pump and records alongside pcm_in.
     """
     if session._owners:
         raise OSError(
-            "I2S(0) is in use by %s: this board's speaker and microphone "
-            "share one I2S port, so close the %s before opening the %s"
+            "I2S(0) is in use by the %s: this board's speaker and microphone "
+            "share one I2S port, and pcm_out and machine.I2S take the whole "
+            "port, so close the %s before opening the %s. audio_out can play "
+            "while pcm_in records, at the recording's rate"
             % (holder, holder, wanted)
         )
 
@@ -312,8 +349,12 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
 def _pcm_in(format=None, *, latency=None, queue_ms=None):
     """The onboard microphone through the ES8311's ADC: a raw ``PCMInput``.
 
-    Shares I2S(0) and its clocks with playback, so opening it while the
-    speaker is open raises OSError, and so does the reverse.
+    Shares I2S(0) and its clocks with playback. On firmware with the audio
+    pump, this reads the RX half of the pump's channel, so it records while
+    ``audio_out`` plays, in either order, at the rate the speaker is clocked
+    at. Without the pump it is ``machine.I2S``: opening it while the speaker
+    is open raises OSError, and so does the reverse. ``pcm_out`` is always
+    ``machine.I2S``, so it refuses alongside a recording either way.
     """
     global _mclk_rate
 
@@ -326,6 +367,19 @@ def _pcm_in(format=None, *, latency=None, queue_ms=None):
         )
     _mclk_rate = wire.rate
     ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
+    pump = _duplex_pump()
+    if pump is not None:
+        # The ES8311 has one ADC channel; this records the left slot.
+        return pump.PumpPCMInput(
+            wire,
+            wire=AUDIO_OUT.wire,
+            ring_bytes=ibuf,
+            take="left",
+            before_open=lambda: _refuse_if_held(_SESSION, "microphone", "speaker"),
+            session=_INPUT_SESSION,
+            set_hardware_gain=lambda value: _INPUT_SESSION.get_codec().set_gain(value),
+            power=lambda enable: _INPUT_SESSION.get_codec().enable_input(enable),
+        )
     return I2SPCMInput(
         lambda: _input_stream(ibuf, wire),
         wire,

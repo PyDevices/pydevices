@@ -74,6 +74,29 @@ _FIRST_BLOCK_SPINS = 200
 _FIRST_BLOCK_WAIT_US = 20000
 _FIRST_BLOCK_STEP_US = 100
 
+from audiodev import PCMInput
+
+try:
+    from time import sleep_ms as _sleep_ms
+except ImportError:  # CPython, CircuitPython
+    import time as _time_ms
+
+    def _sleep_ms(ms):
+        _time_ms.sleep(ms / 1000)
+
+try:
+    import asyncio as _asyncio
+except ImportError:  # pragma: no cover
+    _asyncio = None
+
+
+async def _async_sleep_ms(ms):
+    if hasattr(_asyncio, "sleep_ms"):
+        await _asyncio.sleep_ms(ms)
+    else:
+        await _asyncio.sleep(ms / 1000)
+
+
 try:
     from time import sleep_us as _sleep_us
     from time import ticks_diff as _ticks_diff
@@ -267,6 +290,38 @@ def on_board():
     """
     mod = driver()
     return mod is not None and hasattr(mod, "i2s_start")
+
+
+def duplex():
+    """True when this firmware can record while it plays, on one I2S port.
+
+    The driver opens the board's port as a TX/RX channel pair whose RX half
+    Python can read (``_audioif.rx_open``), so a speaker and a microphone
+    that share a port's clocks -- the ESP32-P4 boards' ES8311 and ES7210, or
+    the ES8311's own ADC -- are two halves of one channel rather than two
+    owners fighting over it. A board asks this to decide which ``PCMInput``
+    to build: :class:`PumpPCMInput` when True, ``machine.I2S`` when not.
+    """
+    mod = driver()
+    return mod is not None and hasattr(mod, "rx_open")
+
+
+def clock_running():
+    """True while the pump's driver has an I2S channel open on this board.
+
+    A board whose codecs need MCLK before I2S exists bootstraps it with PWM
+    on the same pin. Starting that PWM while the channel is running takes the
+    pin away from it, so both codecs lose their clock mid-stream; a board
+    asks this first. False on any firmware that cannot answer.
+    """
+    mod = driver()
+    state = getattr(mod, "i2s_state", None) if mod is not None else None
+    if state is None:
+        return False
+    try:
+        return state() is not None
+    except Exception:    # noqa: BLE001 - a question must not raise
+        return False
 
 
 def threaded():
@@ -991,6 +1046,14 @@ class BusioDriver(_Driver):
         sink = getattr(w, "sink", None)
         if sink is not None:
             kwargs["sink"] = sink
+        # The microphone's pin, where it shares this port's clocks. The output
+        # then opens the port as a TX/RX pair, so a PumpPCMInput opened later
+        # joins this channel instead of being refused -- and one opened
+        # earlier is joined by this output. Only on a driver that can read the
+        # RX half; an older I2SOut has no `data_in` to take.
+        sd_in = getattr(w, "sd_in", None)
+        if sd_in is not None and duplex():
+            kwargs["data_in"] = int(sd_in)
         try:
             self.out = mod.I2SOut(w.sck, w.ws, w.sd, main_clock=w.mck,
                                   **kwargs)
@@ -1051,6 +1114,146 @@ class BusioDriver(_Driver):
                 pass              # somebody else's teardown
         if self._power is not None:
             self._power(False)
+
+
+_TAKES = {"left": 0, "right": 1, "mix": 2}
+
+
+class PumpPCMInput(PCMInput):
+    """Capture from the RX half of the pump's own I2S channel.
+
+    On a board whose speaker and microphone share one I2S port,
+    ``machine.I2S`` can have only one of them: it opens one direction per
+    port, and opening the second silently takes the port from the first.
+    The pump's driver opens the port as a TX/RX pair instead, and this
+    reads the RX half -- so an ``audio_out`` can play while this records,
+    in either order, and closing one leaves the other running.
+
+    It is a ``PCMInput`` like any other: ``readinto()`` fills the buffer
+    and blocks until it has, ``areadinto()`` waits without blocking the
+    loop, and gain and mute are the board's codec. What is different is
+    underneath: the driver's interrupt copies every finished DMA block
+    into a ring of ``ring_bytes``, so a reader that falls behind by less
+    than that loses nothing. ``stats()["dropped"]`` counts the frames a
+    slower reader lost.
+
+    The channel is opened (or joined) BEFORE the codec is brought up, so
+    the codec's setup runs with the channel's MCLK already on its pin; a
+    board must not start a PWM clock on that pin while
+    :func:`clock_running` says the channel is up.
+
+    ``take`` picks what a one-channel recording hears from a two-slot
+    wire: ``"left"``, ``"right"``, or ``"mix"``, their average, which is
+    the right answer for a codec with a microphone in each slot.
+    """
+
+    def __init__(self, format, *, wire, ring_bytes=20000, take="mix",
+                 timeout_ms=1000, before_open=None, **kwargs):
+        super().__init__(format, **kwargs)
+        if format.bits != 16 or format.channels not in (1, 2):
+            raise ValueError(
+                "the pump's I2S capture is signed 16-bit, one or two "
+                "channels")
+        if getattr(wire, "sd_in", None) is None:
+            raise ValueError("this wire has no microphone pin (sd_in)")
+        if format.channels == 2:
+            self._take = 3
+        elif take in _TAKES:
+            self._take = _TAKES[take]
+        else:
+            raise ValueError("take must be 'left', 'right' or 'mix'")
+        self.wire = wire
+        self.ring_bytes = int(ring_bytes)
+        self.timeout_ms = int(timeout_ms)
+        self._before_open = before_open
+        self._held = False
+
+    def open(self):
+        if self.is_open:
+            return self
+        if self._before_open is not None:
+            self._before_open()
+        mod = driver()
+        if mod is None or not hasattr(mod, "rx_open"):
+            raise OSError("this firmware cannot record from the pump's "
+                          "I2S channel")
+        w = self.wire
+        mod.rx_open(w.port, w.sck, w.ws, w.sd, w.sd_in, self.format.rate,
+                    mclk=-1 if w.mck is None else w.mck,
+                    mclk_fs=w.mck_fs, ring=self.ring_bytes,
+                    take=self._take)
+        self._held = True
+        try:
+            super().open()
+        except Exception:
+            self._release()
+            raise
+        return self
+
+    def _release(self):
+        if self._held:
+            self._held = False
+            mod = driver()
+            if mod is not None:
+                mod.rx_close()
+
+    def _close(self):
+        self._release()
+
+    def stats(self):
+        """``captured`` and ``dropped`` frames, and ``waiting`` bytes."""
+        mod = driver()
+        if mod is None or not hasattr(mod, "rx_stats"):
+            return {"captured": 0, "dropped": 0, "waiting": 0}
+        captured, dropped, waiting = mod.rx_stats()
+        return {"captured": captured, "dropped": dropped,
+                "waiting": waiting}
+
+    def _read_some(self, view):
+        return driver().rx_read(view)
+
+    def _readinto(self, buf):
+        view = memoryview(buf)
+        got = 0
+        idle_ms = 0
+        while got < len(view):
+            n = self._read_some(view[got:])
+            if n:
+                got += n
+                idle_ms = 0
+                continue
+            # A DMA block lands every 5 ms; anything near the timeout
+            # means the channel is not clocking at all.
+            if idle_ms >= self.timeout_ms:
+                raise OSError("the microphone delivered nothing for %d ms"
+                              % self.timeout_ms)
+            _sleep_ms(2)
+            idle_ms += 2
+        return got
+
+    async def _areadinto(self, buf):
+        view = memoryview(buf)
+        got = 0
+        idle_ms = 0
+        while got < len(view):
+            n = self._read_some(view[got:])
+            if n:
+                got += n
+                idle_ms = 0
+                continue
+            if idle_ms >= self.timeout_ms:
+                raise OSError("the microphone delivered nothing for %d ms"
+                              % self.timeout_ms)
+            await asyncio.sleep_ms(5) if hasattr(asyncio, "sleep_ms") \
+                else asyncio.sleep(0.005)
+            idle_ms += 5
+        return got
+
+
+
+def pcm_input(format, **kwargs):
+    """Build a :class:`PumpPCMInput` (see its docstring for the keywords)."""
+    return PumpPCMInput(format, **kwargs)
 
 
 class PumpOutput:

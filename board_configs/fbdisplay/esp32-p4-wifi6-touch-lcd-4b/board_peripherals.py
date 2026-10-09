@@ -78,13 +78,19 @@ AUDIO_OUT = AudioCapability(
     channels=(1, 2),
     native_channels=_MAX_CHANNELS,
     bits=(16,),
-    wire=I2SWire(0, sck=_SCLK, ws=_LRCK, sd=_DSDIN, mck=_MCLK, mck_fs=_MCLK_FS),
+    # sd_in is the ES7210's data pin. Publishing it is what lets audio_out and
+    # pcm_in run at once on firmware whose audio pump can read the RX half of
+    # its own channel: the port opens as one TX/RX pair on one clock.
+    wire=I2SWire(
+        0, sck=_SCLK, ws=_LRCK, sd=_DSDIN, mck=_MCLK, mck_fs=_MCLK_FS, sd_in=_ASDOUT
+    ),
 )
 
-# Capture is the ES7210 on the SAME I2S port and the same clocks as playback,
-# with AudioSession(duplex=False) below. That is why this board cannot run the
-# acoustic loopback in tools/audio_rig/ and the T-Embed can: there, output and
-# input are separate peripherals on separate pins.
+# Capture is the ES7210 on the SAME I2S port and the same clocks as playback.
+# With the audio pump (audiodev.pump.duplex()), pcm_in reads the RX half of
+# the pump's channel, so it records while audio_out plays. Without it, pcm_in
+# is machine.I2S, which takes one direction per port, so it and the speaker
+# refuse each other (see _refuse_if_held).
 AUDIO_IN = AudioCapability(
     _FORMAT,
     rates=None,
@@ -135,13 +141,29 @@ def _i2c():
     return _i2c_own
 
 
+def _pump_clock_running():
+    try:
+        from audiodev import pump
+    except ImportError:
+        return False
+    return pump.clock_running()
+
+
 def _ensure_mclk(multiplier=_MCLK_FS, rate=None):
-    """PWM-bootstrap the shared codec MCLK on GPIO13 until I2S takes the pin."""
+    """PWM-bootstrap the shared codec MCLK on GPIO13 until I2S takes the pin.
+
+    Never while the audio pump's channel is running: it is already driving
+    GPIO13, and a PWM started now would take the pin from it, so both codecs
+    would lose their clock mid-stream. The idle PWM is released instead.
+    """
     global _mclk, _mclk_rate
     from machine import PWM, Pin
 
     if rate is not None:
         _mclk_rate = int(rate)
+    if _pump_clock_running():
+        _stop_mclk()
+        return None
     freq = _mclk_rate * multiplier
     if _mclk is None:
         _mclk = PWM(Pin(_MCLK), freq=freq, duty_u16=32768)
@@ -208,11 +230,17 @@ def _refuse_if_held(session, wanted, holder):
     during playback silenced the speaker with no error anywhere, and
     ``playing`` stayed True (pydevices#23, heard on this board). So the second
     direction is refused here, by name, instead.
+
+    This still applies with the audio pump, to pcm_out: it is machine.I2S
+    whatever the firmware, so it and the pump's channel cannot share the port.
+    audio_out plays through the pump and records alongside pcm_in.
     """
     if session._owners:
         raise OSError(
-            "I2S(0) is in use by %s: this board's speaker and microphone "
-            "share one I2S port, so close the %s before opening the %s"
+            "I2S(0) is in use by the %s: this board's speaker and microphone "
+            "share one I2S port, and pcm_out and machine.I2S take the whole "
+            "port, so close the %s before opening the %s. audio_out can play "
+            "while pcm_in records, at the recording's rate"
             % (holder, holder, wanted)
         )
 
@@ -314,9 +342,17 @@ def _pcm_out(format=None, *, latency=None, queue_ms=None):
 def _pcm_in(format=None, *, latency=None, queue_ms=None):
     """ES7210 capture: a raw ``PCMInput`` with hardware ADC gain.
 
-    Shares I2S(0) and its clocks with playback, so this board cannot record
-    itself: opening it while the speaker is open raises OSError, and so does
-    the reverse.
+    Shares I2S(0) and its clocks with playback. On firmware with the audio
+    pump, this reads the RX half of the pump's channel, so it records while
+    ``audio_out`` plays (an acoustic loopback through the panel's own speaker
+    and microphones works), in either order. The recording must then be at
+    the rate the speaker is clocked at. The two microphones are averaged into
+    the one channel.
+
+    Without the pump it is ``machine.I2S``, which has one direction per port:
+    opening it while the speaker is open raises OSError, and so does the
+    reverse. ``pcm_out`` is always ``machine.I2S``, so it refuses alongside
+    a recording either way.
     """
     global _mclk_rate
 
@@ -334,6 +370,18 @@ def _pcm_in(format=None, *, latency=None, queue_ms=None):
         )
     _mclk_rate = wire.rate
     ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
+    pump = _duplex_pump()
+    if pump is not None:
+        return pump.PumpPCMInput(
+            wire,
+            wire=AUDIO_OUT.wire,
+            ring_bytes=ibuf,
+            take="mix",
+            before_open=lambda: _refuse_if_held(_SESSION, "microphone", "speaker"),
+            session=_INPUT_SESSION,
+            set_hardware_gain=lambda value: _INPUT_SESSION.get_codec().set_gain(value),
+            power=lambda enable: _input_power(enable, wire.rate),
+        )
     return I2SPCMInput(
         lambda: _input_stream(ibuf, wire),
         wire,
@@ -341,6 +389,15 @@ def _pcm_in(format=None, *, latency=None, queue_ms=None):
         set_hardware_gain=lambda value: _INPUT_SESSION.get_codec().set_gain(value),
         power=lambda enable: _input_power(enable, wire.rate),
     )
+
+
+def _duplex_pump():
+    """``audiodev.pump`` when this firmware records while it plays, else None."""
+    try:
+        from audiodev import pump
+    except ImportError:
+        return None
+    return pump if pump.duplex() else None
 
 
 def _audio_out(format=None, *, latency=None, queue_ms=None, **kwargs):

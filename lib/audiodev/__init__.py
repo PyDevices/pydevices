@@ -135,18 +135,23 @@ class I2SWire:
     such a consumer stop reaching into a board module's private names.
     """
 
-    def __init__(self, port, *, sck, ws, sd, mck=None, mck_fs=256):
+    def __init__(self, port, *, sck, ws, sd, mck=None, mck_fs=256, sd_in=None):
         self.port = int(port)
         self.sck = int(sck)
         self.ws = int(ws)
         self.sd = int(sd)
         self.mck = None if mck is None else int(mck)
         self.mck_fs = int(mck_fs)
+        # The microphone's data pin, when the microphone shares this wire's
+        # clocks. A board that publishes it can record while it plays: the
+        # output opens the port as a TX/RX pair and the input reads the RX
+        # half (``audiodev.pump.PumpPCMInput``).
+        self.sd_in = None if sd_in is None else int(sd_in)
 
     def __repr__(self):
         return (
-            "I2SWire(port=%d, sck=%d, ws=%d, sd=%d, mck=%r, mck_fs=%d)"
-            % (self.port, self.sck, self.ws, self.sd, self.mck, self.mck_fs)
+            "I2SWire(port=%d, sck=%d, ws=%d, sd=%d, mck=%r, mck_fs=%d, sd_in=%r)"
+            % (self.port, self.sck, self.ws, self.sd, self.mck, self.mck_fs, self.sd_in)
         )
 
 
