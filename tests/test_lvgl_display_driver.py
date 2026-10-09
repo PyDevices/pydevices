@@ -351,6 +351,73 @@ class TestDirectPanel(unittest.TestCase):
         self.assertEqual(3, drv.presents)
 
 
+class _Raises:
+    """A panel whose present raises what a stray soft reset or Ctrl-C raises."""
+
+    def __init__(self, exc):
+        self.exc = exc
+
+    def flush_rect(self, x, y, w, h):
+        return False
+
+    def show(self):
+        raise self.exc
+
+    def blit_rect(self, data, x, y, w, h):
+        raise self.exc
+
+
+class _ColorP:
+    def __dereference__(self, n):
+        return bytes(n)
+
+
+class TestFlushAlwaysEnds(unittest.TestCase):
+    """LVGL spins until the flush is ready (micropython-pydevices#48).
+
+    machine.soft_reset() raises SystemExit, and Ctrl-C KeyboardInterrupt;
+    neither is an Exception, so either one raised from show() or blit_rect()
+    used to skip flush_ready(). LVGL then waited forever inside the timer
+    callback, and the board's REPL and USB went silent until a hard reset.
+    """
+
+    def _driver(self, panel, blocking=True):
+        cls = _display_driver_class()
+        drv = cls.__new__(cls)
+        drv.display_drv = panel
+        drv.lv_display = _LvDisplay()
+        drv.lv_display.last = True
+        drv._blocking = blocking
+        drv._needs_swap = False
+        drv._color_size = 2
+        drv.presents = 0
+        return drv
+
+    def test_direct_flush_ends_when_show_raises_system_exit(self):
+        for blocking in (True, False):
+            drv = self._driver(_Raises(SystemExit()), blocking)
+            with self.assertRaises(SystemExit):
+                drv._flush_cb_direct(None, _Area(0, 0, 9, 9), None)
+            self.assertEqual(1, drv.lv_display.ready)
+
+    def test_partial_flush_ends_when_blit_raises_keyboard_interrupt(self):
+        for blocking in (True, False):
+            drv = self._driver(_Raises(KeyboardInterrupt()), blocking)
+            with self.assertRaises(KeyboardInterrupt):
+                drv._flush_cb(None, _Area(0, 0, 9, 9), _ColorP())
+            self.assertEqual(1, drv.lv_display.ready)
+
+    def test_a_started_transfer_is_left_to_the_bus(self):
+        """Without blocking, the bus's callback reports a transfer it ran."""
+        panel = _Panel(synced=False)
+        panel.blit_rect = lambda *a: None
+        drv = self._driver(panel, blocking=False)
+        drv._flush_cb(None, _Area(0, 0, 9, 9), _ColorP())
+        self.assertEqual(0, drv.lv_display.ready)
+        drv._flush_cb_direct(None, _Area(0, 0, 9, 9), None)
+        self.assertEqual(0, drv.lv_display.ready)
+
+
 # -- the frame period ---------------------------------------------------------
 
 
