@@ -7,11 +7,14 @@ This is the **target** contract for **MicroPython** boards. Board configs and
 drivers live in
 [`pydevices`](https://github.com/PyDevices/pydevices).
 
-**CircuitPython** (`board_configs/cp/`) does **not** use `board_peripherals.py` or
-lazy `PERIPHERALS`. CP already exposes pins/buses via the native `board` module.
-CP `board_config.py` only constructs `display_drv` and eager UI hardware
-(`touch`, `keypad`, `encoder`, `joystick`) with neutral read aliases. Do not
-`from board_config import …` inside CP configs.
+**CircuitPython** (`board_configs/cp/`) uses the same role names but leans on
+its native `board` module. A CP `board_config.py` constructs `display_drv` and
+the eager UI hardware (`touch`, `keypad`, `encoder`, `joystick`) with neutral
+read aliases. A CP `board_peripherals.py` is optional: add one for roles that
+need setup `board` doesn't do (a codec or amplifier to configure, a power
+chip to enable, a pin the config must own) and leave out anything `board`
+already hands over ready to use. Do not `from board_config import …` inside CP
+configs.
 
 ## Specials (always these names)
 
@@ -32,9 +35,12 @@ Omit the name entirely when the hardware is absent. Canonical symbols:
 | Joystick | `joystick` + `joystick_driver` | Separate from keypad |
 | Addressable LEDs | `pixels` | NeoPixel / DotStar / APA102 |
 | Discrete LED | `led` | Primary user LED only |
+| BOOT button | `boot_button` | The BOOT/IO0 button as a raw input, where the board leaves it free for apps; a board with a display also puts it in `keypad` |
 | Motion | `accelerometer`, `gyroscope`, `magnetometer` | Separate; omit missing axes |
 | Environment | `temperature`, `humidity`, `pressure` | Same driver may bind to several names |
-| Audio | `audio_out`, `pcm_out`, `pcm_in` | One name, one return type — see below. There is no `audio_in`. |
+| Audio | `audio_out`, `pcm_out`, `pcm_in` | One name, one return type — see below. MicroPython has no `audio_in`. |
+| Audio (CircuitPython) | `audio_out`, `audio_in` | CircuitPython's native player and recorder — see [Audio on CircuitPython](#audio-on-circuitpython) |
+| Audio power | `audio_power` | `audio_power(enable=True, *, volume=None)`: codec and amplifier up or down without opening a stream |
 | Storage | `sdcard` | Driver object only; no auto-mount |
 | Camera | `camera` | |
 | Expansion I2C | `i2c` | Dedicated STEMMA/Qwiic/Grove only (not internal-only) |
@@ -63,6 +69,20 @@ never needs audiodsp in firmware.
 
 Boards with PWM/buzzer-only hardware expose a `ToneOutput` and declare
 `kind="tone"`; they take no format.
+
+### Audio on CircuitPython
+
+CircuitPython has its own audio stack, so on CircuitPython the audio roles
+return its native objects, the same split as `displayio` for displays.
+`audio_out()` returns a player such as `audiobusio.I2SOut` or
+`audiopwmio.PWMAudioOut`, whose `play(sample)` takes any audiosample.
+`audio_in()` returns CircuitPython's native recorder (`audiobusio.PDMIn`, or
+the `audioi2sin.I2SIn` that CircuitPython-compatible builds add), whose
+`record(buffer, n)` fills a buffer. The name follows CircuitPython's own
+`audio*` modules; there's no player layer on capture here either, and there
+are no `pcm_out`/`pcm_in` roles on CircuitPython. A role that sets up a codec
+calls `audio_power(True)` first, so an app can also bring the codec up on its
+own.
 
 ### Declaring what the board accepts
 
@@ -99,9 +119,8 @@ Every device exposes its `format`, `capabilities`, normalized volume/gain and
 mute controls, synchronous I/O, and portable asynchronous I/O. When a codec
 provides hardware controls, the device delegates to them and exposes the
 codec as `device.codec`; otherwise volume or gain is applied to PCM samples
-in software. CircuitPython boards (`board_configs/cp/`) have no audio roles
-at all -- the same audiosample protocol is satisfied natively by
-`audiobusio.I2SOut`/`audioio.AudioOut`.
+in software. On CircuitPython the audio roles return native objects instead;
+see [Audio on CircuitPython](#audio-on-circuitpython).
 See [Portable audio](audio.md) for backend, async, and board details.
 
 Out of contract as `board_config` symbols: high-level `wifi` / `bluetooth` modules

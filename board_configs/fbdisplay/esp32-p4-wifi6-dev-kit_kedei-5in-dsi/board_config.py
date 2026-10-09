@@ -73,7 +73,7 @@ display_drv = FBDisplay(fb)
 touch_read = touch.read_points
 
 # Active-low BOOT button; GPIO35 is shared with Ethernet TXD1, so don't use
-# it with lan(). appdev turns it into ordinary key events.
+# it with ethernet(). appdev turns it into ordinary key events.
 keypad = GPIOButtons({"boot": (Pin(35, Pin.IN, Pin.PULL_UP), keys.K_LCTRL)})
 keypad_read = keypad.read
 
