@@ -307,5 +307,86 @@ class TestStillDeliversOnTimeUs(TestStillDeliversOnTime):
         self.assertEqual(self.hw.inits, [(1000, 7)])
 
 
+class FakeNrfHW:
+    """The nrf port's machine.Timer: configured by its constructor, run with
+    start(), no init(), ONESHOT spelled without an underscore, and ids 0
+    (the BLE stack's) and -1 refused."""
+
+    ONESHOT = 0
+    PERIODIC = 1
+    made = []
+
+    def __init__(self, tid=-1, *, period=1000000, mode=1, callback=None):
+        if tid in (-1, 0):
+            raise ValueError("Timer reserved")
+        self.tid = tid
+        self.period = period
+        self.mode = mode
+        self.callback = callback
+        self.started = False
+        self.deinited = False
+        FakeNrfHW.made.append(self)
+
+    def start(self):
+        self.started = True
+
+    def deinit(self):
+        self.deinited = True
+
+
+class TestNrfTimer(unittest.TestCase):
+    """The nrf port has no Timer.init(); the source drives it through start()."""
+
+    def setUp(self):
+        _clock[0] = 1000
+        FakeNrfHW.made = []
+        fake = types.ModuleType("machine")
+        fake.Timer = FakeNrfHW
+        saved_machine = sys.modules.get("machine")
+        saved_src = sys.modules.pop("multimer._src_machine", None)
+        sys.modules["machine"] = fake
+        try:
+            self.src = importlib.import_module("multimer._src_machine")
+        finally:
+            sys.modules.pop("multimer._src_machine", None)
+            if saved_src is not None:
+                sys.modules["multimer._src_machine"] = saved_src
+            if saved_machine is None:
+                sys.modules.pop("machine", None)
+            else:
+                sys.modules["machine"] = saved_machine
+        self.src.ticks_ms = lambda: _clock[0]
+        self.src.ticks_us = lambda: _clock[0] * 1000
+        self.scheduled = []
+        self.src._schedule = lambda fn, arg: self.scheduled.append((fn, arg))
+        self.wakes = []
+        self.src.start(lambda safe=False: self.wakes.append(_clock[0]))
+
+    def test_takes_the_first_free_id(self):
+        self.assertEqual(FakeNrfHW.made[0].tid, 1)
+
+    def test_arm_builds_a_started_oneshot_in_microseconds(self):
+        self.src.arm(7)
+        t = FakeNrfHW.made[-1]
+        self.assertEqual((t.tid, t.mode, t.started), (1, FakeNrfHW.ONESHOT, True))
+        self.assertEqual(t.period, 7020)  # to the 7 ms edge, plus 20 us
+        self.assertIs(t.callback, self.src._nrf_hard)
+        self.assertTrue(FakeNrfHW.made[0].deinited)  # the old counter is cleared
+
+    def test_hard_callback_only_schedules_then_wakes(self):
+        self.src.arm(5)
+        t = FakeNrfHW.made[-1]
+        _clock[0] += 5
+        t.callback(t)
+        self.assertEqual(self.wakes, [])  # nothing runs in the interrupt
+        fn, arg = self.scheduled.pop()
+        fn(arg)
+        self.assertEqual(self.wakes, [_clock[0]])
+
+    def test_long_delay_is_capped_to_the_24_bit_counter(self):
+        self.src.arm(60000)
+        self.assertEqual(FakeNrfHW.made[-1].period, 16000000)
+
+
 if __name__ == "__main__":
     unittest.main()

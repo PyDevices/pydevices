@@ -38,6 +38,9 @@ not mark the hardware idle.
 
 from machine import Timer as _HW
 
+# The nrf port spells it ONESHOT (and needs _NrfTimer below anyway).
+_ONE_SHOT = getattr(_HW, "ONE_SHOT", None)
+
 try:
     # The port's own clocks: native calls, and ticks_ms/ticks_us share a base.
     from time import ticks_add, ticks_diff, ticks_ms, ticks_us
@@ -89,16 +92,71 @@ def _make_cb(gen):
     return lambda _t: _cb(gen)
 
 
+class _NrfTimer:
+    """The nrf port's ``machine.Timer`` behind the ``init()``/``deinit()``
+    calls this source makes.
+
+    That port has no ``init()``: a timer is configured by its constructor and
+    run with ``start()``. Its callback is hard, called from the interrupt, so
+    the one it is given only schedules the real callback. Its counter is
+    24 bits at 1 MHz, so a delay is capped at 16 s; the dispatcher finds
+    nothing due when it wakes early and re-arms.
+    """
+
+    def __init__(self, tid):
+        self._tid = tid
+        self._t = _HW(tid)  # ValueError for an id the port reserves
+
+    def init(self, *, mode=None, period=0, tick_hz=1000, callback=None):
+        global _nrf_soft_cb, _nrf_self
+        us = period * 1000000 // tick_hz
+        us = 1 if us < 1 else 16000000 if us > 16000000 else us
+        _nrf_soft_cb = callback
+        _nrf_self = self
+        self._t.deinit()  # stops it and clears the counter
+        self._t = _HW(self._tid, period=us, mode=_HW.ONESHOT, callback=_nrf_hard)
+        self._t.start()
+
+    def deinit(self):
+        self._t.deinit()
+
+
+_nrf_soft_cb = None
+_nrf_self = None
+
+
+def _nrf_soft(_arg):
+    cb = _nrf_soft_cb
+    if cb is not None:
+        cb(_nrf_self)
+
+
+def _nrf_hard(_t):
+    # Interrupt context: no allocation. A full schedule queue drops this
+    # fire; the dispatcher's next arm catches up.
+    try:
+        _schedule(_nrf_soft, None)
+    except Exception:
+        pass
+
+
+try:
+    from micropython import schedule as _schedule
+except ImportError:  # CPython, for the unit tests
+    _schedule = None
+
+
 def start(wake):
     global _wake, _hw
     _wake = wake
     if _hw is None:
         last = None
+        make = _HW if hasattr(_HW, "init") else _NrfTimer
         # -1 asks for a virtual timer where the port has them; ports that
         # number hardware timers take the first free id.
         for tid in (-1, 0, 1, 2, 3):
             try:
-                _hw = _HW(tid)
+                _hw = make(tid)
                 break
             except (ValueError, OSError) as exc:
                 last = exc
@@ -136,11 +194,11 @@ def arm(delay_ms):
     if _us_ok and ticks_us is not None:
         us = _us_until(want)
         try:
-            _hw.init(mode=_HW.ONE_SHOT, period=us, tick_hz=1000000, callback=cb)
+            _hw.init(mode=_ONE_SHOT, period=us, tick_hz=1000000, callback=cb)
             return
         except TypeError:
             _no_us()
-    _hw.init(mode=_HW.ONE_SHOT, period=ms, callback=cb)
+    _hw.init(mode=_ONE_SHOT, period=ms, callback=cb)
 
 
 def _no_us():
