@@ -1,6 +1,11 @@
-"""Seeed Studio Round Display for XIAO GC9A01 240x240 display on Adafruit QT Py RP2040"""
+"""Seeed Studio Round Display for XIAO GC9A01 240x240 display on Adafruit QT Py RP2040
 
-from chsc6x import CHSC6X
+Touch reaches x from about 30 to 225 only: the display's CHSC6X can't see
+the outer 30 px or so at each side, and ``round_display_points`` corrects
+its x scale.
+"""
+
+from chsc6x import CHSC6X, round_display_points
 from gc9a01 import GC9A01
 from machine import I2C, Pin
 from spibus import SPIBus
@@ -52,4 +57,6 @@ i2c = I2C(0, sda=Pin(24), scl=Pin(25), freq=100_000)
 touch = CHSC6X(i2c, irq_pin=5)
 touch_rotation_table = (0, 5, 6, 3)
 
-touch_read = touch.touch_read
+
+def touch_read():
+    return round_display_points(touch.read_points())

@@ -7,6 +7,10 @@ data/command on D3 and the backlight on D6. The CHSC6X touch controller is on
 I2C (D4 SDA, D5 SCL) with its interrupt on D7, sharing the bus with the
 display's PCF8563 clock.
 
+Touch reaches x from about 30 to 225 only: the display's CHSC6X can't see
+the outer 30 px or so at each side, and ``round_display_points`` corrects
+its x scale.
+
 ``board_peripherals`` adds the microSD slot (``sdcard``), the clock (``rtc``)
 and the battery (``battery``).
 
@@ -16,7 +20,7 @@ no ``mip`` or network: copy the files onto the board. Its filesystem is
 256 KB, so copy only the modules your program imports, compiled to ``.mpy``.
 """
 
-from chsc6x import CHSC6X
+from chsc6x import CHSC6X, round_display_points
 from gc9a01 import GC9A01
 from machine import I2C
 from spibus import SPIBus
@@ -68,7 +72,11 @@ display_drv = GC9A01(
 i2c = I2C(0, scl=_D5, sda=_D4, freq=400_000)
 touch = CHSC6X(i2c, irq_pin=_D7)
 touch_rotation_table = (0, 5, 6, 3)
-touch_read = touch.read_points
+
+
+def touch_read():
+    return round_display_points(touch.read_points())
+
 
 from board_peripherals import PERIPHERALS, load_peripherals
 
