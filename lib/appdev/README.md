@@ -204,8 +204,9 @@ Runs the `on_close` hooks, cancels the timers, drops the subscriptions,
 unregisters the devices, releases adopted objects, deletes the scope's LVGL
 screens and any widgets the app added to the screen that was showing or to
 the top and system layers, removes the app's modules (and unbinds them from
-their parent package), and collects. Every step runs even if one fails.
-Calling it twice does nothing the second time.
+their parent package), and collects. Every step runs even if one fails, and
+no timer runs in the middle of it. Calling it twice does nothing the second
+time.
 
 It returns one line per thing it couldn't release: a hook or closer that
 raised, and on CPython an app module whose namespace is still reachable
@@ -226,7 +227,9 @@ own package, which stay loaded as shared code.
 * **`launcher.heap()`**: `(free, largest_free_block)` in bytes, or `(None, None)` on CPython.
 * **`launcher.last`**: `(how, ms, free)` for the last switch; `launcher.problems` is what the last close reported.
 
-If an app fails to start, the launcher prints the error and starts `home`.
+Timers wait while an app's `main(scope)` runs, so its callbacks never see a
+half-built app. If an app fails to start, the launcher prints the error and
+starts `home`.
 
 **The heap check.** After each close the launcher reads free heap and tries
 to allocate `min_block` bytes. Below `min_free`, without that block, or after

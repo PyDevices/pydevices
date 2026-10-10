@@ -501,7 +501,9 @@ class Launcher:
         self.current = name
         try:
             main = _import(modname).main
-            main(scope)
+            # Its own timers wait until main() has finished building.
+            with multimer.hold():
+                main(scope)
         except BaseException:
             self.scope = None
             self.current = None
