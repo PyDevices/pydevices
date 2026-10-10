@@ -380,6 +380,17 @@ class BMA423FeatureTests(unittest.TestCase):
         a.reset_steps()
         self.assertEqual(self.features(bus)[0x3B], 0x14)
 
+    def test_any_motion(self):
+        bus, a = self.make()
+        for i, b in enumerate((0xAA, 0x00, 0x05, 0x00)):  # the firmware's 83 mg, 5 samples
+            bus.regs[(0x19, 0x5E + i)] = b
+        a.set_any_motion()
+        self.assertEqual(self.features(bus)[:4], [0xAA, 0x00, 0x05, 0xE0])
+        a.set_any_motion(threshold_mg=50, duration_ms=60)
+        self.assertEqual(self.features(bus)[:4], [102, 0x00, 0x03, 0xE0])
+        a.set_any_motion(False)
+        self.assertEqual(self.features(bus)[3], 0x00)
+
     def test_steps_and_interrupts(self):
         bus, a = self.make()
         for i, b in enumerate((0x39, 0x30, 0x00, 0x00)):

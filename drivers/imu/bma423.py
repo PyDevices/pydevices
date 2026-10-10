@@ -226,6 +226,23 @@ class BMA423:
                 cfg[index] = (cfg[index] | bit) if enable else (cfg[index] & ~bit)
         self._features(cfg)
 
+    def set_any_motion(self, enable=True, *, threshold_mg=None, duration_ms=None):
+        """Any-motion detection (``INT_ANY_MOTION``): the acceleration changes
+        by more than ``threshold_mg`` between samples for ``duration_ms``.
+        Left out, they stay as the firmware sets them (about 83 mg, 100 ms).
+        Cheap enough to wake a sleeping watch on, which then looks at the
+        acceleration itself."""
+        cfg = self._features()
+        thr = cfg[0] | (cfg[1] << 8)
+        word = cfg[2] | (cfg[3] << 8)
+        if threshold_mg is not None:
+            thr = (thr & ~0x07FF) | min(0x07FF, int(threshold_mg * 2.048))  # 0.488 mg steps
+        if duration_ms is not None:
+            word = (word & ~0x1FFF) | min(0x1FFF, int(duration_ms) // 20)  # 50 Hz samples
+        word = (word & 0x1FFF) | (0xE000 if enable else 0)  # all three axes, or none
+        cfg[0], cfg[1], cfg[2], cfg[3] = thr & 0xFF, thr >> 8, word & 0xFF, word >> 8
+        self._features(cfg)
+
     def map_interrupts(self, bits, enable=True):
         """Route ``INT_*`` events to the INT1 pin (or stop with
         ``enable=False``). The status bits latch whether mapped or not."""
