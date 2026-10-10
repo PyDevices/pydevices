@@ -17,6 +17,10 @@ restart instead: the process exits (MicroPython, run it under
 ``python -m appdev.launcher``) or execs itself (CPython), boots into the
 app the switch asked for, and prints ``LANDED <name>``.
 
+On a board whose heap grows into PSRAM (an ESP32-S3), add
+``--probe-limit=1048576``: the largest-block reading after every switch
+otherwise searches megabytes and takes seconds.
+
 ``tests/test_appdev_launcher.py`` runs all of these.
 """
 
@@ -52,7 +56,7 @@ APPS = {
 TOLERANCE = 2048
 
 TESTS = []
-_OPTS = {"plant": None, "switches": 0, "lvgl": True, "verbose": False}
+_OPTS = {"plant": None, "switches": 0, "lvgl": True, "verbose": False, "probe_limit": None}
 
 
 def check(fn):
@@ -182,6 +186,21 @@ def failed_start_falls_back_to_home():
 
 
 @check
+def baseline_probe_is_capped():
+    # An uncapped probe on a heap that grows on demand (ESP32 with PSRAM)
+    # takes nearly all of the PSRAM for a moment.
+    if not MICROPYTHON:
+        print("    (CPython has no heap to read: skipped)")
+        return
+    cap = getattr(L, "PROBE_LIMIT", 1 << 20)
+    la = _launcher()
+    la.boot("clock")
+    expect(la.baseline[1] <= cap, "baseline probe found %d B, over the %d B cap" % (la.baseline[1], cap))
+    expect(la.min_block <= cap // 4, "min_block %d B" % la.min_block)
+    la.stop()
+
+
+@check
 def forced_low_heap_restarts_into_the_requested_app():
     if not MICROPYTHON:
         print("    (CPython has no heap to read: skipped)")
@@ -258,7 +277,8 @@ def restarts_in_a_row_are_bounded():
 
 @check
 def pending_app_round_trip():
-    expect(L.host() in ("desktop", "cpython"), "host %r" % (L.host(),))
+    # On a board this is the real RTC memory (or /next_app), without the reset.
+    expect(L.host() in ("desktop", "cpython", "board"), "host %r" % (L.host(),))
     L.save_next("counter", 2)
     expect(L.take_next() == ("counter", 2), "state did not round-trip")
     expect(L.take_next() is None, "state not cleared once read")
@@ -276,7 +296,10 @@ def pending_app_round_trip():
 def largest_free_block_is_measured():
     gc.collect()
     free = gc.mem_free() if MICROPYTHON else None
-    block = L.largest_free_block()
+    # Capped: on a board whose heap grows into PSRAM an uncapped probe finds
+    # nearly all of it, and a stale reference to its last buffer leaves no
+    # room for the allocation below.
+    block = L.largest_free_block(1 << 20)
     if not MICROPYTHON:
         expect(block is None, "CPython reported a block")
         return
@@ -329,9 +352,21 @@ def _fake_machine():
         m.resets += 1
         raise _Restarted("soft_reset")
 
+    def reset():
+        m.hard_resets += 1
+        raise _Restarted("reset")
+
+    m.hard_resets = 0
     m.RTC = RTC
     m.soft_reset = soft_reset
+    m.reset = reset
     return m
+
+
+def _drop_reset_timer():
+    for t in multimer.timers():
+        if getattr(t, "name", None) == "launcher.reset":
+            t.deinit()
 
 
 class _Params:
@@ -386,11 +421,40 @@ def board_fallback_uses_rtc_memory():
             L.restart_into("counter", 2)
         except _Restarted:
             pass
+        _drop_reset_timer()
         expect(m.resets == 1, "no soft_reset")
         expect(m.mem == b"appdev:counter\n2", "RTC memory %r" % (m.mem,))
         expect(L.take_next() == ("counter", 2), "boot did not read RTC memory")
         expect(m.mem == b"", "RTC memory not cleared")
         expect(L.take_next() is None, "read twice")
+
+
+@check
+def board_fallback_from_a_callback_resets_the_chip():
+    # An app asks to switch from a callback, where the SystemExit that
+    # soft_reset() raises is caught by the scheduler and goes nowhere.
+    d = multimer._dispatch
+    with _FakeHost("board", "machine", _fake_machine()) as m:
+        was = d._in_deliver
+        d._in_deliver = True
+        try:
+            L.restart_into("counter")
+        except _Restarted:
+            pass
+        finally:
+            d._in_deliver = was
+        expect(m.hard_resets == 1 and m.resets == 0, "from a callback: %d resets, %d soft" % (m.hard_resets, m.resets))
+        # From top-level code: a soft reset, with a timer to reset the chip
+        # if that soft reset is swallowed after all.
+        try:
+            L.restart_into("counter")
+        except _Restarted:
+            pass
+        armed = [t for t in multimer.timers() if getattr(t, "name", None) == "launcher.reset"]
+        _drop_reset_timer()
+        expect(m.resets == 1 and m.hard_resets == 1, "from top level: %d soft, %d resets" % (m.resets, m.hard_resets))
+        expect(len(armed) == 1, "no reset timer behind the soft reset")
+        L.take_next()
 
 
 @check
@@ -411,7 +475,7 @@ def _record(la, i, frees, blocks):
     if not MICROPYTHON:
         return
     frees[i] = la.last[2]  # free heap after the old app closed, before the new one started
-    blocks[i] = L.largest_free_block()  # with the new app running
+    blocks[i] = L.largest_free_block(_OPTS["probe_limit"])  # with the new app running
 
 
 def _worst_drop(trace, skip):
@@ -473,7 +537,8 @@ def switch_run(n):
 def _timing_path():
     import os
 
-    return (os.getenv("PYDEVICES_NEXT_APP") or "next_app") + ".t"
+    getenv = getattr(os, "getenv", None)  # boards have none
+    return ((getenv and getenv("PYDEVICES_NEXT_APP")) or "next_app") + ".t"
 
 
 def landed(la, name):
@@ -549,6 +614,10 @@ def main(argv):
             _OPTS["plant"] = arg.split("=", 1)[1]
         elif arg.startswith("--switches="):
             _OPTS["switches"] = int(arg.split("=", 1)[1])
+        elif arg.startswith("--probe-limit="):
+            # On a board whose heap grows into PSRAM an uncapped probe after
+            # every switch takes seconds.
+            _OPTS["probe_limit"] = int(arg.split("=", 1)[1])
         elif arg == "--no-lvgl":
             _OPTS["lvgl"] = False
         elif arg == "-v":

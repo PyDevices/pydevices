@@ -30,9 +30,10 @@ the apps behave. How it restarts depends on the host:
 ==================  ==========================  ===================================
 Host                The next app's name         Restart
 ==================  ==========================  ===================================
-ESP32 (MicroPython) ``machine.RTC().memory()``  ``machine.soft_reset()``; main.py
-                                                calls ``boot()`` again
-Other boards        a file, ``/next_app``       ``machine.soft_reset()``
+ESP32 (MicroPython) ``machine.RTC().memory()``  ``machine.soft_reset()``, or
+                                                ``machine.reset()`` from a callback;
+                                                main.py calls ``boot()`` again
+Other boards        a file, ``/next_app``       the same
 Desktop MicroPython ``~/.pydevices/next_app``   exit with code 75; run the program
                                                 under ``python -m appdev.launcher``
                                                 to have it started again
@@ -53,6 +54,13 @@ from .scope import _error, mem_free
 
 #: The exit code a desktop MicroPython program uses to ask for a restart.
 RESTART_EXIT_CODE = 75
+
+#: The largest block the launcher's baseline measurement looks for, in bytes.
+#: On an ESP32 with PSRAM the heap grows on demand, so an uncapped search
+#: briefly takes nearly all of the PSRAM; a stale reference to that buffer on
+#: the C stack can then keep it alive into the first app, which reads as a
+#: heap already half gone.
+PROBE_LIMIT = 1 << 20
 
 MICROPYTHON = sys.implementation.name == "micropython"
 
@@ -81,6 +89,11 @@ def largest_free_block(limit=None):
     if not hasattr(gc, "mem_free"):
         return None
     gc.collect()
+    if limit is not None and _can_allocate(limit):
+        # The usual case on a big heap: one allocation instead of a search,
+        # which on an ESP32's PSRAM takes seconds.
+        gc.collect()
+        return limit
     lo = 0
     hi = gc.mem_free() if limit is None else min(limit, gc.mem_free())
     while hi - lo > 64:
@@ -238,6 +251,11 @@ def _browser_take():
     return str(name), count
 
 
+def _in_callback():
+    """True while multimer is delivering timer callbacks."""
+    return bool(getattr(multimer._dispatch, "_in_deliver", False))
+
+
 def restart_into(name, count=1):
     """Restart the program straight into app *name*, the host's way.
 
@@ -258,6 +276,17 @@ def restart_into(name, count=1):
     if h == "board":
         import machine
 
+        # soft_reset() raises SystemExit, which only reaches the REPL from
+        # top-level code. From a callback (a timer, a button, an LVGL event:
+        # how an app asks to switch) the scheduler that ran it catches the
+        # exception and the program carries on, so reset the chip instead;
+        # RTC memory survives that too.
+        if _in_callback():
+            machine.reset()
+        # A callback multimer didn't deliver (a pin IRQ, say) can't be told
+        # apart: if the soft reset is swallowed, this timer resets the chip.
+        # A real soft reset stops it with every other timer.
+        multimer.after(500, lambda t: machine.reset(), name="launcher.reset")
         machine.soft_reset()
     elif h == "desktop":
         import os
@@ -298,7 +327,8 @@ class Launcher:
     *min_free* and *min_block* are the heap thresholds in bytes, checked
     after each close: free heap, and the largest block that can still be
     allocated. Left as None they are half the free heap and a quarter of
-    the largest free block measured when the launcher first starts an app.
+    the largest free block (looked for up to ``PROBE_LIMIT``, 1 MB),
+    measured when the launcher first starts an app.
     Hosts that can't read their heap (CPython) skip the check and rely on
     ``close()``'s own report. *max_restarts* bounds restarts in a row, so a
     threshold the program can never meet doesn't restart it forever.
@@ -351,7 +381,7 @@ class Launcher:
         if self.baseline is not None:
             return
         free = mem_free()
-        block = largest_free_block()
+        block = largest_free_block(PROBE_LIMIT)
         self.baseline = (free, block)
         if free is not None:
             if self.min_free is None:
@@ -449,9 +479,16 @@ class Launcher:
             self.problems = list(problems)
             if problems:
                 reason = "%r did not close cleanly: %s" % (old.name, problems[0])
+            # close() has just collected and read it.
+            free = getattr(old, "free_after_close", None)
             old = problems = None
+        else:
+            free = None
+        if free is None:
+            # Before the baseline: its probe allocates, and a buffer it leaves
+            # briefly reachable mustn't count against the first app.
+            free = mem_free()
         self._measure_baseline()
-        free = mem_free()
         if reason is None:
             reason = self._low(free)
         if reason is not None:

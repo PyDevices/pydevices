@@ -235,7 +235,8 @@ starts `home`.
 to allocate `min_block` bytes. Below `min_free`, without that block, or after
 a `close()` that raised or reported a problem, it restarts into the app being
 switched to. Left as `None`, `min_free` is half the free heap and `min_block`
-a quarter of the largest free block, measured before the first app starts.
+a quarter of the largest free block (looked for up to `PROBE_LIMIT`, 1 MB),
+measured before the first app starts.
 CPython can't read its heap and relies on `close()`'s report. `max_restarts`
 restarts in a row without a healthy switch between them stop the restarting,
 and the launcher carries on in-process.
@@ -244,8 +245,8 @@ and the launcher carries on in-process.
 
 | Host | Kept in | Restart |
 |---|---|---|
-| ESP32 (MicroPython) | `machine.RTC().memory()` | `machine.soft_reset()`; `main.py` calls `boot()` again |
-| Other MicroPython boards | the file `/next_app` | `machine.soft_reset()` |
+| ESP32 (MicroPython) | `machine.RTC().memory()` | `machine.soft_reset()`, or `machine.reset()` when the switch came from a callback; `main.py` calls `boot()` again |
+| Other MicroPython boards | the file `/next_app` | the same |
 | Desktop MicroPython | `~/.pydevices/next_app` | exits with code 75; `python -m appdev.launcher -- <command>` runs it again |
 | CPython | `~/.pydevices/next_app` | `os.execv` of the same command line |
 | Browser (wasm, Pyodide) | the page URL's `?app=` | reloads the page |
