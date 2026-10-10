@@ -21,9 +21,12 @@ board configs. Prefer single-file modules; MIP manifests live under `../packages
 | `usdl2.py` | Pure-Python SDL2 ctypes/ffi binding for desktop SDL |
 | `uwin32.py` | Pure-Python Win32/WASAPI ctypes binding for Windows CPython |
 | `power/battery_adc.py` | ADC + divider → volts |
-| `rtc/pcf8563.py` | NXP PCF8563 / BM8563 real-time clock, MicroPython and CircuitPython |
-| `power/axp2101.py` | X-Powers AXP2101 PMU: rails, battery, power key (T-Watch S3) |
-| `imu/bma423.py` | Bosch BMA423 / BMA456 accelerometer |
+| `rtc/pcf8563.py` | NXP PCF8563 / BM8563 real-time clock with alarm and countdown, MicroPython and CircuitPython |
+| `power/axp2101.py` | X-Powers AXP2101 PMU: rails, battery and charger, power key (T-Watch S3) |
+| `imu/bma423.py` | Bosch BMA423 / BMA456 accelerometer; step counter, taps and wrist-wear wake on the BMA423 |
+| `imu/bma423_config.py` | Bosch's BMA423 feature-engine firmware (BSD-3-Clause), loaded by `bma423.load_features()` |
+| `radio/sx1262.py` | Semtech SX1262 LoRa transceiver: configure, send, receive, channel activity |
+| `ir/ir_nec.py` | NEC infrared remote codes over an IR LED (`esp32.RMT` or `pulseio.PulseOut`) |
 | `haptic/drv2605.py` | TI DRV2605 haptic motor driver |
 | `bus/rs485.py` | UART (+ optional DE) |
 | `bus/canbus.py` | `machine.CAN` helper when firmware exposes TWAI |

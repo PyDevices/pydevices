@@ -19,6 +19,12 @@ The rails are named the way the datasheet names them::
     pmu.set_rail("aldo2", 3300)     # millivolts, and switched on
     pmu.rail_enabled("aldo2")       # True
     pmu.battery_voltage             # volts, or None with no battery
+    pmu.battery_status              # "missing", "dead", "charging", "discharging", "full"
+
+The charger is the chip's: ``charger()`` sets its currents and cut-off and
+switches it on or off, ``charge_state`` says what stage it is in. On a board
+with no thermistor on the TS pin, call ``set_ts_pin(False)`` (or the charger
+reads the missing sensor as a cold battery and never starts).
 """
 
 try:
@@ -36,11 +42,19 @@ _STATUS1 = const(0x00)
 _STATUS2 = const(0x01)
 _IC_TYPE = const(0x03)
 _CHARGE_GAUGE_WDT = const(0x18)
+_TS_PIN_CTRL = const(0x50)
+_PRECHARGE = const(0x61)
+_CHARGE_CURRENT = const(0x62)
+_TERMINATION = const(0x63)
+_CHARGE_VOLTAGE = const(0x64)
 _ADC_CHANNELS = const(0x30)
 _VBAT_H = const(0x34)
+_DIE_TEMP_H = const(0x3C)
 _VBUS_H = const(0x38)
 _VSYS_H = const(0x3A)
+_INTEN1 = const(0x40)
 _INTEN2 = const(0x41)
+_INTEN3 = const(0x42)
 _INTSTS1 = const(0x48)
 _INTSTS2 = const(0x49)
 _INTSTS3 = const(0x4A)
@@ -62,6 +76,15 @@ ADC_BATTERY = const(0x01)
 ADC_VBUS = const(0x04)
 ADC_VSYS = const(0x08)
 ADC_DIE_TEMP = const(0x10)
+_ADC_TS = const(0x02)
+
+# Charge stages, STATUS2 bits 2-0.
+CHARGE_STAGES = ("trickle", "precharge", "constant current", "constant voltage", "done", "not charging")
+# Below this a fitted cell is treated as dead: a Li-ion cell this low is over-discharged.
+DEAD_BATTERY_V = 3.0
+# Fast-charge currents the chip offers (register 0x62 values 1-16), in mA.
+_CHARGE_MA = (25, 50, 75, 100, 125, 150, 175, 200, 300, 400, 500, 600, 700, 800, 900, 1000)
+_CHARGE_MV = (4000, 4100, 4200, 4350, 4400)
 
 # name: (on/off register, bit, voltage register, min mV, max mV, step mV)
 _LDOS = {
@@ -159,11 +182,82 @@ class AXP2101:
 
     # -- measurement -------------------------------------------------------
 
-    def enable_adc(self, channels=ADC_BATTERY | ADC_VBUS | ADC_VSYS):
+    def enable_adc(self, channels=ADC_BATTERY | ADC_VBUS | ADC_VSYS | ADC_DIE_TEMP):
         """Switch on the ADC channels the voltage properties read, and
         battery detection. Idempotent."""
         self._update(_ADC_CHANNELS, channels, channels)
         self._update(_BAT_DET, 0x01, 0x01)
+
+    def set_ts_pin(self, monitor):
+        """Battery temperature sensing on the TS pin, on or off.
+
+        Off makes TS an external input the charger ignores, which is what a
+        board with no thermistor fitted needs: otherwise the open pin reads
+        as a battery too cold to charge, and the charger holds off.
+        """
+        if monitor:
+            self._update(_TS_PIN_CTRL, 0x1F, 0x0A)  # as the chip powers up: thermistor input, current source on
+            self._update(_ADC_CHANNELS, _ADC_TS, _ADC_TS)
+        else:
+            self._update(_TS_PIN_CTRL, 0x1F, 0x10)
+            self._update(_ADC_CHANNELS, _ADC_TS, 0)
+
+    def charger(self, enable=None, *, current_ma=None, precharge_ma=None, termination_ma=None, voltage_mv=None):
+        """Set the charger and switch it on or off; returns whether it's on.
+
+        ``current_ma`` is the fast-charge current (25-200 mA in 25 mA
+        steps, then 100 mA steps to 1000), ``precharge_ma`` and
+        ``termination_ma`` 0-200 mA in 25 mA steps, ``voltage_mv`` the
+        cut-off: 4000, 4100, 4200, 4350 or 4400. Anything left out stays as
+        it is. Size the current for the cell: a fifth to half of its rated
+        capacity per hour (a 470 mAh cell: about 100-200 mA).
+        """
+        if current_ma is not None:
+            if current_ma not in _CHARGE_MA:
+                raise ValueError("current_ma is one of %s" % (_CHARGE_MA,))
+            self._update(_CHARGE_CURRENT, 0x1F, _CHARGE_MA.index(current_ma) + 1)
+        for reg, ma, name in ((_PRECHARGE, precharge_ma, "precharge_ma"), (_TERMINATION, termination_ma, "termination_ma")):
+            if ma is not None:
+                if not 0 <= ma <= 200 or ma % 25:
+                    raise ValueError("%s takes 0-200 in 25 mA steps" % name)
+                self._update(reg, 0x0F, ma // 25)
+        if termination_ma is not None:
+            self._update(_TERMINATION, 0x10, 0x10)
+        if voltage_mv is not None:
+            if voltage_mv not in _CHARGE_MV:
+                raise ValueError("voltage_mv is one of %s" % (_CHARGE_MV,))
+            self._update(_CHARGE_VOLTAGE, 0x07, _CHARGE_MV.index(voltage_mv) + 1)
+        if enable is not None:
+            self._update(_CHARGE_GAUGE_WDT, 0x02, 0x02 if enable else 0)
+        return bool(self._read(_CHARGE_GAUGE_WDT) & 0x02)
+
+    @property
+    def charge_state(self):
+        """The charger's stage: one of ``CHARGE_STAGES`` ("trickle",
+        "precharge", "constant current", "constant voltage", "done", "not
+        charging")."""
+        stage = self._read(_STATUS2) & 0x07
+        return CHARGE_STAGES[stage] if stage < len(CHARGE_STAGES) else "not charging"
+
+    @property
+    def die_temperature(self):
+        """The chip's own temperature in degrees C (not the battery's)."""
+        return 22.0 + (7274 - self._read14(_DIE_TEMP_H, 14)) / 20.0
+
+    @property
+    def battery_status(self):
+        """``"missing"``, ``"dead"`` (fitted but below ``DEAD_BATTERY_V``),
+        ``"charging"``, ``"full"`` or ``"discharging"``."""
+        v = self.battery_voltage
+        if v is None:
+            return "missing"
+        if v < DEAD_BATTERY_V:
+            return "dead"
+        if self.charging:
+            return "charging"
+        if self.charge_state == "done":
+            return "full"
+        return "discharging"
 
     @property
     def battery_present(self):
@@ -197,10 +291,12 @@ class AXP2101:
 
     @property
     def percent(self):
-        """The fuel gauge's charge estimate, 0-100, or ``None`` with no battery.
+        """The fuel gauge's charge estimate, 0-100, or ``None`` with no
+        battery or a dead one (see ``battery_status``).
 
         The gauge needs a few charge cycles before this means much."""
-        if not self.battery_present:
+        v = self.battery_voltage
+        if v is None or v < DEAD_BATTERY_V:
             return None
         return self._read(_BAT_PERCENT)
 
@@ -226,6 +322,15 @@ class AXP2101:
     def clear_irq(self):
         for reg in (_INTSTS1, _INTSTS2, _INTSTS3):
             self._write(reg, 0xFF)
+
+    def irq_pin_only(self, key_events=KEY_SHORT | KEY_PRESSED):
+        """Route only power-key events to the IRQ pin (it goes low on one
+        until ``clear_irq()``), so the pin can wake a sleeping MCU on the
+        key and nothing else."""
+        self._write(_INTEN1, 0)
+        self._write(_INTEN3, 0)
+        self._update(_INTEN2, 0xFF, key_events & 0x0F)
+        self.clear_irq()
 
 
 class PowerKey:
