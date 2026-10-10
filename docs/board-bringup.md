@@ -63,17 +63,23 @@ then re-probe. Firmware built before display_driver moved to pydevices
 
 ## 2. Installing, over Wi-Fi
 
-Serial file transfer is slow. On a Wi-Fi board, put two files on it and let the
-board fetch everything itself.
+Serial file transfer is slow. On a Wi-Fi board, put `secrets.py` on it, and
+`wifi.py` too if your firmware doesn't freeze pydevices, then let the board
+fetch everything itself.
 
 ```bash
-mpremote connect COM49 fs cp wifi.py :/lib/wifi.py
+mpremote connect COM49 fs cp wifi.py :/lib/wifi.py      # only if pydevices isn't frozen in
 mpremote connect COM49 fs cp secrets.py :/lib/secrets.py
 ```
 
 `wifi.py` is `pydevices/lib/wifi.py` — the same file the `pydevices` package
 installs, copied by hand here only because it is what *gets you onto* the
-network that `mip` needs. `secrets.py` is not in any package and should not be:
+network that `mip` needs. Firmware that freezes pydevices (an image built with
+pydevices among its modules, as `--modules all` is; see
+[§1](#1-what-the-firmware-already-has-and-what-it-does-not)) freezes `wifi`
+too, and a frozen module is found before `/lib`, so there skip the copy: a
+`wifi.py` in `/lib` would never load. If `import wifi` works on the freshly
+flashed board, it's frozen. `secrets.py` is not in any package and should not be:
 it holds credentials and is per-user. Write it yourself, as two plain
 assignments:
 
