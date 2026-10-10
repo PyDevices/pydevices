@@ -33,11 +33,20 @@ datasheet) and wiki:
 - BOOT button on GPIO35 (low when pressed). GPIO35 is also the Ethernet
   PHY's TXD1, so the button is an input only while ``ethernet`` isn't in use.
 - I3C header on GPIO32 (SCL) / GPIO33 (SDA); a 4-pin I2C header on 7/8.
-- USB: the high-speed OTG controller reaches the two USB-A ports through a
-  switch set by jumper H3 (hub = host, direct = device); USB Serial/JTAG is
-  the "USB" Type-C (GPIO24/25); a CH343 bridge is the "USB TO UART" Type-C
-  (UART0, GPIO37/38). GPIO26/27 (header pins 32 and 37) are the full-speed
-  OTG pair, free for a second USB port.
+- USB host: the P4's high-speed OTG controller is the only host, and jumper
+  H3 picks where it goes. With no jumper, or one at the end labelled HOST,
+  it goes straight to J8's lower USB-A socket (the one nearest the board),
+  the only working port. With the jumper on the two pins nearest the
+  speaker connector, the end labelled DEVICE (the labels read the opposite
+  way to what they do), it goes to the onboard CH334F hub: J8's upper
+  socket and both J2 sockets work at once and J8's lower one goes dead.
+  Behind that hub only high-speed devices enumerate, unless the host is
+  started at full speed (usbif's ``full_speed=True``), which lets keyboards,
+  MIDI controllers and other full-speed devices through. J8's 5 V is not
+  switched, so a device stays powered through a board reset.
+- USB Serial/JTAG is the "USB" Type-C (GPIO24/25); a CH343 bridge is the
+  "USB TO UART" Type-C (UART0, GPIO37/38). GPIO26/27 (header pins 32 and 37)
+  are the full-speed OTG pair, free for a second USB port.
 """
 
 import boarddev
