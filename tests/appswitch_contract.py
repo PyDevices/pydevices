@@ -317,6 +317,34 @@ def close_from_its_own_timer():
 
 
 @check
+def no_app_timer_runs_inside_close():
+    # Some hosts deliver timers between bytecodes, so a tick can land in the
+    # middle of close(). Inject one: a hook that waits past the timer's due
+    # time and lets the dispatcher deliver. The app's callback must not run.
+    app = _app()
+    s = app.scope("t")
+    seen = {"ticks": 0, "during": None}
+
+    def tick(t):
+        seen["ticks"] += 1
+        s.after(50, lambda t: None)  # raises if it runs on a closing scope
+
+    tim = s.every(2, tick)
+    multimer.sleep_ms(10)
+    expect(seen["ticks"] > 0, "timer never fired")
+
+    def hook():
+        before = seen["ticks"]
+        multimer.sleep_ms(20)
+        seen["during"] = seen["ticks"] - before
+
+    s.on_close(hook)
+    expect(s.close() == [], "close reported problems")
+    expect(seen["during"] == 0, "%d app ticks ran inside close()" % (seen["during"],))
+    expect(tim.error is None, "the app's callback failed: %r" % (tim.error,))
+
+
+@check
 def app_stop_timers_reaches_scopes():
     app = _app()
     s = app.scope("t")
@@ -524,13 +552,22 @@ def main(argv):
     if MICROPYTHON:
         print("heap:", gc.mem_free() + gc.mem_alloc())
     failed = run(only)
+    return 1 if failed else 0
+
+
+def _teardown():
     app = App.current()
     if app is not None:
         app._perform_teardown()
     multimer.stop_all()
     multimer.keepalive(False)
-    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    # Tear down however main() ends: an uncaught error with timers still
+    # armed would leave multimer's exit hook keeping the process alive.
+    try:
+        code = main(sys.argv[1:])
+    finally:
+        _teardown()
+    sys.exit(code)

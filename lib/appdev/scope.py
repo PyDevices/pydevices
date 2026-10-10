@@ -31,6 +31,8 @@ See ``docs/appdev.md``, "Switchable apps".
 import gc
 import sys
 
+import multimer
+
 try:
     import weakref
 except ImportError:  # MicroPython: no weak references
@@ -135,8 +137,6 @@ class AppScope:
 
     def every(self, ms=None, callback=None, *, period=None, name=None):
         """A periodic ``multimer.Timer`` owned by this app (``App.every``'s shape)."""
-        import multimer
-
         from .app import SERVICE_TICK_MS
 
         if period is not None:
@@ -161,8 +161,6 @@ class AppScope:
 
     def after(self, ms, callback=None, *, name=None):
         """A one-shot ``multimer.Timer`` owned by this app."""
-        import multimer
-
         if callback is None:
             return lambda fn: self.after(ms, fn, name=name)
         if not callable(callback):
@@ -349,8 +347,11 @@ class AppScope:
         try:
             # In a function of its own, so that none of its locals (the last
             # callback a loop saw, say) is still holding the app while the
-            # probes below look for what is.
-            probes = self._release(problems)
+            # probes below look for what is. Under a hold, so none of the
+            # app's timers runs in the middle of it: on hosts that deliver
+            # between bytecodes one otherwise can, and finds it half closed.
+            with multimer.hold():
+                probes = self._release(problems)
         finally:
             scopes = getattr(self.app, "_scopes", None)
             if scopes is not None and self in scopes:

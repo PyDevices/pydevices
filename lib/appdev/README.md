@@ -178,12 +178,13 @@ Returns the active `App` singleton instance (or `None`).
 
 ### 7. Switchable apps
 
-A switchable app is a module with `main(scope)` and no work at import time,
-and makes everything it owns through `scope`, so it can be closed and its
-memory given back.
+A switchable app is a module with `main(scope)` and no work at import time.
+Writing one, and running several under a launcher, is in
+[docs/appdev.md](../../docs/appdev.md#switchable-apps); this is the reference.
 
 #### `app.scope(name=None, *, modules=())` &rarr; `AppScope`
-What one app makes, recorded so `close()` can undo it. *modules*
+What one app makes, recorded so `close()` can undo it. The launcher makes one
+per app; call it yourself only to manage an app's lifetime by hand. *modules*
 are dropped from `sys.modules`, with their submodules, at close.
 
 `AppScope` has the same shape as `App` for what an app owns:
@@ -195,6 +196,7 @@ are dropped from `sys.modules`, with their submodules, at close.
 * **`scope.screen(load=True)`**: a new LVGL screen, loaded. Deleting it at close deletes everything on it.
 * **`scope.adopt(obj, close=None)`**: anything else to release at close: `close(obj)`, or else its `delete()`, `deinit()` or `close()`. For LVGL objects off the scope screen, an LVGL timer, a `machine.Pin` IRQ, a socket.
 * **`scope.on_close(fn)`**: your own cleanup, run first at close.
+* **`scope.switch(name)`**: ask the launcher for another app, after the current callback.
 * **`scope.app`**, **`scope.displays`**, **`scope.primary`**: the shared App and its displays. What you make on `scope.app` directly is shared and survives the switch.
 
 #### `scope.close()` &rarr; list of problems
@@ -202,8 +204,9 @@ Runs the `on_close` hooks, cancels the timers, drops the subscriptions,
 unregisters the devices, releases adopted objects, deletes the scope's LVGL
 screens and any widgets the app added to the screen that was showing or to
 the top and system layers, removes the app's modules (and unbinds them from
-their parent package), and collects. Every step runs even if one fails.
-Calling it twice does nothing the second time.
+their parent package), and collects. Every step runs even if one fails, and
+no timer runs in the middle of it. Calling it twice does nothing the second
+time.
 
 It returns one line per thing it couldn't release: a hook or closer that
 raised, and on CPython an app module whose namespace is still reachable
@@ -214,3 +217,39 @@ What it can't see: references the app put somewhere else (another module's
 global, an LVGL event callback on a shared object, a callback on a device it
 didn't subscribe through the scope), and modules it imported from outside its
 own package, which stay loaded as shared code.
+
+#### `appdev.launcher.Launcher(app=None, apps=None, *, home=None, min_free=None, min_block=None, max_restarts=3)`
+* **`apps`**: `{name: module}`; `launcher.add(name, module)` registers more, `launcher.names` lists them.
+* **`launcher.boot(default=None)`**: start the app a restart asked for, else *default*, else `home`. Call it once where the program starts.
+* **`launcher.switch(name)`**: close the running app and start *name*. Returns `"start"`, `"switch"` or `"restart"`.
+* **`launcher.request(name)`**: the same at the next safe point (what `scope.switch` calls).
+* **`launcher.current`**, **`launcher.scope`**: the running app's name and scope. `launcher.stop()` closes it.
+* **`launcher.heap()`**: `(free, largest_free_block)` in bytes, or `(None, None)` on CPython.
+* **`launcher.last`**: `(how, ms, free)` for the last switch; `launcher.problems` is what the last close reported.
+
+Timers wait while an app's `main(scope)` runs, so its callbacks never see a
+half-built app. If an app fails to start, the launcher prints the error and
+starts `home`.
+
+**The heap check.** After each close the launcher reads free heap and tries
+to allocate `min_block` bytes. Below `min_free`, without that block, or after
+a `close()` that raised or reported a problem, it restarts into the app being
+switched to. Left as `None`, `min_free` is half the free heap and `min_block`
+a quarter of the largest free block, measured before the first app starts.
+CPython can't read its heap and relies on `close()`'s report. `max_restarts`
+restarts in a row without a healthy switch between them stop the restarting,
+and the launcher carries on in-process.
+
+**How each host restarts.** The next app's name survives the restart here:
+
+| Host | Kept in | Restart |
+|---|---|---|
+| ESP32 (MicroPython) | `machine.RTC().memory()` | `machine.soft_reset()`; `main.py` calls `boot()` again |
+| Other MicroPython boards | the file `/next_app` | `machine.soft_reset()` |
+| Desktop MicroPython | `~/.pydevices/next_app` | exits with code 75; `python -m appdev.launcher -- <command>` runs it again |
+| CPython | `~/.pydevices/next_app` | `os.execv` of the same command line |
+| Browser (wasm, Pyodide) | the page URL's `?app=` | reloads the page |
+
+`PYDEVICES_NEXT_APP` overrides the desktop file's path. CircuitPython has no
+restart path yet; there the launcher stays in-process.
+

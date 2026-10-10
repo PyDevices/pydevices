@@ -5,6 +5,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/appdev/__init__.py" = "/lib/appdev/__init__.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/appdev/app.py" = "/lib/appdev/app.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/appdev/devices.py" = "/lib/appdev/devices.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/appdev/launcher.py" = "/lib/appdev/launcher.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/appdev/scope.py" = "/lib/appdev/scope.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/__init__.py" = "/lib/audiodev/__init__.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/accel.py" = "/lib/audiodev/accel.py"
