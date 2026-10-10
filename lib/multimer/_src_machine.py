@@ -48,10 +48,13 @@ program whose loop itself runs that deep would never get a timer, so after
 ``_WARN_MS`` of nothing but deferrals the source says so once on stderr.
 
 **On nrf the timer interrupt runs Python.** The port calls the timer's
-callback straight from the interrupt, without locking the heap, so the
-callback locks it itself: a full ``micropython.schedule`` queue then raises
-the preallocated exception instead of allocating one in the middle of
-whatever the program was allocating.
+callback straight from the interrupt, without locking the heap or the
+scheduler. So the callback locks the heap itself (a full
+``micropython.schedule`` queue then raises the preallocated exception instead
+of allocating one in the middle of whatever the program was allocating), and
+it contains no jump: the VM runs pending scheduled callbacks at every jump,
+so one inside the interrupt would run the whole delivery there, I2C reads and
+drawing included.
 """
 
 from sys import platform as _platform
@@ -192,17 +195,27 @@ def _nrf_soft(cb):
         cb(_nrf_self)
 
 
+class _IrqGuard:
+    # Locks the heap for the interrupt and swallows a full schedule queue's
+    # error. A with block, not try/except: the except clause ends in a jump,
+    # where the VM would run the call just scheduled, inside the interrupt.
+    def __enter__(self):
+        _heap_lock()
+
+    def __exit__(self, _type, _value, _tb):
+        _heap_unlock()
+        return True
+
+
+_irq_guard = _IrqGuard()
+
+
 def _nrf_hard(_t):
-    # Interrupt context, with the heap unlocked by the port (see the
-    # docstring). The callback is passed along, not read when the scheduled
-    # call runs, so it is the one that belongs to this fire. A full schedule
-    # queue drops the fire.
-    _heap_lock()
-    try:
+    # Interrupt context (see the docstring); no jumps in here. The callback
+    # is passed along, not read when the scheduled call runs, so it is the
+    # one that belongs to this fire. A full schedule queue drops the fire.
+    with _irq_guard:
         _schedule(_nrf_soft, _nrf_soft_cb)
-    except Exception:
-        pass
-    _heap_unlock()
 
 
 try:

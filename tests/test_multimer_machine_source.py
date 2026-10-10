@@ -552,5 +552,18 @@ class TestNrfStackRoom(TestNrfTimer):
                 sys.modules["micropython"] = saved
 
 
+class TestNrfInterruptRunsNoDelivery(unittest.TestCase):
+    """On real MicroPython, the call ``_nrf_hard`` schedules waits until it
+    has returned: a jump inside it would run the delivery in the interrupt."""
+
+    def test_micropython(self):
+        from _appswitch import LIB, need_micropython, run
+
+        mp = need_micropython(self)
+        result = run([mp, "multimer_nrf_irq_probe.py", LIB], timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("inside: 0 after: 1", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
