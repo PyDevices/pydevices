@@ -291,34 +291,54 @@ def _sleep(ms=None, *, deep=False, wake=("crown",)):
     for name in wake:
         if name not in WAKE_SOURCES:
             raise ValueError("wake sources are %s" % (WAKE_SOURCES,))
-    low = []
+    # Every wake line is active low: the PMU's IRQ, the touch and clock
+    # interrupts (open drain), and the BMA423's INT1, set low-active here.
+    lines = {"crown": _PMU_INT, "touch": _TOUCH_INT, "rtc": _RTC_INT, "motion": _ACCEL_INT}
     if "crown" in wake:
-        p = pmu()
-        p.irq_pin_only()
-        low.append(Pin(_PMU_INT, Pin.IN, Pin.PULL_UP))
-    if "touch" in wake:
-        low.append(Pin(_TOUCH_INT, Pin.IN, Pin.PULL_UP))
-    if "rtc" in wake:
-        low.append(Pin(_RTC_INT, Pin.IN, Pin.PULL_UP))
-    # the ESP32-S3's ext1 wakes when any listed pin is low
-    esp32.wake_on_ext1(pins=tuple(low) if low else None, level=esp32.WAKEUP_ALL_LOW)
+        pmu().irq_pin_only()
     if "motion" in wake:
-        accelerometer().interrupt_status()  # release a latched INT1 first
-        esp32.wake_on_ext0(pin=Pin(_ACCEL_INT, Pin.IN), level=esp32.WAKEUP_ANY_HIGH)
-    else:
-        esp32.wake_on_ext0(pin=None, level=esp32.WAKEUP_ANY_HIGH)
+        a = accelerometer()
+        a.set_interrupt_pin(active_high=False)
+        a.interrupt_status()  # release a latched INT1 first
+    # A sleep leaves the pads held; hold=False lets them go, or a line keeps
+    # its old level.
+    nums = [lines[n] for n in WAKE_SOURCES if n in wake]
+    pins = [Pin(n, Pin.IN, Pin.PULL_UP, hold=False) for n in nums]
+    # Clear what an earlier call set (an empty tuple clears; None keeps).
+    esp32.wake_on_gpio(pins=(), level=False)
+    esp32.wake_on_ext0(pin=None, level=esp32.WAKEUP_ALL_LOW)
+    esp32.wake_on_ext1(pins=(), level=esp32.WAKEUP_ALL_LOW)
     if deep:
+        # Deep sleep wakes through the RTC controller: ext0 on the first line
+        # (which also keeps the RTC pads powered, so their pull-ups hold) and
+        # ext1 on the rest. The PMU's IRQ has no pull-up of its own and the
+        # chip leaves GPIO21's RTC pull-down on, so set each pad's pull-up.
+        for n in nums:
+            reg = _RTC_PAD_REG[n]
+            machine.mem32[reg] = (machine.mem32[reg] | (1 << 27)) & ~(1 << 28)
+        if pins:
+            esp32.wake_on_ext0(pin=pins[0], level=esp32.WAKEUP_ALL_LOW)
+        if len(pins) > 1:
+            esp32.wake_on_ext1(pins=tuple(pins[1:]), level=esp32.WAKEUP_ALL_LOW)
         machine.deepsleep(ms) if ms else machine.deepsleep()
+    # Light sleep wakes on the GPIOs themselves, which keep their pull-ups.
+    if pins:
+        esp32.wake_on_gpio(pins=tuple(pins), level=False)
     machine.lightsleep(ms) if ms else machine.lightsleep()
-    if "crown" in wake and not Pin(_PMU_INT).value():
-        return "crown"
-    if "touch" in wake and not Pin(_TOUCH_INT).value():
-        return "touch"
-    if "rtc" in wake and not Pin(_RTC_INT).value():
-        return "rtc"
-    if "motion" in wake and Pin(_ACCEL_INT).value():
-        return "motion"
-    return "timer" if machine.wake_reason() == machine.TIMER_WAKE else "unknown"
+    esp32.wake_on_gpio(pins=(), level=False)
+    if machine.wake_reason() == machine.TIMER_WAKE:
+        return "timer"
+    # Crown, clock and gesture lines stay low until read; a finger may
+    # already have lifted, so touch is what's left.
+    for name in ("crown", "rtc", "motion", "touch"):
+        if name in wake and not Pin(lines[name], Pin.IN, Pin.PULL_UP, hold=False).value():
+            return name
+    return "touch" if "touch" in wake else "unknown"
+
+
+# RTC_IO pad registers on the ESP32-S3 (ESP-IDF soc/esp32s3 rtc_io_reg.h):
+# bit 27 is the pad's pull-up in deep sleep, bit 28 its pull-down.
+_RTC_PAD_REG = {14: 0x600084BC, 16: 0x600084C4, 17: 0x600084C8, 21: 0x600084D8}
 
 
 sleep = _sleep

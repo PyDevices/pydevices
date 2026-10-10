@@ -21,7 +21,8 @@ BMA456 takes a different blob). ``load_features()`` does that, from the
     accel.interrupt_status()                 # INT_* bits latched since the last read
 
 INT1 is set up push-pull, active high and latched, so it stays high until
-``interrupt_status()`` reads it: a level an ESP32 can wake from deep sleep on.
+``interrupt_status()`` reads it: a level an ESP32 can wake from sleep on
+(``set_interrupt_pin(active_high=False)`` flips it).
 
 Register map from Bosch's BMA423 datasheet (section 6); the BMA456 keeps the
 same addresses for everything used here. The BMA423 has 12-bit data and the
@@ -193,10 +194,14 @@ class BMA423:
         cfg[_REMAP_OFFSET] = (x & 3) | ((axes[0] < 0) << 2) | ((y & 3) << 3) | ((axes[1] < 0) << 5) | ((z & 3) << 6)
         cfg[_REMAP_OFFSET + 1] = 1 if axes[2] < 0 else 0
         self._features(cfg)
-        # INT1: push-pull, active high, output on; latched until read.
-        self._write(_INT1_IO_CTRL, 0x0A)
-        self._write(_INT_LATCH, 0x01)
+        self.set_interrupt_pin(True)
         self._features_loaded = True
+
+    def set_interrupt_pin(self, active_high=True):
+        """INT1's polarity: push-pull, latched until ``interrupt_status()``
+        reads it, high (the default) or low while an event is pending."""
+        self._write(_INT1_IO_CTRL, 0x0A if active_high else 0x08)
+        self._write(_INT_LATCH, 0x01)
 
     def _features(self, data=None):
         if data is None:
