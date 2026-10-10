@@ -43,8 +43,21 @@ import, and then reads I2C and draws, overflows it ("maximum recursion depth
 exceeded", or worse). When the stack in use leaves less than ``STACK_ROOM``
 bytes, the source delivers nothing and tries again ``_RETRY_MS`` later; the
 count is in ``deferred``. Idle points (``multimer.sleep_ms``, the REPL waiting
-for a key) are shallow, so the work runs there at the latest.
+for a key) are usually shallow, so the work runs there at the latest. A
+program whose loop itself runs that deep would never get a timer, so after
+``_WARN_MS`` of nothing but deferrals the source says so once on stderr.
+
+**On nrf the timer interrupt runs Python.** The port calls the timer's
+callback straight from the interrupt, without locking the heap or the
+scheduler. So the callback locks the heap itself (a full
+``micropython.schedule`` queue then raises the preallocated exception instead
+of allocating one in the middle of whatever the program was allocating), and
+it contains no jump: the VM runs pending scheduled callbacks at every jump,
+so one inside the interrupt would run the whole delivery there, I2C reads and
+drawing included.
 """
+
+from sys import platform as _platform
 
 from machine import Timer as _HW
 
@@ -87,7 +100,10 @@ _us_ok = True  # the port's init() takes tick_hz
 # print a traceback.
 STACK_ROOM = 4096
 _RETRY_MS = 5
+_WARN_MS = 1000
 deferred = 0  # deliveries put off for want of stack
+_deferring = None  # ticks_ms of the first deferral since the last delivery
+_warned = False
 _stack_use = None  # micropython.stack_use, when the guard is on
 _stack_limit = None  # the deepest stack_use() before the overflow check fires
 
@@ -95,20 +111,44 @@ _stack_limit = None  # the deepest stack_use() before the overflow check fires
 def _cb(gen):
     # A soft machine.Timer callback: the port already delivered it through
     # micropython.schedule, so this is a bytecode boundary of the main thread.
-    global _due, deferred
+    global _due, deferred, _deferring
     if gen == _gen:
         _due = None
     # A fire the source has since replaced still wakes the dispatcher (a
     # spare delivery costs nothing), but leaves the pending deadline alone.
     if not _wanted:
         return
-    if _stack_limit is not None and _stack_use() > _stack_limit - STACK_ROOM:
-        deferred += 1
-        arm(_RETRY_MS)
-        return
+    if _stack_limit is not None:
+        used = _stack_use()
+        if used > _stack_limit - STACK_ROOM:
+            deferred += 1
+            now = ticks_ms()
+            if _deferring is None:
+                _deferring = now
+            elif not _warned and ticks_diff(now, _deferring) >= _WARN_MS:
+                _starved(_stack_limit - used)
+            arm(_RETRY_MS)
+            return
+        _deferring = None
     w = _wake
     if w is not None:
         w(True)
+
+
+def _starved(room):
+    global _warned
+    _warned = True
+    try:
+        import sys
+
+        print(
+            "multimer: timers held back for %d ms: %d bytes of stack left, a "
+            "callback needs %d; call multimer.sleep_ms() from a shallower "
+            "loop" % (_WARN_MS, room, STACK_ROOM),
+            file=sys.stderr,
+        )
+    except Exception:
+        pass
 
 
 def _make_cb(gen):
@@ -134,9 +174,11 @@ class _NrfTimer:
         global _nrf_soft_cb, _nrf_self
         us = period * 1000000 // tick_hz
         us = 1 if us < 1 else 16000000 if us > 16000000 else us
+        # Stop the old timer before its callback is replaced: a fire it already
+        # scheduled carries the old callback, so its generation reads stale.
+        self._t.deinit()  # stops it and clears the counter
         _nrf_soft_cb = callback
         _nrf_self = self
-        self._t.deinit()  # stops it and clears the counter
         self._t = _HW(self._tid, period=us, mode=_HW.ONESHOT, callback=_nrf_hard)
         self._t.start()
 
@@ -148,25 +190,45 @@ _nrf_soft_cb = None
 _nrf_self = None
 
 
-def _nrf_soft(_arg):
-    cb = _nrf_soft_cb
+def _nrf_soft(cb):
     if cb is not None:
         cb(_nrf_self)
 
 
+class _IrqGuard:
+    # Locks the heap for the interrupt and swallows a full schedule queue's
+    # error. A with block, not try/except: the except clause ends in a jump,
+    # where the VM would run the call just scheduled, inside the interrupt.
+    def __enter__(self):
+        _heap_lock()
+
+    def __exit__(self, _type, _value, _tb):
+        _heap_unlock()
+        return True
+
+
+_irq_guard = _IrqGuard()
+
+
 def _nrf_hard(_t):
-    # Interrupt context: no allocation. A full schedule queue drops this
-    # fire; the dispatcher's next arm catches up.
-    try:
-        _schedule(_nrf_soft, None)
-    except Exception:
-        pass
+    # Interrupt context (see the docstring); no jumps in here. The callback
+    # is passed along, not read when the scheduled call runs, so it is the
+    # one that belongs to this fire. A full schedule queue drops the fire.
+    with _irq_guard:
+        _schedule(_nrf_soft, _nrf_soft_cb)
 
 
 try:
+    from micropython import heap_lock as _heap_lock
+    from micropython import heap_unlock as _heap_unlock
     from micropython import schedule as _schedule
 except ImportError:  # CPython, for the unit tests
     _schedule = None
+
+    def _heap_lock():
+        pass
+
+    _heap_unlock = _heap_lock
 
 
 def _deeper(probe):
@@ -203,7 +265,7 @@ def start(wake):
     if _hw is None:
         last = None
         make = _HW if hasattr(_HW, "init") else _NrfTimer
-        if make is _NrfTimer and _stack_limit is None:
+        if _platform == "nrf" and _stack_limit is None:
             _guard_stack()
         # -1 asks for a virtual timer where the port has them; ports that
         # number hardware timers take the first free id.

@@ -387,6 +387,41 @@ class TestNrfTimer(unittest.TestCase):
         self.src.arm(60000)
         self.assertEqual(FakeNrfHW.made[-1].period, 16000000)
 
+    def test_fire_from_a_replaced_timer_reads_stale(self):
+        self.src.arm(5)
+        old = FakeNrfHW.made[-1]
+        old.callback(old)  # fired; its scheduled call hasn't run yet
+        self.src.arm(1)  # an earlier deadline, far enough ahead to re-init
+        fn, arg = self.scheduled.pop(0)
+        fn(arg)
+        self.assertIsNotNone(self.src._due)  # the new fire is still pending
+        self.assertEqual(len(self.wakes), 1)  # a spare wake costs nothing
+
+    def test_hard_callback_locks_the_heap(self):
+        locked = [0]
+        seen = []
+        self.src._heap_lock = lambda: locked.__setitem__(0, locked[0] + 1)
+        self.src._heap_unlock = lambda: locked.__setitem__(0, locked[0] - 1)
+        self.src._schedule = lambda fn, arg: seen.append(locked[0])
+        self.src.arm(5)
+        t = FakeNrfHW.made[-1]
+        t.callback(t)
+        self.assertEqual((seen, locked[0]), ([1], 0))
+
+    def test_full_schedule_queue_drops_the_fire(self):
+        locked = [0]
+        self.src._heap_lock = lambda: locked.__setitem__(0, locked[0] + 1)
+        self.src._heap_unlock = lambda: locked.__setitem__(0, locked[0] - 1)
+
+        def full(fn, arg):
+            raise RuntimeError("schedule queue full")
+
+        self.src._schedule = full
+        self.src.arm(5)
+        t = FakeNrfHW.made[-1]
+        t.callback(t)  # must not raise out of the interrupt
+        self.assertEqual(locked[0], 0)
+
 
 class TestNrfStackRoom(TestNrfTimer):
     """On nrf a fire that lands deep in the program's stack is put off.
@@ -430,6 +465,33 @@ class TestNrfStackRoom(TestNrfTimer):
         self._fire()
         self.assertEqual(len(self.wakes), 1)
 
+    def test_says_so_once_when_the_loop_itself_is_too_deep(self):
+        import io
+
+        err = io.StringIO()
+        saved = sys.stderr
+        sys.stderr = err
+        try:
+            self.src.arm(5)
+            self.depth[0] = self.LIMIT - 100
+            for _ in range(2 * self.src._WARN_MS // self.src._RETRY_MS):
+                self._fire()
+        finally:
+            sys.stderr = saved
+        self.assertEqual(self.wakes, [])  # still never delivered that deep
+        self.assertEqual(err.getvalue().count("multimer: timers held back"), 1)
+        self.assertIn("100 bytes of stack left", err.getvalue())
+
+    def test_a_delivery_restarts_the_count_toward_the_warning(self):
+        self.src.arm(5)
+        self.depth[0] = self.LIMIT
+        self._fire()
+        self.assertIsNotNone(self.src._deferring)
+        self.depth[0] = 600
+        self._fire()
+        self.assertIsNone(self.src._deferring)
+        self.assertFalse(self.src._warned)
+
     def test_cancelled_fire_does_not_retry(self):
         self.src.arm(5)
         self.src.cancel()
@@ -460,6 +522,7 @@ class TestNrfStackRoom(TestNrfTimer):
             self.src._stack_limit = None
             self.src._hw = None
             self.src._find_stack_limit = lambda: 1234
+            self.src._platform = "nrf"
             self.src.start(lambda safe=False: None)
             self.assertEqual(self.src._stack_limit, 1234)
         finally:
@@ -467,6 +530,39 @@ class TestNrfStackRoom(TestNrfTimer):
                 sys.modules.pop("micropython", None)
             else:
                 sys.modules["micropython"] = saved
+
+    def test_guard_stays_off_elsewhere(self):
+        # Probing recurses until the port refuses; a port without the check
+        # would crash instead, so only nrf probes.
+        fake_mp = types.ModuleType("micropython")
+        fake_mp.stack_use = lambda: 0
+        saved = sys.modules.get("micropython")
+        sys.modules["micropython"] = fake_mp
+        try:
+            self.src._stack_limit = None
+            self.src._hw = None
+            self.src._find_stack_limit = lambda: 1234
+            self.src._platform = "rp2"
+            self.src.start(lambda safe=False: None)
+            self.assertIsNone(self.src._stack_limit)
+        finally:
+            if saved is None:
+                sys.modules.pop("micropython", None)
+            else:
+                sys.modules["micropython"] = saved
+
+
+class TestNrfInterruptRunsNoDelivery(unittest.TestCase):
+    """On real MicroPython, the call ``_nrf_hard`` schedules waits until it
+    has returned: a jump inside it would run the delivery in the interrupt."""
+
+    def test_micropython(self):
+        from _appswitch import LIB, need_micropython, run
+
+        mp = need_micropython(self)
+        result = run([mp, "multimer_nrf_irq_probe.py", LIB], timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("inside: 0 after: 1", result.stdout)
 
 
 if __name__ == "__main__":
