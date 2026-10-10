@@ -76,3 +76,17 @@ _PITFT_CALIBRATION = ((357, 3812), (390, 3555))
 MicroPython (`pitft_ili9341_featherwing`) passes this to `STMPE610(..., calibration=...)`.
 CircuitPython (`cp/busdisplay/spi/pitft_ili9341_featherwing`) passes the same tuple to
 `Adafruit_STMPE610_SPI`.
+
+## Calibration (CHSC6X / Seeed Round Display)
+
+The Seeed Round Display's CHSC6X reads x about 1.3 times too far from the
+centre, while y reads true. Its configs pass each reading through
+`chsc6x.round_display_points`, which undoes the scale:
+
+```python
+def touch_read():
+    return round_display_points(touch.read_points())
+```
+
+The controller's x reading also stops at the ends of its range, so touch can't
+reach the outer 30 px or so at the left and right edges.

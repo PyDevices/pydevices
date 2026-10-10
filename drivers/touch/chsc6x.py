@@ -56,6 +56,25 @@ class CHSC6X:
         return (point,) if point is not None else ()
 
 
+def round_display_points(points):
+    """Correct ``read_points()`` for the Seeed Round Display for XIAO.
+
+    The display's CHSC6X reads x about 1.3 times too far from the centre: a
+    tap 70 px left or right of it reads 90 px away, while y reads true
+    (measured over 25 taps on five targets: x_read = 1.3 * x_true - 38.7).
+    This undoes it. The controller's x reading also stops at the edges of
+    its range, so the outer 30 px or so at each side can't be reached and a
+    tap there reads as about x = 30 or x = 225::
+
+        def touch_read():
+            return round_display_points(touch.read_points())
+    """
+    if not points:
+        return ()
+    x, y = points[0][0], points[0][1]
+    return (((x * 10 + 387) // 13, y),)
+
+
 def main():
     print("Started...")
     i2c = I2C(0, sda=Pin(7), scl=Pin(6), freq=400000)

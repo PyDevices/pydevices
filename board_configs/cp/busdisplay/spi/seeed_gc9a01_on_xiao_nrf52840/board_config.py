@@ -9,6 +9,10 @@ with chip select on D1, data/command on D3 and the backlight on D6. The
 CHSC6X touch controller is on the board I2C (D4 SDA, D5 SCL) with its
 interrupt on D7, sharing the bus with the display's PCF8563 clock.
 
+Touch reaches x from about 30 to 225 only: the display's CHSC6X can't see
+the outer 30 px or so at each side, and ``round_display_points`` corrects
+its x scale.
+
 ``board_peripherals`` adds the microSD slot (``sdcard``), the clock (``rtc``)
 and the battery (``battery``).
 
@@ -17,7 +21,7 @@ Copy these two files, ``gc9a01.py``, ``chsc6x.py`` (the CircuitPython one),
 """
 
 import board
-from chsc6x import CHSC6X
+from chsc6x import CHSC6X, round_display_points
 from displayio import release_displays
 from fourwire import FourWire
 from gc9a01 import GC9A01
@@ -54,7 +58,11 @@ display_drv = GC9A01(
 i2c = board.I2C()
 touch = CHSC6X(i2c, irq_pin=board.D7)
 touch_rotation_table = (0, 5, 6, 3)
-touch_read = touch.read_points
+
+
+def touch_read():
+    return round_display_points(touch.read_points())
+
 
 from board_peripherals import PERIPHERALS, load_peripherals
 
