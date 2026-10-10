@@ -20,7 +20,9 @@ Rules the dispatcher keeps for every timer:
   instead of taking the thread (lvgl-bindings#15 and #19, for every timer);
 * deadlines are absolute (``due += period``), so delivery latency never
   drifts into the schedule;
-* a raising callback is printed once and keeps its schedule.
+* a raising callback is printed once and keeps its schedule;
+* a KeyboardInterrupt or SystemExit from a callback propagates, but the wake
+  source is armed again first, so Ctrl-C at the REPL never stops the timers.
 """
 
 import sys
@@ -142,9 +144,21 @@ def deliver():
             now = ticks_ms()
             _run_scheduled()
         _stats["last_ms"] = now
-    finally:
+    except BaseException:
+        # A KeyboardInterrupt (Ctrl-C at the REPL) or SystemExit out of a
+        # callback still leaves the wake source armed for what is left;
+        # without it no timer fires again until something calls pump().
         _in_deliver = False
-    return _arm_next()
+        _arm_next()
+        raise
+    _in_deliver = False
+    try:
+        return _arm_next()
+    except BaseException:
+        # The same, landing inside the arm itself. An interrupted arm()
+        # leaves its source as it found it, so arming again is safe.
+        _arm_next()
+        raise
 
 
 def next_delay_ms():

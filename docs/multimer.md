@@ -75,7 +75,9 @@ slot is no sooner than `min(overrun, yield_cap)` later (100 ms by default,
 per timer), so a slow pass lowers that timer's rate instead of taking the
 thread. Deadlines are absolute, so delivery latency never drifts the
 schedule. A callback that raises is printed once and keeps its schedule;
-the exception is on `tim.error`.
+the exception is on `tim.error`. A `KeyboardInterrupt` (Ctrl-C) or
+`SystemExit` raised in a callback is not caught: it reaches your code or the
+REPL, and the timers keep running.
 
 Because the host can interrupt between bytecodes, code that must not be
 interrupted says so: `with multimer.hold():`. Everything that came due is
