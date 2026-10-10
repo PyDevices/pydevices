@@ -107,6 +107,7 @@ class AppScope:
         self.problems = []
         #: Bytes the app still held after close() (MicroPython), or None.
         self.retained = None
+        self.free_after_close = None
         self._free_at_open = mem_free()
         self._snapshot_lvgl()
 
@@ -358,17 +359,24 @@ class AppScope:
                 scopes.remove(self)
             self._closed = True
             self._closing = False
-        gc.collect()
-        # A cycle that holds an object with a finalizer is freed by the
-        # collection after the one that finalised it (PEP 442), so give the
-        # probes one more before calling anything a leak.
-        if any(ref() is not None for label, ref in probes):
+        if probes:
             gc.collect()
-        for label, ref in probes:
-            if ref() is not None:
-                problems.append("%s still referenced after close: something kept a reference to the app" % label)
-        probes = None
+            # A cycle that holds an object with a finalizer is freed by the
+            # collection after the one that finalised it (PEP 442), so give
+            # the probes one more before calling anything a leak.
+            if any(ref() is not None for label, ref in probes):
+                gc.collect()
+            for label, ref in probes:
+                if ref() is not None:
+                    problems.append("%s still referenced after close: something kept a reference to the app" % label)
+            probes = None
+        # mem_free() collects first. Where it can't read the heap, collect
+        # anyway: close() always gives the memory back.
         free = mem_free()
+        if free is None:
+            gc.collect()
+        #: Free heap just after close (MicroPython), or None.
+        self.free_after_close = free
         if free is not None and self._free_at_open is not None:
             self.retained = self._free_at_open - free
         return problems
