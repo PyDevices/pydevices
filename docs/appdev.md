@@ -193,6 +193,63 @@ Use `appdev.capabilities()` to inspect the dialect and built-in device list.
 Query `appdev.App.current()` to discover
 the active app instance.
 
+## Switchable apps
+
+You can run several apps in one program and switch between them, with each
+app's memory given back when it goes. Write each app as a module with a
+`main(scope)` function, and make everything through `scope`:
+
+```python
+# apps/steps.py: nothing runs at import time
+import events
+
+def main(scope):
+    @scope.every(1000)
+    def refresh(timer):
+        ...
+
+    scope.on(events.KEYDOWN, lambda e: scope.switch("face"))
+    screen = scope.screen()      # an LVGL screen; build the UI on it
+```
+
+Then a launcher owns the one long-lived `App` and starts apps by name:
+
+```python
+# main.py
+import board_config
+from appdev import App
+from appdev.launcher import Launcher
+
+launcher = Launcher(App(board_config), {"face": "apps.face", "steps": "apps.steps"}, home="face")
+launcher.boot()
+```
+
+`launcher.switch("steps")` closes the running app, which cancels its
+timers, drops its event subscriptions, unregisters its devices, deletes its
+LVGL screen and removes its modules from `sys.modules`, then starts the
+next one. Inside an app, `scope.switch(name)` does the same once the
+current callback has returned.
+
+Three things keep an app's memory alive after it closes, so avoid them:
+storing one of its functions or objects in another module (a callback
+parked in a shared list), making timers or subscriptions on `scope.app`
+instead of `scope`, and helper modules outside the app's own package. Put
+helpers inside the app's package (`apps/steps/__init__.py` with `main`,
+`apps/steps/count.py`), and they're removed with it.
+
+If an app does leak, the launcher notices: after each close it checks free
+heap and the largest free block, and below a threshold, or when an app's
+`close()` fails, it restarts the program straight into the next app (a soft
+reset on a board, a fresh process on the desktop). On desktop MicroPython,
+run the program under the launcher command so the restart can happen:
+
+```bash
+python -m appdev.launcher -- micropython main.py
+```
+
+The scope's full surface, the thresholds and how each host restarts are in
+the [appdev reference](../lib/appdev/README.md#7-switchable-apps).
+
 ## FAQ
 
 **No events arrive** — call `app.poll()` frequently in your main loop.
