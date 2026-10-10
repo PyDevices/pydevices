@@ -148,3 +148,14 @@ jobs:
           PYDEVICES_TIGHT_HEAP: 384k
         timeout-minutes: 10
         run: python -m unittest discover -s tests -p 'test_appdev_[ls]*.py' -v
+
+      # multimer's nrf timer interrupt must not run the delivery it schedules:
+      # the probe checks that on a real VM, where pending calls run at jumps.
+      - name: multimer nrf interrupt probe on MicroPython
+        working-directory: pydevices
+        env:
+          PYDEVICES_MICROPYTHON: >-
+            ${{ github.workspace }}/micropython/ports/unix/build-standard/micropython
+          PYDEVICES_REQUIRE_MICROPYTHON: '1'
+        timeout-minutes: 5
+        run: python -m unittest discover -s tests -p 'test_multimer_machine_source.py' -k TestNrfInterruptRunsNoDelivery -v
