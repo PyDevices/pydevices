@@ -108,11 +108,12 @@ something the release's library does not know: on 2026-09-22 the release was
 one step behind the audio pump, so a board built exactly this way came up with
 a working panel and touch and **no audio** — `pcm_out()` raised
 `TypeError: unexpected keyword argument 'wire'`
-([#50](https://github.com/PyDevices/pydevices/issues/50)). If the board
-config you install is from `main`, install `pydevices` from `main` too:
+([#50](https://github.com/PyDevices/pydevices/issues/50)). To install a
+specific version of the board config, add `version=`:
 
 ```python
-mip.install("github:PyDevices/pydevices", index=INDEX)
+mip.install("github:PyDevices/pydevices/board_configs/fbdisplay/esp32-s3-touch-lcd-4_3",
+            index=INDEX, version="v0.7.0")
 ```
 
 Note that this does **not** replace files a release already put in `/lib`
@@ -161,7 +162,7 @@ look for literals passed to `write()`.
 ## 3. Choosing what to install, and from where
 
 `mip.install("pydevices", index=INDEX)` and
-`mip.install("github:PyDevices/pydevices", ...)` both work and give you
+`mip.install("github:PyDevices/pydevices/board_configs/...", ...)` both work and give you
 different things. The difference is invisible until you wonder why your edit
 did not take.
 
