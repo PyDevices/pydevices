@@ -176,3 +176,41 @@ Returns the active `App` singleton instance (or `None`).
 
 ---
 
+### 7. Switchable apps
+
+A switchable app is a module with `main(scope)` and no work at import time,
+and makes everything it owns through `scope`, so it can be closed and its
+memory given back.
+
+#### `app.scope(name=None, *, modules=())` &rarr; `AppScope`
+What one app makes, recorded so `close()` can undo it. *modules*
+are dropped from `sys.modules`, with their submodules, at close.
+
+`AppScope` has the same shape as `App` for what an app owns:
+
+* **`scope.every(ms, callback)`**, **`scope.after(ms, callback)`**: periodic and one-shot `multimer.Timer`s (decorators too). `scope.timers` lists those still armed; `scope.stop_timers()` cancels them.
+* **`scope.on(event_type_or_list, callback)`** / **`scope.off(...)`**: App event subscriptions.
+* **`scope.register(device)`** / **`scope.unregister(device)`**: devices polled by the App.
+* **`scope.subscribe(device, callback, event_types=None)`**: a callback on a shared device (`scope.app.touch_dev`, say).
+* **`scope.screen(load=True)`**: a new LVGL screen, loaded. Deleting it at close deletes everything on it.
+* **`scope.adopt(obj, close=None)`**: anything else to release at close: `close(obj)`, or else its `delete()`, `deinit()` or `close()`. For LVGL objects off the scope screen, an LVGL timer, a `machine.Pin` IRQ, a socket.
+* **`scope.on_close(fn)`**: your own cleanup, run first at close.
+* **`scope.app`**, **`scope.displays`**, **`scope.primary`**: the shared App and its displays. What you make on `scope.app` directly is shared and survives the switch.
+
+#### `scope.close()` &rarr; list of problems
+Runs the `on_close` hooks, cancels the timers, drops the subscriptions,
+unregisters the devices, releases adopted objects, deletes the scope's LVGL
+screens and any widgets the app added to the screen that was showing or to
+the top and system layers, removes the app's modules (and unbinds them from
+their parent package), and collects. Every step runs even if one fails.
+Calling it twice does nothing the second time.
+
+It returns one line per thing it couldn't release: a hook or closer that
+raised, and on CPython an app module whose namespace is still reachable
+afterwards, which is a leak. On MicroPython, `scope.retained` is how many
+bytes the heap kept after close compared with before the app started.
+
+What it can't see: references the app put somewhere else (another module's
+global, an LVGL event callback on a shared object, a callback on a device it
+didn't subscribe through the scope), and modules it imported from outside its
+own package, which stay loaded as shared code.

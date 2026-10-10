@@ -132,3 +132,15 @@ jobs:
             ${{ github.workspace }}/micropython/ports/unix/build-standard/micropython
           PYDEVICES_REQUIRE_PUMP: '1'
         run: python -m unittest tests.test_pump_interpreter -v
+
+      # The same interpreter runs appdev's switchable-app checks: the scope's
+      # leak test, the launcher's switch run and its restart fallback, at the
+      # T-Watch S3's heap and a tight one, each with its planted leaks. The
+      # unittest job above has no MicroPython and skips them loudly.
+      - name: appdev scope and launcher on MicroPython
+        working-directory: pydevices
+        env:
+          PYDEVICES_MICROPYTHON: >-
+            ${{ github.workspace }}/micropython/ports/unix/build-standard/micropython
+          PYDEVICES_REQUIRE_MICROPYTHON: '1'
+        run: python -m unittest discover -s tests -p 'test_appdev_[ls]*.py' -v
