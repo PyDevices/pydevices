@@ -58,6 +58,23 @@ doesn't freeze aioble. Until then, `mip.install("aioble", index=...)` and copy
 On a laptop, bledev is inside the `pydevices` wheel. `pip install "pydevices[ble]"`
 adds bleak, which the laptop backend needs.
 
+On CircuitPython, copy the files yourself: there's no `mip` there, and bledev
+isn't in a circup bundle. With the board's CIRCUITPY drive mounted, make a
+`lib/bledev/` folder on it and copy these into it from
+[`lib/bledev/`](../lib/bledev/), as `.py` source (MicroPython's `.mpy` files
+won't load on CircuitPython):
+
+- `__init__.py` and `cpble.py`, always;
+- `auto.py`, if you'd rather not name the backend;
+- the parts you use, with what they import: `nus.py`; `midi.py` with
+  `midi_codec.py`; `filetransfer.py` with `nus.py`, `repl.py` and
+  `security.py`. Those are the parts measured on CircuitPython (see
+  [On CircuitPython](#on-circuitpython)).
+
+Leave out `mpble.py`, `bleak.py`, `webble.py` and `fake.py`; they're for other
+hosts. bledev also needs CircuitPython's `asyncio` library: `circup install
+asyncio`, which brings `adafruit_ticks`.
+
 ## Getting an adapter
 
 The adapter is one radio. On a board with a PyDevices board config, it's the
@@ -85,7 +102,7 @@ import bledev.bleak
 ble = bledev.bleak.BleakBLE()   # central only
 ```
 
-On CircuitPython (it needs the `asyncio` library: `circup install asyncio`):
+On CircuitPython ([copied onto the board by hand](#installing-it), with the `asyncio` library):
 
 ```python
 import bledev.cpble
