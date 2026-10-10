@@ -33,6 +33,14 @@ _CONFIGS = (
         "board_configs/busdisplay/spi/seeed_gc9a01_on_qtpy_rp2040/board_config.py",
         _MP_DRIVER,
     ),
+    (
+        "board_configs/cp/busdisplay/spi/seeed_gc9a01_on_qtpy_esp32s3/board_config.py",
+        _CP_DRIVER,
+    ),
+    (
+        "board_configs/cp/busdisplay/spi/seeed_gc9a01_on_qtpy_rp2040/board_config.py",
+        _CP_DRIVER,
+    ),
 )
 # (target x, target y), mean raw (x, y) over five taps.
 _MEASURED = (
@@ -124,6 +132,12 @@ class RoundDisplayTouch(unittest.TestCase):
 
     def test_qtpy_rp2040_config(self):
         self.check(*_CONFIGS[3])
+
+    def test_qtpy_esp32s3_circuitpython_config(self):
+        self.check(*_CONFIGS[4])
+
+    def test_qtpy_rp2040_circuitpython_config(self):
+        self.check(*_CONFIGS[5])
 
 
 if __name__ == "__main__":
