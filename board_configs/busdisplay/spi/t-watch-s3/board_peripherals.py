@@ -117,7 +117,12 @@ AUDIO_OUT = AudioCapability(
 
 # The PDM microphone, through I2S0's hardware PDM-to-PCM filter. Measured on
 # this watch: 16000 Hz mono 16-bit, a 1 kHz tone from the watch's own speaker
-# well above the room (see pcm_in).
+# well above the room (see pcm_in). The filter has no gain control and leaves
+# a DC offset of about -1550 (-26 dBFS) with the room at about -66 dBFS, so
+# pcm_in removes the offset and adds gain in software: up to MIC_MAX_GAIN_DB,
+# MIC_DEFAULT_GAIN percent of it to start.
+MIC_MAX_GAIN_DB = 36
+MIC_DEFAULT_GAIN = 83  # percent of MIC_MAX_GAIN_DB: about +30 dB
 _IN_DEFAULT = AudioFormat(16000, 1, 16)
 AUDIO_IN = AudioCapability(
     _IN_DEFAULT,
@@ -423,9 +428,73 @@ def _in_stream(ibuf, fmt):
     )
 
 
+def _mic_filter():
+    """A viper function that removes DC and rumble (a one-pole high-pass,
+    pole 1 - 2**-shift: shift 5 is about 80 Hz at 16 kHz) and applies gain,
+    in place, on 16-bit samples. ``state`` carries the filter across calls;
+    ``gain`` is in 1/16ths."""
+    import micropython
+
+    @micropython.viper
+    def run(buf, n: int, gain: int, state, shift: int) -> int:
+        p = ptr16(buf)
+        st = ptr32(state)
+        x1 = st[0]
+        y1 = st[1]  # 1/256ths
+        for i in range(n):
+            x = p[i]
+            if x > 32767:
+                x -= 65536
+            y = ((x - x1) << 8) + y1 - (y1 >> shift)
+            x1 = x
+            y1 = y
+            o = ((y >> 8) * gain) >> 4
+            if o > 32767:
+                o = 32767
+            elif o < -32768:
+                o = -32768
+            p[i] = o & 0xFFFF
+        st[0] = x1
+        st[1] = y1
+        return n
+
+    return run
+
+
+class _PDMInput(I2SPCMInput):
+    """The microphone, with its DC offset removed and gain applied: what
+    ``set_gain()`` sets here is a real gain, 0-100 % of ``MIC_MAX_GAIN_DB``."""
+
+    def __init__(self, i2s, fmt):
+        super().__init__(i2s, fmt, set_hardware_gain=self._apply_gain)
+        from array import array
+
+        self._run = _mic_filter()
+        self._state = array("i", (0, 0))
+        self._gain16 = 16
+        self.highpass_shift = 5
+        self.set_gain(MIC_DEFAULT_GAIN)
+
+    def _apply_gain(self, percent):
+        self._gain16 = int(16 * 10 ** (MIC_MAX_GAIN_DB * percent / 100 / 20) + 0.5)
+
+    def _readinto(self, buf):
+        n = super()._readinto(buf)
+        if n:
+            self._run(buf, n // 2, self._gain16, self._state, self.highpass_shift)
+        return n
+
+    async def _areadinto(self, buf):
+        n = await super()._areadinto(buf)
+        if n:
+            self._run(buf, n // 2, self._gain16, self._state, self.highpass_shift)
+        return n
+
+
 def _pcm_in(format=None, *, latency=None, queue_ms=None):
-    """The PDM microphone: a raw ``PCMInput`` of 16-bit mono. Needs
-    firmware with ``I2S.PDM_RX``."""
+    """The PDM microphone: a ``PCMInput`` of 16-bit mono with its DC offset
+    removed and gain applied (``set_gain(percent)``; about +30 dB to start).
+    Needs firmware with ``I2S.PDM_RX``."""
     from machine import I2S
 
     from audiodev import check_latency, queue_bytes
@@ -437,7 +506,7 @@ def _pcm_in(format=None, *, latency=None, queue_ms=None):
     if source is not wire:
         raise ValueError("this watch captures %s; capture cannot be converted" % (wire,))
     ibuf = queue_bytes(wire, latency, queue_ms, default=_IBUF, minimum=_MIN_IBUF)
-    return I2SPCMInput(lambda: _in_stream(ibuf, wire), wire)
+    return _PDMInput(lambda: _in_stream(ibuf, wire), wire)
 
 
 pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
