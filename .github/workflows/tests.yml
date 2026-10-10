@@ -143,4 +143,8 @@ jobs:
           PYDEVICES_MICROPYTHON: >-
             ${{ github.workspace }}/micropython/ports/unix/build-standard/micropython
           PYDEVICES_REQUIRE_MICROPYTHON: '1'
+          # A stock build compiles appdev from source and needs more heap
+          # than one that freezes it (see tests/_appswitch.py).
+          PYDEVICES_TIGHT_HEAP: 384k
+        timeout-minutes: 10
         run: python -m unittest discover -s tests -p 'test_appdev_[ls]*.py' -v

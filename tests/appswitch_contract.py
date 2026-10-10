@@ -552,13 +552,22 @@ def main(argv):
     if MICROPYTHON:
         print("heap:", gc.mem_free() + gc.mem_alloc())
     failed = run(only)
+    return 1 if failed else 0
+
+
+def _teardown():
     app = App.current()
     if app is not None:
         app._perform_teardown()
     multimer.stop_all()
     multimer.keepalive(False)
-    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    # Tear down however main() ends: an uncaught error with timers still
+    # armed would leave multimer's exit hook keeping the process alive.
+    try:
+        code = main(sys.argv[1:])
+    finally:
+        _teardown()
+    sys.exit(code)

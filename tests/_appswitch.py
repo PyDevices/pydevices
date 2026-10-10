@@ -18,10 +18,12 @@ LIB = TESTS.parent / "lib"
 #: About the T-Watch S3's MicroPython heap (its PSRAM).
 WATCH_HEAP = "8M"
 #: The smallest heap where appdev, the launcher and the two sample apps
-#: (with LVGL) still run was 168k on unix MicroPython 1.29 (176k ran 100
-#: switches); 256k leaves half again for margin, and is where leaks and
-#: fragmentation show first.
-TIGHT_HEAP = "256k"
+#: (with LVGL) still run was 168k on a unix MicroPython 1.29 that freezes
+#: appdev and multimer (176k ran 100 switches); 256k leaves half again for
+#: margin, and is where leaks and fragmentation show first. A stock unix
+#: build interns every identifier of the source it compiles on the heap and
+#: needs about 272k, so CI sets PYDEVICES_TIGHT_HEAP=384k.
+TIGHT_HEAP = os.environ.get("PYDEVICES_TIGHT_HEAP", "256k")
 
 
 def micropython():
@@ -51,7 +53,7 @@ def need_micropython(case):
     return interpreter
 
 
-def run(cmd, *, state_dir=None, timeout=600):
+def run(cmd, *, state_dir=None, timeout=300):
     """Run *cmd* in tests/ with a private pending-app file; return the result."""
     env = dict(os.environ)
     env.setdefault("SDL_VIDEODRIVER", "dummy")

@@ -588,4 +588,10 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    # Tear down however main() ends: an uncaught error with timers still
+    # armed would leave multimer's exit hook keeping the process alive.
+    try:
+        code = main(sys.argv[1:])
+    finally:
+        _finish(0)
+    sys.exit(code)
