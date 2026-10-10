@@ -307,6 +307,82 @@ class TestStillDeliversOnTimeUs(TestStillDeliversOnTime):
         self.assertEqual(self.hw.inits, [(1000, 7)])
 
 
+class TestInterruptedDelivery(MachineSourceCase):
+    """Ctrl-C landing inside a delivery leaves every timer running.
+
+    A KeyboardInterrupt raised in a callback, or in the source's own
+    ``arm()``, used to leave the hardware idle with nothing armed: every
+    ``multimer`` timer stopped until something called ``multimer.pump()``.
+    These run the real dispatcher on the fake clock, woken only by the fake
+    hardware, the way a board is.
+    """
+
+    US = True
+
+    def setUp(self):
+        import multimer
+        from multimer import _dispatch
+
+        multimer.stop_all()  # whatever source an earlier test started stays quiet
+        super().setUp()
+        saved = (_dispatch._source, _dispatch.ticks_ms)
+
+        def restore():
+            multimer.stop_all()
+            _dispatch._source, _dispatch.ticks_ms = saved
+            _dispatch._stats["last_ms"] = None
+
+        self.addCleanup(restore)
+        _dispatch.ticks_ms = lambda: _clock[0]
+        _dispatch._source = self.src
+        self.src.start(_dispatch.wake_from_source)
+        self.Timer = _dispatch.Timer
+        self.ticks = []
+        self.Timer(-1, mode=_dispatch.PERIODIC, period=10, callback=lambda t: self.ticks.append(_clock[0]))
+
+    def run_for(self, ms):
+        """Let *ms* pass, delivering each time the hardware fires, and only then."""
+        end = _clock[0] + ms
+        while self.hw.deadline is not None and self.hw.deadline <= end:
+            self.finish(self.fire())
+        _clock[0] = end
+
+    def test_ctrl_c_in_a_callback(self):
+        calls = []
+
+        def interrupted(_t):
+            calls.append(_clock[0])
+            if len(calls) == 1:
+                raise KeyboardInterrupt
+
+        self.Timer(-1, mode=self.Timer.ONE_SHOT, period=5, callback=interrupted)
+        with self.assertRaises(KeyboardInterrupt):
+            self.finish(self.fire())
+        self.assertIsNotNone(self.hw.deadline, "nothing armed: every timer has stopped")
+        self.run_for(100)
+        self.assertGreaterEqual(len(self.ticks), 9)
+        self.assertEqual(self.hw.violations, [])
+
+    def test_ctrl_c_inside_the_arm(self):
+        real = self.src._us_until
+        hits = []
+
+        def interrupted(want):
+            if not hits:
+                hits.append(want)
+                raise KeyboardInterrupt
+            return real(want)
+
+        self.src._us_until = interrupted
+        with self.assertRaises(KeyboardInterrupt):
+            self.finish(self.fire())  # the periodic timer runs, then arming is interrupted
+        self.assertEqual(len(hits), 1)
+        self.assertIsNotNone(self.hw.deadline, "nothing armed: every timer has stopped")
+        self.run_for(100)
+        self.assertGreaterEqual(len(self.ticks), 10)
+        self.assertEqual(self.hw.violations, [])
+
+
 class FakeNrfHW:
     """The nrf port's machine.Timer: configured by its constructor, run with
     start(), no init(), ONESHOT spelled without an underscore, and ids 0

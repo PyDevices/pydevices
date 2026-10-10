@@ -303,17 +303,25 @@ def arm(delay_ms):
                 return  # the pending fire is no later; it wakes us
             if left <= _PRE_MS:
                 return  # too close to touch; it fires within _PRE_MS
-    _gen += 1
-    _due = want
-    cb = _make_cb(_gen)
+    # The new deadline is recorded only once init() has returned, with no
+    # branch in between. MicroPython raises a KeyboardInterrupt only at a
+    # branch, so Ctrl-C landing in here leaves the source as it was, and the
+    # dispatcher's next arm() starts clean. Recorded first, a deadline the
+    # hardware never got would be waited for until it was long past.
+    gen = _gen + 1
+    cb = _make_cb(gen)
     if _us_ok and ticks_us is not None:
         us = _us_until(want)
         try:
             _hw.init(mode=_ONE_SHOT, period=us, tick_hz=1000000, callback=cb)
+            _gen = gen
+            _due = want
             return
         except TypeError:
             _no_us()
     _hw.init(mode=_ONE_SHOT, period=ms, callback=cb)
+    _gen = gen
+    _due = want
 
 
 def _no_us():
