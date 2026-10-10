@@ -34,6 +34,16 @@ deadline is comfortably far away, or long past:
 Each ``init()`` carries a generation, so a callback from a fire the source
 has since replaced is recognised: it still wakes the dispatcher, but it does
 not mark the hardware idle.
+
+**On nrf a delivery waits for stack room.** The callback runs at whatever
+bytecode the program reached, on its stack. The nrf port's stack is about
+8 KB, a Python call takes about 300 bytes of it, and the port checks for
+overflow only 400 bytes from the end, so a timer that fires deep inside an
+import, and then reads I2C and draws, overflows it ("maximum recursion depth
+exceeded", or worse). When the stack in use leaves less than ``STACK_ROOM``
+bytes, the source delivers nothing and tries again ``_RETRY_MS`` later; the
+count is in ``deferred``. Idle points (``multimer.sleep_ms``, the REPL waiting
+for a key) are shallow, so the work runs there at the latest.
 """
 
 from machine import Timer as _HW
@@ -72,16 +82,29 @@ _m0 = None
 _u0 = None
 _us_ok = True  # the port's init() takes tick_hz
 
+# Bytes of stack a delivery needs left (the nrf guard, see the docstring):
+# a service tick that reads a touch controller and redraws, with room to
+# print a traceback.
+STACK_ROOM = 4096
+_RETRY_MS = 5
+deferred = 0  # deliveries put off for want of stack
+_stack_use = None  # micropython.stack_use, when the guard is on
+_stack_limit = None  # the deepest stack_use() before the overflow check fires
+
 
 def _cb(gen):
     # A soft machine.Timer callback: the port already delivered it through
     # micropython.schedule, so this is a bytecode boundary of the main thread.
-    global _due
+    global _due, deferred
     if gen == _gen:
         _due = None
     # A fire the source has since replaced still wakes the dispatcher (a
     # spare delivery costs nothing), but leaves the pending deadline alone.
     if not _wanted:
+        return
+    if _stack_limit is not None and _stack_use() > _stack_limit - STACK_ROOM:
+        deferred += 1
+        arm(_RETRY_MS)
         return
     w = _wake
     if w is not None:
@@ -146,12 +169,42 @@ except ImportError:  # CPython, for the unit tests
     _schedule = None
 
 
+def _deeper(probe):
+    # One frame per call until the port's stack check refuses the next.
+    probe[0] = max(probe[0], _stack_use())
+    _deeper(probe)
+
+
+def _find_stack_limit():
+    """The most ``stack_use()`` reads before the port raises its overflow
+    error. Only for ports that check (nrf always does); recursing on one that
+    doesn't would crash it."""
+    probe = [0]
+    try:
+        _deeper(probe)
+    except RuntimeError:  # "maximum recursion depth exceeded"
+        pass
+    return probe[0]
+
+
+def _guard_stack():
+    global _stack_use, _stack_limit
+    try:
+        from micropython import stack_use
+    except ImportError:
+        return
+    _stack_use = stack_use
+    _stack_limit = _find_stack_limit()
+
+
 def start(wake):
     global _wake, _hw
     _wake = wake
     if _hw is None:
         last = None
         make = _HW if hasattr(_HW, "init") else _NrfTimer
+        if make is _NrfTimer and _stack_limit is None:
+            _guard_stack()
         # -1 asks for a virtual timer where the port has them; ports that
         # number hardware timers take the first free id.
         for tid in (-1, 0, 1, 2, 3):
