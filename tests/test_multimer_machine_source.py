@@ -388,5 +388,86 @@ class TestNrfTimer(unittest.TestCase):
         self.assertEqual(FakeNrfHW.made[-1].period, 16000000)
 
 
+class TestNrfStackRoom(TestNrfTimer):
+    """On nrf a fire that lands deep in the program's stack is put off.
+
+    The port's stack is about 8 KB; a delivery that reads I2C and draws from
+    deep inside an import overflowed it at boot. The source delivers only
+    when ``STACK_ROOM`` bytes are left, and otherwise re-arms a short retry.
+    """
+
+    LIMIT = 7792
+
+    def setUp(self):
+        super().setUp()
+        self.depth = [500]
+        self.src._stack_use = lambda: self.depth[0]
+        self.src._stack_limit = self.LIMIT
+
+    def _fire(self):
+        t = FakeNrfHW.made[-1]
+        _clock[0] += t.period // 1000
+        t.callback(t)
+        fn, arg = self.scheduled.pop()
+        fn(arg)
+
+    def test_shallow_fire_delivers(self):
+        self.src.arm(5)
+        self._fire()
+        self.assertEqual(len(self.wakes), 1)
+        self.assertEqual(self.src.deferred, 0)
+
+    def test_deep_fire_waits_and_retries(self):
+        self.src.arm(5)
+        self.depth[0] = self.LIMIT - self.src.STACK_ROOM + 1
+        made = len(FakeNrfHW.made)
+        self._fire()
+        self.assertEqual(self.wakes, [])  # nothing delivered on a deep stack
+        self.assertEqual(self.src.deferred, 1)
+        self.assertGreater(len(FakeNrfHW.made), made)  # a retry is armed
+        self.assertEqual(FakeNrfHW.made[-1].period, self.src._RETRY_MS * 1000 + 20)
+        self.depth[0] = 600  # the program came back up
+        self._fire()
+        self.assertEqual(len(self.wakes), 1)
+
+    def test_cancelled_fire_does_not_retry(self):
+        self.src.arm(5)
+        self.src.cancel()
+        self.depth[0] = self.LIMIT
+        made = len(FakeNrfHW.made)
+        self._fire()
+        self.assertEqual(len(FakeNrfHW.made), made)
+        self.assertEqual(self.src.deferred, 0)
+
+    def test_finds_the_limit_where_the_port_refuses(self):
+        used = [0]
+
+        def stack_use():
+            used[0] += 300
+            if used[0] > self.LIMIT:
+                raise RuntimeError("maximum recursion depth exceeded")
+            return used[0]
+
+        self.src._stack_use = stack_use
+        self.assertEqual(self.src._find_stack_limit(), 7500)
+
+    def test_guard_starts_on_nrf(self):
+        fake_mp = types.ModuleType("micropython")
+        fake_mp.stack_use = lambda: 0
+        saved = sys.modules.get("micropython")
+        sys.modules["micropython"] = fake_mp
+        try:
+            self.src._stack_limit = None
+            self.src._hw = None
+            self.src._find_stack_limit = lambda: 1234
+            self.src.start(lambda safe=False: None)
+            self.assertEqual(self.src._stack_limit, 1234)
+        finally:
+            if saved is None:
+                sys.modules.pop("micropython", None)
+            else:
+                sys.modules["micropython"] = saved
+
+
 if __name__ == "__main__":
     unittest.main()
