@@ -27,7 +27,8 @@ changes:
   itself to what LVGL returns (the ms until LVGL's next timer is due), so an
   idle screen wakes when LVGL wants it, not on a 10 ms poll. After a pass
   longer than its slot the loop yields ``min(pass, max_yield_ms)`` before the
-  next one (lvgl-bindings#15 and #19).
+  next one (lvgl-bindings#15 and #19). The next pass is set in a ``finally``,
+  so a Ctrl-C that lands in a pass can't leave LVGL with no next pass.
 * ``lv.tick_inc`` is fed from ``multimer.ticks_ms`` before each pass.
 * PARTIAL panels present from the display's own frame clock
   (``display.frame_clock``), and only when a flush happened since the last
@@ -721,18 +722,23 @@ class event_loop:
         return max(1, delay)
 
     def _on_timer(self, timer):
-        start = self._advance_lvgl_clock()
-        if self._pause > 0:
-            timer.reschedule(self.delay)
-            return
-        wanted = self.task_handler()
-        end = ticks_ms()
-        work = ticks_diff(end, start)
-        self.passes += 1
-        self.last_pass_ms = work
-        if not timer.running:
-            return  # deinit() during the pass
-        timer.reschedule(self._next_delay(wanted, work))
+        # The timer is ONE_SHOT: a pass that ends without rescheduling it is
+        # the last one LVGL ever gets. task_handler() keeps an Exception
+        # inside, but a Ctrl-C landing in the pass is a KeyboardInterrupt and
+        # comes straight through, so the next deadline is set in a finally.
+        delay = self.delay
+        try:
+            start = self._advance_lvgl_clock()
+            if self._pause > 0:
+                return
+            wanted = self.task_handler()
+            work = ticks_diff(ticks_ms(), start)
+            self.passes += 1
+            self.last_pass_ms = work
+            delay = self._next_delay(wanted, work)
+        finally:
+            if timer.running:  # not deinit() during the pass
+                timer.reschedule(delay)
 
     def default_exception_sink(self, e):
         """Print ``e`` with traceback to stderr (default :attr:`exception_sink`)."""

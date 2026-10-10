@@ -97,6 +97,17 @@ class _FakeTimer:
 
     def reschedule(self, delay_ms):
         self.due = self._clock.now + max(0, int(delay_ms))
+        self.rescheduled = True
+
+    def fire(self):
+        """Deliver as multimer does: a ONE_SHOT whose callback did not
+        reschedule it retires, whether the callback returned or raised."""
+        self.rescheduled = False
+        try:
+            self.callback(self)
+        finally:
+            if not self.rescheduled:
+                self.deinit()
 
 
 def _fake_multimer(clock):
@@ -214,6 +225,92 @@ class TestPacing(unittest.TestCase):
         self.assertEqual(100, _hold_after_one_pass(500))
         self.assertEqual(30, _hold_after_one_pass(500, max_yield_ms=30))
         self.assertEqual(10, _hold_after_one_pass(500, max_yield_ms=0))  # never under a period
+
+
+# -- an interrupted pass -------------------------------------------------------
+
+
+class TestInterruptedPass(unittest.TestCase):
+    """A Ctrl-C that lands in an LVGL pass must not leave LVGL without its
+    next pass. The timer is ONE_SHOT and ``task_handler`` keeps only an
+    ``Exception`` inside, so a ``KeyboardInterrupt`` used to skip the
+    reschedule and the screen froze for good."""
+
+    def _loop(self, lv, clock):
+        loop = _event_loop_class(lv, clock)(period_ms=10)
+        loop.enable()
+        clock.now = loop.timer.due
+        return loop
+
+    def test_keyboard_interrupt_in_timer_handler_keeps_lvgl_armed(self):
+        clock = _Clock()
+        lv, _calls = _mock_lv(clock, 1)
+
+        def interrupted():
+            clock.now += 3
+            raise KeyboardInterrupt
+
+        lv.timer_handler = interrupted
+        loop = self._loop(lv, clock)
+        with self.assertRaises(KeyboardInterrupt):  # still reaches the program
+            loop.timer.fire()
+        self.assertTrue(loop.timer.running, "LVGL's timer retired: the screen is frozen")
+        self.assertEqual(clock.now + 10, loop.timer.due)
+
+    def test_lvgl_runs_again_after_the_interrupt(self):
+        clock = _Clock()
+        lv, calls = _mock_lv(clock, 1, wanted=10)
+        real = lv.timer_handler
+        state = {"first": True}
+
+        def once_interrupted():
+            if state["first"]:
+                state["first"] = False
+                raise KeyboardInterrupt
+            return real()
+
+        lv.timer_handler = once_interrupted
+        loop = self._loop(lv, clock)
+        with self.assertRaises(KeyboardInterrupt):
+            loop.timer.fire()
+        while clock.now < 200:
+            if loop.timer.running and clock.now >= loop.timer.due:
+                loop.timer.fire()
+            else:
+                clock.now += 1
+        self.assertGreaterEqual(calls["timer_handler"], 15)
+
+    def test_exception_outside_task_handler_keeps_lvgl_armed(self):
+        clock = _Clock()
+        lv, _calls = _mock_lv(clock, 1)
+        loop = self._loop(lv, clock)
+
+        def broken(_ms):
+            raise RuntimeError("tick_inc")
+
+        lv.tick_inc = broken
+        loop._last_tick_ms = 0  # a pass has run before, so the clock advances
+        with self.assertRaises(RuntimeError):
+            loop.timer.fire()
+        self.assertTrue(loop.timer.running)
+
+    def test_paused_loop_keeps_its_timer(self):
+        clock = _Clock()
+        lv, calls = _mock_lv(clock, 1)
+        loop = self._loop(lv, clock)
+        loop.disable()
+        loop.timer.fire()
+        self.assertTrue(loop.timer.running)
+        self.assertEqual(clock.now + 10, loop.timer.due)
+        self.assertEqual(0, calls["timer_handler"])
+
+    def test_deinit_during_a_pass_is_not_undone(self):
+        clock = _Clock()
+        lv, _calls = _mock_lv(clock, 1)
+        loop = self._loop(lv, clock)
+        lv.timer_handler = lambda: loop.deinit()
+        loop.timer.fire()
+        self.assertFalse(loop.timer.running)
 
 
 # -- the nesting gate ---------------------------------------------------------
