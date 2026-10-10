@@ -119,6 +119,7 @@ class App:
         self._app_drives_poll = False
         self._in_service_poll = False
         self._teardown_done = False
+        self._scopes = []
 
         if displays is not None:
             self._displays = list(displays)
@@ -371,12 +372,33 @@ class App:
         self._keep_alive()
         return tim
 
+    # -- switchable apps --------------------------------------------------
+
+    def scope(self, name=None, *, modules=()):
+        """An :class:`~appdev.scope.AppScope` for one switchable app.
+
+        It makes timers, subscriptions and devices on this App and records
+        them; ``scope.close()`` releases them all and drops *modules* (and
+        their submodules) from ``sys.modules``. ``appdev.launcher`` makes
+        one per app it starts.
+        """
+        from .scope import AppScope
+
+        s = AppScope(self, name, modules=modules)
+        self._scopes.append(s)
+        return s
+
     def on_tick(self, callback, period=SERVICE_TICK_MS, **_ignored):
         """Schedule a periodic callback (alias of :meth:`every`)."""
         return self.every(period, callback)
 
     def stop_timers(self):
-        """Stop the service tick, every refresh and every subscription."""
+        """Stop the service tick, every refresh and every subscription.
+
+        Timers made through an open :meth:`scope` stop too.
+        """
+        for s in tuple(self._scopes):
+            s.stop_timers()
         st = self._service_timer
         self._service_timer = None
         if st is not None:
