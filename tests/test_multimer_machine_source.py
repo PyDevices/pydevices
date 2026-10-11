@@ -115,6 +115,57 @@ class MachineSourceCase(unittest.TestCase):
         cb(self.hw)
 
 
+class TestLostCallback(MachineSourceCase):
+    """A full ``micropython.schedule`` queue drops a fire's callback without a
+    word. Without the backstop the source waits for that fire forever, and
+    every timer in the program stops (LVGL froze on an ESP32-P4 playing
+    Spotify)."""
+
+    def lose(self, delay=5):
+        self.src.arm(delay)
+        self.fire()
+        self.hw.firing = False  # the C side ran; the Python callback never will
+        return FakeHW.made[-1]
+
+    def test_the_backstop_is_a_slow_periodic_timer_of_its_own(self):
+        bs = self.lose()
+        self.assertIsNot(bs, self.hw)
+        self.assertEqual(bs.inits, [(1000, self.src._BACKSTOP_MS)])
+
+    def test_a_dropped_callback_is_recovered(self):
+        bs = self.lose()
+        inits = len(self.hw.inits)
+        _clock[0] += self.src._BACKSTOP_MS + 1
+        bs.callback(bs)
+        self.assertEqual(self.wakes, [_clock[0]])
+        self.assertEqual(self.src.lost, 1)
+        self.src.arm(5)  # the dispatcher re-arms from that wake
+        self.assertEqual(len(self.hw.inits), inits + 1)
+        self.assertEqual(self.hw.violations, [])
+
+    def test_a_late_callback_is_not_lost(self):
+        self.src.arm(5)
+        cb = self.fire()
+        bs = FakeHW.made[-1]
+        _clock[0] += 100  # queued behind a long delivery
+        bs.callback(bs)
+        self.assertEqual((self.wakes, self.src.lost), ([], 0))
+        self.finish(cb)
+        self.assertEqual(len(self.wakes), 1)
+
+    def test_nothing_wanted_nothing_woken(self):
+        bs = self.lose()
+        self.src.cancel()
+        _clock[0] += 10 * self.src._BACKSTOP_MS
+        bs.callback(bs)
+        self.assertEqual((self.wakes, self.src.lost), ([], 0))
+
+    def test_stop_releases_the_backstop(self):
+        bs = self.lose()
+        self.src.stop()
+        self.assertEqual(bs.deinits, 1)
+
+
 class TestNeverTouchedWhileFiring(MachineSourceCase):
     def test_rearm_while_firing_does_not_init(self):
         # A UI callback re-arms the source at the moment the timer fires.
