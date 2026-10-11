@@ -7,11 +7,11 @@ local to `ports/espressif/common-hal/_bleio/PacketBuffer.c`).
 against tag 10.3.0. The upstream-emissary agent can turn it into a branch
 and a PR body; nothing has been pushed.
 
-Found while building `bledev.cpble` (pydevices, `lib/bledev/cpble.py`), which
+Found while building `bledev.cpble` (pydevices, [`lib/bledev/cpble.py`](../../lib/bledev/cpble.py)), which
 works around the stall on unpatched firmware (it writes each notification as
 the `header=` of an empty write, which never waits). The workaround doesn't
 avoid the hard fault; only the fix does. The measurements are in
-`docs/bledev-internals.md`, "How cpble gets there".
+[`docs/bledev-internals.md`](../bledev-internals.md), "How cpble gets there".
 
 Verified on a LilyGO T-Embed (ESP32-S3), CircuitPython 10.3.0, the official
 build and the same tag with this patch, against Windows 11 through bleak

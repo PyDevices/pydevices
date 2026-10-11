@@ -7,7 +7,7 @@ This is the **target** contract for **MicroPython** boards. Board configs and
 drivers live in
 [`pydevices`](https://github.com/PyDevices/pydevices).
 
-**CircuitPython** (`board_configs/cp/`) uses the same role names but leans on
+**CircuitPython** ([`board_configs/cp/`](../board_configs/cp/)) uses the same role names but leans on
 its native `board` module. A CP `board_config.py` constructs `display_drv` and
 the eager UI hardware (`touch`, `keypad`, `encoder`, `joystick`) with neutral
 read aliases. A CP `board_peripherals.py` is optional: add one for roles that
@@ -145,7 +145,7 @@ re-exports that frozenset; eager UI names are not listed there.
 
 ## Boards with no display
 
-`board_configs/nodisplay/` holds boards that are only peripherals — an audio
+[`board_configs/nodisplay/`](../board_configs/nodisplay/) holds boards that are only peripherals — an audio
 DAC or amplifier on a QT Py, say. They ship a `board_peripherals.py` and **no
 `board_config.py`**, because there is nothing eager to construct. Apps import
 `board_peripherals` directly, which is the non-graphics idiom with nothing

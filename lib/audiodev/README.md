@@ -35,7 +35,7 @@ transport error if none are available. `pgdisplay`/`psdisplay` may still
 import concrete transports directly.
 
 This package does not import `displaydev`, `multimer`, or `appdev`
-(`sample_out.py` imports `multimer.ticks_ms`/`ticks_diff` with a CPython
+([`sample_out.py`](sample_out.py) imports `multimer.ticks_ms`/`ticks_diff` with a CPython
 fallback — the one exception, needed for the lookahead schedule; see its
 module docstring).
 
@@ -122,7 +122,7 @@ yields, so timers never fire and even its own `cancel()` is never delivered.
 
 ## Portability
 
-`audiodev/__init__.py` and `sdl2_audio.py` run on CPython, MicroPython (unix *and*
+`audiodev/__init__.py` and [`sdl2_audio.py`](sdl2_audio.py) run on CPython, MicroPython (unix *and*
 `micropython.exe`), and CircuitPython, so they are limited to APIs all three
 provide. CPython-only idioms here do not fail at import — they raise at runtime
 on the first write, which is why they survive review.
@@ -144,7 +144,7 @@ about a megabyte at 44.1 kHz stereo, and a MicroPython heap shared with a UI
 sometimes has none: `MemoryError` mid-playback. `ByteQueue` keeps the same
 bytes in 8 KB chunks.
 
-`pygame_audio.py` and `web_audio.py` cannot run on MicroPython or CircuitPython at
+[`pygame_audio.py`](pygame_audio.py) and [`web_audio.py`](web_audio.py) cannot run on MicroPython or CircuitPython at
 all (they need pygame-ce and Pyodide's `js` module), so a CPython-only idiom is
 not a bug there. `pygame_audio.py` still uses the portable forms, because it
 mirrors `sdl2_audio.py` closely enough to diff — see "Keep it in step with
@@ -658,12 +658,12 @@ the import is a no-op.
 
 ## Tests
 
-`tests/test_audiodev.py` (base contracts, and `AudioOut` against a fake
-transport + a fake audiosample), `tests/test_sdl2_audio.py`,
-`tests/test_pygame_audio.py`, `tests/test_win_audio.py`,
-`tests/test_emulated_audio.py` and `tests/test_auto.py` cover these modules
-against SDL's `dummy` driver, and `tests/test_audiodev_latency.py` covers the
-profile vocabulary on its own. `tests/test_audio_playback_golden.py` runs a
+[`tests/test_audiodev.py`](../../tests/test_audiodev.py) (base contracts, and `AudioOut` against a fake
+transport + a fake audiosample), [`tests/test_sdl2_audio.py`](../../tests/test_sdl2_audio.py),
+[`tests/test_pygame_audio.py`](../../tests/test_pygame_audio.py), [`tests/test_win_audio.py`](../../tests/test_win_audio.py),
+[`tests/test_emulated_audio.py`](../../tests/test_emulated_audio.py) and [`tests/test_auto.py`](../../tests/test_auto.py) cover these modules
+against SDL's `dummy` driver, and [`tests/test_audiodev_latency.py`](../../tests/test_audiodev_latency.py) covers the
+profile vocabulary on its own. [`tests/test_audio_playback_golden.py`](../../tests/test_audio_playback_golden.py) runs a
 real `synthio`/`audiomixer` script through `AudioOut` over
 `emulated_audio.WavPCMOutput` and hash-compares the WAV output — the one test
 here that needs a `micropython`/`circuitpython` binary with the
@@ -682,13 +682,13 @@ Do not run them while another process is playing audio. Two clients on one sink
 makes `SDL_OpenAudioDevice` fail with "Could not connect PulseAudio stream",
 which looks like a driver bug and is not one.
 
-`tests/test_contract_proof.py` relies on a sibling test importing `tests/_env.py`
+[`tests/test_contract_proof.py`](../../tests/test_contract_proof.py) relies on a sibling test importing [`tests/_env.py`](../../tests/_env.py)
 first, so run it through `discover` rather than on its own.
 
-`tests/test_portability.py` covers the constraints above. It rejects
+[`tests/test_portability.py`](../../tests/test_portability.py) covers the constraints above. It rejects
 `del` on any bytearray buffer and any `os.environ` use in the portable modules —
 statically, so it still guards CI, where no MicroPython build exists — and then
-runs `tests/portability_probe.py` under each of `micropython`,
+runs [`tests/portability_probe.py`](../../tests/portability_probe.py) under each of `micropython`,
 `micropython.exe`, and `circuitpython` found on `PATH`, skipping when none are.
 The probe selects a backend, exercises the environment helpers, and writes PCM on
 both latency profiles, since these idioms import cleanly everywhere and only
@@ -698,7 +698,7 @@ raise on first use. Run it by hand against one interpreter with:
 micropython tests/portability_probe.py
 ```
 
-`tests/test_esp32_p4_audio.py` and `tests/test_tab5_audio.py` simulate the MCU
+[`tests/test_esp32_p4_audio.py`](../../tests/test_esp32_p4_audio.py) and [`tests/test_tab5_audio.py`](../../tests/test_tab5_audio.py) simulate the MCU
 boards that build I2S devices directly, with fake `machine`, I2C and codecs, so
 the profile-to-`ibuf` mapping is checked without hardware. When editing those
 board configs, clear `__pycache__` before trusting a re-run: WSL mtimes are

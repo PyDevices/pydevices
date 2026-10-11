@@ -54,7 +54,7 @@ tools/audio_rig/run.sh good16k 16000 16000 2 440 440   # name rate wire ch tone 
 `wire` differs from `rate` only for fault injection: it opens I2S at a rate
 the tone was not built for, which is the clock-mismatch bug class.
 
-`contract_check.py` is the same measurement taken **through
+[`contract_check.py`](contract_check.py) is the same measurement taken **through
 `board_peripherals`** rather than raw `machine.I2S` — that is the gate that
 proves the contract, not just the hardware.
 

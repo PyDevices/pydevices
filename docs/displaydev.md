@@ -11,12 +11,12 @@ See [Architecture](architecture.md) for how drivers connect to `board_config.py`
 | Your target | Driver class | Board config example |
 |-------------|--------------|----------------------|
 | MicroPython MCU (SPI/I80) | `BusDisplay` | `board_configs/busdisplay/spi/...` |
-| CPython / MicroPython Unix desktop | `SDLDisplay` | `board_configs/sdldisplay/` |
-| Windows CPython (native Win32) | `WinDisplay` | `board_configs/windisplay/` |
-| Windows / Chromebook (PyGame easier) | `PGDisplay` | `board_configs/pgdisplay/` |
+| CPython / MicroPython Unix desktop | `SDLDisplay` | [`board_configs/sdldisplay/`](../board_configs/sdldisplay/) |
+| Windows CPython (native Win32) | `WinDisplay` | [`board_configs/windisplay/`](../board_configs/windisplay/) |
+| Windows / Chromebook (PyGame easier) | `PGDisplay` | [`board_configs/pgdisplay/`](../board_configs/pgdisplay/) |
 | CircuitPython RGB / USB video | `FBDisplay` | varies |
-| Jupyter notebook | `JNDisplay` | `board_configs/jndisplay/` |
-| PyScript browser | `PSDisplay` | `board_configs/psdisplay/` |
+| Jupyter notebook | `JNDisplay` | [`board_configs/jndisplay/`](../board_configs/jndisplay/) |
+| PyScript browser | `PSDisplay` | [`board_configs/psdisplay/`](../board_configs/psdisplay/) |
 
 Install the matching [board config](board-configs.md) — it constructs the driver for you.
 
@@ -43,7 +43,7 @@ Native Win32 HWND backend for **CPython on Windows** (`uwin32`). Logical RGB565 
 
 ### PGDisplay
 
-PyGame desktop backend. `displaydev.auto.AutoDisplay` (used by `board_configs/desktop/`) selects it after `WinDisplay` on Windows, and first on other CPython desktops; if PyGame is not installed it falls back to `SDLDisplay`. Explicit config: `board_configs/pgdisplay/`.
+PyGame desktop backend. `displaydev.auto.AutoDisplay` (used by [`board_configs/desktop/`](../board_configs/desktop/)) selects it after `WinDisplay` on Windows, and first on other CPython desktops; if PyGame is not installed it falls back to `SDLDisplay`. Explicit config: `board_configs/pgdisplay/`.
 
 ### FBDisplay
 

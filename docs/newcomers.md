@@ -27,16 +27,16 @@ A board config exposes neutral hardware capabilities; it does not create an appl
 
 | Path | Purpose |
 |---|---|
-| board_configs/ | MicroPython board configurations; CircuitPython boards are under board_configs/cp/. |
-| drivers/ | Bus, display, touch, input, codec, sensor, power, and storage drivers. |
-| lib/displaydev/ | Portable display interfaces and concrete display backends. |
-| lib/audiodev/ | Portable audio interfaces and backends. |
-| lib/appdev/ | Optional application event dispatcher and coordinator. |
-| lib/multimer/ | Portable timer providers and scheduling primitives. |
-| lib/events.py and lib/keys.py | Neutral input event and key definitions. |
-| lib/boarddev.py | Lazy peripheral access for MicroPython board configurations, and the portable environment helpers (`env_get`, `env_int`, `env_float`, `env_bool`, `env_set`). |
-| docs/ | Product, board, driver, installation, and architecture documentation. |
-| tests/ | Cross-platform unit tests. |
+| [board_configs/](../board_configs/) | MicroPython board configurations; CircuitPython boards are under [board_configs/cp/](../board_configs/cp/). |
+| [drivers/](../drivers/) | Bus, display, touch, input, codec, sensor, power, and storage drivers. |
+| [lib/displaydev/](../lib/displaydev/) | Portable display interfaces and concrete display backends. |
+| [lib/audiodev/](../lib/audiodev/) | Portable audio interfaces and backends. |
+| [lib/appdev/](../lib/appdev/) | Optional application event dispatcher and coordinator. |
+| [lib/multimer/](../lib/multimer/) | Portable timer providers and scheduling primitives. |
+| [lib/events.py](../lib/events.py) and [lib/keys.py](../lib/keys.py) | Neutral input event and key definitions. |
+| [lib/boarddev.py](../lib/boarddev.py) | Lazy peripheral access for MicroPython board configurations, and the portable environment helpers (`env_get`, `env_int`, `env_float`, `env_bool`, `env_set`). |
+| [docs/](./) | Product, board, driver, installation, and architecture documentation. |
+| [tests/](../tests/) | Cross-platform unit tests. |
 
 ## The board contract
 
@@ -58,5 +58,5 @@ The hardware configuration remains the same whichever layer you choose. Ready-to
 
 Keep board wiring, reusable product libraries, and application code separate. Run the headless unit suite from the [README's tests section](../README.md#tests) after changing core libraries.
 
-AGENTS.md contains the source and release invariants; the [architecture guide](architecture.md) and [documentation index](README.md) provide the next level of detail.
+[AGENTS.md](../AGENTS.md) contains the source and release invariants; the [architecture guide](architecture.md) and [documentation index](README.md) provide the next level of detail.
 

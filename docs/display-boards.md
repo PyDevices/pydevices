@@ -125,7 +125,7 @@ variant (`C6_WIFI`).
 ### LILYGO T-Embed (SPI ST7789)
 
 - **board_config title:** `LILYGO T-Embed ST7789 170x320 SPI + rotary`
-- **Dir:** `board_configs/busdisplay/spi/t-embed` (native displayif `spibus`)
+- **Dir:** [`board_configs/busdisplay/spi/t-embed`](../board_configs/busdisplay/spi/t-embed/) (native displayif `spibus`)
 - **Resolution:** 170×320, `colstart=35`, `rowstart=0`, `invert=True`, `bgr=True`
 - **Orientation:** `rotation=180`, `mirrored=True` → MADCTL **MX|MY|BGR
   (`0xC8`)**. Encoder at the physical bottom → origin upper-left. Matches
@@ -152,7 +152,7 @@ variant (`C6_WIFI`).
 ### LILYGO T-HMI (I80 ST7789)
 
 - **board_config title:** `LILYGO T-HMI 240x320 ST7789 I80 + XPT2046`
-- **Dir:** `board_configs/busdisplay/i80/t-hmi` (native displayif `i80bus`)
+- **Dir:** [`board_configs/busdisplay/i80/t-hmi`](../board_configs/busdisplay/i80/t-hmi/) (native displayif `i80bus`)
 - **Resolution:** 240×320, `colstart=0`, `invert=False`, `bgr=True`
 - **Orientation:** `rotation=0`, `mirrored=True` → MADCTL **BGR (`0x08`)**
   (TFT_eSPI Setup207 / ST7789 rot0). `mirrored=False` added MX (`0x48`) and
@@ -188,8 +188,8 @@ variant (`C6_WIFI`).
 
 - **board_config titles:** `Waveshare RP2040-Touch-LCD-1.28 GC9A01 240x240`
   (MicroPython); same board under CircuitPython
-- **Dirs:** `board_configs/busdisplay/spi/rp2040-touch-lcd-1.28` (MP);
-  `board_configs/cp/busdisplay/spi/rp2040-touch-lcd-1.28` (CP)
+- **Dirs:** [`board_configs/busdisplay/spi/rp2040-touch-lcd-1.28`](../board_configs/busdisplay/spi/rp2040-touch-lcd-1.28/) (MP);
+  [`board_configs/cp/busdisplay/spi/rp2040-touch-lcd-1.28`](../board_configs/cp/busdisplay/spi/rp2040-touch-lcd-1.28/) (CP)
 - **Resolution:** 240×240 round GC9A01A, `bgr=True`,
   `reverse_bytes_in_word=True`, `invert=True`
 - **Bus (MP):** `SPIBus(id=1, sck=10, mosi=11, dc=8, cs=9)` @ **10 MHz**
@@ -228,7 +228,7 @@ variant (`C6_WIFI`).
 ### Adafruit Metro M7 + 2.8″ TFT Touch Shield (cap, product 1947)
 
 - **board_config title:** `Metro M7 + Adafruit 2.8" TFT Touch Shield (cap) product 1947`
-- **Dir:** `board_configs/busdisplay/spi/metro_m7_tft_touch_shield_1947` (MP;
+- **Dir:** [`board_configs/busdisplay/spi/metro_m7_tft_touch_shield_1947`](../board_configs/busdisplay/spi/metro_m7_tft_touch_shield_1947/) (MP;
   package `v0.2`)
 - **Resolution:** 240×320 ILI9341, `bgr=True`, `reverse_bytes_in_word=True`,
   `rotation=0`
@@ -272,7 +272,7 @@ variant (`C6_WIFI`).
 ### ST NUCLEO-H743ZI2 + Adafruit 2.8″ TFT Touch Shield (cap, product 1947)
 
 - **board_config title:** `NUCLEO-H743ZI2 + Adafruit 2.8" TFT Touch Shield (cap) product 1947`
-- **Dir:** `board_configs/busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947` (MP;
+- **Dir:** [`board_configs/busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947`](../board_configs/busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947/) (MP;
   package `v0.3`)
 - **Resolution:** 240×320 ILI9341, `bgr=True`, `reverse_bytes_in_word=True`,
   `rotation=0`

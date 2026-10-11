@@ -7,7 +7,7 @@ backend delivers it.
 
 ## The layout
 
-`lib/bledev/` follows `audiodev` and `displaydev`: a portable base, one
+[`lib/bledev/`](../lib/bledev/) follows `audiodev` and `displaydev`: a portable base, one
 standalone module per backend, and an optional selector.
 
 | Module | What it is |
@@ -34,8 +34,8 @@ else in bledev except the base classes. `auto.BACKENDS` expects
 `bledev.bleak.BleakBLE` and `bledev.webble.WebBLE`; if you name your class
 differently, change that table.
 
-Anything under `lib/` must also be listed in `pydevices-desktop.toml` (a test
-checks it). A central-only host module belongs in `mip-split.toml`'s
+Anything under `lib/` must also be listed in [`pydevices-desktop.toml`](../pydevices-desktop.toml) (a test
+checks it). A central-only host module belongs in [`mip-split.toml`](../mip-split.toml)'s
 `[bledev] host-only` list once its file exists, so it doesn't ship to boards.
 
 ## The hooks
@@ -212,7 +212,7 @@ checks the connection first and raises `DisconnectedError`.
 
 The REPL gate once failed one run in five: bleak couldn't subscribe on a
 connection made 1.5 s after the last one closed. A loop of rapid reconnects
-from the laptop (`tests/bledev_board/reconnect_loop.py`: log in, run a line,
+from the laptop ([`tests/bledev_board/reconnect_loop.py`](../tests/bledev_board/reconnect_loop.py): log in, run a line,
 close, wait 1.5 s) caught it at about one cycle in fifty, always the same
 way. bleak's connect returned in 70-440 ms where a real one takes 1.7 s or
 more, Windows reported the device connected and the GATT session active, the
@@ -286,7 +286,7 @@ advertises to a new host only in discovery mode, which normally takes a reset
 pressed during the blue blink after boot. The supervisor marks that second in
 an RTC register that survives a reset, and `memorymap` can write that register
 on the S3 (`RTC_CNTL_STORE0_REG`, 0x60008050), so
-`tests/bledev_board/cpfiles_discovery.py` writes the mark and resets. It also
+[`tests/bledev_board/cpfiles_discovery.py`](../tests/bledev_board/cpfiles_discovery.py) writes the mark and resets. It also
 erases the board's bonds, as the button would.
 
 **What `_bleio` can't do here**, on the ESP32 port: a central can't receive
@@ -401,7 +401,7 @@ events. It imports `events` and `keys` and nothing from Bluetooth.
 **The keyboard decoder is usbif's, event for event.** Same order (modifier
 releases, key releases, key presses, modifier presses, the new modifier mask
 on all of them), same fields (`scancode` is the HID usage, `window` is
-`None`), same rollover rule. `tests/test_bledev_hid.py` feeds 3,000 random
+`None`), same rollover rule. [`tests/test_bledev_hid.py`](../tests/test_bledev_hid.py) feeds 3,000 random
 boot reports through both decoders when usbif's checkout is beside this one,
 and they must agree. It found one difference on its first run: the ISO "# ~"
 key (usage 0x32), which SDL calls `#` and usbif leaves unmapped. Now there is
@@ -565,11 +565,11 @@ What it takes to meet the contract in a browser, all found on hardware:
 - **MicroPython's asyncio can't `wait_for()` a JS promise**, only a
   coroutine, so promises with a timeout are wrapped in one.
 
-**The gate** is `tests/bledev_web/`: `gate.py` runs nus's three 16 KB phases
+**The gate** is [`tests/bledev_web/`](../tests/bledev_web/): `gate.py` runs nus's three 16 KB phases
 against `nus_gate_server.py` on a board, on three pages (`pyodide.html`,
 `mpy.html`, `wasm.html`) served by `serve.py`, which also collects what the
 pages log. `?mock=1` swaps in `mock_bluetooth.js`, and
-`tests/test_bledev_web.py` runs that in headless Chromium with two planted
+[`tests/test_bledev_web.py`](../tests/test_bledev_web.py) runs that in headless Chromium with two planted
 faults. Against a board, the chooser is the only human step, and both ends
 of it can be automated:
 
@@ -589,26 +589,26 @@ the air.
 
 ## The checks
 
-**Pairing, without a radio**, on both interpreters: `tests/bledev_pairing.py`
+**Pairing, without a radio**, on both interpreters: [`tests/bledev_pairing.py`](../tests/bledev_pairing.py)
 serves the file service over the fake the way CircuitPython does (encrypted,
 no `AUTH`) and the way a passkey board does, and checks that clients pair when
 they must, refuse what they must, and move 20 KB intact; plus the NVS blob
-codec. `tests/test_bledev_pairing.py` runs four plants, each of which must fail.
+codec. [`tests/test_bledev_pairing.py`](../tests/test_bledev_pairing.py) runs four plants, each of which must fail.
 
 **The file-transfer protocol**, on both interpreters:
-`tests/bledev_filetransfer.py` wires the client to a `FileServer` through a
+[`tests/bledev_filetransfer.py`](../tests/bledev_filetransfer.py) wires the client to a `FileServer` through a
 loopback that splits both directions at the MTU (23, 185 and 247, windows
-from 512 to 4096), and `tests/test_bledev_filetransfer.py` runs it with a
+from 512 to 4096), and [`tests/test_bledev_filetransfer.py`](../tests/test_bledev_filetransfer.py) runs it with a
 flipped bit and a lost packet, each of which must fail.
 
-**Against the fake**, on both interpreters: `tests/bledev_contract.py`.
+**Against the fake**, on both interpreters: [`tests/bledev_contract.py`](../tests/bledev_contract.py).
 Its `pair()` and `nus_pair()` helpers build two fake adapters. A host backend
 that has a fake peripheral to talk to can reuse most checks by building its
-adapters there instead. `tests/test_bledev.py` also runs five planted faults
+adapters there instead. [`tests/test_bledev.py`](../tests/test_bledev.py) also runs five planted faults
 (a dropped, corrupted, reordered, truncated or overwritten packet), and each
 must fail the contract; if you change the fake, keep that true.
 
-**Over a real radio**, `tests/bledev_board/`. Run the serving script with
+**Over a real radio**, [`tests/bledev_board/`](../tests/bledev_board/). Run the serving script with
 `mpftp run` on one board and the other with `mpftp probe --capture` on a
 second, or run the client on the laptop with the Windows Python:
 
@@ -635,7 +635,7 @@ The serving scripts have a `PLANT` switch, and a planted run must fail:
 | `pair_server.py` + `pair_client.py` (laptop) | Pairing. `pair`: a passkey read off the board's console, then the REPL and 20 KB through the file service on the paired link. `reconnect`: from the bond, nobody asked for a passkey. `wrong`: a passkey one off must fail pairing and leave Windows unpaired. `unpaired`: every protected characteristic refuses reads and writes. Plants on the server: `forget`, `justworks`, `open`. `uart_say.py` reads the board's state without mpftp's soft reset |
 | `pair_server.py` + `files_pair_client.py` (board) | Board to board: the client pairs on its own, 20 KB both ways byte for byte, then reconnects from the bond. `plant="flip"` and `plant="nopair"` must FAIL |
 | `nus_server.py` + `nus_client.py` | 16 KB up, down and echoed over nus, byte for byte, timed |
-| `tests/bledev_web/nus_gate_server.py` + a gate page | The same, from a browser through webble |
+| [`tests/bledev_web/nus_gate_server.py`](../tests/bledev_web/nus_gate_server.py) + a gate page | The same, from a browser through webble |
 
 `gatt_peripheral.py` is also the peripheral to point a host backend at: it
 advertises as `bledev-radio`, and a central steers it by writing commands.

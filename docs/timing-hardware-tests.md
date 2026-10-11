@@ -86,7 +86,7 @@ The class to keep dead: SDL's timer callback on a thread EGL refuses. The
 4. `bench_timer.py NEW idle/busy` on the phone through `android.py`, beside
    the old code; expect idle delivery of 500/500 with jitter under 2 ms.
 5. Remove `MULTIMER_BACKEND=threading` from the launcher's environment
-   (android-runner) and delete the Timers paragraph in `docs/android.md`
+   (android-runner) and delete the Timers paragraph in [`docs/android.md`](android.md)
    that explained the fallback; both are in the series.
 
 ## MicroPython on boards (the P4 panel, the T-Embed S3)
