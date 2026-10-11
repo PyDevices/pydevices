@@ -35,6 +35,19 @@ Each ``init()`` carries a generation, so a callback from a fire the source
 has since replaced is recognised: it still wakes the dispatcher, but it does
 not mark the hardware idle.
 
+**A fire whose callback never comes is picked up.** The port hands the
+callback to ``micropython.schedule``, and when that queue is full (eight
+entries on esp32: a C module's threads, a worker's results and the app's own
+calls share it) the port drops it without a word. The source would then wait
+for that fire forever, and every ``multimer.Timer`` in the program would stop,
+LVGL's with it. So a second, slow PERIODIC timer (``_BACKSTOP_MS``) checks for
+a deadline long past whose callback never came, and wakes the dispatcher
+itself. The backstop's own callback can be dropped too; the next one comes
+``_BACKSTOP_MS`` later. ``lost`` counts the fires it recovered. It is armed
+once, on the first ``arm()``, and never re-inited, so it never races its own
+fire. Where the port has no virtual timer (``Timer(-1)``) there is no
+backstop, rather than taking a second hardware timer.
+
 **On nrf a delivery waits for stack room.** The callback runs at whatever
 bytecode the program reached, on its stack. The nrf port's stack is about
 8 KB, a Python call takes about 300 bytes of it, and the port checks for
@@ -84,6 +97,11 @@ _POST_MS = 20
 
 _wake = None
 _hw = None
+# The backstop: a PERIODIC virtual timer, None until the first arm(), False
+# where the port has none to spare.
+_BACKSTOP_MS = 500
+_bs = None
+lost = 0  # fires whose callback never came, recovered by the backstop
 _due = None  # ticks_ms the hardware fires at; None once its callback came
 _gen = 0  # bumped on every init(); a callback from an older one is stale
 _wanted = False  # the dispatcher wants a wake (cleared by cancel())
@@ -153,6 +171,33 @@ def _starved(room):
 
 def _make_cb(gen):
     return lambda _t: _cb(gen)
+
+
+def _backstop(_t):
+    # Soft, like _cb: a bytecode boundary of the main thread.
+    global _due, lost
+    if not _wanted or _due is None:
+        return
+    if ticks_diff(ticks_ms(), _due) <= _BACKSTOP_MS:
+        return  # late, perhaps queued behind a long delivery; not yet lost
+    lost += 1
+    _due = None  # so arm() re-inits the hardware
+    w = _wake
+    if w is not None:
+        w(True)
+
+
+def _start_backstop():
+    global _bs
+    _bs = False
+    if not hasattr(_HW, "init") or _platform == "nrf":
+        return
+    try:
+        bs = _HW(-1)
+        bs.init(mode=_HW.PERIODIC, period=_BACKSTOP_MS, callback=_backstop)
+    except Exception:
+        return
+    _bs = bs
 
 
 class _NrfTimer:
@@ -290,6 +335,8 @@ def _quiet(now):
 
 def arm(delay_ms):
     global _wanted, _due, _gen
+    if _bs is None:
+        _start_backstop()
     ms = int(delay_ms)
     if ms < 1:
         ms = 1
@@ -362,9 +409,15 @@ def cancel():
 
 
 def stop():
-    global _wake, _due
+    global _wake, _due, _bs
     cancel()
     _wake = None
+    if _bs:
+        try:
+            _bs.deinit()
+        except Exception:
+            pass
+    _bs = None
     if _hw is not None and _quiet(ticks_ms()):
         _due = None
         try:
