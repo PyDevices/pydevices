@@ -17,9 +17,6 @@ board configs. Prefer single-file modules; MIP manifests live under `../packages
 | [`codec/es7210.py`](codec/es7210.py) | Minimal ES7210 ADC init for I2S mics (`profile="m5"` for CoreS3/Tab5) |
 | [`codec/aw88298.py`](codec/aw88298.py) | AW88298 smart amp init (CoreS3) |
 | [`codec/es8388.py`](codec/es8388.py) | ES8388 DAC init (Tab5) |
-| `audio/audiodev/` | Portable PCM/tone package (`PCMOutput` bases + backends) |
-| `usdl2.py` | Pure-Python SDL2 ctypes/ffi binding for desktop SDL |
-| `uwin32.py` | Pure-Python Win32/WASAPI ctypes binding for Windows CPython |
 | [`power/battery_adc.py`](power/battery_adc.py) | ADC + divider → volts |
 | [`rtc/pcf8563.py`](rtc/pcf8563.py) | NXP PCF8563 / BM8563 real-time clock with alarm and countdown, MicroPython and CircuitPython |
 | [`power/axp2101.py`](power/axp2101.py) | X-Powers AXP2101 PMU: rails, battery and charger, power key (T-Watch S3) |
@@ -34,6 +31,8 @@ board configs. Prefer single-file modules; MIP manifests live under `../packages
 
 Use `machine.SDCard` for SDMMC/SDIO slots; use `sdcard.py` for SPI CS paths.
 
-The audio backends subclass the `audiodev` bases and carry host-specific workarounds
+The audio backends aren't drivers here: they're in [`lib/audiodev/`](../lib/audiodev/),
+with the desktop bindings they use in [`utils/usdl2.py`](../utils/usdl2.py) (SDL2) and
+[`utils/uwin32.py`](../utils/uwin32.py) (Win32/WASAPI). They subclass the `audiodev` bases and carry host-specific workarounds
 that are easy to undo by accident — read the
 [`audiodev` README](../lib/audiodev/README.md) before changing them.
