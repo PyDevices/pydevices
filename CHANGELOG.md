@@ -1,3 +1,8 @@
+## v0.7.3 (2026-10-11)
+
+- Roadmap: BLE MIDI through Windows MIDI Services' Bluetooth transport (#189)
+- multimer: recover a timer fire whose callback a full schedule queue dropped (#188)
+
 ## v0.7.2 (2026-10-11)
 
 - wifi_manager installs with the pydevices package: fix the install lines (#186)
