@@ -22,6 +22,9 @@ with each kind of peripheral described honestly by its role.
   is 283) is cut off; the fix is a long GATT read in the firmware.
 - A measurement of how much BLE slows Wi-Fi on the ESP32-S3, to sit beside the
   measured other direction in [docs/bledev-internals.md](docs/bledev-internals.md).
+- BLE MIDI through Windows MIDI Services' new Bluetooth transport: once it
+  ships, a board running `bledev.midi.serve()` should open in any Windows MIDI
+  app and in `usbif.win_midi` without pairing, and the BLE docs say so.
 
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
