@@ -59,6 +59,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/events.py" = "/lib/events.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/frame_recorder.py" = "/lib/frame_recorder.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/keys.py" = "/lib/keys.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/mdns.py" = "/lib/mdns.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/micropython.py" = "/lib/micropython.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/mip.py" = "/lib/mip.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/multimer/__init__.py" = "/lib/multimer/__init__.py"
