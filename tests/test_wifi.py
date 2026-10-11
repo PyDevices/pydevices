@@ -131,7 +131,18 @@ def _load(wlan):
     secrets = types.ModuleType("_wifi_test_secrets")
     secrets.WIFI_SSID = "bench"
     secrets.WIFI_PASSWORD = "pw"
+    # wifi_manager is wifi's fallback when the secrets.py network can't be
+    # joined. The real one sits beside wifi in lib/; this one only records
+    # that it was asked, quietly, and knows no network.
+    manager = types.ModuleType("wifi_manager")
+    manager.calls = []
+
+    def connect(**kwargs):
+        manager.calls.append(kwargs)
+
+    manager.connect = connect
     real_time = sys.modules["time"]
+    sys.modules["wifi_manager"] = manager
     sys.modules["network"] = net
     sys.modules["ntptime"] = ntp
     sys.modules["_wifi_test_secrets"] = secrets
@@ -149,7 +160,7 @@ class WifiLinkTests(unittest.TestCase):
         _clock[0] = 0
 
     def tearDown(self):
-        for name in ("wifi", "network", "ntptime", "_wifi_test_secrets"):
+        for name in ("wifi", "network", "ntptime", "_wifi_test_secrets", "wifi_manager"):
             sys.modules.pop(name, None)
 
     def test_static_address_without_link_connects(self):
@@ -221,6 +232,8 @@ class WifiLinkTests(unittest.TestCase):
         wifi, _ = _load(wlan)
         self.assertFalse(wifi.connect_from_secrets("_wifi_test_secrets"))
         self.assertEqual(wlan.connects, ["bench"])
+        # and then the networks wifi_manager remembered, without its setup mode
+        self.assertEqual(sys.modules["wifi_manager"].calls, [{"setup": False}])
 
 
 if __name__ == "__main__":
