@@ -12,12 +12,12 @@ import wifi_manager
 ip = wifi_manager.connect()
 ```
 
-It runs on MicroPython and CircuitPython. It comes with pydevices, so a
-firmware that freezes pydevices already has it. Otherwise:
+It runs on MicroPython and CircuitPython. It's part of the `pydevices`
+package, so a firmware that freezes pydevices already has it. Otherwise:
 
 ```python
 import mip
-mip.install("wifi_manager", index="https://PyDevices.github.io/mip")
+mip.install("pydevices", index="https://PyDevices.github.io/mip")
 ```
 
 On CircuitPython, copy `lib/wifi_manager.py` to the board's `/lib`.

@@ -42,7 +42,8 @@ Docs are markdown under `docs/`, published only via GitHub Pages
   `appdev`, `events`, `keys`, `multimer`). TestPyPI distribution names are
   always `pydevices-*`. `displaydev` → `events` + `keys`; `appdev` →
   `events` + `keys` + `multimer`. Every non-debris top-level component in
-  `lib/` publishes automatically as a leaf; `pydevices` depends on all leaves.
+  `lib/` ships inside the `pydevices` MIP package; only a directory marked
+  `own-package` in `mip-split.toml` also publishes as a MIP package of its own.
   Every library component in `utils/` is bundled automatically into
   `pydevices-desktop` without becoming a separate package. The desktop package
   depends on `pydevices`.
