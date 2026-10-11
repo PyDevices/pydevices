@@ -1,3 +1,10 @@
+## v0.7.2 (2026-10-11)
+
+- wifi_manager installs with the pydevices package: fix the install lines (#186)
+- wifi_manager joins pydevices: tests and a doc for apps that need the network, work without it, or use it only for maintenance (#185)
+- multimer: Ctrl-C inside a timer delivery no longer stops every timer (#183)
+- display_driver: a Ctrl-C in an LVGL pass can't stop LVGL (#182)
+
 ## v0.7.1 (2026-10-10)
 
 - board-bringup: copy wifi.py only when the firmware doesn't freeze pydevices (#180)
