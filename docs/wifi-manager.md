@@ -20,7 +20,7 @@ import mip
 mip.install("pydevices", index="https://PyDevices.github.io/mip")
 ```
 
-On CircuitPython, copy `lib/wifi_manager.py` to the board's `/lib`.
+On CircuitPython, copy [`lib/wifi_manager.py`](../lib/wifi_manager.py) to the board's `/lib`.
 
 ## Three kinds of app
 

@@ -29,7 +29,7 @@ See the canonical commands and verification steps in
 Standard MCU pattern: install the matching `board_config` directory and let
 `package.json` dependencies resolve automatically from the PyDevices MIP index.
 
-CircuitPython configs live under `board_configs/cp/` with the same bus layout and
+CircuitPython configs live under [`board_configs/cp/`](../board_configs/cp/) with the same bus layout and
 directory names as MicroPython (no `cp_` prefix, no `package.json` / MIP, no
 `board_peripherals.py`). MicroPython configs stay at the top level of
 `board_configs/` (not under an `mp/` folder).

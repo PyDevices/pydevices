@@ -11,8 +11,8 @@ Docs are markdown under `docs/`, published only via GitHub Pages
 ## Do
 
 - Add/edit MicroPython boards under `board_configs/` and CircuitPython under
-  `board_configs/cp/` (same directory names as MicroPython; do not add an `mp/`
-  mirror). Chip helpers under `drivers/` (see `drivers/README.md`).
+  [`board_configs/cp/`](board_configs/cp/) (same directory names as MicroPython; do not add an `mp/`
+  mirror). Chip helpers under `drivers/` (see [`drivers/README.md`](drivers/README.md)).
 - MicroPython board dirs get a direct-GitHub `package.json`; do **not** add one
   under `board_configs/cp/`. Board installers depend on `pydevices` at
   `latest`, include required board-specific Python drivers in `urls`, and do
@@ -31,7 +31,7 @@ Docs are markdown under `docs/`, published only via GitHub Pages
   read aliases (`touch_read`, `keypad_read`, `encoder_read`, and so on). Board
   configs never instantiate `appdev` or an `appdev.App`. Non-UI
   peripherals stay on CP `board` / libraries.
-- Run `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m unittest discover -s tests` after changing `displaydev`, `multimer`, `events`, `keys`, `audiodev`, `boarddev`, or `utils/`. See `tests/README.md`.
+- Run `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m unittest discover -s tests` after changing `displaydev`, `multimer`, `events`, `keys`, `audiodev`, `boarddev`, or `utils/`. See [`tests/README.md`](tests/README.md).
 - Keep MIP `package.json` URLs on
   `github:PyDevices/pydevices/...` for files in this repo
   (MicroPython boards only; all sources are product-owned). Do **not** add a
@@ -43,7 +43,7 @@ Docs are markdown under `docs/`, published only via GitHub Pages
   always `pydevices-*`. `displaydev` → `events` + `keys`; `appdev` →
   `events` + `keys` + `multimer`. Every non-debris top-level component in
   `lib/` ships inside the `pydevices` MIP package; only a directory marked
-  `own-package` in `mip-split.toml` also publishes as a MIP package of its own.
+  `own-package` in [`mip-split.toml`](mip-split.toml) also publishes as a MIP package of its own.
   Every library component in `utils/` is bundled automatically into
   `pydevices-desktop` without becoming a separate package. The desktop package
   depends on `pydevices`.

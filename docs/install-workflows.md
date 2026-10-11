@@ -17,7 +17,7 @@ Python from python.org — `pygame-ce` (`PGDisplay`) is generally the easiest
 window backend there, and WSL supports the Linux workflow unchanged.
 
 Headless CI should set `SDL_VIDEODRIVER=dummy` and `SDL_AUDIODRIVER=dummy`. For
-Linux without X11 or Wayland, install the `board_configs/sdldisplay/linux_kms`
+Linux without X11 or Wayland, install the [`board_configs/sdldisplay/linux_kms`](../board_configs/sdldisplay/linux_kms/)
 board config, which sets `SDL_VIDEODRIVER=kmsdrm` before SDL initializes; the
 host needs an SDL build with KMSDRM support, access to `/dev/dri`, and no
 competing DRM master.

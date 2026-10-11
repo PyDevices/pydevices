@@ -49,7 +49,7 @@ installers already include the drivers they require.
 
 ## CircuitPython shims
 
-Touch drivers for CircuitPython under `drivers/touch/circuitpython/`, Adafruit's vendored and a few of our own:
+Touch drivers for CircuitPython under [`drivers/touch/circuitpython/`](../drivers/touch/circuitpython/), Adafruit's vendored and a few of our own:
 
 | File | Chip |
 |------|------|

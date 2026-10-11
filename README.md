@@ -37,13 +37,13 @@ Write your display and hardware logic once and run across 6 supported Python env
 | Path | Contents |
 |------|----------|
 | [`bin/`](bin/) | Scripts, plus fetched interpreter binaries ([`./bin/fetch_interpreters.sh`](bin/fetch_interpreters.sh)) |
-| [`board_configs/`](board_configs/) | MicroPython boards (top level); CircuitPython under `board_configs/cp/` |
+| [`board_configs/`](board_configs/) | MicroPython boards (top level); CircuitPython under [`board_configs/cp/`](board_configs/cp/) |
 | [`drivers/`](drivers/) | Display, touch, bus, joystick, IO expander, input helpers |
 | [`lib/displaydev/`](lib/displaydev/) | Display backends (`BusDisplay`, `SDLDisplay`, …); `auto.py` is convenience only |
 | [`lib/`](lib/) | `audiodev/`, `displaydev/`, `appdev/`, `events.py`, `keys.py`, `multimer/`, `mdns.py`, `wifi.py`, `wifi_manager.py` |
 | [`utils/`](utils/) | Desktop-bundled helpers (`mip`, `frame_recorder`, `micropython`, `usdl2`, `uwin32`) |
-| `tests/` | Stdlib unittest for `displaydev`, `multimer`, `events`, `keys`, `audiodev`, `boarddev`, `mip` |
-| `docs/` | Hardware and Board Contract documentation ([index](docs/README.md)) |
+| [`tests/`](tests/) | Stdlib unittest for `displaydev`, `multimer`, `events`, `keys`, `audiodev`, `boarddev`, `mip` |
+| [`docs/`](docs/) | Hardware and Board Contract documentation ([index](docs/README.md)) |
 
 ## Documentation
 

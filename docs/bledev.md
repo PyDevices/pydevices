@@ -53,7 +53,7 @@ mip.install("bledev", index="https://PyDevices.github.io/mip")
 
 That one install brings aioble with it; our firmware has `bluetooth` but
 doesn't freeze aioble. Until then, `mip.install("aioble", index=...)` and copy
-`lib/bledev/` to `/lib/bledev/` yourself.
+[`lib/bledev/`](../lib/bledev/) to `/lib/bledev/` yourself.
 
 On a laptop, bledev is inside the `pydevices` wheel. `pip install "pydevices[ble]"`
 adds bleak, which the laptop backend needs.
@@ -432,7 +432,7 @@ max_conn_interval_us=7500)`. The latency that buys is in
 
 The packet format lives in `bledev.midi_codec`, pure Python with no
 imports: timestamps, running status, SysEx split across packets, and clock
-slipped into a SysEx. Its test vectors (`tests/bledev_midi_vectors.json`) were
+slipped into a SysEx. Its test vectors ([`tests/bledev_midi_vectors.json`](../tests/bledev_midi_vectors.json)) were
 worked out by hand from the specification, and every interpreter checks
 against the same file.
 
@@ -579,8 +579,8 @@ what trips people up on hardware: a name that only reaches an active scan, a
 transmit buffer that fills (`notify_buffers`), and a reader that falls behind
 (`queue_limit`).
 
-The contract's own checks are `tests/bledev_contract.py`, a plain script so it
-runs on both interpreters. `tests/test_bledev.py` runs it on CPython and on a
+The contract's own checks are [`tests/bledev_contract.py`](../tests/bledev_contract.py), a plain script so it
+runs on both interpreters. [`tests/test_bledev.py`](../tests/test_bledev.py) runs it on CPython and on a
 unix `micropython`, and then once per planted fault, each of which must make
 it fail:
 

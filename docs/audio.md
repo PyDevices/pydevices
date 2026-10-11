@@ -122,7 +122,7 @@ This is the same object shape CircuitPython code already expects from
 `audiobusio.I2SOut`/`audioio.AudioOut` — a synth built for a CircuitPython
 tutorial runs unchanged against this port's `AudioOut`.
 
-**On CircuitPython boards** (`board_configs/cp/`) the contract is satisfied
+**On CircuitPython boards** ([`board_configs/cp/`](../board_configs/cp/)) the contract is satisfied
 *natively*: there is no `audio_out` role or `AudioOut` wrapper at all — CP
 apps construct `audiobusio.I2SOut(...)`/`audioio.AudioOut(...)` directly (see
 [`docs/board-peripherals.md`](board-peripherals.md): CP boards have no `board_peripherals.py`). Same

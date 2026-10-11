@@ -26,7 +26,7 @@ by
   release automatically.
 - `pydevices-desktop` depends on `pydevices==X.Y.Z` and additionally copies in
   every module discovered under `utils/` plus the desktop board config
-  directory (`board_configs/desktop`). Utilities do not get their own
+  directory ([`board_configs/desktop`](../board_configs/desktop/)). Utilities do not get their own
   distributions.
 
 This replaced an earlier model that built one TestPyPI distribution per `lib/`
