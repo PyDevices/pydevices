@@ -16,7 +16,7 @@ Bringing up a fresh board, from a ``secrets.py`` holding ``WIFI_SSID`` and
 ``connect_from_secrets()`` prints its progress, returns ``True`` once the board
 has an address, and sets the clock from NTP.  When ``secrets.py`` is missing or
 its network isn't in range, it tries the networks ``wifi_manager`` has
-remembered, if ``wifi_manager`` is installed.
+remembered (``docs/wifi-manager.md``), if ``wifi_manager`` is installed.
 
 This file is self-contained on purpose: it is the one you copy onto a board by
 hand so that ``mip`` has a network.  On CircuitPython the native ``wifi``
@@ -393,7 +393,7 @@ def _from_wifi_manager():
         import wifi_manager
     except ImportError:
         print("wifi: install wifi_manager to remember networks and set them up from a phone:")
-        print('  mip.install("github:PyDevices/pydevices-examples/lib/utils/wifi_manager.py")')
+        print('  mip.install("wifi_manager", index="https://PyDevices.github.io/mip")')
         return None
     print("wifi: trying networks wifi_manager remembered")
     return wifi_manager.connect(setup=False)

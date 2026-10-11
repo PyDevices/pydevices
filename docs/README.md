@@ -22,6 +22,7 @@
 - [multimer.md](multimer.md) — portable timers
 - [audio.md](audio.md) — `audiodev` interfaces
 - [bledev.md](bledev.md) — Bluetooth Low Energy: one async API on boards, laptops and browsers
+- [wifi-manager.md](wifi-manager.md) — Wi-Fi without a password in your code: known networks, a setup page for your phone, and Wi-Fi only when you need it
 - [app-and-board-config.md](app-and-board-config.md) — the application loop
 - [lvgl.md](lvgl.md) — LVGL on PyDevices: `display_driver`, the three sister projects, sync and async timers
 
