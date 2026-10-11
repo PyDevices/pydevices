@@ -393,7 +393,7 @@ def _from_wifi_manager():
         import wifi_manager
     except ImportError:
         print("wifi: install wifi_manager to remember networks and set them up from a phone:")
-        print('  mip.install("wifi_manager", index="https://PyDevices.github.io/mip")')
+        print('  mip.install("pydevices", index="https://PyDevices.github.io/mip")')
         return None
     print("wifi: trying networks wifi_manager remembered")
     return wifi_manager.connect(setup=False)

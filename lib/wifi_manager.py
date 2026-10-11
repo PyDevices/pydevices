@@ -41,11 +41,11 @@ tries it at every boot even though scans can't see it.
 
 Install
 -------
-It comes with pydevices, so a firmware that freezes pydevices already has
-it.  Otherwise, on MicroPython::
+It is part of the ``pydevices`` package, so a firmware that freezes
+pydevices already has it.  Otherwise, on MicroPython::
 
     import mip
-    mip.install("wifi_manager", index="https://PyDevices.github.io/mip")
+    mip.install("pydevices", index="https://PyDevices.github.io/mip")
 
 CircuitPython: copy this file to ``/lib``.
 
