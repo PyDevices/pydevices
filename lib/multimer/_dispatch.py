@@ -104,6 +104,12 @@ def _deliver_protected():
     except (KeyboardInterrupt, SystemExit) as exc:
         if _stashed is None:
             _stashed = exc
+        from . import _hostloop
+
+        if _hostloop.strategy() == _hostloop.AMBIENT and not _hostloop._state["claimed"]:
+            # A REPL after the script (a board, python -i, a page) may never
+            # reach an idle point; say what happened, as the scheduler did.
+            _print_exception(exc)
 
 
 def _raise_stashed():
