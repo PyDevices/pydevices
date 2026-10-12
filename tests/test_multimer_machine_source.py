@@ -366,6 +366,10 @@ class TestInterruptedDelivery(MachineSourceCase):
     ``multimer`` timer stopped until something called ``multimer.pump()``.
     These run the real dispatcher on the fake clock, woken only by the fake
     hardware, the way a board is.
+
+    On a board the port runs the callback through ``micropython.schedule``,
+    which prints what it raises and carries on, so the dispatcher keeps the
+    KeyboardInterrupt and the main thread's next idle point raises it.
     """
 
     US = True
@@ -382,6 +386,8 @@ class TestInterruptedDelivery(MachineSourceCase):
             multimer.stop_all()
             _dispatch._source, _dispatch.ticks_ms = saved
             _dispatch._stats["last_ms"] = None
+            _dispatch._stashed = None
+            _dispatch._exit_raised = False
 
         self.addCleanup(restore)
         _dispatch.ticks_ms = lambda: _clock[0]
@@ -398,6 +404,27 @@ class TestInterruptedDelivery(MachineSourceCase):
             self.finish(self.fire())
         _clock[0] = end
 
+    def assert_raised_at_the_next_idle_point(self, kind):
+        from multimer import _dispatch
+
+        with self.assertRaises(kind):
+            _dispatch.pump()
+        _dispatch.pump()  # raised once, not again
+
+    def test_sys_exit_in_a_callback(self):
+        from multimer import _dispatch
+
+        def leave(_t):
+            sys.exit(3)
+
+        self.Timer(-1, mode=self.Timer.ONE_SHOT, period=5, callback=leave)
+        self.finish(self.fire())
+        self.assertIsNotNone(self.hw.deadline, "nothing armed: every timer has stopped")
+        with self.assertRaises(SystemExit) as caught:
+            _dispatch.sleep_ms(1)
+        self.assertEqual(caught.exception.code, 3)
+        self.assertTrue(_dispatch._exit_raised, "the exit hook would keep the program alive")
+
     def test_ctrl_c_in_a_callback(self):
         calls = []
 
@@ -407,9 +434,9 @@ class TestInterruptedDelivery(MachineSourceCase):
                 raise KeyboardInterrupt
 
         self.Timer(-1, mode=self.Timer.ONE_SHOT, period=5, callback=interrupted)
-        with self.assertRaises(KeyboardInterrupt):
-            self.finish(self.fire())
+        self.finish(self.fire())  # the port's scheduler would swallow it
         self.assertIsNotNone(self.hw.deadline, "nothing armed: every timer has stopped")
+        self.assert_raised_at_the_next_idle_point(KeyboardInterrupt)
         self.run_for(100)
         self.assertGreaterEqual(len(self.ticks), 9)
         self.assertEqual(self.hw.violations, [])
@@ -425,10 +452,10 @@ class TestInterruptedDelivery(MachineSourceCase):
             return real(want)
 
         self.src._us_until = interrupted
-        with self.assertRaises(KeyboardInterrupt):
-            self.finish(self.fire())  # the periodic timer runs, then arming is interrupted
+        self.finish(self.fire())  # the periodic timer runs, then arming is interrupted
         self.assertEqual(len(hits), 1)
         self.assertIsNotNone(self.hw.deadline, "nothing armed: every timer has stopped")
+        self.assert_raised_at_the_next_idle_point(KeyboardInterrupt)
         self.run_for(100)
         self.assertGreaterEqual(len(self.ticks), 10)
         self.assertEqual(self.hw.violations, [])

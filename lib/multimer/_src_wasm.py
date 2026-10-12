@@ -16,6 +16,9 @@ import _wasm_bridge
 name = "wasm"
 delivery = "idle"
 wakes_blocking = False
+# The bridge prints what its timer callback raises and carries on: the
+# dispatcher keeps a KeyboardInterrupt or SystemExit for later.
+protected = True
 
 _ID = 0x7E11  # one browser timer for the dispatcher
 _wake = None

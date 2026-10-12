@@ -20,6 +20,8 @@ import asyncio
 name = "asyncio"
 delivery = "idle"
 wakes_blocking = False
+# asyncio lets a KeyboardInterrupt or SystemExit out of a callback through.
+protected = False
 
 _wake = None
 _loop = None

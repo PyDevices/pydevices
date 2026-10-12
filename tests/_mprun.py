@@ -41,9 +41,9 @@ def need_micropython(case):
     return interpreter
 
 
-def run(cmd, *, timeout=300):
-    """Run *cmd* in tests/; return the result."""
-    env = dict(os.environ)
+def run(cmd, *, timeout=300, env=None):
+    """Run *cmd* in tests/; return the result. *env* adds variables."""
+    env = dict(os.environ, **(env or {}))
     env.setdefault("SDL_VIDEODRIVER", "dummy")
     env.setdefault("SDL_AUDIODRIVER", "dummy")
     env["PYTHONPATH"] = str(LIB) + os.pathsep + env.get("PYTHONPATH", "")

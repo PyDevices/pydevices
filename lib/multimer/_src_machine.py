@@ -88,6 +88,10 @@ except ImportError:  # CPython, for the unit tests' fake machine.Timer
 name = "machine"
 delivery = "bytecode"
 wakes_blocking = True
+# The port runs the callback through micropython.schedule, which prints what
+# it raises and carries on: the dispatcher keeps a KeyboardInterrupt or
+# SystemExit for later.
+protected = True
 
 # Re-init only when the armed fire is more than this many ms away...
 _PRE_MS = 2

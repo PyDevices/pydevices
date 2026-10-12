@@ -15,6 +15,9 @@ import _timing
 name = "native"
 delivery = "bytecode"
 wakes_blocking = True
+# Delivered through mp_sched_schedule, which prints what the callback raises
+# and carries on: the dispatcher keeps a KeyboardInterrupt or SystemExit.
+protected = True
 
 _wake = None
 
