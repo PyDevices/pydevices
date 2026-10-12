@@ -405,10 +405,14 @@ tim = multimer.every(10, cb)
 multimer.sleep_ms(200)
 idle = len(hits)
 hits.clear()
+c0 = time.thread_time()
 t0 = ticks_ms()
 while ticks_diff(ticks_ms(), t0) < 200:
     pass
 busy = len(hits)
+# How much of the loop the OS let this thread run: about 0.96 on a quiet
+# machine, about 0.5 with more busy processes than cores.
+cpu = (time.thread_time() - c0) / (ticks_diff(ticks_ms(), t0) / 1000)
 hits.clear()
 time.sleep(0.2)          # a blocking sleep the source may or may not wake
 blocked = len(hits)
@@ -420,13 +424,14 @@ tim.deinit()
 # keeps a slow machine's longer sleep from reading as a burst.
 span = ticks_diff(hits[-1], hits[0]) if hits else 0
 burst = len(hits) - ((span - 1) // 10 + 2) if hits else 0
-print(multimer.info()["source"], idle, busy, blocked, burst, idents == {threading.main_thread().ident})
+print(multimer.info()["source"], idle, busy, blocked, burst, idents == {threading.main_thread().ident}, "%.2f" % cpu)
 """
 
     def _run(self, source):
         p = _child(self.CODE, source=source)
         self.assertEqual(0, p.returncode, p.stderr)
-        name, idle, busy, blocked, burst, on_main = p.stdout.split()
+        name, idle, busy, blocked, burst, on_main, cpu = p.stdout.split()
+        self.cpu = float(cpu)
         return name, int(idle), int(busy), int(blocked), int(burst), on_main == "True"
 
     def test_signal_source_delivers_everywhere(self):
@@ -446,7 +451,18 @@ print(multimer.info()["source"], idle, busy, blocked, burst, idents == {threadin
         name, idle, busy, blocked, burst, on_main = self._run("pending")
         self.assertEqual("pending", name)
         self.assertGreaterEqual(idle, 18)
-        self.assertGreaterEqual(busy, 15, "delivery between bytecodes, GIL switch interval permitting")
+        # Each delivery waits out the GIL switch interval (5 ms) for the worker,
+        # so a slot is lost whenever the OS keeps the worker off a core for
+        # another 5 ms. With more busy processes than cores that happens now
+        # and then, and the main thread gets well under its usual share of the
+        # CPU too. A short count from a run like that is measured again, up to
+        # twice. A short count from a run that had the CPU fails at once: a
+        # slow or coarse wake (Windows' 15.6 ms timer) loses slots every time.
+        tries = [(busy, self.cpu)]
+        while busy < 15 and self.cpu < 0.9 and len(tries) < 3:
+            busy = self._run("pending")[2]
+            tries.append((busy, self.cpu))
+        self.assertGreaterEqual(busy, 15, "delivery between bytecodes, GIL switch interval permitting; (count, cpu share) per run: %s" % tries)
         self.assertLessEqual(blocked, 1, "a pending call cannot wake time.sleep; documented")
         self.assertLessEqual(burst, 0, "no burst after the stall: one catch-up at most, then the grid")
         self.assertTrue(on_main)
