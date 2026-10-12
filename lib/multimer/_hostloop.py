@@ -365,8 +365,12 @@ def _exit_hook():
     # But say why the program didn't stay up, or a skipped loop looks exactly
     # like a clean exit.
     try:
+        from . import _dispatch
+
         if _state["claimed"]:
             pass  # run_until() drove the loop itself
+        elif _dispatch._exit_raised:
+            pass  # a timer's sys.exit() already ended the script body
         elif _crashed():
             _note("not keeping the program alive: the script ended with an uncaught exception")
         else:
@@ -440,3 +444,7 @@ def _reset_for_test():
     _state["on_stop"] = []
     for k in ("started", "stopped", "crashed", "claimed"):
         _state[k] = False
+    from . import _dispatch
+
+    _dispatch._exit_raised = False
+    _dispatch._stashed = None

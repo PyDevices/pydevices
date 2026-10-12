@@ -35,6 +35,9 @@ _wake = None
 _armed_ms = None
 
 _USE_CTYPES = sys.implementation.name == "cpython"
+# CPython raises out of a signal handler into the code it interrupted;
+# MicroPython's handler only schedules the dispatcher (see the module notes).
+protected = not _USE_CTYPES
 
 if _USE_CTYPES:
     import ctypes

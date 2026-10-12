@@ -10,6 +10,7 @@ nor a browser loop. ``multimer.repl()`` is the way in from outside.
 name = "none"
 delivery = "idle"
 wakes_blocking = False
+protected = False
 
 
 def start(wake):

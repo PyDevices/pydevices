@@ -77,7 +77,12 @@ thread. Deadlines are absolute, so delivery latency never drifts the
 schedule. A callback that raises is printed once and keeps its schedule;
 the exception is on `tim.error`. A `KeyboardInterrupt` (Ctrl-C) or
 `SystemExit` raised in a callback is not caught: it reaches your code or the
-REPL, and the timers keep running.
+REPL, and the timers keep running. Where the callback ran inside the
+interpreter's scheduler (MicroPython) or a C callback, which can't pass an
+exception on, multimer raises it at the main thread's next idle point
+instead: `sleep_ms`, `pump`, `run_until`, or the loop that keeps a script
+running after its last line. So `sys.exit()` from a timer ends the program
+the same way on every host.
 
 Because the host can interrupt between bytecodes, code that must not be
 interrupted says so: `with multimer.hold():`. Everything that came due is

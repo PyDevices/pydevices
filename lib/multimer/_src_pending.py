@@ -28,6 +28,9 @@ import time
 name = "pending"
 delivery = "bytecode"
 wakes_blocking = False
+# The pending call is a ctypes callback, which prints what it raises and
+# returns: the dispatcher keeps a KeyboardInterrupt or SystemExit for later.
+protected = True
 
 _wake = None
 _cond = threading.Condition()

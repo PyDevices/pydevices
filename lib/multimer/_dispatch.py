@@ -22,7 +22,12 @@ Rules the dispatcher keeps for every timer:
   drifts into the schedule;
 * a raising callback is printed once and keeps its schedule;
 * a KeyboardInterrupt or SystemExit from a callback propagates, but the wake
-  source is armed again first, so Ctrl-C at the REPL never stops the timers.
+  source is armed again first, so Ctrl-C at the REPL never stops the timers;
+* where the delivery ran inside something that would swallow it (MicroPython's
+  scheduler, a ctypes callback, the browser bridge), the KeyboardInterrupt or
+  SystemExit is kept and raised at the main thread's next idle point
+  (``sleep_ms``, ``pump``, ``run_until``, the exit-hook loop), so it ends the
+  program the same way however the callback was delivered.
 """
 
 import sys
@@ -40,6 +45,12 @@ _in_deliver = False
 _source = None
 _source_error = None
 _keepalive = False
+# A KeyboardInterrupt or SystemExit out of a callback that ran where nothing
+# could propagate it, waiting for the main thread's next idle point.
+_stashed = None
+# A SystemExit has left a callback for the program: the exit hook must not
+# keep the program alive after the script body ends of it.
+_exit_raised = False
 _stats = {
     "deliveries": 0,
     "max_gap_ms": 0,
@@ -78,8 +89,31 @@ _sched_pending = [False]
 
 
 def _deliver_scheduled(_arg):
+    # MicroPython runs a scheduled call inside a handler that prints whatever
+    # it raises and carries on, so a sys.exit() or Ctrl-C ends nothing.
     _sched_pending[0] = False
-    deliver()
+    _deliver_protected()
+
+
+def _deliver_protected():
+    """Deliver from a context that swallows exceptions; keep the two that end
+    the program for the main thread to raise (:func:`_raise_stashed`)."""
+    global _stashed
+    try:
+        deliver()
+    except (KeyboardInterrupt, SystemExit) as exc:
+        if _stashed is None:
+            _stashed = exc
+
+
+def _raise_stashed():
+    """At an idle point of the main thread: raise what a callback raised
+    where it could not propagate. The wake source is already armed."""
+    global _stashed
+    exc = _stashed
+    if exc is not None:
+        _stashed = None
+        raise exc
 
 
 def wake_from_source(safe=False):
@@ -93,6 +127,10 @@ def wake_from_source(safe=False):
     trip through the scheduler queue. Elsewhere the source is already at a
     safe point (a Python signal handler, a pending call, an asyncio callback)
     and delivery runs here.
+
+    A source whose caller swallows exceptions says so with ``protected =
+    True``; a KeyboardInterrupt or SystemExit from its delivery is then kept
+    for the main thread's next idle point instead of being lost.
     """
     _stats["wakes"] += 1
     if _mp_schedule is not None and not safe:
@@ -105,7 +143,11 @@ def wake_from_source(safe=False):
             _sched_pending[0] = False
             _stats["sched_full"] += 1
         return
-    deliver()
+    src = _source
+    if getattr(src, "protected", _IS_MP):
+        _deliver_protected()
+    else:
+        deliver()
 
 
 def deliver():
@@ -115,7 +157,7 @@ def deliver():
     callback) or while a :func:`hold` is active; the outer delivery, or the
     end of the hold, picks the work up.
     """
-    global _in_deliver
+    global _in_deliver, _exit_raised
     if _in_deliver:
         return None
     if _held:
@@ -144,10 +186,12 @@ def deliver():
             now = ticks_ms()
             _run_scheduled()
         _stats["last_ms"] = now
-    except BaseException:
+    except BaseException as exc:
         # A KeyboardInterrupt (Ctrl-C at the REPL) or SystemExit out of a
         # callback still leaves the wake source armed for what is left;
         # without it no timer fires again until something calls pump().
+        if isinstance(exc, SystemExit):
+            _exit_raised = True
         _in_deliver = False
         _arm_next()
         raise
@@ -474,7 +518,9 @@ def sleep_ms(ms):
     """
     end = ticks_add(ticks_ms(), max(0, int(ms)))
     while True:
+        _raise_stashed()
         wait = deliver()
+        _raise_stashed()
         rem = ticks_diff(end, ticks_ms())
         if rem <= 0:
             return
@@ -495,13 +541,17 @@ def _host_sleep_ms(ms):
 
 def pump():
     """Deliver what is due now. Returns ms until the next deadline, or None."""
-    return deliver()
+    _raise_stashed()
+    wait = deliver()
+    _raise_stashed()
+    return wait
 
 
 def run_until(pred, tick_ms=10):
     """Block, delivering, until ``pred()`` is true."""
     while not pred():
         sleep_ms(tick_ms)
+    _raise_stashed()
 
 
 def keepalive(flag=True):
