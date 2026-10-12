@@ -52,6 +52,13 @@ GESTURE_ZOOM_OUT = const(6)
 POLLING_MODE = const(0x00)
 TRIGGER_MODE = const(0x01)
 
+# Power modes (``power_mode``). Monitor mode scans slowly and goes back to
+# active, raising INT, at a touch; hibernate stops scanning until the chip
+# is reset, so on a board with no reset line it ends touch until power-off.
+POWER_ACTIVE = const(0x00)
+POWER_MONITOR = const(0x01)
+POWER_HIBERNATE = const(0x03)
+
 
 class FT6x36:
     """
@@ -189,7 +196,11 @@ class FT6x36:
     @property
     def power_mode(self) -> int:
         """
-        Current power mode which system is in.
+        Current power mode: ``POWER_ACTIVE``, ``POWER_MONITOR`` or
+        ``POWER_HIBERNATE``. Set ``POWER_MONITOR`` to save power while
+        still waking on a touch; the chip enters it by itself after
+        ``monitor_time`` seconds without one. ``POWER_HIBERNATE`` needs a
+        reset to come back.
         """
         return self._i2c.readfrom_mem(self._address, _PWR_MODE_REG, 1)[0]
 

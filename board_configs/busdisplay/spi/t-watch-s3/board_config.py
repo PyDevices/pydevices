@@ -65,8 +65,11 @@ display_drv = ST7789(
     backlight_on_high=True,
 )
 
-# FT6336 on its own bus (port 1). Its reset is not wired, so it can't be put
-# to sleep without losing touch until the next power cycle.
+# FT6336 on its own bus (port 1). Its reset is not wired, so it must never
+# hibernate (that would end touch until the next power cycle); its monitor
+# mode, touch.power_mode = ft6x36.POWER_MONITOR, saves power and still wakes
+# on a touch. The panel sleeps with display_drv.sleep_mode(True) (SLPIN),
+# keeping its picture for sleep_mode(False).
 touch_i2c = I2C(1, sda=Pin(39), scl=Pin(40), freq=400_000)
 touch = FT6x36(touch_i2c)
 # The FT6336 reports points already in the frame the panel shows at
