@@ -1,3 +1,10 @@
+## v0.7.4 (2026-10-12)
+
+- appdev: revert switchable apps (App.scope, AppScope, appdev.launcher); they're likely to return as a package built on appdev rather than inside it (#194)
+- test_audiodev: drive the I2S byte-clock with a fake clock (#193)
+- docs: link the repo files the prose names (#192)
+- mdns: find services on the network, with CircuitPython's mdns API (#191)
+
 ## v0.7.3 (2026-10-11)
 
 - Roadmap: BLE MIDI through Windows MIDI Services' Bluetooth transport (#189)
