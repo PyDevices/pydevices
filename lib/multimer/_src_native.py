@@ -12,6 +12,8 @@ port's console wait services pending callbacks while the REPL is idle.
 
 import _timing
 
+from . import _dispatch
+
 name = "native"
 delivery = "bytecode"
 wakes_blocking = True
@@ -23,10 +25,15 @@ _wake = None
 
 
 def _cb(_arg):
-    # Already at a bytecode boundary: the port scheduled this call.
-    w = _wake
-    if w is not None:
-        w(True)
+    # Already at a bytecode boundary: the port scheduled this call. The
+    # scheduler swallows what it raises, and a Ctrl-C that arrived during an
+    # earlier callback is raised at the first branch here.
+    try:
+        w = _wake
+        if w is not None:
+            w(True)
+    except (KeyboardInterrupt, SystemExit) as exc:
+        _dispatch._stash(exc)
 
 
 def start(wake):

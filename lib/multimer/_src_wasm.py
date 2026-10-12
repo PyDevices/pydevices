@@ -13,6 +13,8 @@ picks it up.
 
 import _wasm_bridge
 
+from . import _dispatch
+
 name = "wasm"
 delivery = "idle"
 wakes_blocking = False
@@ -26,11 +28,15 @@ _armed = False
 
 
 def _fire():
+    # The bridge prints what this raises and carries on.
     global _armed
-    _armed = False
-    w = _wake
-    if w is not None:
-        w()
+    try:
+        _armed = False
+        w = _wake
+        if w is not None:
+            w()
+    except (KeyboardInterrupt, SystemExit) as exc:
+        _dispatch._stash(exc)
 
 
 def start(wake):

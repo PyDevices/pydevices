@@ -460,6 +460,72 @@ class TestInterruptedDelivery(MachineSourceCase):
         self.assertGreaterEqual(len(self.ticks), 10)
         self.assertEqual(self.hw.violations, [])
 
+    # On a board with a USB CDC console, the port reads Ctrl-C in a scheduled
+    # task, which can't run while a scheduled callback does. So Ctrl-C during
+    # a long callback is noticed only after it returns, and MicroPython raises
+    # it at the first branch of the NEXT scheduled callback: often the
+    # backstop's, or the next fire's, before either has woken the dispatcher.
+    # Raising from inside them stands in for that branch here.
+
+    def test_ctrl_c_landing_in_the_backstop(self):
+        self.src.arm(10)  # the backstop starts with the first arm
+        self.src._due = _clock[0] - 1000  # a fire long lost, so it acts
+        real = self.src.ticks_ms
+        hits = []
+
+        def interrupted():
+            if not hits:
+                hits.append(1)
+                raise KeyboardInterrupt
+            return real()
+
+        self.src.ticks_ms = interrupted
+        try:
+            self.src._backstop(None)
+        except KeyboardInterrupt:
+            self.fail("raised out of the backstop, where the port's scheduler swallows it")
+        finally:
+            self.src.ticks_ms = real
+        self.assertEqual(hits, [1])
+        self.assertIsNotNone(self.hw.deadline, "nothing armed: every timer has stopped")
+        self.assert_raised_at_the_next_idle_point(KeyboardInterrupt)
+
+    def test_ctrl_c_landing_in_a_fire_before_it_wakes(self):
+        self.src._stack_limit = 1 << 30  # the nrf guard's check, as a branch to land on
+        hits = []
+
+        def interrupted():
+            if not hits:
+                hits.append(1)
+                raise KeyboardInterrupt
+            return 0
+
+        self.src._stack_use = interrupted
+        try:
+            self.finish(self.fire())
+        except KeyboardInterrupt:
+            self.fail("raised out of the fire's callback, where the port's scheduler swallows it")
+        self.assertEqual(hits, [1])
+        self.assertIsNotNone(self.hw.deadline, "nothing armed: every timer has stopped")
+        self.assert_raised_at_the_next_idle_point(KeyboardInterrupt)
+        self.src._stack_limit = None
+        self.run_for(100)
+        self.assertGreaterEqual(len(self.ticks), 9)
+        self.assertEqual(self.hw.violations, [])
+
+    def test_sys_exit_landing_in_the_nrf_soft_callback(self):
+        def leave(_t):
+            sys.exit(2)
+
+        try:
+            self.src._nrf_soft(leave)
+        except SystemExit:
+            self.fail("raised out of the scheduled call, where the port's scheduler swallows it")
+        from multimer import _dispatch
+
+        with self.assertRaises(SystemExit):
+            _dispatch.pump()
+
 
 class FakeNrfHW:
     """The nrf port's machine.Timer: configured by its constructor, run with

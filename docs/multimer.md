@@ -84,6 +84,12 @@ instead: `sleep_ms`, `pump`, `run_until`, or the loop that keeps a script
 running after its last line. So `sys.exit()` from a timer ends the program
 the same way on every host.
 
+On a board whose REPL is its native USB port (TinyUSB CDC, as on the ESP32-S3
+and ESP32-P4), Ctrl-C can't cut a long callback short: the port reads the
+key in a scheduled task, which waits for the running callback to return.
+The program stops as soon as it does. A UART or USB Serial/JTAG console, and
+unix, raise it inside the callback.
+
 Because the host can interrupt between bytecodes, code that must not be
 interrupted says so: `with multimer.hold():`. Everything that came due is
 delivered once at the end of the block.

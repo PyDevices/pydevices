@@ -25,6 +25,8 @@ import ctypes
 import threading
 import time
 
+from . import _dispatch
+
 name = "pending"
 delivery = "bytecode"
 wakes_blocking = False
@@ -60,11 +62,16 @@ def _timer_resolution(begin):
 
 
 def _on_main(_arg):
+    # A ctypes callback prints what it raises and carries on; a Ctrl-C can be
+    # raised anywhere in here, not only in the delivery.
     global _pending
-    _pending = False
-    w = _wake
-    if w is not None:
-        w()
+    try:
+        _pending = False
+        w = _wake
+        if w is not None:
+            w()
+    except (KeyboardInterrupt, SystemExit) as exc:
+        _dispatch._stash(exc)
     return 0
 
 
