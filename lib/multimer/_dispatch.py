@@ -51,6 +51,13 @@ _stashed = None
 # A SystemExit has left a callback for the program: the exit hook must not
 # keep the program alive after the script body ends of it.
 _exit_raised = False
+# How many sleep_ms() calls are under way; a callback the wake source delivers
+# during one has its KeyboardInterrupt or SystemExit raised as that returns.
+_sleeping = [0]
+# Whether the kept exception has been printed, and when it was kept.
+_said = [False]
+_stashed_at = [0]
+_SAY_AFTER_MS = 500
 _stats = {
     "deliveries": 0,
     "max_gap_ms": 0,
@@ -90,26 +97,56 @@ _sched_pending = [False]
 
 def _deliver_scheduled(_arg):
     # MicroPython runs a scheduled call inside a handler that prints whatever
-    # it raises and carries on, so a sys.exit() or Ctrl-C ends nothing.
-    _sched_pending[0] = False
-    _deliver_protected()
+    # it raises and carries on, so a sys.exit() or Ctrl-C ends nothing. The
+    # whole body is inside the try: a Ctrl-C that arrived while another
+    # callback ran is raised at the first branch here.
+    try:
+        _sched_pending[0] = False
+        deliver()
+    except (KeyboardInterrupt, SystemExit) as exc:
+        _stash(exc)
 
 
 def _deliver_protected():
     """Deliver from a context that swallows exceptions; keep the two that end
     the program for the main thread to raise (:func:`_raise_stashed`)."""
-    global _stashed
     try:
         deliver()
     except (KeyboardInterrupt, SystemExit) as exc:
-        if _stashed is None:
-            _stashed = exc
-        from . import _hostloop
+        _stash(exc)
 
-        if _hostloop.strategy() == _hostloop.AMBIENT and not _hostloop._state["claimed"]:
-            # A REPL after the script (a board, python -i, a page) may never
-            # reach an idle point; say what happened, as the scheduler did.
-            _print_exception(exc)
+
+def _stash(exc):
+    """Keep a KeyboardInterrupt or SystemExit that a wake source's entry point
+    caught where it could not propagate, for the main thread's next idle
+    point. Every entry point a scheduler, an interrupt or a C callback calls
+    catches these two around its whole body and hands them here. It may run
+    with the heap locked (a signal handler), so it prints nothing."""
+    global _stashed
+    if _stashed is None:
+        _stashed = exc
+        _stashed_at[0] = ticks_ms()
+        _said[0] = False
+    # The entry point may have been cut short before it woke the dispatcher,
+    # so the source may be idle: arm it again, as deliver() does.
+    _arm_next()
+
+
+def _say_if_forgotten(now):
+    """Print the kept exception once if no idle point has raised it in
+    ``_SAY_AFTER_MS``.
+
+    A REPL after the script (a board's after main.py, python -i, a page)
+    never reaches an idle point, so say what happened, as the scheduler did.
+    A program whose own loop calls sleep_ms() raises it well before then, and
+    printing it as well showed the traceback twice. Called from deliver(), so
+    it needs a timer still running; one that has stopped has said nothing."""
+    if _said[0] or _sleeping[0]:
+        return
+    if ticks_diff(now, _stashed_at[0]) < _SAY_AFTER_MS:
+        return
+    _said[0] = True
+    _print_exception(_stashed)
 
 
 def _raise_stashed():
@@ -172,6 +209,8 @@ def deliver():
     try:
         _run_scheduled()
         now = ticks_ms()
+        if _stashed is not None:
+            _say_if_forgotten(now)
         last = _stats["last_ms"]
         if last is not None:
             gap = ticks_diff(now, last)
@@ -439,18 +478,29 @@ class Timer:
         if late > self.late_max:
             self.late_max = late
         cb = self._callback
+        stop = None
         try:
             if cb is not None:
                 try:
                     cb(self)
-                except Exception as exc:  # KeyboardInterrupt and SystemExit propagate
+                except Exception as exc:
                     self.error = exc
                     self._errors += 1
                     _stats["errors"] += 1
                     if self._errors == 1:
                         _print_exception(exc)
+                except BaseException as exc:
+                    # KeyboardInterrupt or SystemExit: it propagates, but only
+                    # once the next slot is chosen. Left due, the timer would
+                    # run again the moment the source is re-armed.
+                    stop = exc
         finally:
             self._running = False
+        self._next_slot(t0)
+        if stop is not None:
+            raise stop
+
+    def _next_slot(self, t0):
         end = ticks_ms()
         self.fired += 1
         self.last = end
@@ -523,16 +573,20 @@ def sleep_ms(ms):
     loop sleeps in.
     """
     end = ticks_add(ticks_ms(), max(0, int(ms)))
-    while True:
-        _raise_stashed()
-        wait = deliver()
-        _raise_stashed()
-        rem = ticks_diff(end, ticks_ms())
-        if rem <= 0:
-            return
-        chunk = rem if wait is None else min(rem, wait)
-        if chunk > 0:
-            _host_sleep_ms(chunk)
+    _sleeping[0] += 1
+    try:
+        while True:
+            _raise_stashed()
+            wait = deliver()
+            _raise_stashed()
+            rem = ticks_diff(end, ticks_ms())
+            if rem <= 0:
+                return
+            chunk = rem if wait is None else min(rem, wait)
+            if chunk > 0:
+                _host_sleep_ms(chunk)
+    finally:
+        _sleeping[0] -= 1
 
 
 def _host_sleep_ms(ms):

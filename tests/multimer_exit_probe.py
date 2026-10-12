@@ -9,8 +9,9 @@ the script body (as ``appdev.App`` does), tick every 20 ms, and call
 reached the main thread.
 
 Arguments: the ``lib`` directory to test, then any of ``KeyboardInterrupt``
-(raise that instead) and ``busy`` (the script body spins for a moment
-instead of ending, so the tick lands in the middle of it).
+(raise that instead), ``busy`` (the script body spins for a moment instead
+of ending, so the tick lands in the middle of it) and ``always`` (every tick
+from the third on exits, as a game does while its quit button is held).
 """
 
 import sys
@@ -19,6 +20,7 @@ import time
 sys.path.insert(0, sys.argv[1])
 raise_kbd = "KeyboardInterrupt" in sys.argv[2:]
 busy = "busy" in sys.argv[2:]
+always = "always" in sys.argv[2:]
 
 import multimer  # noqa: E402
 
@@ -28,7 +30,7 @@ ticks = [0]
 def _tick(_t):
     ticks[0] += 1
     print("tick", ticks[0])
-    if ticks[0] == 3:
+    if ticks[0] == 3 or (always and ticks[0] > 3):
         print("exiting")
         if raise_kbd:
             raise KeyboardInterrupt

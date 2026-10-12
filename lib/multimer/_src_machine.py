@@ -74,6 +74,8 @@ from sys import platform as _platform
 
 from machine import Timer as _HW
 
+from . import _dispatch
+
 # The nrf port spells it ONESHOT (and needs _NrfTimer below anyway).
 _ONE_SHOT = getattr(_HW, "ONE_SHOT", None)
 
@@ -133,6 +135,16 @@ _stack_limit = None  # the deepest stack_use() before the overflow check fires
 def _cb(gen):
     # A soft machine.Timer callback: the port already delivered it through
     # micropython.schedule, so this is a bytecode boundary of the main thread.
+    # The scheduler prints what a callback raises and carries on, and a Ctrl-C
+    # that arrived during an earlier callback is raised at the first branch
+    # here: catch the two that end the program around the whole body.
+    try:
+        _cb_body(gen)
+    except (KeyboardInterrupt, SystemExit) as exc:
+        _dispatch._stash(exc)
+
+
+def _cb_body(gen):
     global _due, deferred, _deferring
     if gen == _gen:
         _due = None
@@ -178,7 +190,14 @@ def _make_cb(gen):
 
 
 def _backstop(_t):
-    # Soft, like _cb: a bytecode boundary of the main thread.
+    # Soft, like _cb, and guarded the same way.
+    try:
+        _backstop_body()
+    except (KeyboardInterrupt, SystemExit) as exc:
+        _dispatch._stash(exc)
+
+
+def _backstop_body():
     global _due, lost
     if not _wanted or _due is None:
         return
@@ -240,8 +259,12 @@ _nrf_self = None
 
 
 def _nrf_soft(cb):
-    if cb is not None:
-        cb(_nrf_self)
+    # Scheduled from the interrupt; guarded like _cb.
+    try:
+        if cb is not None:
+            cb(_nrf_self)
+    except (KeyboardInterrupt, SystemExit) as exc:
+        _dispatch._stash(exc)
 
 
 class _IrqGuard:

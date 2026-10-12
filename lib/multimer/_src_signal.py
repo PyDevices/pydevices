@@ -152,6 +152,8 @@ else:
     import ffi
     import uctypes
 
+    from . import _dispatch
+
     _libc = ffi.open("libc.so.6")
     try:
         _librt = ffi.open("librt.so.1")
@@ -199,10 +201,15 @@ else:
     _old, _old_buf = _struct(_itimerspec_t)
 
     def _handler(_signum):
-        # Signal context, heap locked: schedule and return.
-        w = _wake
-        if w is not None:
-            w()
+        # Signal context, heap locked: schedule and return. The ffi callback
+        # prints what this raises and carries on, and a Ctrl-C can be raised
+        # at any branch in here: keep it, quietly (nothing may allocate).
+        try:
+            w = _wake
+            if w is not None:
+                w()
+        except (KeyboardInterrupt, SystemExit) as exc:
+            _dispatch._stash(exc)
 
     def start(wake):
         global _wake, _timer, _signo, _cb
