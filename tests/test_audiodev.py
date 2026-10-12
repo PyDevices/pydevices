@@ -230,6 +230,17 @@ class FakeI2S:
 
 class I2SAdapterTests(unittest.TestCase):
     def test_output_and_input_wrap_machine_i2s(self):
+        # queued_size() is a byte-clock on ticks_ms(). At 16 kHz mono 16-bit
+        # one millisecond is 32 bytes, so a real clock that ticks between the
+        # write and the read reports the 4-byte write as already played. Hold
+        # the clock still and move it by hand.
+        from audiodev import i2s_audio
+
+        clock = _FakeClock()
+        patcher = mock.patch.object(i2s_audio, "ticks_ms", clock.ms)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
         fmt = AudioFormat(16000, 1, 16)
         i2s = FakeI2S()
         out = I2SPCMOutput(i2s, fmt)
@@ -248,6 +259,8 @@ class I2SAdapterTests(unittest.TestCase):
         # the queue now reports what was actually written, and asserting 0
         # here would be re-asserting the absent measurement.
         self.assertEqual(out.queued_size(), 4)
+        clock.advance(1)
+        self.assertEqual(out.queued_size(), 0)
         out.close()
         self.assertTrue(i2s.closed)
 
