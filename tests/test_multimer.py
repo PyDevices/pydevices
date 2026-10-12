@@ -412,22 +412,27 @@ busy = len(hits)
 hits.clear()
 time.sleep(0.2)          # a blocking sleep the source may or may not wake
 blocked = len(hits)
-multimer.sleep_ms(30)    # the burst check: at most one catch-up after the stall
-catchup = len(hits) - blocked
+multimer.sleep_ms(30)    # the stall is over: one catch-up, then the grid
 tim.deinit()
-print(multimer.info()["source"], idle, busy, blocked, catchup, idents == {threading.main_thread().ident})
+# The burst check. After the catch-up, every delivery takes a fresh 10 ms grid
+# slot later than the delivery before it, so n deliveries span at least
+# 10 * (n - 2) + 1 ms. Counting against the span, not the 30 ms asked for,
+# keeps a slow machine's longer sleep from reading as a burst.
+span = ticks_diff(hits[-1], hits[0]) if hits else 0
+burst = len(hits) - ((span - 1) // 10 + 2) if hits else 0
+print(multimer.info()["source"], idle, busy, blocked, burst, idents == {threading.main_thread().ident})
 """
 
     def _run(self, source):
         p = _child(self.CODE, source=source)
         self.assertEqual(0, p.returncode, p.stderr)
-        name, idle, busy, blocked, catchup, on_main = p.stdout.split()
-        return name, int(idle), int(busy), int(blocked), int(catchup), on_main == "True"
+        name, idle, busy, blocked, burst, on_main = p.stdout.split()
+        return name, int(idle), int(busy), int(blocked), int(burst), on_main == "True"
 
     def test_signal_source_delivers_everywhere(self):
         if sys.platform not in ("linux", "darwin"):
             self.skipTest("POSIX only")
-        name, idle, busy, blocked, catchup, on_main = self._run("signal")
+        name, idle, busy, blocked, burst, on_main = self._run("signal")
         self.assertEqual("signal", name)
         self.assertGreaterEqual(idle, 18)
         self.assertGreaterEqual(busy, 18, "bytecode delivery while the main thread computes")
@@ -438,16 +443,16 @@ print(multimer.info()["source"], idle, busy, blocked, catchup, idents == {thread
         # The Android class (SDL's timer thread refused by EGL) and the
         # Windows class (APCs needing an alertable wait) both die here: the
         # worker only keeps time, the callback lands on the main thread.
-        name, idle, busy, blocked, catchup, on_main = self._run("pending")
+        name, idle, busy, blocked, burst, on_main = self._run("pending")
         self.assertEqual("pending", name)
         self.assertGreaterEqual(idle, 18)
         self.assertGreaterEqual(busy, 15, "delivery between bytecodes, GIL switch interval permitting")
         self.assertLessEqual(blocked, 1, "a pending call cannot wake time.sleep; documented")
-        self.assertLessEqual(catchup, 3, "no burst after the stall: one catch-up at most, then the grid")
+        self.assertLessEqual(burst, 0, "no burst after the stall: one catch-up at most, then the grid")
         self.assertTrue(on_main)
 
     def test_none_source_delivers_only_at_idle_points(self):
-        name, idle, busy, blocked, catchup, on_main = self._run("none")
+        name, idle, busy, blocked, burst, on_main = self._run("none")
         self.assertEqual("none", name)
         self.assertGreaterEqual(idle, 18, "sleep_ms serves the heap itself")
         self.assertEqual(0, busy, "the planted fault: nothing wakes a busy loop")
