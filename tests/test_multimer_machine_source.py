@@ -684,7 +684,7 @@ class TestNrfInterruptRunsNoDelivery(unittest.TestCase):
     has returned: a jump inside it would run the delivery in the interrupt."""
 
     def test_micropython(self):
-        from _appswitch import LIB, need_micropython, run
+        from _mprun import LIB, need_micropython, run
 
         mp = need_micropython(self)
         result = run([mp, "multimer_nrf_irq_probe.py", LIB], timeout=60)

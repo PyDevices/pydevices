@@ -99,10 +99,6 @@ when the user leaves while setup mode is still waiting: `run()` returns
 `None` and the access point goes away. Keep the board awake while Wi-Fi is
 on, because a light sleep drops the link.
 
-The T-Watch S3 example in pydevices-examples does this as an app, with Wi-Fi
-on only while that app is open:
-[`lib/examples/twatch/wifi.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/twatch/wifi.py).
-
 ## Reaching the board over Wi-Fi
 
 With WebREPL running, mpftp and Workbench can reach the board without a
