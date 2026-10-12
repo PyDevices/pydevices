@@ -173,7 +173,8 @@ from the outset.
 
 ## Quit lifecycle
 
-On `QUIT`, appdev runs its optional `before_quit` hook, releases the display,
+On `QUIT`, appdev runs its optional `before_quit` hook, then each `on_quit`
+callback, releases the display,
 and stops its timer. `app.quit_requested` remains true after the first quit.
 
 See [Events](appdev.md), [Architecture](architecture.md), and

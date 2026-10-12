@@ -112,6 +112,9 @@ Request clean application shutdown and teardown.
 #### `app.before_quit` *(property / setter)*
 Optional callable (e.g. `lv.deinit`) executed during teardown before displays are deinitialized.
 
+#### `app.on_quit(callback)`
+Adds a callable to run during teardown, after `before_quit` and before the timers stop. Any number can be added and none replaces another, so a library can use it without taking `before_quit` from the program. Returns `callback`, so it also works as a decorator.
+
 ---
 
 ### 4. Display Coordination & GUI Framework Interfacing
