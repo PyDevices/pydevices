@@ -108,6 +108,7 @@ class App:
         self._event_callbacks = {}
         self._subscriptions = []
         self._before_quit = None
+        self._on_quit = []
         self._quit_requested = False
         self._exit_code = None
         self._refresh_timers = []
@@ -213,6 +214,18 @@ class App:
         if value is not None and not callable(value):
             raise ValueError("before_quit must be callable")
         self._before_quit = value
+
+    def on_quit(self, callback):
+        """Call *callback()* at quit, after ``before_quit``, in the order added.
+
+        Unlike ``before_quit``, any number of callbacks can be added, and
+        adding one never replaces another. Returns *callback*, so it works
+        as a decorator. An exception in one is printed and the rest still run.
+        """
+        if not callable(callback):
+            raise ValueError("on_quit needs a callable")
+        self._on_quit.append(callback)
+        return callback
 
     @property
     def timers(self):
@@ -563,6 +576,17 @@ class App:
                 self._before_quit()
             except Exception:
                 pass
+        for callback in tuple(self._on_quit):
+            try:
+                callback()
+            except Exception as exc:
+                pe = getattr(sys, "print_exception", None)
+                if pe is not None:
+                    pe(exc)
+                else:
+                    import traceback
+
+                    traceback.print_exception(type(exc), exc, exc.__traceback__)
         self.stop_timers()
         for display in tuple(self._displays):
             if callable(getattr(display, "quit", None)):

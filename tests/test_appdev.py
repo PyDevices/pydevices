@@ -118,6 +118,29 @@ class TestAppLifecycle(unittest.TestCase):
         self.assertTrue(disp.quitted)
         self.assertEqual(order, ["before_quit"])
 
+    def test_on_quit_runs_every_callback_after_before_quit(self):
+        order = []
+        app = App(displays=[_FakeDisplay()])
+        app.before_quit = lambda: order.append("before_quit")
+        app.on_quit(lambda: order.append("first"))
+
+        @app.on_quit
+        def second():
+            raise RuntimeError("planted")
+
+        app.on_quit(lambda: order.append("third"))
+        timer = app.every(1000, lambda t: None)
+        app.request_quit()
+        app._perform_teardown()
+        self.assertEqual(order, ["before_quit", "first", "third"])
+        self.assertFalse(timer.running)
+
+    def test_on_quit_rejects_a_non_callable(self):
+        app = App()
+        with self.assertRaises(ValueError):
+            app.on_quit(42)
+        app._perform_teardown()
+
 
 class TestEventSubscriptions(unittest.TestCase):
     def setUp(self):

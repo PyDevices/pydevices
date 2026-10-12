@@ -152,6 +152,9 @@ teardown before the display is released. LVGL uses its own coordinator.
 app.before_quit = _lvgl_shutdown
 ```
 
+A library that needs its own cleanup at quit uses `app.on_quit(fn)` instead,
+which runs after `before_quit` and never replaces it or another callback.
+
 Use **`app.quit_requested`** in output-only loops that do not dispatch
 events (the auto-service still handles host QUIT when you call `poll` or run
 `run`):
