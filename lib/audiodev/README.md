@@ -268,7 +268,7 @@ place where it owns the peripheral or pulls a graph.
 
 ### Files go through a prefetcher
 
-A `WaveFile` or an `MP3Decoder` reads the filesystem inside `get_buffer`, and
+A `WaveFile`, an `MP3Decoder` or a `VorbisDecoder` reads the filesystem inside `get_buffer`, and
 the pump's thread may not: it has no interpreter on it. `spawn()` refuses such
 a tail outright, so `AudioOut.play()` puts `pump.Prefetch` in front instead —
 it pulls the file on the interpreter thread and writes what it yields into a

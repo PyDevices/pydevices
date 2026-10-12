@@ -185,7 +185,7 @@ def _why_not_running(mod, status):
 # refuses them by type name in C (spawn() raises); the same names are here so
 # a caller can ask *before* it builds anything, and so AudioOut knows to put a
 # Prefetch in front instead of giving up.
-FILE_BACKED = ("WaveFile", "MP3Decoder")
+FILE_BACKED = ("WaveFile", "MP3Decoder", "VorbisDecoder")
 
 _audiopump = None
 _looked = False
@@ -533,8 +533,9 @@ def pumpable(sample):
 class Prefetch:
     """A file-backed sample, pulled on the interpreter thread into a ring.
 
-    ``WaveFile``, ``MP3Decoder`` and anything else that reads through the VFS
-    re-enter the interpreter inside ``get_buffer``, so the pump refuses them.
+    ``WaveFile``, ``MP3Decoder``, ``VorbisDecoder`` and anything else that
+    reads through the VFS re-enter the interpreter inside ``get_buffer``, so
+    the pump refuses them.
     They become *producers*: this pulls with ``audiocore`` exactly as the old
     path did, on the thread that is allowed to, and writes what it yields into
     an ``audiopump.Ring`` the pump treats as an ordinary source node.

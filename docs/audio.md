@@ -189,7 +189,7 @@ Three things to know before you rely on that on an ESP32:
   at level 1.0. The mixer **sums**, so two loud clients clip — the same
   arithmetic two CircuitPython `AudioOut`s into one DAC would do.
 
-A `WaveFile` or an `MP3Decoder` cannot be pulled from that thread at all,
+A `WaveFile`, an `MP3Decoder` or a `VorbisDecoder` cannot be pulled from that thread at all,
 because its `get_buffer` reads the filesystem; `AudioOut.play()` puts a
 prefetcher in front of it and the pump pulls a ring instead. And a fault is a
 sentence on stdout and playback on the old path, never a traceback from
