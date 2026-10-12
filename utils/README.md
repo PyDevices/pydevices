@@ -7,6 +7,7 @@ in [`pydevices-desktop.toml`](../pydevices-desktop.toml). Utilities do not publi
 | Module | Role |
 |---|---|
 | [`mip.py`](mip.py) | Portable `mip` for CPython, CircuitPython, and Pyodide |
+| [`mdns.py`](mdns.py) | CircuitPython's `mdns` API over python-zeroconf, which pydevices-desktop installs ([`requirements.txt`](requirements.txt)) |
 | [`micropython.py`](micropython.py) | CPython compatibility shim for common MicroPython decorators and helpers |
 | [`frame_recorder.py`](frame_recorder.py) | FFmpeg recording for desktop displays |
 | [`pngio.py`](pngio.py) | PNG encode and decode, MicroPython's `pngio` API over Pillow; says how to install Pillow when it's missing |

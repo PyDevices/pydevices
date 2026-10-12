@@ -24,9 +24,10 @@ by
   `appdev`, `keys`, and `multimer`) as one distribution. There is no include
   list — adding a component under `lib/` adds it to `pydevices` on the next
   release automatically.
-- `pydevices-desktop` depends on `pydevices==X.Y.Z` and additionally copies in
-  every module discovered under `utils/` plus the desktop board config
-  directory ([`board_configs/desktop`](../board_configs/desktop/)). Utilities do not get their own
+- `pydevices-desktop` depends on `pydevices==X.Y.Z` and on each requirement in
+  [`utils/requirements.txt`](../utils/requirements.txt) (zeroconf, for `mdns`),
+  and additionally copies in every module discovered under `utils/` plus the
+  desktop board config directory ([`board_configs/desktop`](../board_configs/desktop/)). Utilities do not get their own
   distributions.
 
 This replaced an earlier model that built one TestPyPI distribution per `lib/`

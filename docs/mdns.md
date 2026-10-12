@@ -1,16 +1,19 @@
 # mdns
 
-`mdns` finds things on your local network the way phones and laptops do:
-printers, smart speakers, screens you can cast to, other boards. Ask for a
-kind of service and you get each device that offers it, with its name,
-address and port.
+`mdns` finds things on your local network the way phones and laptops do
+(printers, smart speakers, screens you can cast to, other boards) and lets
+your program announce what it offers, so they can find it. Ask for a kind of
+service and you get each device that offers it, with its name, address and
+port.
 
 ```python
 import mdns
 
-server = mdns.Server(None)
-for s in server.find("_display", "_tcp"):
+server = mdns.Server(None)          # on a board: network.WLAN(network.STA_IF)
+for s in server.find(service_type="_display", protocol="_tcp"):
     print(s.instance_name, s.ipv4_address, s.port)
+
+server.advertise_service(service_type="_http", protocol="_tcp", port=8080)
 ```
 
 ```
@@ -18,75 +21,79 @@ Bedroom 65" TV 192.168.1.129 7250
 75" TCL Roku TV 192.168.1.140 7250
 ```
 
-It has the same shape as CircuitPython's built-in `mdns` module, so the same
-code finds services on CircuitPython, MicroPython and a desktop. On
-CircuitPython the built-in module is the one `import mdns` gets; this one is
-for MicroPython boards with a network, and for CPython. It's part of the
-`pydevices` package:
+It's CircuitPython's `mdns` module, and the same code runs everywhere:
 
-```python
-import mip
-mip.install("pydevices", index="https://PyDevices.github.io/mip")
-```
+| Where | Where `mdns` comes from |
+|---|---|
+| CircuitPython | Built in. |
+| MicroPython | Built into firmware from [micropython-pydevices](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/mdns), on esp32, rp2 boards with Wi-Fi, unix and Windows. |
+| CPython | `mdns.py` in `pydevices-desktop`, over [python-zeroconf](https://pypi.org/project/zeroconf/), which installs with it. |
+
+On CPython, install `pydevices-desktop` ([install-workflows.md](install-workflows.md#desktop-with-pip)).
+If zeroconf is missing, `import mdns` says how to install it.
 
 ## Finding services
 
-`Server.find(service_type, protocol, *, timeout=1)` returns a tuple of
-`RemoteService`, one for each device that answered within `timeout`
-seconds. Some service types you'll meet:
+`server.find(service_type=..., protocol=..., timeout=1)` returns a tuple of
+`RemoteService`, one for each device that answered within `timeout` seconds.
+The arguments are keyword-only, as they are in CircuitPython. Some service
+types you'll meet:
 
 | Service | What answers |
 |---|---|
 | `"_display", "_tcp"` | Screens that take a Miracast cast over the network (Rokus, many smart TVs) |
 | `"_googlecast", "_tcp"` | Chromecasts and Google TVs |
 | `"_airplay", "_tcp"` | AirPlay receivers |
-| `"_spotify-connect", "_tcp"` | Spotify Connect speakers |
+| `"_spotify-connect", "_tcp"` | Spotify Connect speakers, and the Spotify app on a computer |
 | `"_ipp", "_tcp"` | Printers |
 | `"_http", "_tcp"` | Anything with a web page it announces |
 
-Each `RemoteService` has:
+Each `RemoteService` has `instance_name` (the device's own name for the
+service), `hostname` (its network name, without `.local`), `ipv4_address`
+(or `None` if it gave none), `port`, `service_type` and `protocol`. On
+CPython and CircuitPython `ipv4_address` is an `ipaddress.IPv4Address`; on
+MicroPython it's a string. `str()` of either is the dotted address.
 
-| Attribute | |
-|---|---|
-| `instance_name` | The device's own name for the service (Bedroom 65" TV) |
-| `hostname` | The device's network name, without `.local` |
-| `ipv4_address` | Its address, or `None` if it gave none |
-| `port` | The service's port |
-| `service_type`, `protocol` | What you asked for |
-| `txt` | The service's TXT record as a dict (not in CircuitPython's module) |
+## Advertising a service
 
-`ipv4_address` is a string here and an `ipaddress.IPv4Address` on
-CircuitPython; `str()` of either is the dotted address.
+`server.advertise_service(service_type=..., protocol=..., port=..., txt_records=None)`
+answers for your service until you `deinit()` the server. `txt_records` is up
+to 32 strings, `"key=value"` or a key alone. Call it again for the same
+service to change its port or records.
 
-On a board, pass the network interface (`network.WLAN(network.STA_IF)`) or
-`None`; the answer is the same. A computer on more than one network can
-pick the one to ask on with `mdns.Server(None, interface="192.168.1.20")`.
+`server.instance_name` is the name your services go by, and
+`server.hostname` the name your device answers to as `<hostname>.local`.
+Both can be set.
 
-## Names
+## One server at a time
 
-`mdns.resolve("p4-devkit")` returns the address of `p4-devkit.local`, or
-`None` if nothing answers. CircuitPython's module leaves this to
-`socketpool.getaddrinfo()`; here it's one call.
+As in CircuitPython, one `mdns.Server` may be live at a time; a second raises
+`RuntimeError`. Keep one for the life of your program, or `deinit()` it when
+you're done.
 
-`server.hostname` is this device's own name on the network; setting it on a
-board renames the board.
+`mdns.Server(None)` uses every network the computer is on. A computer on more
+than one network can name the one to use by its address:
+`mdns.Server("192.168.1.20")`.
 
-## What it doesn't do
+## Changes from pydevices 0.7.4
 
-It doesn't announce services: `advertise_service()` raises
-`NotImplementedError`. Answering other devices' questions takes a
-responder, which on a board is the firmware's own (the one that makes
-`<hostname>.local` work).
+0.7.4 had a pure-Python `mdns.py` in the `pydevices` package that could find
+services but not advertise them. It's gone: on MicroPython, `mdns` now comes
+with the firmware, and on CPython from `pydevices-desktop`. Code written for
+it needs these changes:
+
+- `find()` takes keywords: `find(service_type="_http", protocol="_tcp")`.
+- `mdns.resolve()` is gone. Look a `.local` name up with
+  `socket.getaddrinfo("p4-devkit.local", 80)`.
+- `RemoteService.txt` is gone, as CircuitPython has no such attribute.
+- `Server(None, interface="192.168.1.20")` is now `Server("192.168.1.20")`.
+- A second `Server` while one is live raises `RuntimeError`.
+
+## What it doesn't find
 
 It finds only what announces itself on mDNS. A Windows PC with its Wireless
-Display app open, for one, announces itself only over Wi-Fi Direct, so it
-doesn't answer `"_display", "_tcp"` even though you can cast to it.
+Display app open, for one, may answer only over Wi-Fi Direct.
 
-## How it asks
-
-`find()` sends one multicast question, sends it again halfway through the
-timeout (multicast gets lost on Wi-Fi), and asks a second time for anything
-the first answers left out, such as a port or an address. It asks from an
-ordinary spare port rather than mDNS's own, 5353, because a board's firmware
-already holds that one. Responders answer such a question straight back to
-the asker ([RFC 6762, section 6.7](https://www.rfc-editor.org/rfc/rfc6762#section-6.7)).
+Under WSL with mirrored networking, a Linux program and a Windows program on
+the same computer don't hear each other's announcements, though both find,
+and are found by, every other device on the network.

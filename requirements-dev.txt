@@ -1,6 +1,9 @@
 # Required to unittest audiodev.pygame_audio
 pygame-ce
 
+# Required to test mdns.py (utils/) on the network
+zeroconf
+
 # Jupyter CLI runner (bin/jupyter.py) & JNDisplay interactive widgets
 jupyterlab>=4.0
 pillow
