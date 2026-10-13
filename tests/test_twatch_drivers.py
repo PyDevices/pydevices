@@ -19,7 +19,7 @@ for _sub in ("power", "rtc", "haptic", "imu", "radio", "ir"):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from axp2101 import AXP2101, KEY_LONG, KEY_PRESSED, KEY_RELEASED, KEY_SHORT, PowerKey  # noqa: E402
+from axp2101 import AXP2101, KEY_LONG, KEY_PRESSED, KEY_RELEASED, KEY_SHORT, VBUS_INSERTED, VBUS_REMOVED, PowerKey  # noqa: E402
 import bma423  # noqa: E402
 from bma423 import BMA423  # noqa: E402
 import ir_nec  # noqa: E402
@@ -168,6 +168,22 @@ class AXP2101Tests(unittest.TestCase):
         self.assertEqual(bus.regs[(0x34, 0x41)], KEY_SHORT | KEY_PRESSED)
         self.assertEqual(bus.regs[(0x34, 0x42)], 0)
         self.assertEqual([bus.regs[(0x34, r)] for r in (0x48, 0x49, 0x4A)], [0, 0, 0])
+
+    def test_irq_pin_only_can_route_usb_events(self):
+        bus = axp({0x41: 0xFF})
+        AXP2101(bus).irq_pin_only(key_events=0, vbus_events=VBUS_INSERTED | VBUS_REMOVED)
+        self.assertEqual(bus.regs[(0x34, 0x41)], VBUS_INSERTED | VBUS_REMOVED)
+
+    def test_vbus_events_clear_only_vbus_bits(self):
+        bus = axp({0x49: VBUS_INSERTED | KEY_SHORT})
+        pmu = AXP2101(bus)
+        self.assertEqual(pmu.vbus_events(clear=False), VBUS_INSERTED)
+        self.assertEqual(pmu.vbus_events(), VBUS_INSERTED)
+        self.assertEqual(bus.regs[(0x34, 0x49)], KEY_SHORT)
+        self.assertEqual(pmu.vbus_events(), 0)
+        self.assertEqual(pmu.key_events(), KEY_SHORT)
+        bus.regs[(0x34, 0x49)] = VBUS_REMOVED
+        self.assertEqual(pmu.vbus_events(), VBUS_REMOVED)
 
     def test_key_events_clear_only_key_bits(self):
         bus = axp({0x49: 0xA0 | KEY_SHORT})

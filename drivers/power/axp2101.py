@@ -70,6 +70,9 @@ KEY_RELEASED = const(0x01)  # positive edge
 KEY_PRESSED = const(0x02)  # negative edge
 KEY_LONG = const(0x04)
 KEY_SHORT = const(0x08)
+# USB (VBUS) plugged in and pulled out, in the same register as the key's.
+VBUS_REMOVED = const(0x40)
+VBUS_INSERTED = const(0x80)
 
 # ADC channel enables (register 0x30).
 ADC_BATTERY = const(0x01)
@@ -319,17 +322,26 @@ class AXP2101:
             self._write(_INTSTS2, events)
         return events
 
+    def vbus_events(self, clear=True):
+        """``VBUS_INSERTED`` and ``VBUS_REMOVED`` bits latched since the last
+        call; clears them (and only them) unless ``clear=False``."""
+        events = self._read(_INTSTS2) & 0xC0
+        if clear and events:
+            self._write(_INTSTS2, events)
+        return events
+
     def clear_irq(self):
         for reg in (_INTSTS1, _INTSTS2, _INTSTS3):
             self._write(reg, 0xFF)
 
-    def irq_pin_only(self, key_events=KEY_SHORT | KEY_PRESSED):
-        """Route only power-key events to the IRQ pin (it goes low on one
-        until ``clear_irq()``), so the pin can wake a sleeping MCU on the
-        key and nothing else."""
+    def irq_pin_only(self, key_events=KEY_SHORT | KEY_PRESSED, vbus_events=0):
+        """Route only power-key events, and the USB events in
+        ``vbus_events`` (``VBUS_INSERTED | VBUS_REMOVED``), to the IRQ pin
+        (it goes low on one until ``clear_irq()``), so the pin can wake a
+        sleeping MCU on those and nothing else."""
         self._write(_INTEN1, 0)
         self._write(_INTEN3, 0)
-        self._update(_INTEN2, 0xFF, key_events & 0x0F)
+        self._update(_INTEN2, 0xFF, (key_events & 0x0F) | (vbus_events & 0xC0))
         self.clear_irq()
 
 

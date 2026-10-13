@@ -1,14 +1,24 @@
 """Lazy constructors for the LILYGO T-Watch S3. PERIPHERALS = lazy roles only.
 
-Every peripheral on this watch sits behind a rail of its AXP2101 power chip,
+Most peripherals on this watch sit behind a rail of its AXP2101 power chip,
 so each hook here switches its rail on before it builds the device:
 
     ALDO2  display backlight      ALDO3  display and touch
     ALDO4  LoRa radio             BLDO2  DRV2605 enable pin
     DLDO1  MAX98357A amplifier    VBACKUP  PCF8563 clock and its coin cell
+    DCDC1  the ESP32-S3, and on its 3.3 V the BMA423, the microphone and
+           the IR LED, which have no rail of their own
 
 (LILYGO's schematic T_WATCH-S3 25-03-24 and LilyGoLib's LilyGoWatchS3.cpp.)
-The clock in particular does not answer on I2C until VBACKUP is on.
+The clock in particular does not answer on I2C until VBACKUP is on. Nothing
+on this watch uses ALDO1, BLDO1, CPUSLDO, DLDO2 or DCDC2-5 (BLDO1 and DCDC3
+feed the GPS of the GPS model), but the chip powers up with most of them on.
+
+``pmu()`` switches those off, and the radio's, the haptic driver's and the
+amplifier's rails too, so each of those stays off until its role is built.
+``release(role)`` switches a role's rail off again, and the next access to
+the role builds it afresh: ``release("lora")``, ``release("haptic")``,
+``release("pcm_out")`` (the amplifier, also behind ``audio_out``).
 
 Pins are LILYGO's (TTGO_TWatch_Library, branch t-watch-s3, src/utilities.h),
 and agree with CircuitPython's lilygo_twatch_s3 board definition:
@@ -176,7 +186,44 @@ def pmu():
         # with it on).
         _pmu_obj.set_ts_pin(False)
         _pmu_obj.charger(current_ma=125, precharge_ma=50, termination_ma=25, voltage_mv=4200)
+        for rail in _UNUSED_RAILS + _ROLE_RAILS:
+            _pmu_obj.set_rail(rail, enable=False)
     return _pmu_obj
+
+
+# Rails nothing on this watch uses (BLDO1 and DCDC3 feed the GPS model's
+# GPS), and rails only a role uses, switched on when it's built.
+_UNUSED_RAILS = ("aldo1", "bldo1", "cpusldo", "dldo2", "dcdc2", "dcdc3", "dcdc4", "dcdc5")
+_ROLE_RAILS = ("aldo4", "bldo2", "dldo1")
+
+
+def release(role):
+    """Switch off the rail behind ``role`` ("lora", "haptic", or the
+    amplifier's "pcm_out", "audio_out" or "audio_power") and forget the
+    device, so the next access builds it again on a fresh rail. Close an
+    audio stream before releasing the amplifier."""
+    global _lora, _haptic
+    if role == "lora":
+        if _lora is not None:
+            _lora._spi.deinit()
+            _lora = None
+        pmu().set_rail("aldo4", enable=False)
+        # Undriven, so nothing back-powers the radio through its pins.
+        from machine import Pin
+
+        for n in (1, 3, 4, 5, 8):
+            Pin(n, Pin.IN)
+    elif role == "haptic":
+        _haptic = None
+        pmu().set_rail("bldo2", enable=False)
+    elif role in ("pcm_out", "audio_out", "audio_power"):
+        _audio_power(False)
+        return
+    else:
+        raise ValueError("release() takes lora, haptic or pcm_out")
+    bc = sys.modules.get("board_config")
+    if bc is not None and role in bc.__dict__:
+        del bc.__dict__[role]
 
 
 def battery():
@@ -270,7 +317,7 @@ def lora():
     return _lora
 
 
-WAKE_SOURCES = ("crown", "touch", "motion", "rtc")
+WAKE_SOURCES = ("crown", "touch", "motion", "rtc", "usb")
 
 
 def _sleep(ms=None, *, deep=False, wake=("crown",)):
@@ -283,6 +330,8 @@ def _sleep(ms=None, *, deep=False, wake=("crown",)):
     * ``"motion"``: the BMA423's INT1, after ``accelerometer.load_features()``
       and ``map_interrupts()`` for the gestures wanted
     * ``"rtc"``: the PCF8563's alarm or countdown, set on ``rtc`` first
+    * ``"usb"``: USB plugged in or pulled out (the PMU's IRQ line, as the
+      crown)
 
     Light sleep (the default) returns the source that woke it, or
     ``"timer"``. Deep sleep restarts the watch on wake, so it never returns;
@@ -298,16 +347,24 @@ def _sleep(ms=None, *, deep=False, wake=("crown",)):
             raise ValueError("wake sources are %s" % (WAKE_SOURCES,))
     # Every wake line is active low: the PMU's IRQ, the touch and clock
     # interrupts (open drain), and the BMA423's INT1, set low-active here.
-    lines = {"crown": _PMU_INT, "touch": _TOUCH_INT, "rtc": _RTC_INT, "motion": _ACCEL_INT}
-    if "crown" in wake:
-        pmu().irq_pin_only()
+    lines = {"crown": _PMU_INT, "usb": _PMU_INT, "touch": _TOUCH_INT, "rtc": _RTC_INT, "motion": _ACCEL_INT}
+    if "crown" in wake or "usb" in wake:
+        from axp2101 import KEY_PRESSED, KEY_SHORT, VBUS_INSERTED, VBUS_REMOVED
+
+        pmu().irq_pin_only(
+            key_events=(KEY_SHORT | KEY_PRESSED) if "crown" in wake else 0,
+            vbus_events=(VBUS_INSERTED | VBUS_REMOVED) if "usb" in wake else 0,
+        )
     if "motion" in wake:
         a = accelerometer()
         a.set_interrupt_pin(active_high=False)
         a.interrupt_status()  # release a latched INT1 first
     # A sleep leaves the pads held; hold=False lets them go, or a line keeps
     # its old level.
-    nums = [lines[n] for n in WAKE_SOURCES if n in wake]
+    nums = []
+    for n in WAKE_SOURCES:
+        if n in wake and lines[n] not in nums:
+            nums.append(lines[n])
     pins = [Pin(n, Pin.IN, Pin.PULL_UP, hold=False) for n in nums]
     # Clear what an earlier call set (an empty tuple clears; None keeps).
     esp32.wake_on_gpio(pins=(), level=False)
@@ -335,8 +392,10 @@ def _sleep(ms=None, *, deep=False, wake=("crown",)):
         return "timer"
     # Crown, clock and gesture lines stay low until read; a finger may
     # already have lifted, so touch is what's left.
-    for name in ("crown", "rtc", "motion", "touch"):
+    for name in ("crown", "usb", "rtc", "motion", "touch"):
         if name in wake and not Pin(lines[name], Pin.IN, Pin.PULL_UP, hold=False).value():
+            if name in ("crown", "usb") and "usb" in wake:
+                return "usb" if pmu().vbus_events(clear=False) else "crown"
             return name
     return "touch" if "touch" in wake else "unknown"
 
