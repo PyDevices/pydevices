@@ -11,9 +11,9 @@ with each kind of peripheral described honestly by its role.
 
 ## MIDI
 
-- `mididev`, one home for MIDI: the port contract, one MIDI 1.0 parser and the
-  desktop OS ports live here, and USB and BLE MIDI become transports that add
-  their ports to it.
+- MIDI follows CircuitPython's `adafruit_midi` API, in one package that works
+  over any transport. USB and BLE MIDI, a UART and the desktop's own MIDI
+  ports each give it byte-stream ports, as CircuitPython's `usb_midi` does.
 
 ## BLE
 
@@ -24,7 +24,9 @@ with each kind of peripheral described honestly by its role.
   measured other direction in [docs/bledev-internals.md](docs/bledev-internals.md).
 - BLE MIDI through Windows MIDI Services' new Bluetooth transport: once it
   ships, a board running `bledev.midi.serve()` should open in any Windows MIDI
-  app and in `usbif.win_midi` without pairing, and the BLE docs say so.
+  app without pairing, and the BLE docs say so.
+- `bledev.midi` gives ports that `adafruit_midi` reads, and the HID device side
+  gives keyboards and mice that `adafruit_hid` code drives unchanged.
 
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
