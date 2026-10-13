@@ -6,11 +6,13 @@ Installed modules:
 - board_config
 - board_peripherals
 - boarddev
+- mdns (CircuitPython's `mdns` API over python-zeroconf)
 - micropython (CPython compatibility shim)
 - usdl2
 - uwin32 (Windows CPython)
 
-It depends on the full `pydevices` meta-package, which includes `appdev`.
+It depends on the full `pydevices` meta-package, which includes `appdev`, and
+on python-zeroconf, which `mdns` runs on ([`utils/requirements.txt`](../utils/requirements.txt)).
 
 Source of truth:
 - Fixed library modules come from [`board_configs/desktop/`](../board_configs/desktop/) and `drivers/`.

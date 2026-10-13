@@ -1,0 +1,3 @@
+# What pydevices-desktop needs from PyPI for the modules in utils/. The
+# release adds each line to its dependencies.
+zeroconf>=0.132  # mdns.py

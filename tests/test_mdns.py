@@ -1,183 +1,258 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""``mdns``: the DNS messages it writes and reads, and what ``find()`` makes
-of a network's answers.
+"""``mdns.py`` (pydevices-desktop): CircuitPython's mdns API over
+python-zeroconf.
 
-The network is a fake socket that answers each query with prepared DNS
-messages, built here the way responders build them (with name compression),
-so nothing here touches a network. Real responders differ in how much they
-put in one answer: a Roku sends the port, the address and the TXT with its
-PTR; others send only the PTR and wait to be asked for the rest.
+``Shim`` runs against a stand-in for zeroconf, so it needs neither the
+package nor a network: what each call asks of zeroconf, what comes back, and
+CircuitPython's errors. ``OnTheNetwork`` uses the real zeroconf, when it's
+installed, to advertise a service and find it again. ``WithoutZeroconf`` is
+what a desktop without the package gets.
 """
 
-import struct
+import importlib
+import ipaddress
+import sys
+import types
 import unittest
 
 import _env  # noqa: F401
-import mdns
-
-SVC = "_display._tcp.local"
 
 
-def _name(name):
-    out = b""
-    for label in name.split("."):
-        out += bytes((len(label),)) + label.encode()
-    return out + b"\x00"
+def _fake_zeroconf():
+    """A module with the parts of zeroconf mdns.py uses. The 'network' is a
+    dict on each Zeroconf: {type: {name: (server, [addresses], port)}}."""
+    z = types.ModuleType("zeroconf")
+
+    class IPVersion:
+        V4Only = "v4"
+
+    class ServiceStateChange:
+        Added = "added"
+
+    class Zeroconf:
+        network = {}
+
+        def __init__(self, interfaces=None, ip_version=None):
+            self.interfaces = interfaces
+            self.registered = []
+            self.calls = []
+            self.closed = False
+
+        def register_service(self, info, strict=True):
+            self.calls.append(("register", info.name, info.port, info.properties))
+            self.registered.append(info)
+
+        def update_service(self, info):
+            self.calls.append(("update", info.name, info.port, info.properties))
+
+        def unregister_service(self, info):
+            self.calls.append(("unregister", info.name))
+            self.registered = [i for i in self.registered if i.name != info.name]
+
+        def unregister_all_services(self):
+            self.calls.append(("unregister_all",))
+            self.registered = []
+
+        def close(self):
+            self.closed = True
+
+    class ServiceBrowser:
+        def __init__(self, zc, kind, handlers):
+            for name in Zeroconf.network.get(kind, {}):
+                for h in handlers:
+                    h(zeroconf=zc, service_type=kind, name=name, state_change=ServiceStateChange.Added)
+
+        def cancel(self):
+            pass
+
+    class ServiceInfo:
+        def __init__(self, kind, name, addresses=None, port=None, properties=None, server=None):
+            self.type = kind
+            self.name = name
+            self.addresses = addresses or []
+            self.port = port
+            self.properties = properties or {}
+            self.server = server
+
+        def load_from_cache(self, zc):
+            entry = Zeroconf.network.get(self.type, {}).get(self.name)
+            if entry is None:
+                return False
+            self.server, self._parsed, self.port = entry
+            return True
+
+        def request(self, zc, timeout):
+            return self.load_from_cache(zc)
+
+        def parsed_addresses(self, version=None):
+            return list(getattr(self, "_parsed", []))
+
+    z.IPVersion = IPVersion
+    z.ServiceStateChange = ServiceStateChange
+    z.Zeroconf = Zeroconf
+    z.ServiceBrowser = ServiceBrowser
+    z.ServiceInfo = ServiceInfo
+    return z
 
 
-def _rr(name, rtype, rdata, ttl=120):
-    # *name* is bytes already encoded (a full name or a compression pointer)
-    return name + struct.pack(">HHIH", rtype, 1, ttl, len(rdata)) + rdata
+class Shim(unittest.TestCase):
+    def setUp(self):
+        self._saved = {k: sys.modules.get(k) for k in ("zeroconf", "mdns")}
+        self.z = _fake_zeroconf()
+        sys.modules["zeroconf"] = self.z
+        sys.modules.pop("mdns", None)
+        self.mdns = importlib.import_module("mdns")
+        self.server = self.mdns.Server(None)
+        self.zc = self.server._zc
 
+    def tearDown(self):
+        self.server.deinit()
+        for k, v in self._saved.items():
+            if v is None:
+                sys.modules.pop(k, None)
+            else:
+                sys.modules[k] = v
 
-def _message(records, ident=0):
-    return struct.pack(">HHHHHH", ident, 0x8400, 0, len(records), 0, 0) + b"".join(records)
+    def test_find_maps_zeroconf_answers_to_remote_services(self):
+        self.z.Zeroconf.network = {
+            "_display._tcp.local.": {
+                'Bedroom 65" TV._display._tcp.local.': ("YN00P9866842.local.", ["192.168.1.129"], 7250),
+            }
+        }
+        (s,) = self.server.find(service_type="_display", protocol="_tcp", timeout=0)
+        self.assertEqual(s.instance_name, 'Bedroom 65" TV')
+        self.assertEqual(s.hostname, "YN00P9866842")
+        self.assertEqual(s.ipv4_address, ipaddress.IPv4Address("192.168.1.129"))
+        self.assertEqual((s.service_type, s.protocol, s.port), ("_display", "_tcp", 7250))
 
-
-def _txt(*items):
-    return b"".join(bytes((len(i),)) + i.encode() for i in items)
-
-
-def roku_answer(ident):
-    """Everything in one message, the instance name compressed against the
-    service name the way responders write it."""
-    svc = _name(SVC)
-    inst = _name("Living Room")[:-1] + b"\xc0\x0c"  # "Living Room" + pointer to the service at offset 12
-    srv = struct.pack(">HHH", 0, 0, 7250) + _name("X0120.local")
-    return _message([
-        _rr(svc, mdns.PTR, inst),
-        _rr(b"\x0bLiving Room\xc0\x0c", mdns.SRV, srv),
-        _rr(b"\x0bLiving Room\xc0\x0c", mdns.TXT, _txt("container_id={119A}", "flag")),
-        _rr(_name("X0120.local"), mdns.A, bytes((192, 168, 1, 140))),
-    ], ident)
-
-
-class FakeSocket:
-    """Answers each sent query with ``responder(questions)``'s messages."""
-
-    def __init__(self, responder):
-        self.responder = responder
-        self.queue = []
-        self.sent = []
-        self.closed = False
-
-    def sendto(self, pkt, addr):
-        self.sent.append(pkt)
-        self.queue.extend(self.responder(_questions(pkt), struct.unpack(">H", pkt[:2])[0]))
-
-    def settimeout(self, t):
-        pass
-
-    def recvfrom(self, n):
-        if not self.queue:
-            raise OSError(110)
-        return self.queue.pop(0), ("192.168.1.2", 5353)
-
-    def close(self):
-        self.closed = True
-
-
-def _questions(pkt):
-    qd = struct.unpack(">H", pkt[4:6])[0]
-    at = 12
-    out = []
-    for _ in range(qd):
-        name, at = mdns._read_name(pkt, at)
-        out.append((name, struct.unpack(">H", pkt[at : at + 2])[0]))
-        at += 4
-    return out
-
-
-class WithFakeNetwork(unittest.TestCase):
-    def use(self, responder):
-        sock = FakeSocket(responder)
-        real = mdns._socket
-        mdns._socket = lambda interface: sock
-        self.addCleanup(setattr, mdns, "_socket", real)
-        return sock
-
-
-class Wire(unittest.TestCase):
-    def test_query_asks_one_ptr_question(self):
-        pkt = mdns.query([(SVC, mdns.PTR)], 7)
-        self.assertEqual(struct.unpack(">HHHHHH", pkt[:12]), (7, 0, 1, 0, 0, 0))
-        self.assertEqual(_questions(pkt), [(SVC, mdns.PTR)])
-
-    def test_records_follow_compression(self):
-        recs = mdns.records(roku_answer(1))
-        self.assertIn((SVC, mdns.PTR, "Living Room." + SVC), recs)
-        self.assertIn(("Living Room." + SVC, mdns.SRV, (7250, "X0120.local")), recs)
-        self.assertIn(("X0120.local", mdns.A, "192.168.1.140"), recs)
-        txt = [v for n, t, v in recs if t == mdns.TXT][0]
-        self.assertEqual(txt, {"container_id": "{119A}", "flag": ""})
-
-    def test_a_pointer_loop_is_an_error_not_a_hang(self):
-        loop = struct.pack(">HHHHHH", 0, 0x8400, 0, 1, 0, 0) + b"\xc0\x0c"
-        with self.assertRaises(ValueError):
-            mdns.records(loop)
-
-
-class Find(WithFakeNetwork):
-    def test_everything_in_one_answer(self):
-        sock = self.use(lambda qs, ident: [roku_answer(ident)] if (SVC, mdns.PTR) in qs else [])
-        found = mdns.Server(None).find("_display", "_tcp", timeout=0.2)
-        self.assertEqual(len(found), 1)
-        s = found[0]
-        self.assertEqual((s.instance_name, s.hostname, s.ipv4_address, s.port), ("Living Room", "X0120", "192.168.1.140", 7250))
-        self.assertEqual((s.service_type, s.protocol), ("_display", "_tcp"))
-        self.assertEqual(s.txt["container_id"], "{119A}")
-        self.assertIsInstance(found, tuple)
-        self.assertTrue(sock.closed)
-
-    def test_asks_again_for_what_the_first_answer_left_out(self):
-        inst = "Desk." + SVC
-
-        def responder(qs, ident):
-            out = []
-            for name, qtype in qs:
-                if (name, qtype) == (SVC, mdns.PTR):
-                    out.append(_message([_rr(_name(SVC), mdns.PTR, _name(inst))], ident))
-                elif (name, qtype) == (inst, mdns.SRV):
-                    out.append(_message([_rr(_name(inst), mdns.SRV, struct.pack(">HHH", 0, 0, 8080) + _name("desk.local"))], ident))
-                elif (name, qtype) == ("desk.local", mdns.A):
-                    out.append(_message([_rr(_name("desk.local"), mdns.A, bytes((10, 0, 0, 5)))], ident))
-            return out
-
-        self.use(responder)
-        (s,) = mdns.Server(None).find("_display", "_tcp", timeout=0.2)
-        self.assertEqual((s.instance_name, s.ipv4_address, s.port), ("Desk", "10.0.0.5", 8080))
-
-    def test_names_keep_their_spelling_and_match_without_case(self):
-        msg = roku_answer(1).replace(b"Living Room", b"LIVING room")
-        self.use(lambda qs, ident: [msg] if qs[0][1] == mdns.PTR else [])
-        (s,) = mdns.Server(None).find("_DISPLAY", "_tcp", timeout=0.2)
-        self.assertEqual(s.instance_name, "LIVING room")
-        self.assertEqual(s.ipv4_address, "192.168.1.140")
-
-    def test_a_malformed_answer_costs_only_itself(self):
-        self.use(lambda qs, ident: [b"\x00\x01garbage", roku_answer(ident)] if qs[0][1] == mdns.PTR else [])
-        found = mdns.Server(None).find("_display", "_tcp", timeout=0.2)
-        self.assertEqual([s.instance_name for s in found], ["Living Room"])
+    def test_a_service_without_an_address(self):
+        self.z.Zeroconf.network = {"_http._tcp.local.": {"Quiet._http._tcp.local.": (None, [], 0)}}
+        (s,) = self.server.find(service_type="_http", protocol="_tcp", timeout=0)
+        self.assertIsNone(s.ipv4_address)
+        self.assertEqual(s.hostname, "")
 
     def test_nothing_answers(self):
-        self.use(lambda qs, ident: [])
-        self.assertEqual(mdns.Server(None).find("_display", "_tcp", timeout=0.1), ())
+        self.z.Zeroconf.network = {}
+        self.assertEqual(self.server.find(service_type="_nobody", protocol="_tcp", timeout=0), ())
 
-    def test_resolve(self):
-        def responder(qs, ident):
-            if qs == [("p4-devkit.local", mdns.A)]:
-                return [_message([_rr(_name("p4-devkit.local"), mdns.A, bytes((192, 168, 1, 155)))], ident)]
-            return []
+    def test_remote_service_is_read_only_and_made_only_by_find(self):
+        with self.assertRaises(TypeError):
+            self.mdns.RemoteService()
+        self.z.Zeroconf.network = {"_http._tcp.local.": {"A._http._tcp.local.": ("a.local.", ["10.0.0.2"], 80)}}
+        (s,) = self.server.find(service_type="_http", protocol="_tcp", timeout=0)
+        with self.assertRaises(AttributeError):
+            s.port = 1
 
-        self.use(responder)
-        self.assertEqual(mdns.resolve("p4-devkit", timeout=0.1), "192.168.1.155")
-        self.assertIsNone(mdns.resolve("nobody", timeout=0.1))
+    def test_arguments_are_keyword_only(self):
+        with self.assertRaises(TypeError):
+            self.server.find("_http", "_tcp")
+        with self.assertRaises(TypeError):
+            self.server.advertise_service("_http", "_tcp", 80)
 
-    def test_advertising_needs_a_responder(self):
-        with self.assertRaises(NotImplementedError):
-            mdns.Server(None).advertise_service(service_type="_http", protocol="_tcp", port=80)
+    def test_advertise_hands_zeroconf_the_service_and_its_txt_records(self):
+        self.server.instance_name = "Kitchen"
+        self.server.advertise_service(service_type="_http", protocol="_tcp", port=8080,
+                                      txt_records=["path=/", "flag", "empty="])
+        self.assertEqual(self.zc.calls[-1], ("register", "Kitchen._http._tcp.local.", 8080,
+                                             {b"path": b"/", b"flag": None, b"empty": b""}))
+        (info,) = self.zc.registered
+        self.assertEqual(info.server, self.server.hostname + ".local.")
+
+    def test_a_second_advertise_updates_the_port(self):
+        self.server.advertise_service(service_type="_http", protocol="_tcp", port=8080)
+        self.server.advertise_service(service_type="_http", protocol="_tcp", port=8081)
+        self.assertEqual(self.zc.calls[-1][:3], ("update", self.server.instance_name + "._http._tcp.local.", 8081))
+        self.assertEqual(len(self.zc.registered), 1)
+
+    def test_renaming_offers_each_service_again(self):
+        self.server.advertise_service(service_type="_http", protocol="_tcp", port=8080)
+        self.server.instance_name = "Den"
+        self.assertEqual(self.zc.calls[-2][0], "unregister")
+        self.assertEqual(self.zc.calls[-1][:3], ("register", "Den._http._tcp.local.", 8080))
+        self.server.hostname = "den-box"
+        self.assertEqual(self.zc.registered[0].server, "den-box.local.")
+
+    def test_circuitpythons_errors(self):
+        m = self.mdns
+        with self.assertRaisesRegex(RuntimeError, "^mDNS already initialized$"):
+            m.Server(None)
+        with self.assertRaisesRegex(ValueError, "^network_interface must be None or an IPv4 address$"):
+            m.Server(42)
+        with self.assertRaisesRegex(ValueError, "non-string or bytes found in txt_records"):
+            self.server.advertise_service(service_type="_x", protocol="_tcp", port=1, txt_records=[1])
+        with self.assertRaisesRegex(ValueError, "^txt_records length must be <= 32$"):
+            self.server.advertise_service(service_type="_x", protocol="_tcp", port=1,
+                                          txt_records=["k%d=v" % i for i in range(33)])
+
+    def test_deinit_withdraws_and_frees_the_place(self):
+        self.server.advertise_service(service_type="_http", protocol="_tcp", port=8080)
+        self.server.deinit()
+        self.assertEqual(self.zc.calls[-1], ("unregister_all",))
+        self.assertTrue(self.zc.closed)
+        self.server.deinit()  # twice is fine
+        with self.assertRaisesRegex(ValueError, "deinitialized"):
+            self.server.hostname
+        again = self.mdns.Server(None)
+        again.deinit()
+
+    def test_an_address_picks_the_network(self):
+        self.server.deinit()
+        self.server = self.mdns.Server("192.168.1.20")
+        self.assertEqual(self.server._zc.interfaces, ["192.168.1.20"])
+
+
+try:
+    import zeroconf  # noqa: F401
+except ImportError:
+    zeroconf = None
+
+
+@unittest.skipIf(zeroconf is None, "zeroconf isn't installed")
+class OnTheNetwork(unittest.TestCase):
+    """The real thing, through the machine's own multicast loopback."""
+
+    def setUp(self):
+        sys.modules.pop("mdns", None)
+        self.mdns = importlib.import_module("mdns")
+        self.server = self.mdns.Server(None)
+
+    def tearDown(self):
+        self.server.deinit()
+
+    def _ours(self, port=None):
+        for s in self.server.find(service_type="_pydevtest", protocol="_tcp", timeout=2):
+            if s.instance_name == "pydevices mdns test" and (port is None or s.port == port):
+                return s
+        return None
+
+    def test_advertise_then_find(self):
+        self.server.instance_name = "pydevices mdns test"
+        self.server.advertise_service(service_type="_pydevtest", protocol="_tcp", port=8123,
+                                      txt_records=["path=/"])
+        found = self._ours()
+        self.assertIsNotNone(found)
+        self.assertEqual(found.port, 8123)
+        self.assertIsInstance(found.ipv4_address, ipaddress.IPv4Address)
+        self.server.advertise_service(service_type="_pydevtest", protocol="_tcp", port=8124)
+        self.assertIsNotNone(self._ours(8124))
+
+
+class WithoutZeroconf(unittest.TestCase):
+    def test_says_how_to_install_it(self):
+        saved = {k: sys.modules.get(k) for k in ("zeroconf", "mdns")}
+        sys.modules["zeroconf"] = None  # import zeroconf now raises ImportError
+        sys.modules.pop("mdns", None)
+        try:
+            with self.assertRaisesRegex(ImportError, "pip install zeroconf"):
+                importlib.import_module("mdns")
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    sys.modules.pop(k, None)
+                else:
+                    sys.modules[k] = v
 
 
 if __name__ == "__main__":
