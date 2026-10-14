@@ -29,14 +29,16 @@ class _In(PortIn):
         self._have = 0
         self._pos = 0
 
-    def readinto(self, buf, nbytes=None):
-        want = _count(buf, nbytes)
+    def any(self):
         if self._pos >= self._have:
             self._have = self._port.read(self._raw)
             self._pos = 0
-            if not self._have:
-                return None
-        n = min(want, self._have - self._pos)
+        return self._have - self._pos
+
+    def readinto(self, buf, nbytes=None):
+        if not self.any():
+            return None
+        n = min(_count(buf, nbytes), self._have - self._pos)
         raw = self._raw
         pos = self._pos
         for i in range(n):

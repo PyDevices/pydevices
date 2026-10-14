@@ -27,6 +27,12 @@ It's CircuitPython's ``usb_midi``, and nothing more. An input port has:
     This is the call that allocates nothing, for a loop that polls beside
     audio.
 
+An input port here also has ``any()``, as ``machine.UART`` does: how many
+bytes are waiting, without taking them. CircuitPython's ports don't have it.
+It's for a loop that polls beside audio: ``adafruit_midi``'s ``receive()``
+allocates on every call, even when nothing has arrived, so call it only when
+``any()`` says there's something, then until it returns ``None``.
+
 An output port has:
 
 ``write(buf, nbytes=None)``
@@ -233,7 +239,7 @@ class WholeMessages(PortIn):
                 self._emit(self._msg[i])
             self._have = 0
 
-    def readinto(self, buf, nbytes=None):
+    def any(self):
         if self._start == self._end:
             self._start = self._end = 0
             raw = self._raw
@@ -242,9 +248,14 @@ class WholeMessages(PortIn):
             while not self._end:
                 n = self.port.readinto(self._rawv, len(raw))
                 if not n:
-                    return None
+                    return 0
                 for i in range(n):
                     self._byte(raw[i])
+        return self._end - self._start
+
+    def readinto(self, buf, nbytes=None):
+        if not self.any():
+            return None
         n = min(_count(buf, nbytes), self._end - self._start)
         out = self._out
         start = self._start

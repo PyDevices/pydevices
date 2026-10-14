@@ -654,6 +654,73 @@ def c_windows():
         sys.modules.pop("midiports.windows", None)
 
 
+def any_first(midi_in, midi_out, notes=200, pump=None):
+    """The loop a rack beside audio runs: receive() only when any() says so."""
+    tx = adafruit_midi.MIDI(midi_out=midi_out)
+    rx = adafruit_midi.MIDI(midi_in=midi_in)
+    got = 0
+    for i in range(notes):
+        tx.send(NoteOn(i % 128, 1 + i % 127))
+        if pump:
+            pump()
+        if midi_in.any():
+            while True:
+                msg = rx.receive()
+                if msg is None:
+                    break
+                if isinstance(msg, NoteOn) and msg.note == got % 128:
+                    got += 1
+    return got
+
+
+def quiet_any_allocates_nothing(port):
+    if not MICROPYTHON:
+        return
+    port.any()
+    gc.collect()
+    before = gc.mem_alloc()
+    for _ in range(100):
+        port.any()
+    expect(gc.mem_alloc() == before, "100 empty any() allocated %d bytes"
+           % (gc.mem_alloc() - before))
+
+
+def c_any():
+    from midiports import usbif_shim
+
+    port = FakeMidiPort()
+    midi_in, midi_out = usbif_shim.ports(port, size=8)
+    expect(midi_in.any() == 0, "shim: nothing waiting")
+    quiet_any_allocates_nothing(midi_in)
+    port.rx.extend(b"\x90\x3c\x64")
+    expect(midi_in.any() == 3 and midi_in.read(30) == b"\x90\x3c\x64", "shim: any, then read")
+    got = any_first(midi_in, midi_out)
+    expect(got == 200, "%d of 200 through the shim, any() first" % got)
+
+    wm = whole([b"\x90\x3c", b"\x64\x3e"])
+    expect(wm.any() == 3, "WholeMessages: a whole message waiting")
+    expect(wm.read(30) == b"\x90\x3c\x64", "first note")
+    expect(wm.read(30) is None and wm.any() == 0, "a lone running-status byte isn't whole yet")
+    quiet_any_allocates_nothing(whole([]))
+
+    usb_device = _install_fake_usb()
+    try:
+        itf = usb_device.MIDIPortsInterface()
+        midi_in, midi_out = itf.ports
+        expect(midi_in.any() == 0, "usb: nothing waiting")
+        quiet_any_allocates_nothing(midi_in)
+
+        def loop_back():
+            for ev in itf.events:
+                itf.on_midi_event(*ev)
+            itf.events[:] = []
+
+        got = any_first(midi_in, midi_out, pump=loop_back)
+        expect(got == 200, "%d of 200 through USB-MIDI, any() first" % got)
+    finally:
+        _remove_fake_usb()
+
+
 def c_garbage_per_note():
     """Informational on the host; the S3 figure is the gate's."""
     if not MICROPYTHON:
@@ -689,6 +756,7 @@ CHECKS = (
     ("usb_device: 200 of 200 through events and back", c_usb_device_round_trip),
     ("usbif_shim: 200 of 200, read(n) over read(buf)", c_usbif_shim),
     ("windows: ports by name, short messages, drained input", c_windows),
+    ("any(): counts without taking, allocates nothing, drives a loop", c_any),
     ("garbage per received note", c_garbage_per_note),
 )
 

@@ -173,6 +173,12 @@ class WindowsMidiIn(PortIn):
             if want >= 2:
                 self._pending.append(d2)
 
+    def any(self):
+        if self._handle is None:
+            raise _closed()
+        self._drain_queue()
+        return len(self._pending)
+
     def readinto(self, buf, nbytes=None):
         if self._handle is None:
             raise _closed()

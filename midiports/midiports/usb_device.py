@@ -54,6 +54,10 @@ class _In(PortIn):
         PortIn.__init__(self)
         self._itf = itf
 
+    def any(self):
+        itf = self._itf
+        return (itf._head - itf._tail) % len(itf._ring)
+
     def readinto(self, buf, nbytes=None):
         return self._itf._take(buf, _count(buf, nbytes)) or None
 
