@@ -557,6 +557,39 @@ Playback and capture are queued/pull (`GetBuffer` / `ReleaseBuffer`) with
 
 Keyword arguments are the shared set in [Buffering options](#buffering-options).
 
+### Writing a block straight to the device
+
+If you run your own short queue, a synth or mixer that renders a block at a
+time and decides how far ahead of the device to stay, `write_now()` puts one
+block into the WASAPI buffer at once. It skips `write()`'s media queue and
+coalescing, which batch PCM into 100 ms pieces and wait for about 100 ms
+before playing: right for a decoder, far too much between a key and its
+sound.
+
+```python
+from audiodev import AudioFormat, win_audio
+
+out = win_audio.pcm_out(AudioFormat(48000, 2, 16), latency="low")
+out.open()
+TARGET = 768                                  # frames to keep queued: 16 ms
+while playing:
+    if out.device_frames() + 256 <= TARGET:   # room for another block?
+        out.write_now(render_256_frames())    # bytes, bytearray or memoryview
+    wait_a_millisecond()
+```
+
+`write_now(buf, start=True)` writes whole frames, as many as the device has
+room for, and returns the bytes written. It never waits and never keeps the
+rest: a short count means the device is full and the remainder is still
+yours. Volume and mute apply as they do to `write()`. Playback starts with the
+first block written; pass `start=False` to prime the buffer and call
+`start()` once it holds enough. `device_frames()` is what the device still has
+to play, and `buffer_frames` its capacity once open.
+
+Use `write_now()` or `write()` on one output, not both: they reach the device
+by different paths, and nothing orders one against the other. `write()`,
+`service()` and the rest behave as before.
+
 ## `pygame_audio.py`
 
 Backend for CPython hosts with pygame-ce installed. It uses **pygame's own SDL**,
