@@ -679,6 +679,11 @@ def _load_source(name):
 
 def _async_owned_host():
     """True on hosts whose lifecycle is an asyncio loop we did not start."""
+    # Pyodide always runs on the browser's event loop (its webloop), with or
+    # without PyScript: in a Web Worker there is no pyscript module, and the
+    # other sources never wake there.
+    if sys.platform == "emscripten":
+        return True
     try:
         import pyscript  # noqa: F401
 

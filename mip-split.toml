@@ -30,10 +30,13 @@
 
 [displaydev]
 # SDL, pygame, Windows GDI, Jupyter, PyScript, the browser canvas, Android.
-# `_desktop` and `_domkeys` are shared helpers for those and nothing else.
+# `_desktop`, `_domkeys`, `_webcanvas` and `_webinput` are shared helpers for
+# those and nothing else.
 host-only = [
     "_desktop",
     "_domkeys",
+    "_webcanvas",
+    "_webinput",
     "androidsdl",
     "jndisplay",
     "pgdisplay",
@@ -41,6 +44,7 @@ host-only = [
     "sdldisplay",
     "wasmdisplay",
     "windisplay",
+    "workerdisplay",
 ]
 
 [audiodev]

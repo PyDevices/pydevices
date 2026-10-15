@@ -21,3 +21,14 @@ part of this launcher.
 
 Use [`bin/wasm.py`](../bin/wasm.py) and the [direct WebAssembly guide](wasm.md)
 for MicroPython in a browser.
+
+## Python in a Web Worker
+
+A long redraw on the page's main thread holds up everything else the page
+does, input and Web MIDI included. To keep the main thread free, run your
+Python in a worker and draw with `displaydev.workerdisplay.WorkerDisplay`:
+the page transfers its canvas to the worker as an `OffscreenCanvas` and
+relays pointer, wheel and key events. `board_configs/workerdisplay` sets it
+up; the module docstring has the few lines of page-side JavaScript and the
+event format. LVGL's `display_driver` and `appdev` work on it unchanged.
+

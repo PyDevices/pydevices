@@ -120,6 +120,14 @@ def capabilities():
                 "touch_scale": "canvas layout scale",
                 "scroll_emulation": True,
             },
+            "workerdisplay": {
+                "appdev": True,
+                "auto_refresh": True,
+                "default_period_ms": _DEFAULT_AUTO_REFRESH_PERIOD,
+                "async_default": True,
+                "touch_scale": "canvas layout scale (the page relays it)",
+                "scroll_emulation": True,
+            },
             "jndisplay": {
                 "appdev": True,
                 "auto_refresh": True,

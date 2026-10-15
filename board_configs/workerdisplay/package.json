@@ -1,0 +1,19 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/workerdisplay/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/workerdisplay/board_peripherals.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices-desktop",
+      "latest"
+    ]
+  ],
+  "version": "0.1"
+}
