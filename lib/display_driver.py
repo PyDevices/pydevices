@@ -917,7 +917,11 @@ def _make_touch_cb(device):
             if event.type == events.MOUSEBUTTONDOWN and event.button == 1:
                 st["x"], st["y"] = event.pos
                 st["pressed"] = True
-            elif event.type == events.MOUSEMOTION and event.buttons[0]:
+            elif event.type == events.MOUSEMOTION:
+                # Moves with the button up count too: LVGL hovers a released
+                # pointer (HOVER_OVER / HOVER_LEAVE, the HOVERED state), as its
+                # own desktop drivers do. A finger is a separate event type
+                # and still moves only while it touches.
                 st["x"], st["y"] = event.pos
             elif event.type == events.MOUSEBUTTONUP and event.button == 1:
                 st["x"], st["y"] = event.pos
