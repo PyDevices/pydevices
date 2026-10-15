@@ -36,6 +36,20 @@ def _buttons_tuple(buttons):
     )
 
 
+
+def _caps(key, shift):
+    """KMOD_CAPS when Caps Lock is on, read from the key itself.
+
+    The keycode is the same for "a" and "A" (SDL style), and the browser
+    reports Shift but not Caps Lock, so a capital typed with Caps Lock came
+    out small. A letter whose case disagrees with Shift (a capital without
+    it, or a small letter with it) means Caps Lock is on.
+    """
+    if isinstance(key, str) and len(key) == 1 and key.isalpha() and key.lower() != key.upper():
+        if key.isupper() != bool(shift):
+            return keys.KMOD_CAPS
+    return 0
+
 class WebInput:
     """Pointer, wheel, keyboard and gamepad input as an appdev HOST device.
 
@@ -211,14 +225,14 @@ class WebInput:
             return
         self._pressed.add(keycode)
         mod = enrich_mod(mod_mask(e.ctrlKey, e.shiftKey, e.altKey, e.metaKey), self._pressed)
-        self._enqueue_key(events.KEYDOWN, keycode, mod)
+        self._enqueue_key(events.KEYDOWN, keycode, mod | _caps(e.key, e.shiftKey))
 
     def _on_keyup(self, e):
         keycode = key_to_keycode(e.key, e.location)
         self._suppress_browser_scroll(e, keycode)
         self._pressed.discard(keycode)
         mod = enrich_mod(mod_mask(e.ctrlKey, e.shiftKey, e.altKey, e.metaKey), self._pressed)
-        self._enqueue_key(events.KEYUP, keycode, mod)
+        self._enqueue_key(events.KEYUP, keycode, mod | _caps(e.key, e.shiftKey))
 
     ############### Gamepad ################
 
