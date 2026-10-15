@@ -49,6 +49,7 @@ from adafruit_midi.note_on import NoteOn
 from adafruit_midi.pitch_bend import PitchBend
 from adafruit_midi.program_change import ProgramChange
 from adafruit_midi.system_exclusive import SystemExclusive
+from adafruit_midi.start import Start
 from adafruit_midi.timing_clock import TimingClock
 
 import midiports
@@ -535,8 +536,8 @@ def c_usbif_shim():
     expect(got == 200, "%d of 200 notes through the shim" % got)
     port.rx.extend(b"\x90\x3c\x64\x80\x3c\x00\xb0\x01\x02")  # more than one raw read
     expect(midi_in.read(4) == b"\x90\x3c\x64\x80", "first 4")
-    expect(midi_in.read(30) == b"\x3c\x00\xb0\x01", "rest of the raw read")
-    expect(midi_in.read(30) == b"\x02", "the next raw read")
+    expect(midi_in.read(30) == b"\x3c\x00", "rest of the raw read's whole messages")
+    expect(midi_in.read(30) == b"\xb0\x01\x02", "the CC, whole once the next raw read ends it")
     expect(midi_in.read(30) is None, "empty")
     if MICROPYTHON:
         gc.collect()
@@ -1105,6 +1106,105 @@ WHOLE_ARRIVALS = (
 WHOLE_WANT = STAMP_WANT[:5] + ((ControlChange, 4),) + STAMP_WANT[6:]
 
 
+# Real-time bytes inside a SysEx, as the MIDI spec allows: each must come out
+# as its own message with its own arrival time, in order, after the SysEx.
+# Arrival 1 starts the SysEx, 2 is a clock, 3 is more SysEx, 4 a start
+# byte, 5 ends the SysEx, 6 a note-on.
+RT_IN_SYSEX = (b"\xf0\x7d\x01\x02", b"\xf8", b"\x03\x04", b"\xfa", b"\x05\xf7",
+               b"\x90\x3c\x64")
+RT_IN_SYSEX_WANT = ((SystemExclusive, 1), (TimingClock, 2), (Start, 4), (NoteOn, 6))
+
+
+def c_stamps_realtime_in_sysex_usb_device():
+    usb_device = _install_fake_usb()
+    try:
+        use_fake_clock(usb_device)
+        itf = usb_device.MIDIPortsInterface()
+        _clock.t = 0
+        # The USB-MIDI events a host sends for RT_IN_SYSEX.
+        for ev in ((0x4, 0xF0, 0x7D, 0x01), (0xF, 0xF8, 0, 0), (0x4, 0x02, 0x03, 0x04),
+                   (0xF, 0xFA, 0, 0), (0x6, 0x05, 0xF7, 0), (0x9, 0x90, 0x3C, 0x64)):
+            _clock.t += 1000
+            itf.on_midi_event(*ev)
+        got = stamps_per_message(itf.ports[0])
+        expect_stamps(got, RT_IN_SYSEX_WANT)
+        # A SysEx cut short by a note: the port ends it, then the held clock.
+        itf = usb_device.MIDIPortsInterface()
+        _clock.t = 0
+        for ev in ((0x4, 0xF0, 0x7D, 0x01), (0xF, 0xF8, 0, 0), (0x9, 0x90, 0x3C, 0x64)):
+            _clock.t += 1000
+            itf.on_midi_event(*ev)
+        expect_stamps(stamps_per_message(itf.ports[0]),
+                      ((SystemExclusive, 1), (TimingClock, 2), (NoteOn, 3)))
+    finally:
+        _remove_fake_usb()
+
+
+def stamps_after_drain(midi_in, pump=None):
+    """Read every byte the port hands out, then parse them in one go.
+
+    adafruit_midi drops a SysEx it sees only part of in one buffer, whatever
+    the port does, so these cases give it the port's whole output at once.
+    The stamps still come from the port.
+    """
+    data = bytearray()
+    idle = 0
+    while idle < 3:
+        if pump is not None:
+            pump()
+        chunk = midi_in.read(64)
+        if chunk is None:
+            idle += 1
+        else:
+            idle = 0
+            data.extend(chunk)
+
+    class _Stamped(FakeIn):
+        def take_timestamp(self):
+            return midi_in.take_timestamp()
+
+    return stamps_per_message(_Stamped([data]))
+
+
+def c_stamps_realtime_in_sysex_streams():
+    # A byte stream (UART, Linux) through WholeMessages.
+    use_fake_clock(midiports)
+    _clock.t = 0
+    port = WholeMessages(TickingIn(RT_IN_SYSEX))
+    expect_stamps(stamps_after_drain(port), RT_IN_SYSEX_WANT)
+    # usbif's MidiPort.
+    from midiports import usbif_shim
+
+    raw = FakeMidiPort()
+    midi_in, _ = usbif_shim.ports(raw, size=64)
+    chunks = list(RT_IN_SYSEX)
+
+    def pump():
+        if chunks and not raw.rx:
+            raw.rx.extend(chunks.pop(0))
+            _clock.t += 1000
+
+    _clock.t = 0
+    expect_stamps(stamps_after_drain(midi_in, pump), RT_IN_SYSEX_WANT)
+
+
+def c_stamps_realtime_in_sysex_webmidi():
+    # The browser hands a SysEx over whole and real-time bytes as their own
+    # events, each with its own time.
+    from midiports import webmidi
+
+    access = FakeMIDIAccess()
+    midi_in, _ = webmidi.ports(access, "loopback")
+    access.clock = 0.0
+    for msg, at in ((b"\xf8", 2.0), (b"\xfa", 4.0), (b"\xf0\x7d\x01\x02\x03\x04\x05\xf7", 1.0),
+                    (b"\x90\x3c\x64", 6.0)):
+        access.clock = at - 0.5
+        access.fire(access.loop_in, msg)
+    got = stamps_per_message(midi_in)
+    expect_stamps(got, ((TimingClock, 2), (Start, 4), (SystemExclusive, 1), (NoteOn, 6)))
+    midi_in.close()
+
+
 def c_stamps_usb_device():
     usb_device = _install_fake_usb()
     try:
@@ -1270,6 +1370,9 @@ CHECKS = (
     ("stamps: usbif_shim", c_stamps_usbif_shim),
     ("stamps: windows", c_stamps_windows),
     ("stamps: webmidi, one per message", c_stamps_webmidi),
+    ("stamps: usb_device, real-time bytes inside a SysEx", c_stamps_realtime_in_sysex_usb_device),
+    ("stamps: WholeMessages and usbif_shim, real-time bytes inside a SysEx", c_stamps_realtime_in_sysex_streams),
+    ("stamps: webmidi, real-time bytes beside a SysEx", c_stamps_realtime_in_sysex_webmidi),
 )
 
 

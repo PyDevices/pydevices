@@ -17,48 +17,33 @@ usbif's ``read(buf)`` fills a buffer; the contract's ``read(n)`` returns one.
 The shim reads into a buffer of its own and hands bytes out of it, so a poll
 that finds nothing allocates nothing.
 
-Each message is stamped with its arrival time (``take_timestamp()``, the
+The input is wrapped in ``midiports.WholeMessages``, so a real-time byte a
+host sends inside a SysEx comes out after it, as its own message. Each
+message is stamped with its arrival time (``take_timestamp()``, the
 package's contract) by the read that finds it. usbif's ``MidiPort`` keeps no
 times of its own, so a stamp is as fine as how often you poll, and every
 message one read finds shares that read's time.
 """
 
-from . import PortIn, PortOut, Stamps, _count, _stamp, ticks_us
+from . import PortIn, PortOut, WholeMessages, _count
 
 
-class _In(PortIn):
+class _Raw(PortIn):
+    """usbif's ``read(buf)`` as ``readinto``; ``WholeMessages`` reads it."""
+
     def __init__(self, port, size):
         PortIn.__init__(self, size)
         self._port = port
-        self._raw = bytearray(size)
-        self._have = 0
-        self._pos = 0
-        self._stamps = Stamps(size + 32)
-
-    def any(self):
-        if self._pos >= self._have:
-            self._have = n = self._port.read(self._raw)
-            self._pos = 0
-            if n:
-                # usbif delivers whole messages, so each status byte (but
-                # a SysEx's 0xF7) starts one.
-                now = ticks_us()
-                raw = self._raw
-                stamps = self._stamps
-                for i in range(n):
-                    _stamp(stamps, raw[i], now)
-        return self._have - self._pos
 
     def readinto(self, buf, nbytes=None):
-        if not self.any():
-            return None
-        n = min(_count(buf, nbytes), self._have - self._pos)
-        raw = self._raw
-        pos = self._pos
-        for i in range(n):
-            buf[i] = raw[pos + i]
-        self._pos = pos + n
-        return n
+        n = _count(buf, nbytes)
+        if n == len(buf):
+            got = self._port.read(buf)
+        else:
+            got = self._port.read(self._view[:n])
+            for i in range(got):
+                buf[i] = self._scratch[i]
+        return got or None
 
     def close(self):
         self._port.close()
@@ -86,4 +71,4 @@ def ports(port="dev:midi", size=64):
         import usbif.auto
 
         port = usbif.auto.open_midi(port)
-    return _In(port, size), _Out(port)
+    return WholeMessages(_Raw(port, size), size), _Out(port)

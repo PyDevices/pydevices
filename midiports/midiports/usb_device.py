@@ -32,6 +32,11 @@ speed, 125 us at high speed), plus however long the scheduled callback waits
 for your code to reach a point where it can run. Every event in one USB
 packet arrives together, so a chord or a burst shares nearly one time.
 
+A real-time byte (clock, start, stop) a host sends in the middle of a SysEx
+comes out just after the SysEx ends, as its own message with its own arrival
+time: ``adafruit_midi`` loses both if it sits inside. Up to 8 are held that
+way. A SysEx another message cuts short is ended with an 0xF7 first.
+
 Received bytes wait in a ring (``ring`` bytes, 256 by default). If you don't
 read for long enough to fill it, whole messages are dropped and counted in
 ``MIDIPortsInterface.overflows``. Sending waits briefly for room when the host
@@ -41,10 +46,11 @@ your loop.
 """
 
 import time
+from array import array
 
 from usb.device.midi import MIDIInterface
 
-from . import PortIn, PortOut, Stamps, _count, _stamp, ticks_us
+from . import _TICKS_TYPE, PortIn, PortOut, Stamps, _count, _stamp, ticks_us
 
 # Bytes carried by each USB-MIDI Code Index Number (USB MIDI 1.0, table 4-1).
 # 0 and 1 are reserved (cable events) and carry nothing we pass on.
@@ -87,6 +93,11 @@ class MIDIPortsInterface(MIDIInterface):
         # One stamp per message: room for a ring of one-byte clocks, plus
         # the messages adafruit_midi has read ahead.
         self._stamps = Stamps(ring + 32 if stamps is None else stamps)
+        # Receive state: inside a SysEx, and real-time bytes held until it ends.
+        self._rx_sysex = False
+        self._rt = bytearray(8)
+        self._rtt = array(_TICKS_TYPE, [0] * 8)
+        self._nrt = 0
         # One producer (the scheduled USB callback) moves _head, one consumer
         # (your read) moves _tail. Neither touches the other's index, so a
         # callback landing in the middle of a read can't tear the ring.
@@ -108,6 +119,37 @@ class MIDIPortsInterface(MIDIInterface):
         n = _CIN_LEN[cin]
         if not n:
             return
+        now = ticks_us()
+        if self._rx_sysex:
+            if midi0 >= 0xF8:
+                # Real-time inside a SysEx, as the spec allows: hold it, with
+                # its time, until the SysEx ends, or adafruit_midi loses both.
+                k = self._nrt
+                if k < 8:
+                    self._rt[k] = midi0
+                    self._rtt[k] = now
+                    self._nrt = k + 1
+                    return
+            elif midi0 < 0x80 or midi0 == 0xF7:
+                self._rx_put(n, midi0, midi1, midi2, now)
+                if 0x5 <= cin <= 0x7 or midi0 == 0xF7:
+                    self._end_sysex()
+                return
+            else:
+                # A status cuts the SysEx short: end it as the spec does.
+                self._rx_put(1, 0xF7, 0, 0, now)
+                self._end_sysex()
+        if midi0 == 0xF0 and cin == 0x4:
+            self._rx_sysex = True
+        self._rx_put(n, midi0, midi1, midi2, now)
+
+    def _end_sysex(self):
+        self._rx_sysex = False
+        for i in range(self._nrt):
+            self._rx_put(1, self._rt[i], 0, 0, self._rtt[i])
+        self._nrt = 0
+
+    def _rx_put(self, n, midi0, midi1, midi2, now):
         ring = self._ring
         size = len(ring)
         head = self._head
@@ -116,7 +158,7 @@ class MIDIPortsInterface(MIDIInterface):
             return
         # A SysEx's continuation and end events start with a data byte (or
         # 0xF7), so only its first event is stamped.
-        _stamp(self._stamps, midi0, ticks_us())
+        _stamp(self._stamps, midi0, now)
         ring[head] = midi0
         head = (head + 1) % size
         if n > 1:
