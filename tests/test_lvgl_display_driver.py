@@ -24,6 +24,9 @@ way they did in lvgl-bindings before the file moved here. Four things are held:
   ``flush_rect`` could not sync the area or ``frame_done()`` when it could.
 * **The frame period.** LVGL's refresh timer runs at the display's
   ``refresh_period_ms``, which ``PYDEVICES_REFRESH_MS`` overrides.
+* **Hover.** The pointer follows the mouse with its button up too, so LVGL
+  can hover (``HOVER_OVER``, ``HOVER_LEAVE``, the ``HOVERED`` state); only a
+  press makes it PRESSED.
 """
 
 import ast
@@ -566,6 +569,70 @@ class TestFramePeriod(unittest.TestCase):
         drv.display_drv = types.SimpleNamespace()
         self.assertEqual(33, drv.frame_period_ms)
 
+
+# -- the pointer: hover ----------------------------------------------------------
+
+
+def _function_source(name):
+    source = DISPLAY_DRIVER.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(DISPLAY_DRIVER))
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name)
+    return ast.get_source_segment(source, node)
+
+
+class _Point(dict):
+    def __init__(self, d):
+        super().__init__(d)
+        self.x, self.y = d["x"], d["y"]
+
+
+class PointerHoverTest(unittest.TestCase):
+    """The pointer callback, run on stand-ins for ``lv`` and the events."""
+
+    def setUp(self):
+        import events
+
+        lv = types.SimpleNamespace(point_t=_Point,
+                                   INDEV_STATE=types.SimpleNamespace(PRESSED="pressed", RELEASED="released"))
+        ns = {"lv": lv, "events": events}
+        for name in ("_touch_state_for", "_make_touch_cb"):
+            exec(compile(_function_source(name), str(DISPLAY_DRIVER), "exec"), ns)
+        self.events = events
+        self.cb = ns["_make_touch_cb"](types.SimpleNamespace())
+
+    def read(self, event):
+        data = types.SimpleNamespace()
+        self.cb(event, None, data)
+        return (data.point.x, data.point.y), data.state
+
+    def motion(self, pos, buttons=(0, 0, 0)):
+        return self.events.Motion(self.events.MOUSEMOTION, pos, (0, 0), buttons, False, None)
+
+    def test_a_released_mouse_moves_the_pointer(self):
+        self.assertEqual(self.read(self.motion((40, 30))), ((40, 30), "released"))
+        self.assertEqual(self.read(self.motion((41, 32))), ((41, 32), "released"))
+
+    def test_the_router_hands_released_motion_to_the_pointer(self):
+        import events
+
+        import appdev
+
+        ns = {"events": events, "lv": types.SimpleNamespace(), "_wheel_navigate_cb": lambda e: None,
+              "HOST": appdev.HOST, "POINTER": appdev.POINTER, "ENCODER": appdev.ENCODER,
+              "KEYPAD": appdev.KEYPAD, "JOYSTICK": appdev.JOYSTICK}
+        cls = _exec_class("VirtualDevices", ns)
+        vd = cls.__new__(cls)
+        vd._window_id = None
+        vd._vd_pointer = cls.VirtualDevice(vd, "pointer")
+        moved = self.motion((50, 60))
+        vd._route(moved)
+        self.assertIn(moved, vd._vd_pointer._fifo)
+
+    def test_a_press_and_drag_still_press(self):
+        e = self.events
+        self.read(e.Button(e.MOUSEBUTTONDOWN, (10, 10), 1, False, None))
+        self.assertEqual(self.read(self.motion((15, 12), (1, 0, 0))), ((15, 12), "pressed"))
+        self.assertEqual(self.read(e.Button(e.MOUSEBUTTONUP, (16, 12), 1, False, None)), ((16, 12), "released"))
 
 if __name__ == "__main__":
     unittest.main()
