@@ -39,6 +39,8 @@ SDL2 bindings for **`SDLDisplay`**: `import usdl2` from [`pydevices-desktop`](py
 
 Native Win32 HWND backend for **CPython on Windows** (`uwin32`). Logical RGB565 GRAM, handed to `StretchDIBits` as a 16-bit `BI_BITFIELDS` DIB, so the framebuffer is presented with no colour conversion and no copy. `show()` skips a frame with nothing pending, and blits only the changed rows when the scale is a whole number. `displaydev.auto.AutoDisplay` tries it first on `win32` before pygame/SDL. Explicit config: `board_configs/windisplay/`.
 
+**Sizes are real pixels, at any display scaling.** WinDisplay makes the process per-monitor DPI aware before it measures the screen or opens a window, so on a display scaled to 150 % a 640x480 panel at `scale=1` is 640x480 pixels on the glass, crisp, and the work area it fits the window into is the real one. If your program declares a DPI awareness of its own (in its manifest, or with `SetProcessDpiAwarenessContext` before the first display opens), yours stands.
+
 **Width and height must be even.** DIB scanlines are DWORD-aligned, which RGB565 rows only satisfy at an even width, and rotation swaps the two. Odd dimensions raise `ValueError` at construction.
 
 ### PGDisplay
