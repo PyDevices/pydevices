@@ -150,7 +150,7 @@ Backends use several patterns to map **565 API input** to **native storage**:
 | Pattern | Where | Description |
 |---------|-------|-------------|
 | **Bitwise expand** | `color_rgb()` | Per-color 565 → `(r,g,b)`; fills and single pixels |
-| **LUT-assisted loop** | **PSDisplay** | 65536 × 4 byte table; blit loop indexes LUT → RGBA for `putImageData` |
+| **One JavaScript call** | **PSDisplay**, **WorkerDisplay** | The whole RGB565 buffer goes to JavaScript once and is expanded to RGBA there for `putImageData` (`_webcanvas.blit565`); a per-pixel loop through the Pyodide bridge took about 2 s for a 1280x720 frame |
 | **Python pixel loop** | **PGDisplay** blit, **JNDisplay** blit | Per pixel: read 2 bytes → `color_rgb` → `set_at` / PIL `point` |
 | **Zero-copy passthrough** | **SDLDisplay** at 16 bpp | `SDL_UpdateTexture` with 565 pitch — buffer format matches texture |
 | **Raw 565 pack** | **BusDisplay**, **FBDisplay** | `(c & 0xFFFF).to_bytes(2, …)` — no expand |
@@ -169,7 +169,7 @@ Not yet centralized in `displaydev`, but useful for future shared helpers:
 | **SDLDisplay** (16) | RGB565 texture | Zero-copy upload | Throughput on large blits; matches app buffers |
 | **SDLDisplay** fill | Same texture | `color_rgb` → SDL RGB draw | Draw API expects 8-bit RGB |
 | **PGDisplay** | Pygame surface (default 16) | Per-pixel `set_at` loop | Simple; partial `renderRect`; room to switch to `frombuffer`+`blit` |
-| **PSDisplay** | Canvas RGBA | LUT → `ImageData` | Browser API requires RGBA bytes; large blits |
+| **PSDisplay**, **WorkerDisplay** | Canvas RGBA | One JS call → `ImageData` | Browser API requires RGBA bytes; the bridge is the cost, so cross it once |
 | **JNDisplay** | PIL RGB | Loop → `pixel` | Present is PNG-bound; blit speed secondary |
 | **PixelDisplay** | RGB888 strip buf | 565 in → `color_rgb` → inner 888 | Tiny grids; standard DisplayDriver API |
 
