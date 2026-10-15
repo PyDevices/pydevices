@@ -207,8 +207,11 @@ app = appdev.App(board_config)
 LVGL instead creates an independent coordinator in `display_driver`.
 
 Panel size overrides (before `import board_config`): `PYDEVICES_WIDTH`,
-`PYDEVICES_HEIGHT`, `PYDEVICES_ROTATION`, `PYDEVICES_SCALE`. Apps should read
-geometry from `display_drv`, not module-level names on `board_config`.
+`PYDEVICES_HEIGHT`, `PYDEVICES_ROTATION`, `PYDEVICES_SCALE`, and
+`PYDEVICES_MAXIMIZED=1` to open maximised with the panel the window's whole
+client area at scale 1 (WinDisplay, on Windows; see
+[displaydev.md](displaydev.md#windisplay)). Apps should read geometry from
+`display_drv`, not module-level names on `board_config`.
 
 Set the env vars **before** `import board_config` (or any import that loads
 it). On a host with no environment, `boarddev.env_set("PYDEVICES_WIDTH", 800)`
