@@ -610,6 +610,11 @@ PyScript backend. `WebPCMOutput` converts each write into an `AudioBuffer`
 and schedules `AudioBufferSourceNode`s back to back against `currentTime`;
 `WebPCMInput` captures through `getUserMedia` and a `ScriptProcessorNode`.
 
+Each write is converted in one JS call: the PCM goes across as a typed array
+and JS decodes, scales and de-interleaves it straight into the `AudioBuffer`.
+If the page's FFI can't hand JS a typed array, the module converts in Python
+instead, with the same result.
+
 Browser autoplay policy is the thing to know here. A fresh `AudioContext` starts
 `suspended`, and while suspended `currentTime` never advances — a naive wait for
 playout would spin forever. The module resumes best-effort, arms a one-shot
@@ -661,6 +666,7 @@ the import is a no-op.
 [`tests/test_audiodev.py`](../../tests/test_audiodev.py) (base contracts, and `AudioOut` against a fake
 transport + a fake audiosample), [`tests/test_sdl2_audio.py`](../../tests/test_sdl2_audio.py),
 [`tests/test_pygame_audio.py`](../../tests/test_pygame_audio.py), [`tests/test_win_audio.py`](../../tests/test_win_audio.py),
+[`tests/test_web_audio.py`](../../tests/test_web_audio.py) (the PCM16 conversion, its JS run under node when installed),
 [`tests/test_emulated_audio.py`](../../tests/test_emulated_audio.py) and [`tests/test_auto.py`](../../tests/test_auto.py) cover these modules
 against SDL's `dummy` driver, and [`tests/test_audiodev_latency.py`](../../tests/test_audiodev_latency.py) covers the
 profile vocabulary on its own. [`tests/test_audio_playback_golden.py`](../../tests/test_audio_playback_golden.py) runs a
