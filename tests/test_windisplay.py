@@ -31,6 +31,22 @@ def _fake_uwin32():
         setattr(m, name, 1 << i)
 
     m.presents = []
+    # Order of the calls that have to happen in sequence: DPI awareness first,
+    # then anything that measures the screen or makes a window.
+    m.calls = []
+    m.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
+    m.dpi_result = True
+
+    def SetProcessDpiAwarenessContext(context):
+        m.calls.append(("SetProcessDpiAwarenessContext", context))
+        return m.dpi_result
+
+    def SetProcessDPIAware():
+        m.calls.append(("SetProcessDPIAware",))
+        return True
+
+    m.SetProcessDpiAwarenessContext = SetProcessDpiAwarenessContext
+    m.SetProcessDPIAware = SetProcessDPIAware
 
     class _BMIHeader:
         def __init__(self):
@@ -78,12 +94,23 @@ def _fake_uwin32():
     m.DestroyWindow = lambda hwnd: 1
     m.ShowWindow = lambda hwnd: 1
     m.SetWindowPos = lambda *a: 1
-    m.CreateWindowExW = lambda *a: 0xABCD
+
+    def CreateWindowExW(*a):
+        m.calls.append(("CreateWindowExW",))
+        return 0xABCD
+
+    m.CreateWindowExW = CreateWindowExW
     m.RegisterClassExW = lambda c: 1
     m.GetModuleHandleW = lambda *a: 0
     m.LoadCursorW = lambda *a: 0
     m.AdjustWindowRectEx = lambda w, h, style: (w + 16, h + 39)
-    m.SystemParametersInfoW_GETWORKAREA = lambda: (0, 0, 1920, 1080)
+    m.work_area = (0, 0, 1920, 1080)
+
+    def SystemParametersInfoW_GETWORKAREA():
+        m.calls.append(("GETWORKAREA",))
+        return m.work_area
+
+    m.SystemParametersInfoW_GETWORKAREA = SystemParametersInfoW_GETWORKAREA
     m.sizeof = lambda o: 80
     m.WNDPROC = lambda fn: fn
     m.WNDCLASSEXW = lambda: types.SimpleNamespace()
@@ -105,6 +132,11 @@ class _WinDisplayTest(unittest.TestCase):
                 del sys.modules[k]
         self.win = _fake_uwin32()
         sys.modules["uwin32"] = self.win
+        import displaydev._desktop as desktop
+
+        # On Windows desktop_work_area() asks uwin32; send it there on every
+        # host, so the fake sees the measurement where Windows would.
+        desktop.desktop_work_area = lambda display_index=0: self.win.SystemParametersInfoW_GETWORKAREA()
         from displaydev.windisplay import WinDisplay
 
         self.WinDisplay = WinDisplay
@@ -148,6 +180,40 @@ class TestGeometryValidation(_WinDisplayTest):
         # The BGRA staging buffer and the composed copy are both gone.
         self.assertFalse(hasattr(self.d, "_bgra"))
         self.assertFalse(hasattr(self.d, "_visible"))
+
+
+class TestDpiAwareness(_WinDisplayTest):
+    """The work area and the window are only in real pixels when the process
+    is DPI aware before either is touched."""
+
+    def names(self):
+        return [c[0] for c in self.win.calls]
+
+    def test_declared_per_monitor_v2_before_measuring_or_opening(self):
+        names = self.names()
+        self.assertIn(("SetProcessDpiAwarenessContext", -4), self.win.calls)
+        first = names.index("SetProcessDpiAwarenessContext")
+        self.assertLess(first, names.index("GETWORKAREA"))
+        self.assertLess(first, names.index("CreateWindowExW"))
+
+    def test_declared_once_per_process(self):
+        self.WinDisplay(width=32, height=32, quiet=True).deinit()
+        self.assertEqual(self.names().count("SetProcessDpiAwarenessContext"), 1)
+
+    def test_an_earlier_declaration_stands(self):
+        # Windows refuses (False) once the process has declared one: no fallback.
+        self.assertNotIn("SetProcessDPIAware", self.names())
+
+    def test_old_windows_falls_back_to_system_aware(self):
+        import displaydev.windisplay as wd
+
+        wd._dpi_declared = False
+        self.win.calls.clear()
+        self.win.dpi_result = None  # no SetProcessDpiAwarenessContext
+        self.WinDisplay(width=32, height=32, quiet=True).deinit()
+        names = self.names()
+        self.assertIn("SetProcessDPIAware", names)
+        self.assertLess(names.index("SetProcessDPIAware"), names.index("GETWORKAREA"))
 
 
 class TestDrawing(_WinDisplayTest):
