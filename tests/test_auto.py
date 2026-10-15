@@ -89,6 +89,7 @@ class AutoSelectTests(unittest.TestCase):
             "android_audio.py",
             "emulated_audio.py",
             "win_audio.py",
+            "worklet_audio.py",
             "__init__.py",
         ):
             tree = ast.parse((root / name).read_text())

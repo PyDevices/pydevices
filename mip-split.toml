@@ -44,7 +44,7 @@ host-only = [
 ]
 
 [audiodev]
-# Host mixers and the two browser backends. `i2s_audio`, `pwm_tone`,
+# Host mixers and the three browser backends. `i2s_audio`, `pwm_tone`,
 # `sample_out`, `accel` and `pump` are the MCU's, and `emulated_audio` stays
 # with them: it is never selected by `auto`, is imported explicitly, and builds
 # on audiodev's own PCM classes with no host dependency.
@@ -55,6 +55,7 @@ host-only = [
     "wasm_audio",
     "web_audio",
     "win_audio",
+    "worklet_audio",
 ]
 
 [multimer]
