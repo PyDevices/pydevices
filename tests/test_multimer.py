@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import unittest
+from unittest import mock
 
 import _env  # noqa: F401
 
@@ -496,6 +497,16 @@ asyncio.run(main())
         self.assertIn("none", p.stdout)
         self.assertIn("unknown multimer source", p.stdout)
 
+
+
+class TestPyodideHost(unittest.TestCase):
+    """Pyodide runs on the browser's event loop, PyScript or not (a Web Worker)."""
+
+    def test_emscripten_is_an_asyncio_host(self):
+        from multimer import _dispatch
+
+        with mock.patch.object(_dispatch.sys, "platform", "emscripten"):
+            self.assertTrue(_dispatch._async_owned_host())
 
 if __name__ == "__main__":
     unittest.main()
