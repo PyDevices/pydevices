@@ -97,6 +97,7 @@ class WorkerDisplay(CanvasDisplay):
         quiet (bool): Suppress init chatter when True.
     """
 
+    needs_refresh = True
     quit_chord = (keys.K_AC_BACK, 0)
 
     def __init__(self, canvas, width=None, height=None, *, quiet=False):

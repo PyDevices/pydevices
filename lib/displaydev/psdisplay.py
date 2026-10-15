@@ -123,6 +123,7 @@ class PSDisplay(CanvasDisplay):
         needs_refresh (bool): True — ``appdev.App`` drives periodic ``show()``.
     """
 
+    needs_refresh = True
     quit_chord = (keys.K_AC_BACK, 0)
 
     def __init__(self, id, width=None, height=None, *, quiet=False):
