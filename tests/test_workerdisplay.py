@@ -54,6 +54,7 @@ class TestWorkerDisplay(unittest.TestCase):
         _webcanvas._blit565 = None
         self.wd = workerdisplay
         self.events = __import__("events")
+        self.keys = __import__("keys")
         self.display = workerdisplay.WorkerDisplay(_fake_canvas(640, 480), 640, 480, quiet=True)
 
     def tearDown(self):
@@ -114,6 +115,22 @@ class TestWorkerDisplay(unittest.TestCase):
         self.wd.feed({"type": "contextmenu"})
         E = self.events
         self.assertEqual([e.type for e in self._drain()], [E.KEYDOWN, E.KEYUP, E.MOUSEWHEEL])
+
+    def test_caps_lock_reads_from_the_key(self):
+        def key(k, shift):
+            self.wd.feed({"type": "keydown", "key": k, "location": 0, "repeat": False,
+                          "ctrlKey": False, "shiftKey": shift, "altKey": False, "metaKey": False})
+            self.wd.feed({"type": "keyup", "key": k, "location": 0, "repeat": False,
+                          "ctrlKey": False, "shiftKey": shift, "altKey": False, "metaKey": False})
+            down = self._drain()[0]
+            return bool(down.mod & self.keys.KMOD_CAPS)
+        # A capital without Shift, or a small letter with it: Caps Lock is on.
+        self.assertTrue(key("B", False))
+        self.assertTrue(key("b", True))
+        # Case and Shift agree: it isn't.
+        self.assertFalse(key("b", False))
+        self.assertFalse(key("B", True))
+        self.assertFalse(key("1", False))
 
     def test_board_config_shape(self):
         self.assertTrue(self.display.needs_refresh)
