@@ -612,6 +612,22 @@ class PointerHoverTest(unittest.TestCase):
         self.assertEqual(self.read(self.motion((40, 30))), ((40, 30), "released"))
         self.assertEqual(self.read(self.motion((41, 32))), ((41, 32), "released"))
 
+    def test_the_router_hands_released_motion_to_the_pointer(self):
+        import events
+
+        import appdev
+
+        ns = {"events": events, "lv": types.SimpleNamespace(), "_wheel_navigate_cb": lambda e: None,
+              "HOST": appdev.HOST, "POINTER": appdev.POINTER, "ENCODER": appdev.ENCODER,
+              "KEYPAD": appdev.KEYPAD, "JOYSTICK": appdev.JOYSTICK}
+        cls = _exec_class("VirtualDevices", ns)
+        vd = cls.__new__(cls)
+        vd._window_id = None
+        vd._vd_pointer = cls.VirtualDevice(vd, "pointer")
+        moved = self.motion((50, 60))
+        vd._route(moved)
+        self.assertIn(moved, vd._vd_pointer._fifo)
+
     def test_a_press_and_drag_still_press(self):
         e = self.events
         self.read(e.Button(e.MOUSEBUTTONDOWN, (10, 10), 1, False, None))
