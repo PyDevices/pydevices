@@ -98,8 +98,24 @@ class Uwin32RGB565Tests(unittest.TestCase):
         self.assertEqual(addr, uwin32.dib_bits(buf))
 
 
-if __name__ == "__main__":
-    unittest.main()
+@unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+class Uwin32MemmoveTests(unittest.TestCase):
+    """memmove takes what a PCM writer hands it, not only bytes."""
+
+    def test_sources(self):
+        import uwin32
+
+        ptr = uwin32.VirtualAlloc(4096)
+        try:
+            data = bytearray(range(16))
+            for src in (bytes(data), data, memoryview(data), memoryview(bytes(data))):
+                uwin32.buffer_at(ptr, 16)[:] = bytes(16)
+                uwin32.memmove(ptr, src, 16)
+                self.assertEqual(bytes(uwin32.buffer_at(ptr, 16)), bytes(data), type(src).__name__)
+            uwin32.memmove(ptr, memoryview(data)[8:], 8)
+            self.assertEqual(bytes(uwin32.buffer_at(ptr, 8)), bytes(range(8, 16)))
+        finally:
+            uwin32.VirtualFree(ptr)
 
 
 class Uwin32MidiTests(unittest.TestCase):
@@ -211,3 +227,7 @@ class Uwin32KeyMappingTests(unittest.TestCase):
 
         self.assertEqual(ord("a"), w.virtual_key_to_sdl(0x41))
         self.assertEqual(ord("7"), w.virtual_key_to_sdl(0x37))
+
+
+if __name__ == "__main__":
+    unittest.main()
