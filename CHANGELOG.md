@@ -1,3 +1,7 @@
+## v0.7.5.dev2 (2026-10-15)
+
+- display_driver: let LVGL hover with a mouse (#212)
+
 ## v0.7.5.dev1 (2026-10-15)
 
 - displaydev: one-call canvas blits, and WorkerDisplay for Python in a Web Worker (#207)
