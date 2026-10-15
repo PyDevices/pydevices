@@ -133,6 +133,17 @@ class TestAutoDisplay(unittest.TestCase):
         win_mod.WinDisplay.assert_called_once()
         pg_mod.PGDisplay.assert_not_called()
         env_set.assert_not_called()
+        self.assertFalse(win_mod.WinDisplay.call_args.kwargs["maximized"])
+
+    def test_win32_passes_maximized_to_windisplay(self):
+        display = mock.Mock(name="WinDisplay")
+        win_mod = types.ModuleType("displaydev.windisplay")
+        win_mod.WinDisplay = mock.Mock(return_value=display)
+        with mock.patch.object(ad, "host_kind", return_value="desktop"), mock.patch.object(
+            ad.sys, "platform", "win32"
+        ), mock.patch.dict(sys.modules, {"displaydev.windisplay": win_mod}):
+            AutoDisplay(width=10, height=10, quiet=True, maximized=True)
+        self.assertTrue(win_mod.WinDisplay.call_args.kwargs["maximized"])
 
     def test_win32_sets_directsound_when_windisplay_unavailable(self):
         display = mock.Mock(name="PGDisplay")
