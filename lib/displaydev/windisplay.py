@@ -21,6 +21,7 @@ _hwnd_map = {}
 _pending = []
 _wndproc_ref = None
 _class_registered = False
+_dpi_declared = False
 
 # Built once, not per message.
 _BUTTON_DOWN = {win.WM_LBUTTONDOWN: 1, win.WM_MBUTTONDOWN: 2, win.WM_RBUTTONDOWN: 3}
@@ -186,6 +187,29 @@ def _wndproc(hwnd, msg, wparam, lparam):
     return win.DefWindowProcW(hwnd, msg, wparam, lparam)
 
 
+def _declare_dpi_awareness():
+    """Make the process per-monitor DPI aware, once, before a window exists.
+
+    Without it Windows hands a DPI-unaware process scaled-down metrics and
+    stretches its windows: on a 150 % display the work area reads two thirds
+    of its real size, the window is fitted to that, and every pixel is
+    smeared over one and a half. Aware, the work area, the window and the
+    framebuffer are all in real pixels.
+
+    A process that already declared an awareness (in its manifest, or with
+    its own call before opening a display) keeps it: Windows refuses a second
+    declaration, and that refusal is not an error.
+    """
+    global _dpi_declared
+    if _dpi_declared:
+        return
+    _dpi_declared = True
+    declared = win.SetProcessDpiAwarenessContext(win.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+    if declared is None:
+        # Windows before 10 1703: system-wide awareness is the best on offer.
+        win.SetProcessDPIAware()
+
+
 def _ensure_class():
     global _wndproc_ref, _class_registered
     if _class_registered:
@@ -310,6 +334,7 @@ class WinDisplay(DesktopDisplay):
         # Rows pending present, as a half-open [y0, y1) band.
         self._dirty_y0 = 0
         self._dirty_y1 = height
+        _declare_dpi_awareness()
         win.CoInitializeEx()
         ux, uy, desktop_w, desktop_h = desktop_work_area()
         self._work_area = (ux, uy, desktop_w, desktop_h)
