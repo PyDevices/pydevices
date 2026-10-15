@@ -8,7 +8,13 @@ except ImportError:  # pragma: no cover
     except ImportError:
         asyncio = None
 
+import sys
 import time
+
+try:
+    from array import array
+except ImportError:  # pragma: no cover
+    array = None
 
 from audiodev import AudioFormat, PCMInput, PCMOutput, check_latency
 from audiodev.bytequeue import ByteQueue
@@ -21,6 +27,19 @@ except ImportError:  # pragma: no cover - non-browser import for tooling
     Object = None
     navigator = None
     create_proxy = None
+
+try:
+    from js import Function as _JSFunction
+except ImportError:  # pragma: no cover - non-browser import for tooling
+    _JSFunction = None
+
+try:
+    from pyodide.ffi import to_js as _to_js
+except ImportError:
+    try:
+        from pyscript.ffi import to_js as _to_js
+    except ImportError:  # pragma: no cover - non-browser import for tooling
+        _to_js = None
 
 
 def _sleep_ms(milliseconds):
@@ -43,16 +62,88 @@ def _require_browser():
 
 
 def _pcm16_to_f32(buf, channels):
-    """Convert little-endian signed 16-bit interleaved PCM to float samples."""
+    """Convert little-endian signed 16-bit interleaved PCM to float samples.
+
+    Returns one flat interleaved list, each sample divided by 32768. This is
+    the reference the browser path in :func:`_fill_audio_buffer` must match.
+    """
+    return [sample / 32768.0 for sample in _pcm16_samples(buf)]
+
+
+def _pcm16_samples(buf):
+    """Signed 16-bit samples of *buf* in one bulk decode (no per-sample slicing)."""
     view = memoryview(buf)
-    samples = len(view) // 2
-    floats = [0.0] * samples
-    for i in range(samples):
-        sample = int.from_bytes(view[i * 2 : i * 2 + 2], "little")
+    count = len(view) // 2
+    raw = bytes(view[: count * 2])
+    if array is not None:
+        samples = array("h", raw)
+        if _BIG_ENDIAN:
+            samples.byteswap()
+        return samples
+    samples = []  # pragma: no cover - no array module
+    for i in range(count):
+        sample = int.from_bytes(raw[i * 2 : i * 2 + 2], "little")
         if sample >= 0x8000:
             sample -= 0x10000
-        floats[i] = sample / 32768.0
-    return floats
+        samples.append(sample)
+    return samples
+
+
+_BIG_ENDIAN = getattr(sys, "byteorder", "little") == "big"
+
+# Fills an AudioBuffer from little-endian PCM16 bytes in one call: decode,
+# divide by 32768 and de-interleave all happen in JS. A DataView reads at any
+# byte offset, so the bytes need not be 2-aligned.
+_FILL_JS = """
+const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+const frames = Math.floor(u8.byteLength / (2 * channels));
+for (let c = 0; c < channels; c++) {
+  const f = new Float32Array(frames);
+  for (let i = 0, o = c * 2; i < frames; i++, o += 2 * channels) {
+    f[i] = dv.getInt16(o, true) / 32768;
+  }
+  audioBuffer.copyToChannel(f, c);
+}
+return frames;
+"""
+
+_fill_js = None
+_fill_js_failed = False
+
+
+def _fill_js_function():
+    global _fill_js, _fill_js_failed
+    if _fill_js is None and not _fill_js_failed:
+        try:
+            _fill_js = _JSFunction.new("audioBuffer", "u8", "channels", _FILL_JS)
+        except Exception:
+            _fill_js_failed = True
+    return _fill_js
+
+
+def _fill_audio_buffer(audio_buffer, buf, channels):
+    """Write interleaved PCM16 *buf* into *audio_buffer*, one channel each.
+
+    In the browser this is one JS call over the whole buffer. Where that is
+    not possible (no ``to_js``, or an FFI that cannot hand JS a typed array)
+    it falls back to converting in Python, with the same result.
+    """
+    global _fill_js_failed
+    view = memoryview(buf)
+    if _JSFunction is not None and _to_js is not None and not _fill_js_failed:
+        fill = _fill_js_function()
+        if fill is not None:
+            try:
+                fill(audio_buffer, _to_js(view), channels)
+                return
+            except Exception:
+                _fill_js_failed = True
+    floats = _pcm16_to_f32(view, channels)
+    frames = len(floats) // channels
+    for channel in range(channels):
+        channel_data = audio_buffer.getChannelData(channel)
+        for i in range(frames):
+            channel_data[i] = floats[i * channels + channel]
 
 
 def _f32_to_pcm16(channel_data):
@@ -197,8 +288,7 @@ class WebPCMOutput(PCMOutput):
         self._next_time = float(self._ctx.currentTime)
 
     def _write(self, buf):
-        floats = _pcm16_to_f32(buf, self.format.channels)
-        frames = len(floats) // self.format.channels
+        frames = len(buf) // self.format.frame_size
         if frames <= 0:
             return 0
         audio_buffer = self._ctx.createBuffer(
@@ -206,10 +296,7 @@ class WebPCMOutput(PCMOutput):
             frames,
             self.format.rate,
         )
-        for channel in range(self.format.channels):
-            channel_data = audio_buffer.getChannelData(channel)
-            for i in range(frames):
-                channel_data[i] = floats[i * self.format.channels + channel]
+        _fill_audio_buffer(audio_buffer, buf, self.format.channels)
         source = self._ctx.createBufferSource()
         source.buffer = audio_buffer
         source.connect(self._ctx.destination)
