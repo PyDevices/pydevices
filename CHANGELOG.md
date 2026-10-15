@@ -1,3 +1,7 @@
+## v0.7.5.dev3 (2026-10-15)
+
+- web input: Caps Lock reaches LVGL text fields (#214)
+
 ## v0.7.5.dev2 (2026-10-15)
 
 - display_driver: let LVGL hover with a mouse (#212)
