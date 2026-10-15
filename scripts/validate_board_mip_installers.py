@@ -14,6 +14,7 @@ def main() -> None:
         "board_configs/jndisplay/package.json",
         "board_configs/pgdisplay/package.json",
         "board_configs/psdisplay/package.json",
+        "board_configs/workerdisplay/package.json",
         "board_configs/sdldisplay/linux_kms/package.json",
         "board_configs/windisplay/package.json",
     }
