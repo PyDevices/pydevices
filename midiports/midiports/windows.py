@@ -23,6 +23,13 @@ hidden window this module owns, and a read collects them on your thread. A
 winmm callback would run on Windows' own thread, which isn't safe for
 MicroPython.
 
+Each message is stamped with its arrival time (``take_timestamp()``, the
+package's contract) when a read or ``any()`` drains it from the window's
+queue, so a stamp is as fine as how often you poll, and every message one
+drain finds shares its time. winmm's own time for a message reaches only a
+callback, and the queue's posting time ticks in steps of about 16 ms, which is
+coarser than a loop polling beside audio.
+
 SysEx isn't supported: it needs ``midiOutLongMsg`` and its buffers, which
 this doesn't bind. Writing a 0xF0 raises ``NotImplementedError`` rather than
 dropping it, because a SysEx that vanishes looks like a device ignoring it.
@@ -30,7 +37,7 @@ dropping it, because a SysEx that vanishes looks like a device ignoring it.
 
 import uwin32 as win
 
-from . import IN, OUT, PortIn, PortInfo, PortOut, _count, message_length
+from . import IN, OUT, PortIn, PortInfo, PortOut, Stamps, _count, _stamp, message_length, ticks_us
 
 HWND_MESSAGE = -3
 
@@ -155,10 +162,12 @@ class WindowsMidiIn(PortIn):
         self.info = info
         self._hwnd = _make_sink_window()
         self._pending = bytearray()
+        self._stamps = Stamps(128)
         self._handle = win.midiInOpen(index, self._hwnd)
         win.midiInStart(self._handle)
 
     def _drain_queue(self):
+        now = None
         while True:
             msg = win.PeekMessageW(self._hwnd)
             if msg is None:
@@ -167,6 +176,9 @@ class WindowsMidiIn(PortIn):
                 continue
             status, d1, d2 = win.midi_unpack(msg.lParam)
             want = message_length(status)
+            if now is None:
+                now = ticks_us()
+            _stamp(self._stamps, status, now)
             self._pending.append(status)
             if want >= 1:
                 self._pending.append(d1)

@@ -9,6 +9,7 @@ MicroPython (which has no unittest)::
     python tests/midiports_contract.py --adafruit=DIR
     micropython tests/midiports_contract.py --adafruit=DIR
     python tests/midiports_contract.py --adafruit=DIR --plant=drop-status   # must FAIL
+    python tests/midiports_contract.py --adafruit=DIR --plant=skip-clock-stamp   # must FAIL
 
 ``DIR`` holds ``adafruit_midi/`` as ``midiports/package.json`` fetches it;
 ``tests/test_midiports.py`` fetches it there and runs this every way.
@@ -53,7 +54,19 @@ from adafruit_midi.timing_clock import TimingClock
 import midiports
 from midiports import PortIn, PortOut, WholeMessages
 
-PLANTS = ("drop-status",)
+PLANTS = ("drop-status", "skip-clock-stamp")
+
+if PLANT == "skip-clock-stamp":
+    # Every port decides what to stamp through midiports._stamp. Planted, a
+    # clock byte goes unstamped, so each later message takes the stamp of
+    # the one before it. Applied before any port module imports it.
+    _real_stamp = midiports._stamp
+
+    def _skip_clock(stamps, status, t):
+        if status != 0xF8:
+            _real_stamp(stamps, status, t)
+
+    midiports._stamp = _skip_clock
 
 _passed = 0
 _failed = 0
@@ -609,6 +622,8 @@ def _install_fake_win():
             setattr(mod, name, getattr(fake, name))
     sys.modules["uwin32"] = mod
     sys.modules.pop("midiports.windows", None)
+    if "windows" in midiports.__dict__:
+        del midiports.__dict__["windows"]  # or the import finds the old one
     from midiports import windows
 
     windows._make_sink_window = lambda: 1
@@ -802,7 +817,7 @@ def c_webmidi_page():
     start = access.clock
     got = stamps_follow_receive(midi_in, feed)
     expect([type(m) for m, _ in got] == [NoteOn, TimingClock, ControlChange], "got %r" % (got,))
-    expect([t for _, t in got] == [start + 0.5, start + 1.0, start + 1.5],
+    expect([t for _, t in got] == [int(1000 * (start + d)) for d in (0.5, 1.0, 1.5)],
            "timestamps %r" % ([t for _, t in got],))
     expect(midi_in.take_timestamp() is None, "no more timestamps")
     midi_in.close()
@@ -840,7 +855,7 @@ def c_webmidi_relay():
     got = stamps_follow_receive(midi_in, feed)
     expect(len(got) == 2 and isinstance(got[0][0], NoteOn) and isinstance(got[1][0], NoteOff),
            "got %r" % (got,))
-    expect(got[0][1] == 12.5 and got[1][1] == 20.0, "timestamps %r" % (got,))
+    expect(got[0][1] == 12500 and got[1][1] == 20000, "timestamps in us %r" % (got,))
     midi_in.close()
     expect(port.listeners == [], "close removes the listener")
 
@@ -928,6 +943,302 @@ def c_garbage_per_note():
     print("  info: %d bytes allocated per note received (unix MicroPython)" % (used // max(got, 1)))
 
 
+# -- arrival times: one stamp per message, in order -----------------------------------
+#
+# A fake clock makes every read's time known: each read the port makes
+# advances it by 1000 us. Then a message's stamp says which read found its
+# first byte, and the checks below can name it exactly.
+
+
+class FakeClock:
+    def __init__(self):
+        self.t = 0
+
+    def __call__(self):
+        return self.t
+
+
+_clock = FakeClock()
+
+
+def use_fake_clock(*modules):
+    for m in modules:
+        m.ticks_us = _clock
+
+
+class TickingIn(FakeIn):
+    """FakeIn whose every read that returns bytes moves the clock 1000 us on."""
+
+    def readinto(self, buf, nbytes=None):
+        n = FakeIn.readinto(self, buf, nbytes)
+        if n:
+            _clock.t += 1000
+        return n
+
+
+# The four hard cases, as reads: running status, a clock inside a note, a
+# SysEx, a note split across two reads. Each entry is one read's bytes.
+STAMP_READS = (
+    b"\x90\x3c\x64\x3e\x50",      # read 1: note-on, then one by running status
+    b"\x90\x40\xf8\x64",          # read 2: a clock cuts into a note-on
+    b"\xf0\x7d\x01\x02\xf7\xb0",  # read 3: a SysEx, then a CC's status...
+    b"\x07\x7f",                  # read 4: ...whose data comes a read later
+    b"\xf8\x80\x3c\x00",          # read 5: a clock, then a note-off
+)
+
+# (message class, the read that found its first byte), in the order
+# adafruit_midi returns them. The clock in read 2 comes out ahead of the
+# note it cut into; the CC is stamped by read 3, where its status arrived.
+STAMP_WANT = (
+    (NoteOn, 1), (NoteOn, 1),
+    (TimingClock, 2), (NoteOn, 2),
+    (SystemExclusive, 3), (ControlChange, 3),
+    (TimingClock, 5), (NoteOff, 5),
+)
+
+
+def stamps_per_message(midi_in, pump=None):
+    """Drain ``midi_in`` through adafruit_midi; ``[(class, read), ...]``."""
+    rx = adafruit_midi.MIDI(midi_in=midi_in)
+    got = []
+    idle = 0
+    while idle < 3:
+        if pump is not None:
+            pump()
+        msg = rx.receive()
+        if msg is None:
+            idle += 1
+            continue
+        idle = 0
+        t = midi_in.take_timestamp()
+        got.append((type(msg), None if t is None else t // 1000))
+    expect(midi_in.take_timestamp() is None, "a stamp left over after the last message")
+    return got
+
+
+def expect_stamps(got, want=STAMP_WANT):
+    names = [(c.__name__, r) for c, r in got]
+    wanted = [(c.__name__, r) for c, r in want]
+    expect(names == wanted, "stamps %r, want %r" % (names, wanted))
+
+
+def c_stamps_whole_messages():
+    use_fake_clock(midiports)
+    _clock.t = 0
+    port = WholeMessages(TickingIn(STAMP_READS), size=8)
+    expect(port.take_timestamp() is None, "a stamp before anything arrived")
+    expect_stamps(stamps_per_message(port))
+    # Running status across reads takes the time of its first data byte.
+    _clock.t = 0
+    port = WholeMessages(TickingIn([b"\x90\x3c\x64", b"\x3e", b"\x50\xf8"]))
+    expect_stamps(stamps_per_message(port), ((NoteOn, 1), (NoteOn, 2), (TimingClock, 3)))
+    # A status cutting a SysEx short: one stamp for the SysEx, none for the
+    # 0xF7 the port supplies.
+    _clock.t = 0
+    port = WholeMessages(TickingIn([b"\xf0\x7d\x01\x90\x3c\x64", b"\xf8"]))
+    expect_stamps(stamps_per_message(port),
+                  ((SystemExclusive, 1), (NoteOn, 1), (TimingClock, 2)))
+    # A clock inside a SysEx comes out after it, with its own arrival time.
+    _clock.t = 0
+    port = WholeMessages(TickingIn([b"\xf0\x7d\x01\xf8\x02\xf7\x90\x3c\x64"]))
+    expect_stamps(stamps_per_message(port),
+                  ((SystemExclusive, 1), (TimingClock, 1), (NoteOn, 1)))
+
+
+def c_stamps_uart():
+    sys.modules["machine"] = _FakeMachine
+    try:
+        from midiports import uart
+
+        use_fake_clock(midiports)
+        midi_in, midi_out = uart.ports(1)
+        u = FakeUART.made[-1]
+        reads = list(STAMP_READS)
+
+        def pump():
+            # One chunk arrives on the wire before each poll.
+            if reads and not u.rx:
+                u.rx.extend(reads.pop(0))
+                _clock.t += 1000
+
+        _clock.t = 0
+        expect_stamps(stamps_per_message(midi_in, pump))
+    finally:
+        del sys.modules["machine"]
+
+
+def _whole_events(data):
+    """USB-MIDI events for a whole-message stream, as a host sends them."""
+    events = []
+    i = 0
+    while i < len(data):
+        b = data[i]
+        if b == 0xF0:
+            end = data.index(b"\xf7", i) + 1
+            body = data[i:end]
+            while len(body) > 3:
+                events.append((0x4, body[0], body[1], body[2]))
+                body = body[3:]
+            cin = (0x5, 0x6, 0x7)[len(body) - 1]
+            events.append((cin, body[0], body[1] if len(body) > 1 else 0,
+                           body[2] if len(body) > 2 else 0))
+            i = end
+            continue
+        n = 1 + midiports.message_length(b)
+        m = data[i:i + n] + b"\x00\x00"
+        cin = 0xF if b >= 0xF8 else b >> 4
+        events.append((cin, m[0], m[1], m[2]))
+        i += n
+    return events
+
+
+# What a whole-message transport (USB, usbif, Windows) delivers for
+# STAMP_READS: running status expanded, the clock ahead of its note, the CC
+# whole in the read where it completed. One entry per arrival.
+WHOLE_ARRIVALS = (
+    b"\x90\x3c\x64\x90\x3e\x50",
+    b"\xf8\x90\x40\x64",
+    b"\xf0\x7d\x01\x02\xf7",
+    b"\xb0\x07\x7f",
+    b"\xf8\x80\x3c\x00",
+)
+WHOLE_WANT = STAMP_WANT[:5] + ((ControlChange, 4),) + STAMP_WANT[6:]
+
+
+def c_stamps_usb_device():
+    usb_device = _install_fake_usb()
+    try:
+        use_fake_clock(usb_device)
+        itf = usb_device.MIDIPortsInterface()
+        _clock.t = 0
+        for chunk in WHOLE_ARRIVALS:
+            _clock.t += 1000
+            for ev in _whole_events(chunk):
+                itf.on_midi_event(*ev)
+        # SysEx longer than one event: stamped once, for its first event.
+        _clock.t += 1000
+        for ev in _whole_events(b"\xf0\x7d\x01\x02\x03\x04\x05\xf7"):
+            itf.on_midi_event(*ev)
+        expect_stamps(stamps_per_message(itf.ports[0]),
+                      WHOLE_WANT + ((SystemExclusive, 6),))
+        # A message the full ring drops takes no stamp with it.
+        itf = usb_device.MIDIPortsInterface(ring=8)
+        for note in range(4):
+            _clock.t += 1000
+            itf.on_midi_event(0x9, 0x90, note, 0x40)
+        expect(itf.overflows == 2, "overflows %d" % itf.overflows)
+        expect(len(itf._stamps) == 2, "%d stamps for 2 kept notes" % len(itf._stamps))
+    finally:
+        _remove_fake_usb()
+
+
+def c_stamps_usbif_shim():
+    from midiports import usbif_shim
+
+    use_fake_clock(usbif_shim)
+    port = FakeMidiPort()
+    midi_in, _ = usbif_shim.ports(port, size=64)
+    chunks = list(WHOLE_ARRIVALS)
+
+    def pump():
+        if chunks and not port.rx:
+            port.rx.extend(chunks.pop(0))
+            _clock.t += 1000
+
+    _clock.t = 0
+    expect_stamps(stamps_per_message(midi_in, pump), WHOLE_WANT)
+
+
+def c_stamps_windows():
+    fake, windows = _install_fake_win()
+    try:
+        use_fake_clock(windows)
+        midi_in, _ = windows.ports("loopmidi")
+        chunks = list(WHOLE_ARRIVALS[:2] + WHOLE_ARRIVALS[3:])  # winmm: no SysEx in
+
+        def pump():
+            if chunks and not fake.queue:
+                data = chunks.pop(0)
+                i = 0
+                while i < len(data):
+                    n = 1 + midiports.message_length(data[i])
+                    m = data[i:i + n] + b"\x00\x00"
+                    fake.queue.append(_Msg(FakeWin.MM_MIM_DATA, m[0] | m[1] << 8 | m[2] << 16))
+                    i += n
+                _clock.t += 1000
+
+        _clock.t = 0
+        want = STAMP_WANT[:4] + ((ControlChange, 3), (TimingClock, 4), (NoteOff, 4))
+        expect_stamps(stamps_per_message(midi_in, pump), want)
+        midi_in.close()
+    finally:
+        sys.modules.pop("uwin32", None)
+        sys.modules.pop("midiports.windows", None)
+
+
+def c_stamps_webmidi():
+    from midiports import webmidi
+
+    access = FakeMIDIAccess()
+    midi_in, _ = webmidi.ports(access, "loopback")
+    want = []
+    for chunk in WHOLE_ARRIVALS:
+        for msg in split_messages(chunk):
+            access.fire(access.loop_in, msg)
+            # Web MIDI's own time for the event, in ms; stamps are whole us.
+            want.append(int(round(access.clock * 1000)))
+    rx = adafruit_midi.MIDI(midi_in=midi_in)
+    got = []
+    while True:
+        msg = rx.receive()
+        if msg is None:
+            break
+        got.append((type(msg), midi_in.take_timestamp()))
+    expect([c for c, _ in got] == [c for c, _ in WHOLE_WANT], "classes %r" % (got,))
+    expect([t for _, t in got] == want, "stamps %r, want %r" % ([t for _, t in got], want))
+    expect(midi_in.take_timestamp() is None, "a stamp left over")
+    midi_in.close()
+
+
+def c_stamps_ring_is_fixed():
+    stamps = midiports.Stamps(4)
+    expect(stamps.take() is None, "empty ring")
+    for t in range(10):
+        stamps.push(t)
+    expect(len(stamps) == 4, "a full ring holds 4, has %d" % len(stamps))
+    expect([stamps.take() for _ in range(5)] == [6, 7, 8, 9, None], "keeps the newest")
+    if MICROPYTHON:
+        now = midiports.ticks_us()
+        stamps.push(now)
+        stamps.take()
+        gc.collect()
+        before = gc.mem_alloc()
+        for _ in range(200):
+            stamps.push(now)
+            stamps.take()
+        used = gc.mem_alloc() - before
+        expect(used == 0, "200 pushes and takes allocated %d bytes" % used)
+        # And WholeMessages stamping a burst: clocks, notes, running status.
+        port = WholeMessages(FakeIn([b"\xf8\x90\x3c\x64\x3e\x50" * 5]))
+        buf = bytearray(64)
+        gc.collect()
+        before = gc.mem_alloc()
+        n = port.readinto(buf)
+        taken = 0
+        while port.take_timestamp() is not None:
+            taken += 1
+        used = gc.mem_alloc() - before
+        expect(n == 35 and taken == 15, "read %r, %d stamps" % (n, taken))
+        expect(used == 0, "stamping 15 messages allocated %d bytes" % used)
+
+
+def c_clock_helpers():
+    a = midiports.ticks_us()
+    b = midiports.ticks_us()
+    expect(isinstance(a, int), "ticks_us is a whole number of microseconds")
+    expect(midiports.ticks_diff(b, a) >= 0, "the clock runs forward")
+
+
 CHECKS = (
     ("adafruit_midi receives a note-on", c_note_on),
     ("running status gives two notes", c_running_status),
@@ -951,6 +1262,14 @@ CHECKS = (
     ("webmidi: a page MIDIAccess, 200 of 200, timestamps follow receive()", c_webmidi_page),
     ("webmidi: a worker relay, 200 of 200, whole messages posted", c_webmidi_relay),
     ("garbage per received note", c_garbage_per_note),
+    ("stamps: ticks_us and ticks_diff", c_clock_helpers),
+    ("stamps: a fixed ring that keeps the newest, allocating nothing", c_stamps_ring_is_fixed),
+    ("stamps: WholeMessages, one per message across running status, clock, sysex, split reads", c_stamps_whole_messages),
+    ("stamps: uart", c_stamps_uart),
+    ("stamps: usb_device, at the event callback", c_stamps_usb_device),
+    ("stamps: usbif_shim", c_stamps_usbif_shim),
+    ("stamps: windows", c_stamps_windows),
+    ("stamps: webmidi, one per message", c_stamps_webmidi),
 )
 
 

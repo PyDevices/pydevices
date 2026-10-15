@@ -135,6 +135,14 @@ class Contract(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, "the plant went unnoticed:\n" + result.stdout)
         self.assertIn("FAIL", result.stdout)
 
+    def test_a_clock_byte_left_unstamped_fails_it(self):
+        result = run([sys.executable, CONTRACT, "--adafruit=" + adafruit_dir(self),
+                      "--plant=skip-clock-stamp"])
+        self.assertIn("PLANTED skip-clock-stamp", result.stdout)
+        self.assertNotEqual(result.returncode, 0, "the plant went unnoticed:\n" + result.stdout)
+        for port in ("WholeMessages", "uart", "usb_device", "usbif_shim", "windows", "webmidi"):
+            self.assertIn("FAIL stamps: " + port, result.stdout)
+
 
 def _make_asound(root, entries):
     """A synthetic /proc/asound: ``entries`` maps (card, device) to the body
@@ -205,8 +213,15 @@ class LinuxPort(unittest.TestCase):
         midi_in, midi_out = linux.ports("loop", proc=self.proc, dev=self.dev)
         try:
             self.assertIsInstance(midi_in, WholeMessages)
+            before = midiports.ticks_us()
             self.assertEqual(midi_in.read(64), b"\x90\x3c\x64\x90\x3e\x50")
+            after = midiports.ticks_us()
             self.assertIsNone(midi_in.read(64))
+            # One arrival time per note, taken by the read that found them.
+            stamps = [midi_in.take_timestamp() for _ in range(3)]
+            self.assertIsNone(stamps[2])
+            self.assertEqual(stamps[0], stamps[1])
+            self.assertTrue(before <= stamps[0] <= after)
             self.assertEqual(midi_out.write(b"\xb0\x07\x7f\x00", 3), 3)
         finally:
             midi_in.close()
@@ -291,7 +306,7 @@ class WebMidiPort(unittest.TestCase):
         self.assertIsNone(midi_in.read(16))
         self.assertEqual(midi_in.any(), 0)
         for note in range(4):
-            midi_in.push(bytes((0x90, note, 0x40)), float(note))
+            midi_in.push(bytes((0x90, note, 0x40)), note * 1000)
         self.assertEqual(midi_in.overflows, 2)  # 7 bytes fit: two notes, never a part
         self.assertEqual(midi_in.any(), 6)
         self.assertEqual(midi_in.read(4), b"\x90\x00\x40\x90")
@@ -299,7 +314,7 @@ class WebMidiPort(unittest.TestCase):
         buf = bytearray(8)
         self.assertEqual(midi_in.readinto(buf, 8), 2)
         self.assertEqual(bytes(buf[:2]), b"\x01\x40")
-        self.assertEqual([midi_in.take_timestamp() for _ in range(3)], [0.0, 1.0, None])
+        self.assertEqual([midi_in.take_timestamp() for _ in range(3)], [0, 1000, None])
         for _ in range(5):  # wraps round the ring
             midi_in.push(b"\xb0\x07\x7f")
             self.assertEqual(midi_in.read(16), b"\xb0\x07\x7f")
@@ -309,21 +324,24 @@ class WebMidiPort(unittest.TestCase):
 
     def test_timestamps_pair_with_messages_and_stale_ones_are_forgotten(self):
         midi_in = webmidi._RingIn(ring=16)
-        midi_in.push(b"\x90\x3c\x64", 5.25)
-        midi_in.push(b"\xf8")  # no stamp
-        midi_in.push(b"\x80\x3c\x00", 9.0)
-        self.assertEqual(midi_in.take_timestamp(), 5.25)
-        self.assertIsNone(midi_in.take_timestamp())
-        self.assertEqual(midi_in.take_timestamp(), 9.0)
+        midi_in.push(b"\x90\x3c\x64", 5250)
+        before = midiports.ticks_us()
+        midi_in.push(b"\xf8")  # no time given: stamped on arrival
+        after = midiports.ticks_us()
+        midi_in.push(b"\x80\x3c\x00", 9000)
+        self.assertEqual(midi_in.take_timestamp(), 5250)
+        self.assertTrue(before <= midi_in.take_timestamp() <= after)
+        self.assertEqual(midi_in.take_timestamp(), 9000)
         self.assertIsNone(midi_in.take_timestamp())
         self.assertEqual(midi_in.read(16), b"\x90\x3c\x64\xf8\x80\x3c\x00")
         # A reader that never takes timestamps loses nothing else.
         for i in range(500):
-            midi_in.push(b"\xf8", float(i))
+            midi_in.push(b"\xf8", i)
             self.assertEqual(midi_in.read(4), b"\xf8")
         self.assertEqual(midi_in.overflows, 0)
-        oldest = midi_in.take_timestamp()
-        self.assertEqual(oldest, 500.0 - (len(midi_in._times) - 1))
+        kept = len(midi_in._stamps)
+        self.assertEqual(kept, 16 + 64)  # the ring stays its size
+        self.assertEqual(midi_in.take_timestamp(), 500 - kept)  # the newest kept
 
     def test_ports_attach_by_name_and_merge_inputs(self):
         keys = _Port("i1", "Keystation 49", "input")
@@ -360,7 +378,7 @@ class WebMidiPort(unittest.TestCase):
         self.assertEqual(midi_in.names, ["Keys"])
         keys.play(b"\x90\x3c\x64", 3.0)
         self.assertEqual(midi_in.read(16), b"\x90\x3c\x64")
-        self.assertEqual(midi_in.take_timestamp(), 3.0)
+        self.assertEqual(midi_in.take_timestamp(), 3000)
         midi_out.write(b"\xfa")
         self.assertEqual(synth.sent, [b"\xfa"])
         late = _Port("i9", "Keys 2", "input")
@@ -407,11 +425,14 @@ class WebMidiPort(unittest.TestCase):
         port = _MessagePort()
         midi_in, _ = webmidi.relay_ports(port)
         port.deliver(_Obj(data=b"\x90\x3c\x64", timeStamp=41.5))
-        port.deliver(_Obj(data=b"\xf8"))  # no timeStamp
+        before = midiports.ticks_us()
+        port.deliver(_Obj(data=b"\xf8"))  # no timeStamp: stamped on arrival
+        after = midiports.ticks_us()
         port.deliver(_Obj(other=1))  # not MIDI: ignored
         self.assertEqual(midi_in.any(), 4)
         self.assertEqual(midi_in.read(16), b"\x90\x3c\x64\xf8")
-        self.assertEqual(midi_in.take_timestamp(), 41.5)
+        self.assertEqual(midi_in.take_timestamp(), 41500)
+        self.assertTrue(before <= midi_in.take_timestamp() <= after)
         self.assertIsNone(midi_in.take_timestamp())
         midi_in.close()
         self.assertEqual(port.listeners, [])

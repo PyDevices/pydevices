@@ -79,6 +79,41 @@ A port that polls beside audio should call `readinto` with a buffer of its
 own. `read` makes a new `bytes` for every message that arrives, though an
 empty poll allocates nothing.
 
+## When each message arrived
+
+Every input port keeps the time each message arrived, so a looper or a
+recorder can place notes where they were played, not where your loop got
+round to them. Call `midi_in.take_timestamp()` once for each message
+`receive()` gives you, whatever its type, clocks included:
+
+```python
+import midiports
+
+msg = midi.receive()
+if msg is not None:
+    when = midi_in.take_timestamp()      # microseconds, or None
+    played_ago = midiports.ticks_diff(midiports.ticks_us(), when)
+```
+
+Times are whole microseconds: `time.ticks_us()` on MicroPython, which wraps,
+so subtract with `midiports.ticks_diff`; `time.monotonic_ns() // 1000` on
+CPython and CircuitPython; Web MIDI's own `performance.now()` clock in a
+browser. Leave `MIDI`'s `in_channel` at its default and filter on
+`msg.channel` yourself, because a message `adafruit_midi` filters out never
+reaches you but its time would.
+
+How close a time is depends on the transport:
+
+| Port | Stamped | As fine as |
+|---|---|---|
+| `usb_device` | in the USB event callback | one USB frame (1 ms at full speed), plus the wait for the scheduled callback |
+| Web MIDI | by the browser | the browser's event time |
+| `uart`, `linux`, `windows`, `usbif_shim` | by the read that finds the bytes | how often you poll |
+
+The [package docstring](midiports/__init__.py) has the rules: one time per
+message in order, how running status, SysEx and a message split across reads
+are stamped, and what happens if you don't take them.
+
 ## In a browser
 
 Python running in Pyodide reaches MIDI devices through Web MIDI. The browser
@@ -110,19 +145,10 @@ messages are plain objects:
 | page to worker | `{data: Uint8Array, timeStamp: number}`: one whole MIDI message per post, `timeStamp` from its `MIDIMessageEvent` |
 | worker to page | `{data: Uint8Array}`: whole messages to `send()` to the page's output |
 
-Every Web MIDI input keeps the time each message arrived, in milliseconds on
-the `performance.now()` clock. Call `midi_in.take_timestamp()` once for each
-message `receive()` gives you and you get that message's time, or `None` when
-there is none:
-
-```python
-msg = midi.receive()
-if msg is not None:
-    when = midi_in.take_timestamp()
-```
-
-That works because Web MIDI hands over whole messages, one timestamp each.
-The [module docstring](midiports/webmidi.py) has the details.
+Every Web MIDI input keeps the browser's time for each message; see
+[When each message arrived](#when-each-message-arrived). The
+[module docstring](midiports/webmidi.py) has the details, including which
+clock a worker's relayed times are on.
 
 ## Limits
 

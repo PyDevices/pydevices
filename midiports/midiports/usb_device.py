@@ -25,6 +25,13 @@ Install ``usb-device-midi`` from micropython-lib first
 (``mip.install("usb-device-midi")``), unless your firmware already has it
 frozen in. It needs a port with ``machine.USBDevice``.
 
+Each message is stamped with its arrival time (``midi_in.take_timestamp()``,
+the package's contract) in ``on_midi_event``, as the USB stack hands the
+event over. That's within one USB frame of the host sending it (1 ms at full
+speed, 125 us at high speed), plus however long the scheduled callback waits
+for your code to reach a point where it can run. Every event in one USB
+packet arrives together, so a chord or a burst shares nearly one time.
+
 Received bytes wait in a ring (``ring`` bytes, 256 by default). If you don't
 read for long enough to fill it, whole messages are dropped and counted in
 ``MIDIPortsInterface.overflows``. Sending waits briefly for room when the host
@@ -37,7 +44,7 @@ import time
 
 from usb.device.midi import MIDIInterface
 
-from . import PortIn, PortOut, _count
+from . import PortIn, PortOut, Stamps, _count, _stamp, ticks_us
 
 # Bytes carried by each USB-MIDI Code Index Number (USB MIDI 1.0, table 4-1).
 # 0 and 1 are reserved (cable events) and carry nothing we pass on.
@@ -53,6 +60,7 @@ class _In(PortIn):
     def __init__(self, itf):
         PortIn.__init__(self)
         self._itf = itf
+        self._stamps = itf._stamps
 
     def any(self):
         itf = self._itf
@@ -73,9 +81,12 @@ class _Out(PortOut):
 class MIDIPortsInterface(MIDIInterface):
     """A USB MIDI interface whose ``ports`` are ``(midi_in, midi_out)``."""
 
-    def __init__(self, ring=256, rxlen=64, txlen=128):
+    def __init__(self, ring=256, rxlen=64, txlen=128, stamps=None):
         super().__init__(rxlen=rxlen, txlen=txlen)
         self._ring = bytearray(ring)
+        # One stamp per message: room for a ring of one-byte clocks, plus
+        # the messages adafruit_midi has read ahead.
+        self._stamps = Stamps(ring + 32 if stamps is None else stamps)
         # One producer (the scheduled USB callback) moves _head, one consumer
         # (your read) moves _tail. Neither touches the other's index, so a
         # callback landing in the middle of a read can't tear the ring.
@@ -103,6 +114,9 @@ class MIDIPortsInterface(MIDIInterface):
         if (self._tail - head - 1) % size < n:
             self.overflows += 1
             return
+        # A SysEx's continuation and end events start with a data byte (or
+        # 0xF7), so only its first event is stamped.
+        _stamp(self._stamps, midi0, ticks_us())
         ring[head] = midi0
         head = (head + 1) % size
         if n > 1:
@@ -206,7 +220,7 @@ class MIDIPortsInterface(MIDIInterface):
         return nbytes
 
 
-def ports(ring=256):
+def ports(ring=256, stamps=None):
     """Start the USB device with one MIDI interface; ``(midi_in, midi_out)``.
 
     The built-in USB serial port stays, so the REPL survives. Calling this
@@ -214,6 +228,6 @@ def ports(ring=256):
     """
     import usb.device
 
-    itf = MIDIPortsInterface(ring=ring)
+    itf = MIDIPortsInterface(ring=ring, stamps=stamps)
     usb.device.get().init(itf, builtin_driver=True)
     return itf.ports

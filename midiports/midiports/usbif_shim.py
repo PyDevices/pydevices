@@ -16,9 +16,14 @@ ports share it, and closing either closes it.
 usbif's ``read(buf)`` fills a buffer; the contract's ``read(n)`` returns one.
 The shim reads into a buffer of its own and hands bytes out of it, so a poll
 that finds nothing allocates nothing.
+
+Each message is stamped with its arrival time (``take_timestamp()``, the
+package's contract) by the read that finds it. usbif's ``MidiPort`` keeps no
+times of its own, so a stamp is as fine as how often you poll, and every
+message one read finds shares that read's time.
 """
 
-from . import PortIn, PortOut, _count
+from . import PortIn, PortOut, Stamps, _count, _stamp, ticks_us
 
 
 class _In(PortIn):
@@ -28,11 +33,20 @@ class _In(PortIn):
         self._raw = bytearray(size)
         self._have = 0
         self._pos = 0
+        self._stamps = Stamps(size + 32)
 
     def any(self):
         if self._pos >= self._have:
-            self._have = self._port.read(self._raw)
+            self._have = n = self._port.read(self._raw)
             self._pos = 0
+            if n:
+                # usbif delivers whole messages, so each status byte (but
+                # a SysEx's 0xF7) starts one.
+                now = ticks_us()
+                raw = self._raw
+                stamps = self._stamps
+                for i in range(n):
+                    _stamp(stamps, raw[i], now)
         return self._have - self._pos
 
     def readinto(self, buf, nbytes=None):
