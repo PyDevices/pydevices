@@ -78,6 +78,26 @@ class DesktopBoardConfigContractTests(unittest.TestCase):
         self.assertNotIn("height", board_config.__dict__)
         display.fill.assert_called_once_with(0)
 
+    def _load_with_env(self, env):
+        display = mock.Mock(name="display_drv")
+        displaydev_mod = types.ModuleType("displaydev")
+        displaydev_auto = types.ModuleType("displaydev.auto")
+        displaydev_auto.AutoDisplay = mock.Mock(return_value=display)
+        displaydev_mod.auto = displaydev_auto
+        with mock.patch.dict(os.environ, env), mock.patch.dict(
+            sys.modules, {"displaydev": displaydev_mod, "displaydev.auto": displaydev_auto}
+        ):
+            import board_config  # noqa: F401
+        return displaydev_auto.AutoDisplay.call_args.kwargs
+
+    def test_pydevices_maximized_opens_maximised(self):
+        self.assertTrue(self._load_with_env({"PYDEVICES_MAXIMIZED": "1"})["maximized"])
+
+    def test_not_maximised_by_default(self):
+        env = {k: v for k, v in os.environ.items() if k != "PYDEVICES_MAXIMIZED"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertFalse(self._load_with_env({})["maximized"])
+
 
 class DesktopBoardConfigHeadlessSmoke(unittest.TestCase):
     def setUp(self):

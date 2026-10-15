@@ -13,7 +13,7 @@ from displaydev._desktop import DesktopDisplay, desktop_work_area
 import events
 import keys
 
-__all__ = ["WinDisplay", "get_events", "poll_event"]
+__all__ = ["WinDisplay", "get_events", "maximized_size", "poll_event"]
 
 _CLASS_NAME = "PyDevicesWinDisplay"
 _displays = []
@@ -210,6 +210,42 @@ def _declare_dpi_awareness():
         win.SetProcessDPIAware()
 
 
+# A maximised window needs a maximise box: without one Windows maximises it
+# over the whole monitor, taskbar included, rather than into the work area.
+_WS_MAXIMIZED = (win.WS_DISPLAY | win.WS_MAXIMIZEBOX) & ~win.WS_VISIBLE
+
+
+def _maximized_client(work_w, work_h, frame_w, frame_h):
+    """Client size of a window maximised into a *work_w* x *work_h* work area.
+
+    *frame_w* / *frame_h* are what ``AdjustWindowRectEx`` adds to a client
+    for the window's style: a border each side, plus the caption on top.
+    Maximised, Windows hangs the side and bottom borders just outside the
+    work area, so the client gets all of its width and all of its height
+    but the caption: ``frame_h - frame_w`` (the caption plus one border, less
+    the other). Both sides are rounded down to even, as WinDisplay needs.
+    """
+    w = work_w
+    h = work_h - (frame_h - frame_w)
+    return max(2, w - w % 2), max(2, h - h % 2)
+
+
+def maximized_size():
+    """Return ``(width, height)`` a ``WinDisplay(maximized=True)`` would open at.
+
+    The client area of a window maximised on the primary monitor's work area
+    (taskbar excluded), in real pixels. Lets an app size itself before it
+    opens the display; once it is open, ``display.width`` / ``display.height``
+    say the same and win if Windows laid the window out differently.
+    """
+    _declare_dpi_awareness()
+    _ux, _uy, work_w, work_h = desktop_work_area()
+    if work_w <= 0 or work_h <= 0:
+        raise OSError("WinDisplay: could not read the desktop work area")
+    frame_w, frame_h = win.AdjustWindowRectEx(0, 0, _WS_MAXIMIZED)
+    return _maximized_client(work_w, work_h, frame_w, frame_h)
+
+
 def _ensure_class():
     global _wndproc_ref, _class_registered
     if _class_registered:
@@ -297,7 +333,17 @@ class WinDisplay(DesktopDisplay):
         y=None,
         *,
         quiet=False,
+        maximized=False,
     ):
+        self._maximized = bool(maximized)
+        if self._maximized:
+            # The window's client area sets the size, at scale 1: *width*,
+            # *height*, *scale*, *x* and *y* are ignored. Rotation still says
+            # which way up the panel is, so an odd one swaps the two.
+            client_w, client_h = maximized_size()
+            if (rotation // 90) & 1:
+                client_w, client_h = client_h, client_w
+            width, height, scale = client_w, client_h, 1.0
         if color_depth != 16:
             raise ValueError("WinDisplay only supports color_depth=16")
         if width % 2 or height % 2:
@@ -338,7 +384,8 @@ class WinDisplay(DesktopDisplay):
         win.CoInitializeEx()
         ux, uy, desktop_w, desktop_h = desktop_work_area()
         self._work_area = (ux, uy, desktop_w, desktop_h)
-        self._scale = self._fit_scale(desktop_w, desktop_h, quiet)
+        if not self._maximized:
+            self._scale = self._fit_scale(desktop_w, desktop_h, quiet)
         # Present only the changed rows when every band edge lands on a whole
         # device row. GDI resamples each band against its own rectangle, so at
         # a fractional scale a banded repaint disagrees with a full one by a
@@ -404,6 +451,9 @@ class WinDisplay(DesktopDisplay):
 
     def init(self):
         _ensure_class()
+        if self._maximized:
+            self._init_maximized()
+            return
         # A rotation swaps width and height, so the scale that fit one
         # orientation can run the window off the screen in the other: refit.
         _ux, _uy, uw, uh = self._work_area
@@ -441,6 +491,9 @@ class WinDisplay(DesktopDisplay):
             win.ShowWindow(self._hwnd)
         else:
             win.SetWindowPos(self._hwnd, x, y, outer_w, outer_h)
+        self._finish_init()
+
+    def _finish_init(self):
         nbytes = self.width * self.height * 2
         if self._buffer is None or len(self._buffer) != nbytes:
             self._free_framebuffer()
@@ -450,6 +503,42 @@ class WinDisplay(DesktopDisplay):
         self._mark_dirty(0, self.height)
         super().vscrdef(0, self.height, 0)
         self.vscsad(False)
+
+    def _init_maximized(self):
+        """Open maximised into the work area, the panel exactly its client.
+
+        The window is created hidden at the predicted client size, then shown
+        maximised. If Windows lays it out at another size (a second monitor,
+        a theme with other borders), the client area it really got wins and
+        the framebuffer follows, before anything is drawn.
+        """
+        self._scale = 1.0
+        self._can_band = True
+        if self._hwnd is not None:
+            # Already open: the window keeps its size. A rotation that swaps
+            # width and height leaves the panel mismatched to it, so a
+            # maximised display is best rotated with ``rotation=`` up front.
+            self._finish_init()
+            return
+        ux, uy, _uw, _uh = self._work_area
+        outer_w, outer_h = win.AdjustWindowRectEx(self.width, self.height, _WS_MAXIMIZED)
+        self._hwnd = win.CreateWindowExW(
+            0, _CLASS_NAME, self._title, _WS_MAXIMIZED, ux, uy, outer_w, outer_h
+        )
+        self._window_id = win.hwnd_int(self._hwnd)
+        _hwnd_map[self._window_id] = self
+        win.ShowWindow(self._hwnd, win.SW_MAXIMIZE)
+        _l, _t, right, bottom = win.GetClientRect(self._hwnd)
+        got_w = right - right % 2
+        got_h = bottom - bottom % 2
+        if got_w > 0 and got_h > 0 and (got_w, got_h) != (self.width, self.height):
+            if (self._rotation // 90) & 1:
+                self._width, self._height = got_h, got_w
+            else:
+                self._width, self._height = got_w, got_h
+            self._dirty_y0 = 0
+            self._dirty_y1 = self.height
+        self._finish_init()
 
     # ------------------------------------------------------------------
     # Drawing

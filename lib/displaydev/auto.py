@@ -50,6 +50,7 @@ def AutoDisplay(
     canvas_id=None,
     *,
     quiet=False,
+    maximized=False,
 ):
     """Construct a host-appropriate display driver.
 
@@ -58,6 +59,9 @@ def AutoDisplay(
             (PS/JN ignore rotation/scale/title as their APIs dictate).
         canvas_id: PyScript canvas DOM id for the primary ``PSDisplay``.
         quiet: Suppress driver init chatter when True.
+        maximized: Open maximised, the panel exactly the window's client area
+            at scale 1 (width, height and scale are then ignored). WinDisplay
+            only, for now; the other backends open at width x height.
 
     Returns:
         A ``PSDisplay``, ``JNDisplay``, ``WinDisplay``, ``PGDisplay``, or
@@ -115,6 +119,7 @@ def AutoDisplay(
                 title=title,
                 scale=scale,
                 quiet=quiet,
+                maximized=maximized,
             )
         except Exception:
             pass
