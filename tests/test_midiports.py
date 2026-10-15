@@ -1,8 +1,9 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""midiports: its package file, its contract on CPython and MicroPython, and
-the Linux port against a synthetic ALSA tree.
+"""midiports: its package file, its contract on CPython and MicroPython, the
+Linux port against a synthetic ALSA tree, and the Web MIDI port against fake
+browser objects.
 
 The contract (``midiports_contract.py``) runs with Adafruit's
 ``adafruit_midi``, fetched from the URLs ``midiports/package.json`` pins, so
@@ -13,6 +14,7 @@ failure. The MicroPython run finds its interpreter as ``test_bledev`` does.
 """
 
 from pathlib import Path
+import asyncio
 import json
 import os
 import shutil
@@ -32,7 +34,7 @@ OURS_PREFIX = "github:PyDevices/pydevices/"
 sys.path.insert(0, str(PACKAGE))
 
 import midiports  # noqa: E402
-from midiports import IN, OUT, WholeMessages, linux  # noqa: E402
+from midiports import IN, OUT, WholeMessages, linux, webmidi  # noqa: E402
 
 
 def _package_json():
@@ -216,6 +218,217 @@ class LinuxPort(unittest.TestCase):
     def test_no_matching_port_says_so(self):
         _make_asound(self.proc, {})
         self.assertRaises(OSError, linux.ports, "nothing", proc=self.proc, dev=self.dev)
+
+
+class _Obj:
+    def __init__(self, **fields):
+        self.__dict__.update(fields)
+
+
+class _Port:
+    def __init__(self, id, name, type):
+        self.id, self.name, self.type, self.state = id, name, type, "connected"
+        self.onmidimessage = None
+        self.sent = []
+
+    def send(self, data):
+        self.sent.append(bytes(data))
+
+    def play(self, data, stamp):
+        self.onmidimessage(_Obj(data=data, timeStamp=stamp))
+
+
+class _Map:
+    def __init__(self, ports):
+        self.ports = ports
+
+    def values(self):
+        return iter(self.ports)
+
+
+class _Access:
+    def __init__(self, inputs=(), outputs=()):
+        self.inputs = _Map(list(inputs))
+        self.outputs = _Map(list(outputs))
+        self.listeners = []
+
+    def addEventListener(self, kind, fn):
+        self.listeners.append((kind, fn))
+
+    def removeEventListener(self, kind, fn):
+        self.listeners.remove((kind, fn))
+
+    def change(self, port, state):
+        port.state = state
+        for _, fn in list(self.listeners):
+            fn(_Obj(port=port))
+
+
+class _MessagePort:
+    def __init__(self):
+        self.listeners = []
+        self.posted = []
+
+    def addEventListener(self, kind, fn):
+        self.listeners.append((kind, fn))
+
+    def removeEventListener(self, kind, fn):
+        self.listeners.remove((kind, fn))
+
+    def postMessage(self, message):
+        self.posted.append(message)
+
+    def deliver(self, payload):
+        for _, fn in list(self.listeners):
+            fn(_Obj(data=payload))
+
+
+class WebMidiPort(unittest.TestCase):
+    """Web MIDI, against fake MIDIAccess, MIDIPort and MessagePort objects."""
+
+    def test_the_ring_keeps_whole_messages_and_drops_whole_ones_when_full(self):
+        midi_in = webmidi._RingIn(ring=8)
+        self.assertIsNone(midi_in.read(16))
+        self.assertEqual(midi_in.any(), 0)
+        for note in range(4):
+            midi_in.push(bytes((0x90, note, 0x40)), float(note))
+        self.assertEqual(midi_in.overflows, 2)  # 7 bytes fit: two notes, never a part
+        self.assertEqual(midi_in.any(), 6)
+        self.assertEqual(midi_in.read(4), b"\x90\x00\x40\x90")
+        self.assertEqual(midi_in.any(), 2)
+        buf = bytearray(8)
+        self.assertEqual(midi_in.readinto(buf, 8), 2)
+        self.assertEqual(bytes(buf[:2]), b"\x01\x40")
+        self.assertEqual([midi_in.take_timestamp() for _ in range(3)], [0.0, 1.0, None])
+        for _ in range(5):  # wraps round the ring
+            midi_in.push(b"\xb0\x07\x7f")
+            self.assertEqual(midi_in.read(16), b"\xb0\x07\x7f")
+        midi_in.close()
+        self.assertRaises(OSError, midi_in.read, 4)
+        self.assertRaises(OSError, midi_in.any)
+
+    def test_timestamps_pair_with_messages_and_stale_ones_are_forgotten(self):
+        midi_in = webmidi._RingIn(ring=16)
+        midi_in.push(b"\x90\x3c\x64", 5.25)
+        midi_in.push(b"\xf8")  # no stamp
+        midi_in.push(b"\x80\x3c\x00", 9.0)
+        self.assertEqual(midi_in.take_timestamp(), 5.25)
+        self.assertIsNone(midi_in.take_timestamp())
+        self.assertEqual(midi_in.take_timestamp(), 9.0)
+        self.assertIsNone(midi_in.take_timestamp())
+        self.assertEqual(midi_in.read(16), b"\x90\x3c\x64\xf8\x80\x3c\x00")
+        # A reader that never takes timestamps loses nothing else.
+        for i in range(500):
+            midi_in.push(b"\xf8", float(i))
+            self.assertEqual(midi_in.read(4), b"\xf8")
+        self.assertEqual(midi_in.overflows, 0)
+        oldest = midi_in.take_timestamp()
+        self.assertEqual(oldest, 500.0 - (len(midi_in._times) - 1))
+
+    def test_ports_attach_by_name_and_merge_inputs(self):
+        keys = _Port("i1", "Keystation 49", "input")
+        pads = _Port("i2", "Pad Controller", "input")
+        synth = _Port("o1", "Some Synth", "output")
+        access = _Access([keys, pads], [synth])
+        midi_in, midi_out = webmidi.ports(access, "KEYSTATION")
+        self.assertEqual(midi_in.names, ["Keystation 49"])
+        self.assertIsNone(pads.onmidimessage)
+        self.assertIsNone(midi_out.name)
+        midi_out.write(b"\x90\x3c\x64")
+        self.assertEqual(midi_out.dropped, 1)
+        both_in, both_out = webmidi.ports(access)
+        keys.play(b"\x90\x3c\x64", 1.0)
+        pads.play(b"\x99\x24\x7f", 2.0)
+        self.assertEqual(both_in.read(16), b"\x90\x3c\x64\x99\x24\x7f")
+        self.assertEqual(both_out.name, "Some Synth")
+        both_out.write(b"\xb0\x07\x7f\xc0\x05")
+        self.assertEqual(synth.sent, [b"\xb0\x07\x7f\xc0\x05"])
+
+    def test_statechange_reattaches_a_port_that_comes_back(self):
+        keys = _Port("i1", "Keys", "input")
+        synth = _Port("o1", "Keys", "output")
+        access = _Access([keys], [synth])
+        midi_in, midi_out = webmidi.ports(access, "keys")
+        access.change(keys, "disconnected")
+        access.change(synth, "disconnected")
+        self.assertIsNone(keys.onmidimessage)
+        self.assertEqual(midi_in.names, [])
+        self.assertIsNone(midi_out.name)
+        access.change(keys, "connected")
+        access.change(keys, "connected")  # opening fires another; still one handler
+        access.change(synth, "connected")
+        self.assertEqual(midi_in.names, ["Keys"])
+        keys.play(b"\x90\x3c\x64", 3.0)
+        self.assertEqual(midi_in.read(16), b"\x90\x3c\x64")
+        self.assertEqual(midi_in.take_timestamp(), 3.0)
+        midi_out.write(b"\xfa")
+        self.assertEqual(synth.sent, [b"\xfa"])
+        late = _Port("i9", "Keys 2", "input")
+        access.change(late, "connected")
+        self.assertEqual(sorted(midi_in.names), ["Keys", "Keys 2"])
+        other = _Port("i8", "Drums", "input")
+        access.change(other, "connected")
+        self.assertIsNone(other.onmidimessage)
+
+    def test_closing_both_lets_go_of_every_port(self):
+        keys = _Port("i1", "Keys", "input")
+        access = _Access([keys], [_Port("o1", "Keys", "output")])
+        midi_in, midi_out = webmidi.ports(access)
+        midi_in.close()
+        self.assertIsNone(keys.onmidimessage)
+        self.assertEqual(len(access.listeners), 1)
+        access.change(keys, "connected")  # a closed input attaches nothing
+        self.assertIsNone(keys.onmidimessage)
+        midi_out.close()
+        midi_out.close()
+        self.assertEqual(access.listeners, [])
+        self.assertRaises(OSError, midi_out.write, b"\xfa")
+
+    def test_open_requests_access_and_says_so_without_web_midi(self):
+        access = _Access([_Port("i1", "Keys", "input")], [])
+        asked = []
+
+        async def fake_request(sysex):
+            asked.append(sysex)
+            return access
+
+        real = webmidi._request_access
+        webmidi._request_access = fake_request
+        try:
+            midi_in, _ = asyncio.run(webmidi.open("keys", sysex=True))
+        finally:
+            webmidi._request_access = real
+        self.assertEqual(asked, [True])
+        self.assertEqual(midi_in.names, ["Keys"])
+        # Outside a browser there's no js module at all.
+        self.assertRaises(ImportError, asyncio.run, webmidi.open())
+
+    def test_relay_input_takes_page_messages_with_their_timestamps(self):
+        port = _MessagePort()
+        midi_in, _ = webmidi.relay_ports(port)
+        port.deliver(_Obj(data=b"\x90\x3c\x64", timeStamp=41.5))
+        port.deliver(_Obj(data=b"\xf8"))  # no timeStamp
+        port.deliver(_Obj(other=1))  # not MIDI: ignored
+        self.assertEqual(midi_in.any(), 4)
+        self.assertEqual(midi_in.read(16), b"\x90\x3c\x64\xf8")
+        self.assertEqual(midi_in.take_timestamp(), 41.5)
+        self.assertIsNone(midi_in.take_timestamp())
+        midi_in.close()
+        self.assertEqual(port.listeners, [])
+
+    def test_relay_output_posts_whole_messages(self):
+        port = _MessagePort()
+        _, midi_out = webmidi.relay_ports(port)
+        self.assertEqual(midi_out.write(b"\x3c\x90\x3c", 3), 3)  # a stray data byte, then half a note
+        self.assertEqual(port.posted, [])
+        midi_out.write(b"\x64\xf8\xf0\x7d")
+        self.assertEqual(port.posted, [{"data": b"\x90\x3c\x64\xf8"}])
+        midi_out.write(bytearray(b"\x01\x02\xf7\xb0\x07\x7f"))
+        self.assertEqual(port.posted[-1], {"data": b"\xf0\x7d\x01\x02\xf7\xb0\x07\x7f"})
+        midi_out.write(b"\xf0" + bytes(webmidi.PENDING_LIMIT))  # a SysEx that never ends
+        self.assertEqual(midi_out.dropped, 1)
+        midi_out.write(b"\xfa")
+        self.assertEqual(port.posted[-1], {"data": b"\xfa"})
 
 
 if __name__ == "__main__":

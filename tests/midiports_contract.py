@@ -14,8 +14,8 @@ MicroPython (which has no unittest)::
 ``tests/test_midiports.py`` fetches it there and runs this every way.
 
 Each transport is checked with a fake underneath: a fake ``machine.UART``,
-a fake ``usb.device.midi.MIDIInterface``, a fake usbif ``MidiPort`` and a
-fake ``uwin32``. The Linux port needs real files and is checked in
+a fake ``usb.device.midi.MIDIInterface``, a fake usbif ``MidiPort``, a
+fake ``uwin32`` and, for Web MIDI, a fake ``MIDIAccess`` and ``MessagePort``. The Linux port needs real files and is checked in
 ``test_midiports.py`` on CPython.
 
 It prints one PASS/FAIL line per check and exits non-zero on any failure.
@@ -654,6 +654,197 @@ def c_windows():
         sys.modules.pop("midiports.windows", None)
 
 
+# -- Web MIDI, over a fake MIDIAccess and a fake MessagePort ---------------------------------
+
+
+def split_messages(data):
+    """What Web MIDI does to a send(): one event per whole message."""
+    data = bytes(data)
+    out = []
+    i = 0
+    while i < len(data):
+        b = data[i]
+        if b == 0xF0:
+            end = data.index(b"\xf7", i) + 1 if b"\xf7" in data[i:] else len(data)
+        else:
+            end = i + 1 + midiports.message_length(b)
+        out.append(data[i:end])
+        i = end
+    return out
+
+
+class _Event:
+    def __init__(self, **fields):
+        for k, v in fields.items():
+            setattr(self, k, v)
+
+
+class FakeMIDIPort:
+    def __init__(self, id, name, type):
+        self.id = id
+        self.name = name
+        self.type = type
+        self.state = "connected"
+        self.onmidimessage = None
+        self.sent = []
+
+    def send(self, data):
+        self.sent.append(bytes(data))
+
+
+class _Map:
+    def __init__(self, ports):
+        self.ports = ports
+
+    def values(self):
+        return iter(self.ports)
+
+
+class FakeMIDIAccess:
+    """A MIDIAccess with a loopback device: what goes out comes back in."""
+
+    def __init__(self):
+        self.clock = 1000.0
+        self.loop_in = FakeMIDIPort("i1", "Loopback Port", "input")
+        self.loop_out = FakeMIDIPort("o1", "Loopback Port", "output")
+        self.inputs = _Map([self.loop_in])
+        self.outputs = _Map([self.loop_out])
+        self.listeners = []
+        self.loop_out.send = self._loop
+
+    def _loop(self, data):
+        for msg in split_messages(data):
+            self.fire(self.loop_in, msg)
+
+    def fire(self, port, msg):
+        self.clock += 0.5
+        if port.onmidimessage is not None:
+            port.onmidimessage(_Event(data=msg, timeStamp=self.clock))
+
+    def addEventListener(self, kind, fn):
+        self.listeners.append((kind, fn))
+
+    def removeEventListener(self, kind, fn):
+        self.listeners.remove((kind, fn))
+
+    def change(self, port, state):
+        port.state = state
+        for kind, fn in self.listeners:
+            if kind == "statechange":
+                fn(_Event(port=port))
+
+
+class FakeMessagePort:
+    """A worker's end of the relay; the page loops every post back."""
+
+    def __init__(self):
+        self.clock = 0.0
+        self.listeners = []
+        self.posted = []
+        self.started = False
+        self.loop = True
+
+    def addEventListener(self, kind, fn):
+        self.listeners.append((kind, fn))
+
+    def removeEventListener(self, kind, fn):
+        self.listeners.remove((kind, fn))
+
+    def start(self):
+        self.started = True
+
+    def deliver(self, msg, stamp=None):
+        self.clock += 1.0
+        payload = _Event(data=msg, timeStamp=self.clock if stamp is None else stamp)
+        for kind, fn in self.listeners:
+            if kind == "message":
+                fn(_Event(data=payload))
+
+    def postMessage(self, message):
+        self.posted.append(bytes(message["data"]))
+        if self.loop:
+            for msg in split_messages(message["data"]):
+                self.deliver(msg)
+
+
+def stamps_follow_receive(midi_in, feed):
+    """receive() one message at a time; take_timestamp() names each one's time."""
+    rx = adafruit_midi.MIDI(midi_in=midi_in)
+    feed()
+    got = []
+    while True:
+        msg = rx.receive()
+        if msg is None:
+            break
+        got.append((msg, midi_in.take_timestamp()))
+    return got
+
+
+def c_webmidi_page():
+    from midiports import webmidi
+
+    access = FakeMIDIAccess()
+    midi_in, midi_out = webmidi.ports(access, "loopback")
+    expect(midi_in.names == ["Loopback Port"] and midi_out.name == "Loopback Port", "attached")
+    expect(midi_in.any() == 0, "nothing waiting")
+    quiet_any_allocates_nothing(midi_in)
+    got = round_trip(midi_in, midi_out)
+    expect(got == 200, "%d of 200 through a page MIDIAccess" % got)
+    got = any_first(midi_in, midi_out)
+    expect(got == 200, "%d of 200 through a page MIDIAccess, any() first" % got)
+    while midi_in.take_timestamp() is not None:
+        pass
+
+    def feed():
+        for msg in (b"\x90\x3c\x64", b"\xf8", b"\xb0\x07\x7f"):
+            access.fire(access.loop_in, msg)
+
+    start = access.clock
+    got = stamps_follow_receive(midi_in, feed)
+    expect([type(m) for m, _ in got] == [NoteOn, TimingClock, ControlChange], "got %r" % (got,))
+    expect([t for _, t in got] == [start + 0.5, start + 1.0, start + 1.5],
+           "timestamps %r" % ([t for _, t in got],))
+    expect(midi_in.take_timestamp() is None, "no more timestamps")
+    midi_in.close()
+    midi_out.close()
+    expect(access.listeners == [] and access.loop_in.onmidimessage is None, "closed cleanly")
+
+
+def c_webmidi_relay():
+    from midiports import webmidi
+
+    port = FakeMessagePort()
+    midi_in, midi_out = webmidi.relay_ports(port)
+    expect(port.started, "the port is started")
+    expect(midi_in.any() == 0, "nothing waiting")
+    quiet_any_allocates_nothing(midi_in)
+    got = round_trip(midi_in, midi_out)
+    expect(got == 200, "%d of 200 through the relay" % got)
+    got = any_first(midi_in, midi_out)
+    expect(got == 200, "%d of 200 through the relay, any() first" % got)
+    while midi_in.take_timestamp() is not None:
+        pass
+    port.loop = False
+    port.posted[:] = []
+    midi_out.write(b"\x90\x3c")
+    expect(port.posted == [], "half a message waits")
+    midi_out.write(b"\x64\xf0\x7d\x01")
+    expect(port.posted == [b"\x90\x3c\x64"], "posted %r" % (port.posted,))
+    midi_out.write(b"\xf7")
+    expect(port.posted[-1] == b"\xf0\x7d\x01\xf7", "sysex posted whole")
+
+    def feed():
+        port.deliver(b"\x90\x3c\x64", 12.5)
+        port.deliver(b"\x80\x3c\x00", 20.0)
+
+    got = stamps_follow_receive(midi_in, feed)
+    expect(len(got) == 2 and isinstance(got[0][0], NoteOn) and isinstance(got[1][0], NoteOff),
+           "got %r" % (got,))
+    expect(got[0][1] == 12.5 and got[1][1] == 20.0, "timestamps %r" % (got,))
+    midi_in.close()
+    expect(port.listeners == [], "close removes the listener")
+
+
 def any_first(midi_in, midi_out, notes=200, pump=None):
     """The loop a rack beside audio runs: receive() only when any() says so."""
     tx = adafruit_midi.MIDI(midi_out=midi_out)
@@ -757,6 +948,8 @@ CHECKS = (
     ("usbif_shim: 200 of 200, read(n) over read(buf)", c_usbif_shim),
     ("windows: ports by name, short messages, drained input", c_windows),
     ("any(): counts without taking, allocates nothing, drives a loop", c_any),
+    ("webmidi: a page MIDIAccess, 200 of 200, timestamps follow receive()", c_webmidi_page),
+    ("webmidi: a worker relay, 200 of 200, whole messages posted", c_webmidi_relay),
     ("garbage per received note", c_garbage_per_note),
 )
 

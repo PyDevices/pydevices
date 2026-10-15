@@ -47,7 +47,7 @@ byte, and a realtime byte (clock, start, stop) never lands inside another
 message. ``adafruit_midi`` needs both. It reads no running status and turns a
 clock byte inside a note into a ``MIDIBadEvent``, and a 5-pin cable sends
 both. A transport whose bytes can arrive that way (a UART, Linux raw MIDI)
-wraps its input in :class:`WholeMessages`; USB-MIDI and Windows already
+wraps its input in :class:`WholeMessages`; USB-MIDI, Windows and Web MIDI already
 deliver whole messages.
 
 A port that holds an OS handle (the desktop ones) also has ``close()`` and
