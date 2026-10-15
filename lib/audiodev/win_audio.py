@@ -267,6 +267,55 @@ class WinPCMOutput(PCMOutput):
         finally:
             self._in_push = False
 
+    # ------------------------------------------------------------------
+    # Direct writes, for callers that keep their own low-latency queue
+    # ------------------------------------------------------------------
+
+    @property
+    def buffer_frames(self):
+        """Frames the WASAPI buffer holds in all; 0 until the output is open."""
+        return int(self._buffer_frames) if self._client else 0
+
+    def device_frames(self):
+        """Frames written to the device and not yet played (its padding)."""
+        return self._hw_queued() // self.format.frame_size
+
+    def write_now(self, buf, *, start=True):
+        """Write *buf* straight into the WASAPI buffer, now, and return the
+        bytes written.
+
+        For a caller that runs its own short queue -- a synth or mixer that
+        renders a block at a time and decides itself how far ahead of the
+        device to stay. It skips :meth:`write`'s media queue and coalescing,
+        which batch PCM into 100 ms pieces and hold playback back until about
+        100 ms is queued: right for a decoder, far too much for a key-to-sound
+        path.
+
+        Whole frames only, as many as the device has room for; it never waits
+        and never keeps the rest, so a short count means the device is full
+        and the caller still holds the remainder. Volume and mute apply, as
+        they do to :meth:`write`. With *start* (the default) playback begins
+        as soon as anything has been written; pass ``start=False`` to prime
+        the buffer first and call :meth:`start` when it holds enough.
+
+        Use either this or :meth:`write` on one output, not both: they reach
+        the device by different paths, and nothing orders one against the
+        other. Pair it with :meth:`device_frames` to see how much the device
+        still has to play, and :attr:`buffer_frames` for its capacity.
+        """
+        self.open()
+        source = self._prepare(buf)
+        written = self._push_frames(source)
+        if start and written:
+            self._start_if_primed(force=True)
+        return written
+
+    def start(self):
+        """Start playing what :meth:`write_now` has written; True once playing."""
+        self.open()
+        self._start_if_primed(force=True)
+        return self._started
+
     def _start_if_primed(self, force=False):
         if self._started or not self._client:
             return

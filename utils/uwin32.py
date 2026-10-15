@@ -1369,7 +1369,20 @@ else:
         fn = proto(_vtbl(punk)[index])
         return fn(punk, *args)
 
-    memmove = ctypes.memmove
+    def memmove(dst, src, count):
+        """``ctypes.memmove`` that also takes a bytearray or memoryview source.
+
+        ctypes only converts ``bytes`` (and addresses) to a pointer; anything
+        else raises TypeError. A writable buffer is passed in place, with no
+        copy; a read-only one other than ``bytes`` is copied first.
+        """
+        if not isinstance(src, (bytes, int)):
+            try:
+                src = (ctypes.c_char * memoryview(src).nbytes).from_buffer(src)
+            except TypeError:
+                src = bytes(src)
+        return ctypes.memmove(dst, src, count)
+
     string_at = ctypes.string_at
 
 
