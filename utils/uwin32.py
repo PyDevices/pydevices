@@ -2578,7 +2578,11 @@ def _mm_caps_name(buf):
     one helper serves both.
     """
     raw = bytes(buf[_MIDI_CAPS_NAME_OFF:_MIDI_CAPS_NAME_OFF + _MIDI_CAPS_NAME_LEN])
-    name = raw.decode("utf-16-le", "replace")
+    if _use_ffi:
+        # MicroPython's bytes.decode() knows UTF-8 only.
+        name = _wstr_decode_keep_nuls(raw, len(raw) // 2)
+    else:
+        name = raw.decode("utf-16-le", "replace")
     end = name.find("\x00")
     return name[:end] if end >= 0 else name
 

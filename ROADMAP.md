@@ -9,12 +9,6 @@ with each kind of peripheral described honestly by its role.
   MIDI themselves and encode from a mic, so they get a role of their own
   beside `pcm_out` and `pcm_in` instead of passing as PCM.
 
-## MIDI
-
-- MIDI follows CircuitPython's `adafruit_midi` API, in one package that works
-  over any transport. USB and BLE MIDI, a UART and the desktop's own MIDI
-  ports each give it byte-stream ports, as CircuitPython's `usb_midi` does.
-
 ## BLE
 
 - `bledev.hid` reads report descriptors of any length. Today a board reads

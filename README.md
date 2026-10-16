@@ -41,6 +41,7 @@ Write your display and hardware logic once and run across 6 supported Python env
 | [`drivers/`](drivers/) | Display, touch, bus, joystick, IO expander, input helpers |
 | [`lib/displaydev/`](lib/displaydev/) | Display backends (`BusDisplay`, `SDLDisplay`, …); `auto.py` is convenience only |
 | [`lib/`](lib/) | `audiodev/`, `displaydev/`, `appdev/`, `events.py`, `keys.py`, `multimer/`, `wifi.py`, `wifi_manager.py` |
+| [`midiports/`](midiports/) | MIDI ports for `adafruit_midi` over USB, a UART, and Windows and Linux MIDI ([README](midiports/README.md)) |
 | [`utils/`](utils/) | Desktop-bundled helpers (`mip`, `mdns`, `frame_recorder`, `micropython`, `pngio`, `usdl2`, `uwin32`) |
 | [`tests/`](tests/) | Stdlib unittest for `displaydev`, `multimer`, `events`, `keys`, `audiodev`, `boarddev`, `mip` |
 | [`docs/`](docs/) | Hardware and Board Contract documentation ([index](docs/README.md)) |
