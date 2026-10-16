@@ -29,6 +29,8 @@ To use another transport, change the line that opens the ports:
 | A UART (5-pin DIN, TRS, board to board) | `uart.ports(1, tx=17, rx=18)` |
 | Windows' MIDI ports (a keyboard, loopMIDI, a DAW) | `windows.ports("loopMIDI")` |
 | Linux raw MIDI | `linux.ports("DMK25")` |
+| Web MIDI, in a browser page (Pyodide) | `await webmidi.open("DMK25")` |
+| Web MIDI, in a Web Worker, relayed by the page | `webmidi.relay_ports(port)` |
 
 Import each from `midiports`. BLE MIDI ports come from
 [`bledev`](../docs/bledev.md), which moves onto this package's ports next.
@@ -71,11 +73,56 @@ Input ports hand out whole messages. A 5-pin cable sends running status
 middle of a note, and `adafruit_midi` reads neither. So the UART and Linux
 ports wrap their input in `midiports.WholeMessages`, which fixes both. Wrap
 any other byte stream the same way. USB-MIDI and Windows already deliver
-whole messages.
+whole messages, and so does Web MIDI.
 
 A port that polls beside audio should call `readinto` with a buffer of its
 own. `read` makes a new `bytes` for every message that arrives, though an
 empty poll allocates nothing.
+
+## In a browser
+
+Python running in Pyodide reaches MIDI devices through Web MIDI. The browser
+asks the person for permission the first time.
+
+On the page (Pyodide on the main thread, as PyScript runs it), `open` is
+awaitable:
+
+```python
+from midiports import webmidi
+
+midi_in, midi_out = await webmidi.open("DMK25", sysex=False)
+midi = adafruit_midi.MIDI(midi_in=midi_in, midi_out=midi_out)
+```
+
+The name matches part of a port's name, ignoring case. Leave it out to merge
+every input and send to the first output. A device plugged in later, or
+unplugged and plugged back in, joins while the ports are open. If you
+already hold a `MIDIAccess`, `webmidi.ports(access, "DMK25")` does the same
+without awaiting. Sending SysEx needs `sysex=True`.
+
+Web MIDI doesn't exist in a Web Worker, so a worker gets its MIDI from the
+page over a `MessagePort`, and a few lines of JavaScript on the page relay
+it. Open the worker's end with `webmidi.relay_ports(port)`. The relay's
+messages are plain objects:
+
+| Direction | Message |
+|---|---|
+| page to worker | `{data: Uint8Array, timeStamp: number}`: one whole MIDI message per post, `timeStamp` from its `MIDIMessageEvent` |
+| worker to page | `{data: Uint8Array}`: whole messages to `send()` to the page's output |
+
+Every Web MIDI input keeps the time each message arrived, in milliseconds on
+the `performance.now()` clock. Call `midi_in.take_timestamp()` once for each
+message `receive()` gives you and you get that message's time, or `None` when
+there is none:
+
+```python
+msg = midi.receive()
+if msg is not None:
+    when = midi_in.take_timestamp()
+```
+
+That works because Web MIDI hands over whole messages, one timestamp each.
+The [module docstring](midiports/webmidi.py) has the details.
 
 ## Limits
 

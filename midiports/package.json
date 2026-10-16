@@ -25,6 +25,10 @@
       "github:PyDevices/pydevices/midiports/midiports/linux.py"
     ],
     [
+      "midiports/webmidi.py",
+      "github:PyDevices/pydevices/midiports/midiports/webmidi.py"
+    ],
+    [
       "adafruit_midi/__init__.py",
       "https://raw.githubusercontent.com/adafruit/Adafruit_CircuitPython_MIDI/1.6.0/adafruit_midi/__init__.py"
     ],
