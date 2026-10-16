@@ -18,18 +18,28 @@ keyboard that insists on pairing gets it: the first read that fails for want
 of encryption pairs the link and tries again, and with ``bond=True`` (the
 default) the keys are kept, so the next connect is quick.
 
-**As a device** (peripheral), a board advertises as a BLE keyboard, media
-remote and gamepad, and types, taps and moves what you tell it::
+**As a device** (peripheral), a board advertises as a BLE keyboard, mouse,
+media remote and gamepad. Its :attr:`Peripheral.devices` are CircuitPython's
+``usb_hid.devices`` shape, so Adafruit's ``adafruit_hid`` drives them exactly
+as it drives USB::
 
-    kb = hid.Peripheral(ble)                 # keyboard + consumer + gamepad
-    await kb.serve()                         # waits for a host
-    await kb.keyboard.type("Hello\\n")
-    await kb.consumer.tap(hid.VOLUME_UP)
-    await kb.gamepad.send(axes=(0, 127, 0, 0), buttons=0b101, hat=2)
+    from adafruit_hid.keyboard import Keyboard
+    from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
+    from adafruit_hid.mouse import Mouse
 
-Its name, appearance and Report Map follow from which of the three it
-offers, the same way every time, because hosts cache a device's services
-against its identity.
+    per = hid.Peripheral(ble)                # keyboard, mouse, consumer
+    await per.serve()                        # waits for a host
+    kb = Keyboard(per.devices)
+    KeyboardLayoutUS(kb).write("Hello\n")
+    Mouse(per.devices).move(x=40)
+
+Install ``adafruit_hid`` with ``mip.install("github:PyDevices/pydevices/bledev_hid")``.
+The gamepad, which ``adafruit_hid`` no longer has, is :mod:`bledev.hid_gamepad`.
+
+Its name, appearance and Report Map follow from which functions it offers,
+the same way every time, because hosts cache a device's services against
+its identity. Change the set and a host that paired before must forget the
+board and pair again.
 
 A laptop (bleak) or a browser can't advertise, so they are hosts only.
 Windows keeps HID devices for itself once paired; don't pair a board you are
@@ -92,12 +102,14 @@ INSPECT_SERVICE = UUID("b1ed0000-4849-4400-8000-00805f9b34fb")
 
 APPEARANCE_HID = 0x03C0
 APPEARANCE_KEYBOARD = 0x03C1
+APPEARANCE_MOUSE = 0x03C2
 APPEARANCE_GAMEPAD = 0x03C4
 
-# The report IDs a board serves.
+# The report IDs a board serves: CircuitPython's usb_hid defaults, then the gamepad.
 KEYBOARD_ID = 1
-CONSUMER_ID = 2
-GAMEPAD_ID = 3
+MOUSE_ID = 2
+CONSUMER_ID = 3
+GAMEPAD_ID = 4
 
 # Consumer usages worth a name.
 VOLUME_UP = 0xE9
@@ -117,24 +129,18 @@ MOD_RSHIFT = 0x20
 MOD_RALT = 0x40
 MOD_RGUI = 0x80
 
-KEYBOARD_MAP = bytes((
-    0x05, 0x01, 0x09, 0x06, 0xA1, 0x01, 0x85, KEYBOARD_ID,
-    0x05, 0x07, 0x19, 0xE0, 0x29, 0xE7, 0x15, 0x00, 0x25, 0x01,
-    0x75, 0x01, 0x95, 0x08, 0x81, 0x02,                          # 8 modifier bits
-    0x95, 0x01, 0x75, 0x08, 0x81, 0x01,                          # reserved byte
-    0x95, 0x05, 0x75, 0x01, 0x05, 0x08, 0x19, 0x01, 0x29, 0x05,
-    0x91, 0x02, 0x95, 0x01, 0x75, 0x03, 0x91, 0x01,              # LEDs out
-    0x95, 0x06, 0x75, 0x08, 0x15, 0x00, 0x25, 0x65,
-    0x05, 0x07, 0x19, 0x00, 0x29, 0x65, 0x81, 0x00,              # 6 keys
-    0xC0,
-))
+# Keyboard, mouse and consumer control are CircuitPython's own usb_hid.Device
+# descriptors (shared-module/usb_hid/report_descriptors.c), byte for byte, so
+# adafruit_hid's reports fit them as they fit USB.
+KEYBOARD_MAP = bytes.fromhex(
+    "05010906a1018501050719e029e71500250175019508810295017508810195057501050819012905910295017503910195067508150026ff00050719002aff008100c0"
+)
 
-CONSUMER_MAP = bytes((
-    0x05, 0x0C, 0x09, 0x01, 0xA1, 0x01, 0x85, CONSUMER_ID,
-    0x75, 0x10, 0x95, 0x01, 0x15, 0x01, 0x26, 0x8C, 0x02,
-    0x19, 0x01, 0x2A, 0x8C, 0x02, 0x81, 0x00,                    # one 16-bit usage
-    0xC0,
-))
+MOUSE_MAP = bytes.fromhex(
+    "05010902a1010901a1008502050919012905150025019505750181029501750381010501093009311581257f75089502810609381581257f750895018106c0c0"
+)
+
+CONSUMER_MAP = bytes.fromhex("050c0901a1018503751095011501268c0219012a8c028100c0")
 
 GAMEPAD_MAP = bytes((
     0x05, 0x01, 0x09, 0x05, 0xA1, 0x01, 0x85, GAMEPAD_ID,
@@ -150,69 +156,88 @@ GAMEPAD_MAP = bytes((
 ))
 
 
-def report_map(keyboard=True, consumer=True, gamepad=True):
+def report_map(keyboard=True, mouse=True, consumer=True, gamepad=False):
     """The Report Map a board serves for this set of functions, always the same bytes."""
-    return (KEYBOARD_MAP if keyboard else b"") + (CONSUMER_MAP if consumer else b"") + (GAMEPAD_MAP if gamepad else b"")
+    return ((KEYBOARD_MAP if keyboard else b"") + (MOUSE_MAP if mouse else b"")
+            + (CONSUMER_MAP if consumer else b"") + (GAMEPAD_MAP if gamepad else b""))
 
 
-def identity(keyboard=True, consumer=True, gamepad=True):
+def identity(keyboard=True, mouse=True, consumer=True, gamepad=False):
     """``(name, appearance, product_id)`` for a set of functions, derived the same way every time."""
     parts = []
     if keyboard:
         parts.append("Keyboard")
+    if mouse:
+        parts.append("Mouse")
     if gamepad:
         parts.append("Gamepad")
     if consumer and not keyboard:
         parts.append("Remote")
     name = "PyDevices " + "+".join(parts) if parts else "PyDevices HID"
-    if keyboard and not gamepad:
+    if len(name) > 29:  # longer won't fit even a scan response
+        name = "PyDevices HID"
+    if keyboard and not (mouse or gamepad):
         appearance = APPEARANCE_KEYBOARD
-    elif gamepad and not keyboard and not consumer:
+    elif mouse and not (keyboard or gamepad or consumer):
+        appearance = APPEARANCE_MOUSE
+    elif gamepad and not (keyboard or mouse or consumer):
         appearance = APPEARANCE_GAMEPAD
     else:
         appearance = APPEARANCE_HID
-    product = (1 if keyboard else 0) | (2 if consumer else 0) | (4 if gamepad else 0)
+    product = (1 if keyboard else 0) | (2 if consumer else 0) | (4 if gamepad else 0) | (8 if mouse else 0)
     return name, appearance, product
-
-
-# US layout: character -> (usage, shift).
-def _us_layout():
-    table = {"\n": (0x28, False), "\t": (0x2B, False), " ": (0x2C, False)}
-    for i in range(26):
-        table[chr(ord("a") + i)] = (0x04 + i, False)
-        table[chr(ord("A") + i)] = (0x04 + i, True)
-    for i, (plain, shifted) in enumerate(zip("1234567890", "!@#$%^&*()")):
-        table[plain] = (0x1E + i, False)
-        table[shifted] = (0x1E + i, True)
-    for usage, plain, shifted in (
-        (0x2D, "-", "_"), (0x2E, "=", "+"), (0x2F, "[", "{"), (0x30, "]", "}"),
-        (0x31, "\\", "|"), (0x33, ";", ":"), (0x34, "'", '"'), (0x35, "`", "~"),
-        (0x36, ",", "<"), (0x37, ".", ">"), (0x38, "/", "?"),
-    ):
-        table[plain] = (usage, False)
-        table[shifted] = (usage, True)
-    return table
-
-
-US_LAYOUT = _us_layout()
 
 
 # ---------------------------------------------------------------- the device (peripheral)
 
 
-class _Sender:
-    def __init__(self, owner, characteristic, size):
+#: How long one ``send_report`` keeps retrying a busy radio before it gives up.
+SEND_WAIT_MS = 2000
+
+
+def _sleep_ms_blocking(ms):
+    try:
+        from time import sleep_ms
+    except ImportError:  # CPython
+        from time import sleep
+
+        sleep(ms / 1000)
+    else:
+        sleep_ms(ms)
+
+
+class Device:
+    """One HID function of a :class:`Peripheral`, in CircuitPython's
+    ``usb_hid.Device`` shape: ``usage_page``, ``usage``, ``send_report()``
+    and ``get_last_received_report()``. ``adafruit_hid`` finds it by usage.
+    """
+
+    def __init__(self, owner, characteristic, report_id, usage_page, usage, in_report_length, out_report_length=0):
         self._owner = owner
         self._char = characteristic
-        self._size = size
+        self.report_id = report_id
+        self.usage_page = usage_page
+        self.usage = usage
+        self.in_report_length = in_report_length
+        self.out_report_length = out_report_length
+        self._last_received = None
 
-    async def _send(self, report):
-        report = bytes(report)
-        if len(report) != self._size:
-            raise ValueError("report is {} bytes, not {}".format(len(report), self._size))
+    def send_report(self, report, report_id=None):
+        """Send one input report to the connected host, now.
+
+        It returns once the radio has taken the report. A busy radio is
+        retried for up to :data:`SEND_WAIT_MS`, then raises
+        :class:`~bledev.BusyError`; with no host connected it raises
+        :class:`~bledev.BLEError`.
+        """
+        if report_id is not None and report_id != self.report_id:
+            raise ValueError("report_id {} is not this device's ({})".format(report_id, self.report_id))
+        if len(report) != self.in_report_length:
+            raise ValueError("report is {} bytes, not {}".format(len(report), self.in_report_length))
         conn = self._owner.connection
         if conn is None or not conn.is_connected():
             raise BLEError("no host connected")
+        report = bytes(report)
         self._char.write(report)
         waited = 0
         while True:
@@ -221,60 +246,25 @@ class _Sender:
                 self._owner.last_send_us = ticks_us()
                 return
             except BusyError:
-                if waited >= 2000:
+                if waited >= SEND_WAIT_MS or not conn.is_connected():
                     raise
-                await sleep_ms(2)
-                waited += 2
+                _sleep_ms_blocking(1)
+                waited += 1
 
-
-class Keyboard(_Sender):
-    """The keyboard half of a :class:`Peripheral`. Usages are HID keyboard usages."""
-
-    async def send(self, modifiers=0, keys=()):
-        """Send one report: ``modifiers`` bits held, and up to six usages held."""
-        keys = list(keys)[:6]
-        await self._send(bytes([modifiers, 0] + keys + [0] * (6 - len(keys))))
-
-    async def tap(self, usage, modifiers=0, hold_ms=0):
-        """Press and release one key (with ``modifiers`` held around it)."""
-        await self.send(modifiers, (usage,))
-        if hold_ms:
-            await sleep_ms(hold_ms)
-        await self.send(0, ())
-
-    async def type(self, text, gap_ms=0):
-        """Type ``text`` on a US layout: each character a press and a release."""
-        for ch in text:
-            usage, shift = US_LAYOUT[ch]
-            await self.tap(usage, MOD_LSHIFT if shift else 0)
-            if gap_ms:
-                await sleep_ms(gap_ms)
-
-
-class Consumer(_Sender):
-    """Media keys: consumer-page usages such as :data:`VOLUME_UP`."""
-
-    async def send(self, usage=0):
-        await self._send(struct.pack("<H", usage))
-
-    async def tap(self, usage, hold_ms=0):
-        await self.send(usage)
-        if hold_ms:
-            await sleep_ms(hold_ms)
-        await self.send(0)
-
-
-class Gamepad(_Sender):
-    """Sixteen buttons, one hat and four axes (X, Y, Z, Rz) from -127 to 127."""
-
-    async def send(self, axes=(0, 0, 0, 0), buttons=0, hat=None):
-        """``buttons`` is a bit mask (bit 0 is button 0); ``hat`` 0..7 clockwise from north, or None."""
-        x, y, z, rz = axes
-        await self._send(struct.pack("<HBbbbb", buttons & 0xFFFF, 0 if hat is None else hat + 1, x, y, z, rz))
+    def get_last_received_report(self, report_id=None):
+        """The last output report the host wrote (the keyboard's LEDs), or None."""
+        if report_id is not None and report_id != self.report_id:
+            raise ValueError("report_id {} is not this device's ({})".format(report_id, self.report_id))
+        return self._last_received
 
 
 class Peripheral:
-    """A board that is a BLE keyboard, media remote and gamepad (any of the three).
+    """A board that is a BLE keyboard, mouse, media remote and gamepad (any of them).
+
+    :attr:`devices` lists one :class:`Device` per function, in that order,
+    for ``adafruit_hid`` (``Keyboard(per.devices)``, ``Mouse(per.devices)``,
+    ``ConsumerControl(per.devices)``) and :mod:`bledev.hid_gamepad`. The
+    default set is ``usb_hid``'s: keyboard, mouse and consumer control.
 
     ``encrypted=True`` serves the Report Map and reports only to a host that
     has paired, as real keyboards do; the host pairs "just works". Call
@@ -285,15 +275,15 @@ class Peripheral:
     treat the board as a keyboard then).
     """
 
-    def __init__(self, ble, *, keyboard=True, consumer=True, gamepad=True,
+    def __init__(self, ble, *, keyboard=True, mouse=True, consumer=True, gamepad=False,
                  name=None, encrypted=False, battery=100, manufacturer="PyDevices",
                  service_uuid=HID_SERVICE):
-        if not (keyboard or consumer or gamepad):
+        if not (keyboard or mouse or consumer or gamepad):
             raise ValueError("a HID peripheral needs at least one function")
         self.ble = ble
-        default_name, self.appearance, product = identity(keyboard, consumer, gamepad)
+        default_name, self.appearance, product = identity(keyboard, mouse, consumer, gamepad)
         self.name = name or default_name
-        self.report_map = report_map(keyboard, consumer, gamepad)
+        self.report_map = report_map(keyboard, mouse, consumer, gamepad)
         self.connection = None
         self.last_send_us = None
         self._leds = []
@@ -305,19 +295,23 @@ class Peripheral:
         Characteristic(hid, HID_INFORMATION, read=True, initial=b"\x11\x01\x00\x02")
         Characteristic(hid, REPORT_MAP, read=True, initial=self.report_map, encrypted=encrypted)
         Characteristic(hid, HID_CONTROL_POINT, write_no_response=True, max_len=1)
-        self.keyboard = self.consumer = self.gamepad = None
+        devices = []
+        self.keyboard = None
+        self._led_char = None
         if keyboard:
-            c = self._report(hid, KEYBOARD_ID, 8, encrypted)
-            self.keyboard = Keyboard(self, c, 8)
+            self.keyboard = Device(self, self._report(hid, KEYBOARD_ID, 8, encrypted), KEYBOARD_ID, 0x01, 0x06, 8, 1)
+            devices.append(self.keyboard)
             self._led_char = Characteristic(hid, REPORT, read=True, write=True, write_no_response=True,
                                             initial=b"\x00", capture=True, max_len=1, encrypted=encrypted)
             Descriptor(self._led_char, REPORT_REFERENCE, bytes((KEYBOARD_ID, OUTPUT)))
-        else:
-            self._led_char = None
+        if mouse:
+            devices.append(Device(self, self._report(hid, MOUSE_ID, 4, encrypted), MOUSE_ID, 0x01, 0x02, 4))
         if consumer:
-            self.consumer = Consumer(self, self._report(hid, CONSUMER_ID, 2, encrypted), 2)
+            devices.append(Device(self, self._report(hid, CONSUMER_ID, 2, encrypted), CONSUMER_ID, 0x0C, 0x01, 2))
         if gamepad:
-            self.gamepad = Gamepad(self, self._report(hid, GAMEPAD_ID, 7, encrypted), 7)
+            devices.append(Device(self, self._report(hid, GAMEPAD_ID, 7, encrypted), GAMEPAD_ID, 0x01, 0x05, 7))
+        #: One :class:`Device` per function, as ``usb_hid.devices`` lists them.
+        self.devices = tuple(devices)
         battery_svc = Service(BATTERY_SERVICE)
         self.battery = Characteristic(battery_svc, BATTERY_LEVEL, read=True, notify=True, initial=bytes((battery,)))
         info = Service(DEVICE_INFORMATION)
@@ -353,11 +347,14 @@ class Peripheral:
             except BLEError:
                 await sleep_ms(10)
                 continue
-            self._leds.append((ticks_us(), bytes(data)))
+            data = bytes(data)
+            self.keyboard._last_received = data
+            self._leds.append((ticks_us(), data))
             self._leds_flag.set()
 
     async def leds(self, timeout_ms=None):
-        """The next LED report the host writes, as ``(ticks_us, data)``."""
+        """The next LED report the host writes, as ``(ticks_us, data)``.
+        ``devices``' keyboard keeps the last one for ``adafruit_hid`` too."""
         while not self._leds:
             self._leds_flag.clear()
             await wait_ms(self._leds_flag.wait(), timeout_ms, "leds")

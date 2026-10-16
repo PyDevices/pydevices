@@ -5,8 +5,10 @@
 
 Shared by the fake-radio check (``tests/bledev_hid_checks.py``) and the
 board-to-board gate (``hid_peripheral.py`` / ``hid_central.py``). The
-peripheral :func:`perform`\\ s ``STEPS``; the central collects its events and
-compares them with :func:`expected`.
+peripheral :func:`perform`\\ s ``STEPS`` through Adafruit's ``adafruit_hid``
+(``Keyboard``, ``KeyboardLayoutUS``, ``Mouse``, ``ConsumerControl``) and
+:mod:`bledev.hid_gamepad`, over the peripheral's ``devices``; the central
+collects its events and compares them with :func:`expected`.
 
 :func:`expected` is written from the rules in ``docs/bledev.md``, not from
 ``bledev.hidreport``: it builds each event by hand (the usbif chord order,
@@ -27,6 +29,9 @@ STEPS = (
     ("chord", 0x40 | 0x02, 0x3E),     # Right Alt + Left Shift + F5
     ("consumer", 0xE9),               # volume up
     ("consumer", 0xCD),               # play/pause
+    ("mouse", 40, -12, 0),            # move right and up
+    ("click", 1),                     # left button
+    ("mouse", -5, 7, 1),              # move back a little, wheel one notch away
     ("pad", (0, 0, 0, 0), 0x0001, None),
     ("pad", (127, -127, 0, 0), 0x0001, 0),
     ("pad", (64, -127, -64, 5), 0x8003, 3),
@@ -89,24 +94,44 @@ _HAT = ((0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1))
 CONSUMER_KEYS = {0xE9: keys.K_VOLUMEUP, 0xCD: keys.K_AUDIOPLAY}
 
 
-def expected(steps=STEPS, instance_id=0):
+def expected(steps=STEPS, instance_id=0, has_gamepad=True):
     out = []
+    pos = (0, 0)
     axes = [0.0] * 4
     buttons = 0
     hat = (0, 0)
     for step in steps:
         kind = step[0]
         if kind == "type":
+            # adafruit_hid's KeyboardLayoutUS presses Shift in a report of its
+            # own, then the key, then releases both in one report.
             for ch in step[1]:
                 plain, shift = _plain(ch)
-                out += _chord(0x02 if shift else 0, _USAGE[plain])
+                code, usage = _code(_USAGE[plain]), _USAGE[plain]
+                if shift:
+                    out.append(_key(events.KEYDOWN, keys.K_LSHIFT, keys.KMOD_LSHIFT, 0xE1))
+                    out.append(_key(events.KEYDOWN, code, keys.KMOD_LSHIFT, usage))
+                    out.append(_key(events.KEYUP, keys.K_LSHIFT, 0, 0xE1))
+                else:
+                    out.append(_key(events.KEYDOWN, code, 0, usage))
+                out.append(_key(events.KEYUP, code, 0, usage))
         elif kind == "chord":
             out += _chord(step[1], step[2])
         elif kind == "consumer":
             u = step[1]
             out.append(_key(events.KEYDOWN, CONSUMER_KEYS[u], 0, 0x000C0000 | u))
             out.append(_key(events.KEYUP, CONSUMER_KEYS[u], 0, 0x000C0000 | u))
-        elif kind == "pad":
+        elif kind == "mouse":
+            dx, dy, wheel = step[1], step[2], step[3]
+            if dx or dy:
+                pos = (pos[0] + dx, pos[1] + dy)
+                out.append(events.Motion(events.MOUSEMOTION, pos, (dx, dy), (0, 0, 0), False, None))
+            if wheel:
+                out.append(events.Wheel(events.MOUSEWHEEL, False, 0, wheel, 0.0, float(wheel), False, None))
+        elif kind == "click":
+            out.append(events.Button(events.MOUSEBUTTONDOWN, pos, step[1], False, None))
+            out.append(events.Button(events.MOUSEBUTTONUP, pos, step[1], False, None))
+        elif kind == "pad" and has_gamepad:
             new_axes, new_buttons, new_hat = step[1], step[2], step[3]
             for i in range(4):
                 v = 2.0 * (new_axes[i] + 127) / 254 - 1.0
@@ -150,20 +175,62 @@ def typed_text(evs):
     return text
 
 
+# adafruit_hid's Keycode values for the chords' modifier bits.
+_MOD_KEYCODES = ((0x01, 0xE0), (0x02, 0xE1), (0x04, 0xE2), (0x08, 0xE3),
+                 (0x10, 0xE4), (0x20, 0xE5), (0x40, 0xE6), (0x80, 0xE7))
+
+
 async def perform(peripheral, steps=STEPS, gap_ms=0, sleep_ms=None):
-    """Send ``steps`` from a :class:`bledev.hid.Peripheral`."""
+    """Send ``steps`` from a :class:`bledev.hid.Peripheral`'s ``devices``,
+    through ``adafruit_hid`` as a CircuitPython script would over USB."""
+    from adafruit_hid.consumer_control import ConsumerControl
+    from adafruit_hid.keyboard import Keyboard
+    from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
+    from adafruit_hid.mouse import Mouse
+
+    devices = peripheral.devices
+    kb = Keyboard(devices)
+    layout = KeyboardLayoutUS(kb)
+    cc = ConsumerControl(devices)
+    mouse = Mouse(devices)
+    gamepad = None
+    if any(d.usage_page == 0x01 and d.usage == 0x05 for d in devices):
+        from bledev.hid_gamepad import Gamepad
+
+        gamepad = Gamepad(devices)
     for step in steps:
         kind = step[0]
         if kind == "type":
-            await peripheral.keyboard.type(step[1], gap_ms)
+            if gap_ms and sleep_ms is not None:
+                for ch in step[1]:
+                    layout.write(ch)
+                    await sleep_ms(gap_ms)
+            else:
+                layout.write(step[1])
         elif kind == "chord":
-            await peripheral.keyboard.tap(step[2], step[1])
+            kb.send(*([kc for bit, kc in _MOD_KEYCODES if step[1] & bit] + [step[2]]))
         elif kind == "consumer":
-            await peripheral.consumer.tap(step[1])
+            cc.send(step[1])
+        elif kind == "mouse":
+            mouse.move(x=step[1], y=step[2], wheel=step[3])
+        elif kind == "click":
+            mouse.click(step[1])
         elif kind == "pad":
-            await peripheral.gamepad.send(axes=step[1], buttons=step[2], hat=step[3])
+            if gamepad is not None:
+                axes = step[1]
+                gamepad.set(buttons=step[2], hat=step[3], x=axes[0], y=axes[1], z=axes[2], r_z=axes[3])
         if gap_ms and sleep_ms is not None:
             await sleep_ms(gap_ms)
+        elif sleep_ms is None:
+            await _yield()
+
+
+async def _yield():
+    try:
+        import asyncio
+    except ImportError:  # pragma: no cover
+        import uasyncio as asyncio
+    await asyncio.sleep(0)
 
 
 def compare(got, want):

@@ -23,6 +23,7 @@ import hid_script
 
 PLANT = False
 ENCRYPTED = False
+GAMEPAD = False  # serve the gamepad as a fourth device, and play the script's pad steps
 INSPECT = False  # serve under hid.INSPECT_SERVICE, for a laptop (Windows hides 0x1812)
 LATENCY_N = 200
 GAP_MS = 0  # pause after each character or step; 0 sends as fast as the radio takes it
@@ -69,11 +70,11 @@ async def one_host(per):
     await per.leds(30000)
     rtt = []
     for i in range(LATENCY_N):
-        await per.keyboard.send(0, (0x04,))
+        per.devices[0].send_report(b"\x00\x00\x04\x00\x00\x00\x00\x00")
         start = per.last_send_us
         t, _ = await per.leds(5000)
         rtt.append(time.ticks_diff(t, start))
-        await per.keyboard.send(0, ())
+        per.devices[0].send_report(bytes(8))
         await asyncio.sleep_ms(20)
     log("round trip, press to the host's LED write:", stats(rtt))
     await conn.disconnected(60000)
@@ -90,7 +91,7 @@ async def main():
     ble = bledev.mpble.get()
     if ENCRYPTED:
         ble.enable_bonding()
-    per = hid.Peripheral(ble, name=NAME, encrypted=ENCRYPTED,
+    per = hid.Peripheral(ble, name=NAME, encrypted=ENCRYPTED, gamepad=GAMEPAD,
                          service_uuid=hid.INSPECT_SERVICE if INSPECT else hid.HID_SERVICE)
     log("advertising as", per.name, "appearance", hex(per.appearance), "plant", PLANT, "gap_ms", GAP_MS,
         "encrypted", ENCRYPTED, "inspect", INSPECT, "map", len(per.report_map), "bytes")

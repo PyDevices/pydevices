@@ -24,6 +24,12 @@ _sep = "\\" if "\\" in _here else "/"
 _dir = _here.rsplit(_sep, 1)[0] if _sep in _here else "."
 sys.path.insert(0, _dir + _sep + ".." + _sep + "lib")
 sys.path.insert(0, _dir + _sep + "bledev_board")
+# --adafruit=DIR: adafruit_hid as bledev_hid's package file installs it, and
+# shims a desktop interpreter needs, appended so a real module wins.
+for _a in sys.argv[1:]:
+    if _a.startswith("--adafruit="):
+        sys.path.insert(0, _a[len("--adafruit="):])
+        sys.path.append(_a[len("--adafruit="):] + _sep + "shims")
 
 try:
     import asyncio
@@ -50,7 +56,12 @@ def equal(got, want, what):
 
 
 async def _pair_up(air, *, encrypted=False, central_kw=None, peripheral_kw=None, **pkw):
-    board = FakeBLE(air=air, mtu=247, **(peripheral_kw or {}))
+    # adafruit_hid sends synchronously, and the fake frees a notification
+    # buffer only when the event loop turns (a controller frees them in its
+    # own task), so the board gets room for a whole script.
+    peripheral_kw = dict(peripheral_kw or {})
+    peripheral_kw.setdefault("notify_buffers", 512)
+    board = FakeBLE(air=air, mtu=247, **peripheral_kw)
     host_ble = FakeBLE(air=air, mtu=247, **(central_kw or {}))
     per = hid.Peripheral(board, encrypted=encrypted, **pkw)
     serving = asyncio.create_task(per.serve())
@@ -67,20 +78,79 @@ async def _collect(host, n, timeout_ms=3000):
 
 
 async def c_served_map_parses(air):
-    # Our own map, by hand: keyboard 8 bytes, consumer 2, gamepad 16 + 4 + 4 + 32 bits = 7.
+    # Our own map, by hand: CircuitPython's keyboard (8 bytes in, 1 out),
+    # mouse (4) and consumer control (2), then the gamepad when asked for (7).
     m = ReportMap(hid.report_map())
-    equal(m.applications, [0x00010006, 0x000C0001, 0x00010005], "applications")
-    equal([(r.report_id, r.size) for r in m.inputs()], [(1, 8), (2, 2), (3, 7)], "input reports")
+    equal(m.applications, [0x00010006, 0x00010002, 0x000C0001], "applications")
+    equal([(r.report_id, r.size) for r in m.inputs()], [(1, 8), (2, 4), (3, 2)], "input reports")
     equal(m.report(OUTPUT, 1).size, 1, "LED report")
-    equal(hid.identity(), ("PyDevices Keyboard+Gamepad", 0x03C0, 7), "identity, all three")
-    equal(hid.identity(True, False, False), ("PyDevices Keyboard", 0x03C1, 1), "identity, keyboard")
-    equal(hid.identity(False, False, True), ("PyDevices Gamepad", 0x03C4, 4), "identity, gamepad")
-    equal(hid.identity(False, True, False), ("PyDevices Remote", 0x03C0, 2), "identity, remote")
+    m = ReportMap(hid.report_map(gamepad=True))
+    equal([(r.report_id, r.size) for r in m.inputs()], [(1, 8), (2, 4), (3, 2), (4, 7)], "with the gamepad")
+    equal(hid.identity(), ("PyDevices Keyboard+Mouse", 0x03C0, 11), "identity, the default three")
+    equal(hid.identity(True, False, False, False), ("PyDevices Keyboard", 0x03C1, 1), "identity, keyboard")
+    equal(hid.identity(False, True, False, False), ("PyDevices Mouse", 0x03C2, 8), "identity, mouse")
+    equal(hid.identity(False, False, False, True), ("PyDevices Gamepad", 0x03C4, 4), "identity, gamepad")
+    equal(hid.identity(False, False, True, False), ("PyDevices Remote", 0x03C0, 2), "identity, remote")
+    equal(hid.identity(True, True, True, True), ("PyDevices HID", 0x03C0, 15), "identity, all four: too long a name")
+
+
+async def c_devices_have_usb_hids_shape(air):
+    board = FakeBLE(air=air, mtu=247)
+    per = hid.Peripheral(board, gamepad=True)
+    got = [(d.usage_page, d.usage, d.report_id, d.in_report_length) for d in per.devices]
+    equal(got, [(1, 6, 1, 8), (1, 2, 2, 4), (12, 1, 3, 2), (1, 5, 4, 7)], "devices")
+    from adafruit_hid.keyboard import Keyboard
+    from adafruit_hid.mouse import Mouse
+
+    equal(Keyboard(per.devices)._keyboard_device is per.devices[0], True, "adafruit_hid finds the keyboard")
+    equal(Mouse(per.devices)._mouse_device is per.devices[1], True, "adafruit_hid finds the mouse")
+    try:
+        per.devices[0].send_report(bytes(8))
+    except BLEError:
+        pass
+    else:
+        raise Failed("a report was sent with no host connected")
+    for bad in ((bytes(7), None), (bytes(8), 2)):
+        try:
+            per.devices[0].send_report(*bad)
+        except (ValueError, BLEError):
+            pass
+        else:
+            raise Failed("send_report took {!r}".format(bad))
+
+
+async def c_led_report_reaches_the_device(air):
+    board, host_ble, per, host = await _pair_up(air)
+    await per.leds(2000)  # the host writes the LEDs once it has subscribed
+    await host.set_leds(0x02)  # Caps Lock
+    t, data = await per.leds(2000)
+    equal(per.devices[0].get_last_received_report(), data, "get_last_received_report()")
+    equal(data[0] & 0x02, 0x02, "Caps Lock's bit")
+    from adafruit_hid.keyboard import Keyboard
+
+    equal(Keyboard(per.devices).led_on(Keyboard.LED_CAPS_LOCK), True, "adafruit_hid reads it")
+    await host.close()
+
+
+async def c_a_busy_radio_gives_up(air):
+    board, host_ble, per, host = await _pair_up(air, peripheral_kw={"notify_buffers": 2})
+    old = hid.SEND_WAIT_MS
+    hid.SEND_WAIT_MS = 20
+    try:
+        for _ in range(3):
+            per.devices[2].send_report(b"\xe9\x00")
+    except bledev.BusyError:
+        pass
+    else:
+        raise Failed("a radio that stays busy didn't stop send_report")
+    finally:
+        hid.SEND_WAIT_MS = old
+    await host.close()
 
 
 async def c_script_round_trip(air):
     board, host_ble, per, host = await _pair_up(air)
-    want = hid_script.expected()
+    want = hid_script.expected(has_gamepad=False)
     await per.leds(2000)  # the host writes the LEDs once it has subscribed
     await hid_script.perform(per)
     got = await _collect(host, len(want))
@@ -98,7 +168,8 @@ async def c_encrypted_pairs_and_bonds(air):
     equal(host.paired, True, "the host had to pair")
     check_bond = board.address in host_ble.bonds and host_ble.address in board.bonds
     equal(check_bond, True, "both sides bonded")
-    await per.keyboard.tap(0x04)
+    per.devices[0].send_report(b"\x00\x00\x04\x00\x00\x00\x00\x00")
+    per.devices[0].send_report(bytes(8))
     got = await _collect(host, 2)
     equal([e.key for e in got], [ord("a"), ord("a")], "a key through an encrypted link")
     await host.close()
@@ -163,9 +234,26 @@ async def c_disconnect_ends_events(air):
         raise Failed("events() didn't end on a disconnect")
 
 
+async def c_gamepad_round_trip(air):
+    board, host_ble, per, host = await _pair_up(air, gamepad=True)
+    steps = [st for st in hid_script.STEPS if st[0] == "pad"]
+    want = hid_script.expected(steps)
+    await per.leds(2000)
+    await hid_script.perform(per, steps)
+    got = await _collect(host, len(want))
+    problem = hid_script.compare(got, want)
+    if problem:
+        raise Failed(problem)
+    await host.close()
+
+
 TESTS = [
     c_served_map_parses,
+    c_devices_have_usb_hids_shape,
+    c_led_report_reaches_the_device,
+    c_a_busy_radio_gives_up,
     c_script_round_trip,
+    c_gamepad_round_trip,
     c_encrypted_pairs_and_bonds,
     c_unpaired_read_refused,
     c_short_read_host_says_why,
@@ -190,12 +278,24 @@ def _plant(name):
         fake._Inbox.put = put
     elif name == "shift_lost":
         # The peripheral forgets Shift.
-        orig = hid.Keyboard.send
+        orig = hid.Device.send_report
 
-        async def send(self, modifiers=0, keys=()):
-            await orig(self, modifiers & ~0x02, keys)
+        def send_report(self, report, report_id=None):
+            if self.usage == 0x06:
+                report = bytes((report[0] & ~0x02,)) + bytes(report[1:])
+            orig(self, report, report_id)
 
-        hid.Keyboard.send = send
+        hid.Device.send_report = send_report
+    elif name == "shift_lost_host":
+        # The host's decoder forgets Shift.
+        orig = hidreport.Decoder.feed
+
+        def feed(self, data, report_id=None):
+            if report_id == hid.KEYBOARD_ID and data:
+                data = bytes((data[0] & ~0x02,)) + bytes(data[1:])
+            return orig(self, data, report_id)
+
+        hidreport.Decoder.feed = feed
     elif name == "axis_sign":
         # The decoder reads axes unsigned.
         orig = hidreport.Field.raw
