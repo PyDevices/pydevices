@@ -1,3 +1,6 @@
+## v0.7.5 (2026-10-16)
+
+
 ## v0.7.5.dev4 (2026-10-15)
 
 - win_audio: write_now() writes one block straight to the WASAPI device (#218)
