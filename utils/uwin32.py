@@ -41,6 +41,7 @@ CW_USEDEFAULT = -2147483648
 IDC_ARROW = 32512
 COLOR_WINDOW = 5
 SW_SHOW = 5
+SW_MAXIMIZE = 3
 SW_HIDE = 0
 PM_REMOVE = 0x0001
 ERROR_CLASS_ALREADY_EXISTS = 1410
@@ -49,6 +50,7 @@ WS_OVERLAPPED = 0x00000000
 WS_CAPTION = 0x00C00000
 WS_SYSMENU = 0x00080000
 WS_MINIMIZEBOX = 0x00020000
+WS_MAXIMIZEBOX = 0x00010000
 WS_VISIBLE = 0x10000000
 WS_CLIPCHILDREN = 0x02000000
 WS_CLIPSIBLINGS = 0x04000000
@@ -118,6 +120,11 @@ BI_BITFIELDS = 3
 DIB_RGB_COLORS = 0
 SRCCOPY = 0x00CC0020
 SPI_GETWORKAREA = 0x0030
+# DPI_AWARENESS_CONTEXT handles are small negative pseudo-handles.
+DPI_AWARENESS_CONTEXT_UNAWARE = -1
+DPI_AWARENESS_CONTEXT_SYSTEM_AWARE = -2
+DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE = -3
+DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
 CLR_INVALID = 0xFFFFFFFF
 
 # RGB565 channel masks for a BI_BITFIELDS DIB (little-endian WORD per pixel).
@@ -1364,7 +1371,20 @@ else:
         fn = proto(_vtbl(punk)[index])
         return fn(punk, *args)
 
-    memmove = ctypes.memmove
+    def memmove(dst, src, count):
+        """``ctypes.memmove`` that also takes a bytearray or memoryview source.
+
+        ctypes only converts ``bytes`` (and addresses) to a pointer; anything
+        else raises TypeError. A writable buffer is passed in place, with no
+        copy; a read-only one other than ``bytes`` is copied first.
+        """
+        if not isinstance(src, (bytes, int)):
+            try:
+                src = (ctypes.c_char * memoryview(src).nbytes).from_buffer(src)
+            except TypeError:
+                src = bytes(src)
+        return ctypes.memmove(dst, src, count)
+
     string_at = ctypes.string_at
 
 
@@ -1698,6 +1718,39 @@ def SystemParametersInfoW_GETWORKAREA():
     if w <= 0 or h <= 0:
         return 0, 0, 0, 0
     return int(rect.left), int(rect.top), w, h
+
+
+def SetProcessDpiAwarenessContext(context=DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2):
+    """Declare the process's DPI awareness.
+
+    Returns True when this call set it, and False when Windows refused, which
+    it does once the process has already declared one (in its manifest or with
+    an earlier call): that earlier choice stands. Returns None when this
+    Windows has no such call (before Windows 10 1703); it is bound on first
+    use, so the module still imports there.
+    """
+    try:
+        if _use_ffi:
+            fn = user32.func("i", "SetProcessDpiAwarenessContext", "P")
+        else:
+            fn = user32.SetProcessDpiAwarenessContext
+            fn.argtypes = [c_void_p]
+            fn.restype = BOOL
+    except (AttributeError, OSError, TypeError, ValueError):
+        return None
+    if _use_ffi:
+        return bool(fn(int(context)))
+    return bool(fn(c_void_p(int(context))))
+
+
+def SetProcessDPIAware():
+    """System-wide DPI awareness, for Windows older than 10 1703."""
+    try:
+        if _use_ffi:
+            return bool(user32.func("i", "SetProcessDPIAware", "")())
+        return bool(user32.SetProcessDPIAware())
+    except (AttributeError, OSError):
+        return False
 
 
 def bmi_bgra(width, height):

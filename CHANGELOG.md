@@ -1,3 +1,35 @@
+## v0.7.5 (2026-10-16)
+
+
+## v0.7.5.dev4 (2026-10-15)
+
+- win_audio: write_now() writes one block straight to the WASAPI device (#218)
+- WinDisplay: open maximised, the panel exactly the window's client area (#217)
+- WinDisplay: measure and draw in real pixels on a scaled display (#216)
+
+## v0.7.5.dev3 (2026-10-15)
+
+- web input: Caps Lock reaches LVGL text fields (#214)
+
+## v0.7.5.dev2 (2026-10-15)
+
+- display_driver: let LVGL hover with a mouse (#212)
+
+## v0.7.5.dev1 (2026-10-15)
+
+- displaydev: one-call canvas blits, and WorkerDisplay for Python in a Web Worker (#207)
+- audiodev.worklet_audio: AudioWorklet output for Python in a Pyodide Web Worker (#209)
+- web_audio: convert each write's PCM16 to float in one JS call, not sample by sample in Python (#206)
+- T-Watch S3: switch off unused power rails, power the radio, amplifier and haptic driver only while used, and wake on USB (#202)
+- Roadmap: MIDI follows adafruit_midi's API over any transport; bledev's MIDI and HID ends meet Adafruit's (#205)
+- mdns moves to pydevices-desktop: CircuitPython's mdns API over python-zeroconf (#204)
+- audiodev: play a VorbisDecoder through the pump's prefetcher, as an MP3 (#203)
+- multimer: Ctrl-C after a long timer callback ends the program; no stray tracebacks (#201)
+- sys.exit() or Ctrl-C from a timer callback now ends the program every time (#200)
+- Fix an intermittent multimer test failure when the machine is short of CPU (#199)
+- test_multimer: count the pending source's post-stall burst against the elapsed grid (#198)
+- appdev: App.on_quit() adds a callback to run at quit, without replacing before_quit or another one (#197)
+
 ## v0.7.4 (2026-10-12)
 
 - appdev: revert switchable apps (App.scope, AppScope, appdev.launcher); they're likely to return as a package built on appdev rather than inside it (#194)

@@ -32,7 +32,7 @@ class TestNeedsRefresh(unittest.TestCase):
 
         self.assertFalse(DisplayDriver.needs_refresh)
 
-        for module_name in ("sdldisplay", "pgdisplay", "jndisplay", "psdisplay"):
+        for module_name in ("sdldisplay", "pgdisplay", "jndisplay", "psdisplay", "workerdisplay"):
             self.assertTrue(
                 _module_sets_needs_refresh(module_name),
                 module_name,

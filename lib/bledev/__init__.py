@@ -374,8 +374,10 @@ class BLE:
 
         ``backend`` (its module name), ``central`` and ``peripheral`` (which
         roles it can take), ``mtu`` (the ATT MTU it asks for), ``max_mtu``,
-        ``indicate``, ``pairing`` and ``l2cap`` (bools), and ``long_read``:
-        whether a read returns values longer than one packet (``mtu - 1``).
+        ``indicate``, ``pairing`` and ``l2cap`` (bools), ``long_read``:
+        whether a read returns values longer than one packet (``mtu - 1``),
+        and ``write_notifies``: whether setting a served characteristic's
+        value already notifies its subscribers (CircuitPython's ``_bleio``).
         """
         return {
             "backend": self.backend,
@@ -385,6 +387,7 @@ class BLE:
             "max_mtu": DEFAULT_MTU,
             "indicate": False,
             "pairing": False,
+            "write_notifies": False,
             "l2cap": False,
             "long_read": True,
         }

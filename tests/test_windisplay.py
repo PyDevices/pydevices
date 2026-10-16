@@ -25,12 +25,29 @@ def _fake_uwin32():
             "WM_DESTROY WM_CLOSE WM_QUIT WM_PAINT WM_KEYDOWN WM_KEYUP WM_SYSKEYDOWN "
             "WM_SYSKEYUP WM_MOUSEMOVE WM_LBUTTONDOWN WM_LBUTTONUP WM_RBUTTONDOWN "
             "WM_RBUTTONUP WM_MBUTTONDOWN WM_MBUTTONUP WM_MOUSEWHEEL WM_MOUSEHWHEEL "
-            "MK_LBUTTON MK_RBUTTON MK_MBUTTON WHEEL_DELTA"
+            "MK_LBUTTON MK_RBUTTON MK_MBUTTON WHEEL_DELTA WS_MAXIMIZEBOX WS_VISIBLE "
+            "SW_SHOW SW_MAXIMIZE"
         ).split()
     ):
         setattr(m, name, 1 << i)
 
     m.presents = []
+    # Order of the calls that have to happen in sequence: DPI awareness first,
+    # then anything that measures the screen or makes a window.
+    m.calls = []
+    m.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
+    m.dpi_result = True
+
+    def SetProcessDpiAwarenessContext(context):
+        m.calls.append(("SetProcessDpiAwarenessContext", context))
+        return m.dpi_result
+
+    def SetProcessDPIAware():
+        m.calls.append(("SetProcessDPIAware",))
+        return True
+
+    m.SetProcessDpiAwarenessContext = SetProcessDpiAwarenessContext
+    m.SetProcessDPIAware = SetProcessDPIAware
 
     class _BMIHeader:
         def __init__(self):
@@ -76,14 +93,43 @@ def _fake_uwin32():
     m.GetDC = lambda hwnd: 0xD0
     m.ReleaseDC = lambda hwnd, hdc: 1
     m.DestroyWindow = lambda hwnd: 1
-    m.ShowWindow = lambda hwnd: 1
+    m.shows = []
+
+    def ShowWindow(hwnd, cmd=None):
+        m.shows.append(cmd)
+        return 1
+
+    m.ShowWindow = ShowWindow
     m.SetWindowPos = lambda *a: 1
-    m.CreateWindowExW = lambda *a: 0xABCD
+
+    m.created = []
+    m.client = None  # what GetClientRect reports; None: the size created
+
+    def CreateWindowExW(*a):
+        m.calls.append(("CreateWindowExW",))
+        m.created.append(a)
+        return 0xABCD
+
+    def GetClientRect(hwnd):
+        if m.client is not None:
+            return (0, 0) + tuple(m.client)
+        outer_w, outer_h = m.created[-1][6], m.created[-1][7]
+        return (0, 0, outer_w - 16, outer_h - 39)
+
+    m.GetClientRect = GetClientRect
+
+    m.CreateWindowExW = CreateWindowExW
     m.RegisterClassExW = lambda c: 1
     m.GetModuleHandleW = lambda *a: 0
     m.LoadCursorW = lambda *a: 0
     m.AdjustWindowRectEx = lambda w, h, style: (w + 16, h + 39)
-    m.SystemParametersInfoW_GETWORKAREA = lambda: (0, 0, 1920, 1080)
+    m.work_area = (0, 0, 1920, 1080)
+
+    def SystemParametersInfoW_GETWORKAREA():
+        m.calls.append(("GETWORKAREA",))
+        return m.work_area
+
+    m.SystemParametersInfoW_GETWORKAREA = SystemParametersInfoW_GETWORKAREA
     m.sizeof = lambda o: 80
     m.WNDPROC = lambda fn: fn
     m.WNDCLASSEXW = lambda: types.SimpleNamespace()
@@ -105,6 +151,11 @@ class _WinDisplayTest(unittest.TestCase):
                 del sys.modules[k]
         self.win = _fake_uwin32()
         sys.modules["uwin32"] = self.win
+        import displaydev._desktop as desktop
+
+        # On Windows desktop_work_area() asks uwin32; send it there on every
+        # host, so the fake sees the measurement where Windows would.
+        desktop.desktop_work_area = lambda display_index=0: self.win.SystemParametersInfoW_GETWORKAREA()
         from displaydev.windisplay import WinDisplay
 
         self.WinDisplay = WinDisplay
@@ -148,6 +199,124 @@ class TestGeometryValidation(_WinDisplayTest):
         # The BGRA staging buffer and the composed copy are both gone.
         self.assertFalse(hasattr(self.d, "_bgra"))
         self.assertFalse(hasattr(self.d, "_visible"))
+
+
+class TestDpiAwareness(_WinDisplayTest):
+    """The work area and the window are only in real pixels when the process
+    is DPI aware before either is touched."""
+
+    def names(self):
+        return [c[0] for c in self.win.calls]
+
+    def test_declared_per_monitor_v2_before_measuring_or_opening(self):
+        names = self.names()
+        self.assertIn(("SetProcessDpiAwarenessContext", -4), self.win.calls)
+        first = names.index("SetProcessDpiAwarenessContext")
+        self.assertLess(first, names.index("GETWORKAREA"))
+        self.assertLess(first, names.index("CreateWindowExW"))
+
+    def test_declared_once_per_process(self):
+        self.WinDisplay(width=32, height=32, quiet=True).deinit()
+        self.assertEqual(self.names().count("SetProcessDpiAwarenessContext"), 1)
+
+    def test_an_earlier_declaration_stands(self):
+        # Windows refuses (False) once the process has declared one: no fallback.
+        self.assertNotIn("SetProcessDPIAware", self.names())
+
+    def test_old_windows_falls_back_to_system_aware(self):
+        import displaydev.windisplay as wd
+
+        wd._dpi_declared = False
+        self.win.calls.clear()
+        self.win.dpi_result = None  # no SetProcessDpiAwarenessContext
+        self.WinDisplay(width=32, height=32, quiet=True).deinit()
+        names = self.names()
+        self.assertIn("SetProcessDPIAware", names)
+        self.assertLess(names.index("SetProcessDPIAware"), names.index("GETWORKAREA"))
+
+
+class TestMaximizedArithmetic(unittest.TestCase):
+    """The client size of a window maximised into the work area."""
+
+    def setUp(self):
+        self._saved = {k: sys.modules[k] for k in list(sys.modules) if k == "uwin32" or k.startswith("displaydev")}
+        sys.modules["uwin32"] = _fake_uwin32()
+        sys.modules.pop("displaydev.windisplay", None)
+        import displaydev.windisplay as wd
+
+        self.wd = wd
+
+    def tearDown(self):
+        for k in list(sys.modules):
+            if k == "uwin32" or k.startswith("displaydev"):
+                del sys.modules[k]
+        sys.modules.update(self._saved)
+
+    def test_full_width_and_height_less_the_caption(self):
+        # Measured on a 150 % display: work area 1920x1128, frame 22x56 (an
+        # 11 px border each side, a 45 px caption); maximised, the client was
+        # 1920x1094 and the window (-11, -11, 1931, 1139).
+        self.assertEqual(self.wd._maximized_client(1920, 1128, 22, 56), (1920, 1094))
+
+    def test_at_100_percent(self):
+        self.assertEqual(self.wd._maximized_client(1920, 1040, 16, 39), (1920, 1016))
+
+    def test_rounds_down_to_even(self):
+        self.assertEqual(self.wd._maximized_client(1365, 729, 16, 39), (1364, 706))
+
+    def test_no_margin_and_no_frame_on_the_width(self):
+        # The old fit reserved a 48 px margin and 16 px of frame; none here.
+        w, _h = self.wd._maximized_client(2560, 1400, 30, 70)
+        self.assertEqual(w, 2560)
+
+
+class TestMaximized(_WinDisplayTest):
+    """WinDisplay(maximized=True): the panel is the maximised window's client."""
+
+    def open(self, **kw):
+        self.win.created.clear()
+        self.win.shows.clear()
+        d = self.WinDisplay(maximized=True, quiet=True, **kw)
+        self.addCleanup(d.deinit)
+        return d
+
+    def test_size_is_the_predicted_client_at_scale_one(self):
+        # Fake work area 1920x1080, frame 16x39: client 1920x1057 -> 1920x1056.
+        import displaydev.windisplay as wd
+
+        self.assertEqual(wd.maximized_size(), (1920, 1056))
+        d = self.open(width=320, height=480, scale=2.0)
+        self.assertEqual((d.width, d.height), (1920, 1056))
+        self.assertEqual(d._scale, 1.0)
+        self.assertEqual(len(d._buffer), 1920 * 1056 * 2)
+
+    def test_opens_hidden_then_maximised_with_a_maximise_box(self):
+        self.open()
+        style = self.win.created[-1][3]
+        self.assertTrue(style & self.win.WS_MAXIMIZEBOX)
+        self.assertFalse(style & self.win.WS_VISIBLE)
+        self.assertEqual(self.win.shows, [self.win.SW_MAXIMIZE])
+
+    def test_the_client_windows_really_gave_wins(self):
+        self.win.client = (1800, 1001)
+        d = self.open()
+        self.assertEqual((d.width, d.height), (1800, 1000))
+        self.assertEqual(len(d._buffer), 1800 * 1000 * 2)
+
+    def test_rotation_keeps_the_panel_the_window(self):
+        d = self.open(rotation=90)
+        self.assertEqual((d.width, d.height), (1920, 1056))
+        self.assertEqual((d._width, d._height), (1056, 1920))
+
+    def test_a_full_frame_is_presented_unscaled(self):
+        d = self.open()
+        d.show()
+        p = self.win.presents[-1]
+        self.assertEqual((p["dest_w"], p["dest_h"], p["src_w"], p["src_h"]), (1920, 1056, 1920, 1056))
+
+    def test_not_maximised_is_unchanged(self):
+        self.assertNotIn(self.win.SW_MAXIMIZE, self.win.shows)  # setUp's display
+        self.assertEqual((self.d.width, self.d.height), (self.W, self.H))
 
 
 class TestDrawing(_WinDisplayTest):

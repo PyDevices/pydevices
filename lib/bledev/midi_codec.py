@@ -32,7 +32,7 @@ A message's timestamp is the one before its status byte (or before its data,
 under running status). A SysEx carries the timestamp before its ``F7``.
 
 Messages are plain MIDI bytes, complete with their status byte, the same
-bytes ``usbif.MidiPort`` carries. A SysEx is one message, ``F0 ... F7``.
+bytes a ``midiports`` port carries. A SysEx is one message, ``F0 ... F7``.
 """
 
 #: 13-bit millisecond timestamps.

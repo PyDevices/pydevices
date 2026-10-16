@@ -30,10 +30,13 @@
 
 [displaydev]
 # SDL, pygame, Windows GDI, Jupyter, PyScript, the browser canvas, Android.
-# `_desktop` and `_domkeys` are shared helpers for those and nothing else.
+# `_desktop`, `_domkeys`, `_webcanvas` and `_webinput` are shared helpers for
+# those and nothing else.
 host-only = [
     "_desktop",
     "_domkeys",
+    "_webcanvas",
+    "_webinput",
     "androidsdl",
     "jndisplay",
     "pgdisplay",
@@ -41,10 +44,11 @@ host-only = [
     "sdldisplay",
     "wasmdisplay",
     "windisplay",
+    "workerdisplay",
 ]
 
 [audiodev]
-# Host mixers and the two browser backends. `i2s_audio`, `pwm_tone`,
+# Host mixers and the three browser backends. `i2s_audio`, `pwm_tone`,
 # `sample_out`, `accel` and `pump` are the MCU's, and `emulated_audio` stays
 # with them: it is never selected by `auto`, is imported explicitly, and builds
 # on audiodev's own PCM classes with no host dependency.
@@ -55,6 +59,7 @@ host-only = [
     "wasm_audio",
     "web_audio",
     "win_audio",
+    "worklet_audio",
 ]
 
 [multimer]

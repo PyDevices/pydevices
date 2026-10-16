@@ -1,0 +1,43 @@
+{
+  "urls": [
+    [
+      "adafruit_hid/__init__.py",
+      "https://raw.githubusercontent.com/adafruit/Adafruit_CircuitPython_HID/6.1.10/adafruit_hid/__init__.py"
+    ],
+    [
+      "adafruit_hid/consumer_control.py",
+      "github:PyDevices/pydevices/bledev_hid/adafruit_hid/consumer_control.py"
+    ],
+    [
+      "adafruit_hid/consumer_control_code.py",
+      "https://raw.githubusercontent.com/adafruit/Adafruit_CircuitPython_HID/6.1.10/adafruit_hid/consumer_control_code.py"
+    ],
+    [
+      "adafruit_hid/keyboard.py",
+      "https://raw.githubusercontent.com/adafruit/Adafruit_CircuitPython_HID/6.1.10/adafruit_hid/keyboard.py"
+    ],
+    [
+      "adafruit_hid/keyboard_layout_base.py",
+      "https://raw.githubusercontent.com/adafruit/Adafruit_CircuitPython_HID/6.1.10/adafruit_hid/keyboard_layout_base.py"
+    ],
+    [
+      "adafruit_hid/keyboard_layout_us.py",
+      "https://raw.githubusercontent.com/adafruit/Adafruit_CircuitPython_HID/6.1.10/adafruit_hid/keyboard_layout_us.py"
+    ],
+    [
+      "adafruit_hid/keycode.py",
+      "https://raw.githubusercontent.com/adafruit/Adafruit_CircuitPython_HID/6.1.10/adafruit_hid/keycode.py"
+    ],
+    [
+      "adafruit_hid/mouse.py",
+      "https://raw.githubusercontent.com/adafruit/Adafruit_CircuitPython_HID/6.1.10/adafruit_hid/mouse.py"
+    ]
+  ],
+  "deps": [
+    [
+      "__future__",
+      "latest"
+    ]
+  ],
+  "version": "0.0.1"
+}

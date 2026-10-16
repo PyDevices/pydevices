@@ -306,6 +306,16 @@ neutral PCM buffers and queue operations. It supports mono/stereo 8-, 16-, and
 32-bit signed or unsigned samples in either byte order at caller-selected
 rates. A host page must explicitly enable audio or microphone access first.
 
+`audiodev.worklet_audio` is the worker half of an AudioWorklet output, for
+Python running in a Pyodide Web Worker. The page owns the `AudioContext` and
+the worklet and gives your worker a `MessagePort`; the worklet asks for blocks
+of 256 frames and this module answers, either from a render callback you set
+(`WorkletOutput(port).source = render`) or from the queue behind an ordinary
+`pcm_out(format, port=port)`. It tells you the worklet's frame offset, so you
+can place an event at an exact sample. Import it explicitly: automatic
+selection never picks it. The protocol is in
+[lib/audiodev/README.md](../lib/audiodev/README.md#worklet_audiopy).
+
 `audiodev.i2s_audio` adapts `machine.I2S` for MCU boards; boards construct it
 directly with board-specific pins/codec wiring, then wrap it in `AudioOut`.
 

@@ -20,6 +20,7 @@ still directly usable for raw `write()`/`readinto()`.
 | `audiodev.pygame_audio` | CPython desktop with pygame-ce installed | Queued PCM transport on pygame-ce's bundled SDL |
 | `audiodev.win_audio` | Windows | WASAPI shared-mode queued PCM transport through `uwin32` |
 | `audiodev.web_audio` | PyScript / browser | Web Audio playback and `getUserMedia` capture |
+| `audiodev.worklet_audio` | Pyodide Web Worker | AudioWorklet output over a `MessagePort`; import it explicitly |
 | `audiodev.i2s_audio` | MCU | `machine.I2S` transport adapter |
 | `audiodev.pwm_tone` | MCU | PWM / buzzer adapter (`ToneOutput`, unrelated to `AudioOut`) |
 | `audiodev.emulated_audio` | CI / no hardware | WAV, generator, loopback, discard transports |
@@ -556,6 +557,39 @@ Playback and capture are queued/pull (`GetBuffer` / `ReleaseBuffer`) with
 
 Keyword arguments are the shared set in [Buffering options](#buffering-options).
 
+### Writing a block straight to the device
+
+If you run your own short queue, a synth or mixer that renders a block at a
+time and decides how far ahead of the device to stay, `write_now()` puts one
+block into the WASAPI buffer at once. It skips `write()`'s media queue and
+coalescing, which batch PCM into 100 ms pieces and wait for about 100 ms
+before playing: right for a decoder, far too much between a key and its
+sound.
+
+```python
+from audiodev import AudioFormat, win_audio
+
+out = win_audio.pcm_out(AudioFormat(48000, 2, 16), latency="low")
+out.open()
+TARGET = 768                                  # frames to keep queued: 16 ms
+while playing:
+    if out.device_frames() + 256 <= TARGET:   # room for another block?
+        out.write_now(render_256_frames())    # bytes, bytearray or memoryview
+    wait_a_millisecond()
+```
+
+`write_now(buf, start=True)` writes whole frames, as many as the device has
+room for, and returns the bytes written. It never waits and never keeps the
+rest: a short count means the device is full and the remainder is still
+yours. Volume and mute apply as they do to `write()`. Playback starts with the
+first block written; pass `start=False` to prime the buffer and call
+`start()` once it holds enough. `device_frames()` is what the device still has
+to play, and `buffer_frames` its capacity once open.
+
+Use `write_now()` or `write()` on one output, not both: they reach the device
+by different paths, and nothing orders one against the other. `write()`,
+`service()` and the rest behave as before.
+
 ## `pygame_audio.py`
 
 Backend for CPython hosts with pygame-ce installed. It uses **pygame's own SDL**,
@@ -610,6 +644,11 @@ PyScript backend. `WebPCMOutput` converts each write into an `AudioBuffer`
 and schedules `AudioBufferSourceNode`s back to back against `currentTime`;
 `WebPCMInput` captures through `getUserMedia` and a `ScriptProcessorNode`.
 
+Each write is converted in one JS call: the PCM goes across as a typed array
+and JS decodes, scales and de-interleaves it straight into the `AudioBuffer`.
+If the page's FFI can't hand JS a typed array, the module converts in Python
+instead, with the same result.
+
 Browser autoplay policy is the thing to know here. A fresh `AudioContext` starts
 `suspended`, and while suspended `currentTime` never advances — a naive wait for
 playout would spin forever. The module resumes best-effort, arms a one-shot
@@ -618,6 +657,42 @@ to click the page, and keeps already-scheduled buffers alive for their wall-cloc
 duration so a later gesture can still play them.
 
 There is no host device to wedge here, so none of the SDL stall machinery exists.
+
+## `worklet_audio.py`
+
+For Python running in a Pyodide Web Worker. The page owns the `AudioContext`
+and an `AudioWorkletProcessor`, and hands your worker one end of a
+`MessageChannel`. This module answers the worklet's requests on that port.
+`audiodev.auto` can't tell a worker from a page, so you import it yourself.
+
+Pull mode suits an engine that renders on demand:
+
+```python
+from audiodev import worklet_audio
+
+out = worklet_audio.WorkletOutput(port, channels=2, sample_rate=48000)
+out.source = render  # render(blocks) returns blocks * 256 * channels int16 samples
+```
+
+`pcm_out(format, port=port, latency=None, queue_ms=None)` gives you an ordinary
+`PCMOutput` instead, for an `AudioOut` pump or anything else that calls
+`write()`. Requests drain its queue and are padded with silence when it runs
+short, counted in `starved`. The worker can't block waiting for the worklet,
+because the requests arrive on the same thread: `write()` drops the oldest audio
+when the queue is full (counted in `dropped`), `try_write()` takes only what
+fits, and `awrite()`/`adrain()` wait by yielding to the event loop.
+
+The protocol, in blocks of 256 frames of int16, interleaved for stereo:
+
+| Direction | Message | Meaning |
+|-----------|---------|---------|
+| worklet to worker | `{need, asked}` | send `need` blocks; one reply per request |
+| worker to worklet | `{pcm, asked}` | an `Int16Array` of `need * 256 * channels` samples, its buffer transferred, `asked` echoed |
+| worklet to worker | `{offset}` | rendered frame `k` is heard at context frame `k + offset`; read it as `out.offset` |
+| worklet to worker | `{underrun}` | underruns since the last report; summed in `out.underruns` |
+
+Each reply is one bulk copy into JS and one `postMessage`, with no per-sample
+Python. The format's rate must match the `AudioContext`'s.
 
 ## `emulated_audio.py`
 
@@ -661,6 +736,8 @@ the import is a no-op.
 [`tests/test_audiodev.py`](../../tests/test_audiodev.py) (base contracts, and `AudioOut` against a fake
 transport + a fake audiosample), [`tests/test_sdl2_audio.py`](../../tests/test_sdl2_audio.py),
 [`tests/test_pygame_audio.py`](../../tests/test_pygame_audio.py), [`tests/test_win_audio.py`](../../tests/test_win_audio.py),
+[`tests/test_web_audio.py`](../../tests/test_web_audio.py) (the PCM16 conversion, its JS run under node when installed),
+[`tests/test_worklet_audio.py`](../../tests/test_worklet_audio.py) (against a fake `MessagePort`),
 [`tests/test_emulated_audio.py`](../../tests/test_emulated_audio.py) and [`tests/test_auto.py`](../../tests/test_auto.py) cover these modules
 against SDL's `dummy` driver, and [`tests/test_audiodev_latency.py`](../../tests/test_audiodev_latency.py) covers the
 profile vocabulary on its own. [`tests/test_audio_playback_golden.py`](../../tests/test_audio_playback_golden.py) runs a
