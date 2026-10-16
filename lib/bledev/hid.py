@@ -75,6 +75,7 @@ from . import (
     INSUFFICIENT_ENCRYPTION,
     Service,
     UUID,
+    UnsupportedError,
     sleep_ms,
     wait_ms,
 )
@@ -333,6 +334,12 @@ class Peripheral:
         if not self._registered:
             self.ble.register_services(*self.services)
             self._registered = True
+        # A paired computer lists the GAP device name, not the advertised
+        # one; without this Windows calls the board "MPY ESP32".
+        try:
+            self.ble.config(gap_name=self.name)
+        except (UnsupportedError, ValueError, OSError):
+            pass
         self.connection = await self.ble.advertise(
             name=self.name, services=[self.service_uuid], appearance=self.appearance, timeout_ms=timeout_ms
         )

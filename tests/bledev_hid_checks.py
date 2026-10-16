@@ -121,6 +121,7 @@ async def c_devices_have_usb_hids_shape(air):
 
 async def c_led_report_reaches_the_device(air):
     board, host_ble, per, host = await _pair_up(air)
+    equal(board.config("gap_name"), per.name, "GAP name follows the HID name")
     await per.leds(2000)  # the host writes the LEDs once it has subscribed
     await host.set_leds(0x02)  # Caps Lock
     t, data = await per.leds(2000)
