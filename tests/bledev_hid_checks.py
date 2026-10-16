@@ -133,6 +133,25 @@ async def c_led_report_reaches_the_device(air):
     await host.close()
 
 
+async def c_a_backend_that_notifies_on_write_sends_once(air):
+    # CircuitPython's _bleio notifies when a value is set; notifying again
+    # would send each report twice, and a mouse would move twice.
+    board = FakeBLE(air=air, mtu=247, notify_buffers=512)
+    caps = board.capabilities()
+    caps["write_notifies"] = True
+    board.capabilities = lambda: caps
+    per = hid.Peripheral(board)
+    serving = asyncio.create_task(per.serve())
+    host = await hid.connect(FakeBLE(air=air, mtu=247), name=per.name, timeout_ms=2000)
+    await serving
+    sent = []
+    for d in per.devices:
+        d._char.notify = lambda conn, data, _n=sent: _n.append(data)
+    per.devices[1].send_report(b"\x00\x28\xf4\x00")
+    equal(sent, [], "no notify on top of the write")
+    await host.close()
+
+
 async def c_a_busy_radio_gives_up(air):
     board, host_ble, per, host = await _pair_up(air, peripheral_kw={"notify_buffers": 2})
     old = hid.SEND_WAIT_MS
@@ -252,6 +271,7 @@ TESTS = [
     c_served_map_parses,
     c_devices_have_usb_hids_shape,
     c_led_report_reaches_the_device,
+    c_a_backend_that_notifies_on_write_sends_once,
     c_a_busy_radio_gives_up,
     c_script_round_trip,
     c_gamepad_round_trip,

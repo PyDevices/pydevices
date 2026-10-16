@@ -240,6 +240,11 @@ class Device:
             raise BLEError("no host connected")
         report = bytes(report)
         self._char.write(report)
+        if self._owner._write_notifies:
+            # Setting the value already sent it (CircuitPython); notifying as
+            # well would send every report twice, and a mouse would move twice.
+            self._owner.last_send_us = ticks_us()
+            return
         waited = 0
         while True:
             try:
@@ -287,6 +292,10 @@ class Peripheral:
         self.report_map = report_map(keyboard, mouse, consumer, gamepad)
         self.connection = None
         self.last_send_us = None
+        try:
+            self._write_notifies = bool(ble.capabilities().get("write_notifies", False))
+        except Exception:
+            self._write_notifies = False
         self._leds = []
         self._leds_flag = asyncio.Event()
 

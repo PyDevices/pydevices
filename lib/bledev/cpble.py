@@ -282,6 +282,7 @@ class CPBLE(BLE):
             indicate=False,
             pairing=True,
             long_read=False,
+            write_notifies=True,
         )
         return caps
 

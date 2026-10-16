@@ -55,10 +55,10 @@ async def one_host(per):
     log("host is listening (LEDs", data, "), encrypted", conn.encrypted)
     if ENCRYPTED:
         a = conn._aconn
-        import bledev.security
+        from bledev import security
 
-        keys = bledev.security.bonds()
-        log("security: bonded", a.bonded, "key size", a.key_size, "key store", keys, "bonds in", bledev.security.store().kind)
+        keys = security.bonds()
+        log("security: bonded", a.bonded, "key size", a.key_size, "key store", keys, "bonds in", security.store().kind)
     await bledev.sleep_ms(200)
     steps = hid_script.STEPS
     if PLANT:
