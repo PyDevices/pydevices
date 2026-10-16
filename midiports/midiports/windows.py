@@ -42,10 +42,16 @@ _CLASS_NAME = "midiports_sink"
 def available():
     """Every MIDI port Windows offers, both directions, as ``PortInfo``."""
     found = []
-    for i in range(win.midiOutGetNumDevs()):
-        found.append(PortInfo(id="out:%d" % i, name=win.midiOutGetDevName(i), direction=OUT))
-    for i in range(win.midiInGetNumDevs()):
-        found.append(PortInfo(id="in:%d" % i, name=win.midiInGetDevName(i), direction=IN))
+    for count, name_of, prefix, direction in (
+        (win.midiOutGetNumDevs, win.midiOutGetDevName, "out:", OUT),
+        (win.midiInGetNumDevs, win.midiInGetDevName, "in:", IN),
+    ):
+        for i in range(count()):
+            try:
+                name = name_of(i)
+            except ValueError:
+                break  # a device left while we listed (one still enumerating)
+            found.append(PortInfo(id=prefix + str(i), name=name, direction=direction))
     return tuple(found)
 
 
