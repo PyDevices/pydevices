@@ -8,21 +8,24 @@ or another board connects::
     port = await midi.serve(ble, name="rack")    # on the board
     port = await midi.connect(ble, name="rack")  # anywhere that can be a central
 
-Either way you get a :class:`Port`, which is the same MIDI port usbif hands
-out for a USB MIDI function (``usbif.MidiPort``): plain MIDI 1.0 bytes, a
-``read(buf)`` that never blocks and a ``write(data)``. So the loop an app
-runs over a USB controller runs unchanged over a BLE one::
+Either way you get a :class:`Port`: one object that is both the input and
+the output port ``adafruit_midi`` wants, in the shape of CircuitPython's
+``usb_midi`` ports (the contract the ``midiports`` package documents). So the
+script you run over USB or a 5-pin cable runs over BLE with only the line
+that opens the port changed::
 
-    parser = usbif.MidiParser()          # or any running-status reader
-    n = port.read(buf)
-    parser.feed(buf, n)
-    for status, data in parser.drain():
-        ...
+    import adafruit_midi
 
-When usbif is installed, :class:`Port` *is* a ``usbif.MidiPort`` subclass.
-BLE-MIDI's packets, timestamps, running status and SysEx fragments stay
-inside; the codec is :mod:`bledev.midi_codec`. For the sender's timestamps
-as well, ``await port.receive()`` returns ``(timestamp, message)``.
+    midi = adafruit_midi.MIDI(midi_in=port, midi_out=port)
+
+``read(nbytes)`` returns plain MIDI 1.0 bytes or ``None`` and never blocks,
+``readinto(buf, nbytes)`` does the same into your buffer without allocating,
+``any()`` says how many bytes wait, and ``write(buf, nbytes)`` sends. Every
+message comes out whole, with its status byte, so ``adafruit_midi`` (which
+reads no running status) parses all of it. BLE-MIDI's packets, timestamps,
+running status and SysEx fragments stay inside; the codec is
+:mod:`bledev.midi_codec`. For the sender's timestamps as well,
+``await port.receive()`` returns ``(timestamp, message)``.
 
 The characteristic accepts writes with and without response and notifies, as
 the BLE-MIDI specification asks, and reads back empty. Every device and host
@@ -69,62 +72,17 @@ _BUSY_WAIT_MS = 1
 
 # ---------------------------------------------------------------- the port contract
 
-# usbif's MidiPort is the contract (usbif/lib/usbif/__init__.py). When usbif
-# is here, subclass it so isinstance() agrees; when it isn't, the same
-# contract, written out.
+IN = "in"
+OUT = "out"
+INOUT = "inout"
+
 try:
-    from usbif import INOUT, MidiPort as _PortBase, MidiPortInfo
-except Exception:  # ImportError, or a usbif that can't load on this host
-    IN = "in"
-    OUT = "out"
-    INOUT = "inout"
+    from collections import namedtuple
+except ImportError:  # pragma: no cover
+    from ucollections import namedtuple
 
-    try:
-        from collections import namedtuple
-    except ImportError:  # pragma: no cover
-        from ucollections import namedtuple
-
-    MidiPortInfo = namedtuple("MidiPortInfo", "id name direction")
-
-    class _PortBase:
-        """usbif.MidiPort's contract: a MIDI 1.0 byte stream on one port."""
-
-        def __init__(self, info):
-            self.info = info
-            self.direction = info.direction
-            self.is_open = True
-
-        def _check(self, want):
-            if not self.is_open:
-                raise OSError("MIDI port is closed")
-            if self.direction not in (want, INOUT):
-                raise OSError("MIDI port {!r} is {}-only".format(self.info.name, self.direction))
-
-        def read(self, buf):
-            """Read waiting MIDI bytes into ``buf``; returns how many. Never blocks."""
-            self._check(IN)
-            return self._read(buf)
-
-        def write(self, data):
-            """Write MIDI bytes; returns how many were accepted."""
-            self._check(OUT)
-            return self._write(data)
-
-        def close(self):
-            if not self.is_open:
-                return
-            try:
-                self._close()
-            finally:
-                self.is_open = False
-
-        deinit = close
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, traceback):
-            self.close()
+#: What :attr:`Port.info` is: the same fields ``midiports.PortInfo`` has.
+PortInfo = namedtuple("PortInfo", "id name direction")
 
 
 if sys.implementation.name == "micropython":
@@ -174,10 +132,11 @@ def _set_mtu(ble, mtu):
         pass
 
 
-class Port(_PortBase):
+class Port:
     """One BLE-MIDI link, as a MIDI port. Made by :func:`serve` or :func:`connect`.
 
-    ``read(buf)`` and ``write(data)`` are usbif's: plain MIDI bytes, never
+    It is both ports ``adafruit_midi`` takes: ``read``, ``readinto`` and
+    ``any`` on the way in, ``write`` on the way out, plain MIDI bytes, never
     blocking. Writes are sent from a task, packed into as few packets as the
     link allows, so the app needs a running asyncio loop, as everything in
     bledev does. ``await drain()`` waits until they're on the air.
@@ -190,7 +149,9 @@ class Port(_PortBase):
     """
 
     def __init__(self, connection, name, *, queue_limit=QUEUE_LIMIT, running_status=True):
-        _PortBase.__init__(self, MidiPortInfo("ble:" + connection.device.address, name, INOUT))
+        self.info = PortInfo("ble:" + connection.device.address, name, INOUT)
+        self.direction = INOUT
+        self.is_open = True
         self.connection = connection
         self.queue_limit = queue_limit
         self.dropped = 0
@@ -198,7 +159,11 @@ class Port(_PortBase):
         self.messages_in = 0
         self.messages_out = 0
         self._messages = []
-        self._pending = b""
+        self._pending = b""   # the message being read out, from _pos on
+        self._pos = 0
+        self._waiting = 0     # bytes queued, for any()
+        self._scratch = bytearray(64)
+        self._view = memoryview(self._scratch)
         self._arrived = asyncio.Event()
         self._decoder = Decoder()
         self._encoder = Encoder(running_status)
@@ -224,34 +189,55 @@ class Port(_PortBase):
                 self.dropped += 1
             else:
                 self._messages.append(item)
+                self._waiting += len(item[1])
                 self.messages_in += 1
         if messages:
             self._arrived.set()
 
-    def _read(self, buf):
+    def _check_open(self):
+        if not self.is_open:
+            raise OSError("MIDI port is closed")
+
+    def readinto(self, buf, nbytes=None):
+        """Waiting MIDI bytes into ``buf`` (at most ``nbytes``); how many, or
+        ``None`` when nothing has arrived. Never blocks, allocates nothing."""
+        self._check_open()
+        size = len(buf) if nbytes is None or nbytes > len(buf) else nbytes
         n = 0
-        size = len(buf)
         while n < size:
-            if not self._pending:
+            pending = self._pending
+            pos = self._pos
+            if pos >= len(pending):
                 if not self._messages:
                     break
-                self._pending = self._messages.pop(0)[1]
-            take = min(size - n, len(self._pending))
-            buf[n : n + take] = self._pending[:take]
-            self._pending = self._pending[take:]
-            n += take
-        return n
+                pending = self._pending = self._messages.pop(0)[1]
+                pos = 0
+            end = min(len(pending), pos + size - n)
+            while pos < end:
+                buf[n] = pending[pos]
+                n += 1
+                pos += 1
+            self._pos = pos
+        self._waiting -= n
+        return n or None
+
+    def read(self, nbytes=None):
+        """Up to ``nbytes`` waiting MIDI bytes (64 when ``None``), or ``None``."""
+        n = self.readinto(self._view, nbytes if nbytes is not None and nbytes < 64 else 64)
+        return bytes(self._view[:n]) if n else None
 
     def any(self):
-        """How many messages are waiting."""
-        return len(self._messages) + (1 if self._pending else 0)
+        """How many MIDI bytes are waiting to be read."""
+        return self._waiting
 
     async def receive(self, timeout_ms=None):
         """The next ``(timestamp, message)``. Raises :class:`DisconnectedError`
         once the link has closed and everything that arrived is read."""
         while True:
             if self._messages:
-                return self._messages.pop(0)
+                item = self._messages.pop(0)
+                self._waiting -= len(item[1])
+                return item
             if self._closed or not self.connection.is_connected():
                 raise DisconnectedError("MIDI link closed")
             self._arrived.clear()
@@ -271,7 +257,11 @@ class Port(_PortBase):
 
     # -- sending
 
-    def _write(self, data):
+    def write(self, buf, nbytes=None):
+        """Send the first ``nbytes`` of ``buf`` (all of it when ``None``);
+        returns how many bytes it took. The radio gets them from a task."""
+        self._check_open()
+        data = buf if nbytes is None or nbytes >= len(buf) else buf[:nbytes]
         if self._send_error is not None:
             raise self._send_error
         if not self.connection.is_connected():
@@ -289,7 +279,7 @@ class Port(_PortBase):
 
     def send(self, message, timestamp=None):
         """Queue one complete message, optionally with its own timestamp."""
-        self._check("out")
+        self._check_open()
         self._encoder.put(now_ms() if timestamp is None else timestamp, message)
         self.messages_out += 1
         self._idle.clear()
@@ -319,13 +309,25 @@ class Port(_PortBase):
 
     # -- closing
 
-    def _close(self):
+    def close(self):
+        """Close the port and drop the link."""
+        if not self.is_open:
+            return
+        self.is_open = False
         self._finish()
         if self.connection.is_connected():
             try:
                 asyncio.create_task(self.connection.disconnect())
             except Exception:
                 pass
+
+    deinit = close
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.close()
 
     async def aclose(self):
         """Close the port and wait for the disconnect."""
