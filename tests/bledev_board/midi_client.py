@@ -10,7 +10,8 @@ or on a laptop (bleak, Windows Python)::
 
 ``gate``: 1,000 mixed messages (notes, CC, pitch bend, program change, clock
 and a 300-byte SysEx every hundred) go up and are checked by the server, then
-come back down and are checked here. ``--plant`` flips a bit in one packet
+come back down and are checked here, sent and read on both sides through
+``adafruit_midi`` (``midi_adafruit_io.py``). ``--plant`` flips a bit in one packet
 of what this side sends; the server's verdict must then be FAIL.
 
 ``latency``: note-on round trips through the server's echo, one note at a
@@ -150,9 +151,12 @@ async def gate(ble, fast, planted):
     await port.drain()
     if planted:
         plant(port)
+    from midi_adafruit_io import AdafruitIO
+
+    io = AdafruitIO(port)
     want = mix(1000)
     for message in want:
-        port.send(message)
+        io.send(message)
     await port.drain()
     ts, verdict = await port.receive(timeout_ms=30000)
     up_ms = elapsed_us(t0) / 1000
@@ -164,8 +168,7 @@ async def gate(ble, fast, planted):
     t0 = now_us()
     try:
         while len(got) < 1000:
-            ts, message = await port.receive(timeout_ms=15000)
-            got.append(message)
+            got.append(await io.receive(timeout_ms=15000))
     except bledev.BLEError as e:
         log("gate down: stopped after", len(got), type(e).__name__, e)
     down_ms = elapsed_us(t0) / 1000

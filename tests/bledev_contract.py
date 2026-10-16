@@ -865,8 +865,8 @@ async def midi_notes_both_ways(air):
             break
         await asyncio.sleep(0.001)
     equal(server.any(), 6, "any() counts bytes, running status expanded")
-    equal(server.read(4), b"\x90\x3c\x64\x90", "read(4) takes four bytes")
-    equal(server.read(), b"\x3e\x64", "read() takes the rest")
+    equal(server.read(4), b"\x90\x3c\x64", "read(4) takes the whole messages that fit")
+    equal(server.read(), b"\x90\x3e\x64", "read() takes the rest")
     equal(server.any(), 0, "nothing left")
     equal(client.write(b"\x80\x3c\x00\x80\x3e", 3), 3, "write(buf, nbytes) sends the first nbytes")
     equal(await _collect(server, 1), [b"\x80\x3c\x00"], "central -> peripheral, nbytes")
@@ -874,6 +874,36 @@ async def midi_notes_both_ways(air):
     ts, message = await client.receive(timeout_ms=1000)
     equal(message, b"\xb0\x07\x40", "peripheral -> central")
     expect(0 <= ts <= 0x1FFF, "a 13-bit timestamp")
+
+
+@check
+async def midi_reads_never_split_a_message_that_fits(air):
+    server, client = await midi_pair(air)
+    sysex = bytes([0xF0] + [j % 128 for j in range(300)] + [0xF7])
+    client.write(b"\x90\x3c\x64" + sysex)
+    await client.drain()
+    for _ in range(500):
+        if server.any() >= 3 + len(sysex):
+            break
+        await asyncio.sleep(0.001)
+    buf = bytearray(320)
+    equal(server.readinto(buf, 200), 3, "a 200-byte read stops before a SysEx that won't fit")
+    equal(server.readinto(buf), len(sysex), "a big enough read takes the SysEx whole")
+    equal(bytes(buf[: len(sysex)]), sysex, "intact")
+    client.write(sysex)
+    await client.drain()
+    for _ in range(500):
+        if server.any():
+            break
+        await asyncio.sleep(0.001)
+    parts = []
+    while True:
+        k = server.readinto(buf, 100)
+        if not k:
+            break
+        parts.append(bytes(buf[:k]))
+    equal([len(p) for p in parts], [100, 100, 100, 2], "too big for the buffer: it comes in parts")
+    equal(b"".join(parts), sysex, "and the parts make it")
 
 
 @check

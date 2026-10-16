@@ -8,7 +8,8 @@ before it runs a script, and a soft reset turns Bluetooth off, so ``mpftp run``
 would lose it); on CircuitPython, ``mpftp run`` works. ``midi_client.py`` on another board or a laptop then connects and
 asks for one of two sessions with a SysEx command, ``F0 7D 10 <mode> F7``:
 
-* mode 1, the gate: this side reads 1,000 mixed messages (``mix()``) and
+* mode 1, the gate: this side reads 1,000 mixed messages (``mix()``),
+  through ``adafruit_midi`` (``midi_adafruit_io.py``), and
   checks them, sends back its verdict as ``F0 7D 11 <0 pass, 1 fail>
   <count, 2 bytes> <first bad index, 2 bytes> F7``, then sends the same 1,000
   messages down for the client to check.
@@ -105,11 +106,13 @@ def plant(port):
 
 
 async def gate(port):
+    from midi_adafruit_io import AdafruitIO
+
+    io = AdafruitIO(port)
     want = mix(COUNT)
     got = []
     while len(got) < COUNT:
-        ts, message = await port.receive(timeout_ms=30000)
-        got.append(message)
+        got.append(await io.receive(timeout_ms=30000))
     ok, bad = verify(got, want)
     log("gate up:", "PASS" if ok else "FAIL", len(got), "messages, first bad", bad, "decode errors", port.decode_errors)
     b = max(bad, 0)
@@ -117,7 +120,7 @@ async def gate(port):
     await port.drain()
     plant(port)
     for message in want:
-        port.send(message)
+        io.send(message)
     await port.drain()
     log("gate down: sent", COUNT, "plant", PLANT)
 

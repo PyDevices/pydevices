@@ -200,7 +200,15 @@ class Port:
 
     def readinto(self, buf, nbytes=None):
         """Waiting MIDI bytes into ``buf`` (at most ``nbytes``); how many, or
-        ``None`` when nothing has arrived. Never blocks, allocates nothing."""
+        ``None`` when nothing has arrived. Never blocks, allocates nothing.
+
+        Only whole messages are taken, as many as fit, so a long SysEx is
+        never handed out in pieces when the buffer has room for it.
+        ``adafruit_midi`` 1.6.0 throws away a SysEx that arrives in two
+        reads, so give its ``MIDI`` an ``in_buf_size`` bigger than your
+        longest SysEx. A message bigger than the whole buffer still comes
+        out in parts, the rest on the next call.
+        """
         self._check_open()
         size = len(buf) if nbytes is None or nbytes > len(buf) else nbytes
         n = 0
@@ -210,6 +218,8 @@ class Port:
             if pos >= len(pending):
                 if not self._messages:
                     break
+                if n and len(self._messages[0][1]) > size - n:
+                    break  # the next message won't fit whole: leave it for the next read
                 pending = self._pending = self._messages.pop(0)[1]
                 pos = 0
             end = min(len(pending), pos + size - n)
@@ -222,8 +232,16 @@ class Port:
         return n or None
 
     def read(self, nbytes=None):
-        """Up to ``nbytes`` waiting MIDI bytes (64 when ``None``), or ``None``."""
-        n = self.readinto(self._view, nbytes if nbytes is not None and nbytes < 64 else 64)
+        """Up to ``nbytes`` waiting MIDI bytes (everything waiting when
+        ``None``), whole messages only as :meth:`readinto` says, or ``None``."""
+        want = self._waiting if nbytes is None else min(nbytes, self._waiting)
+        if want <= 0:
+            self._check_open()
+            return None
+        if want > len(self._scratch):
+            self._scratch = bytearray(want)
+            self._view = memoryview(self._scratch)
+        n = self.readinto(self._view, want)
         return bytes(self._view[:n]) if n else None
 
     def any(self):
