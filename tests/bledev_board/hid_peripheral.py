@@ -26,7 +26,7 @@ ENCRYPTED = False
 GAMEPAD = False  # serve the gamepad as a fourth device, and play the script's pad steps
 INSPECT = False  # serve under hid.INSPECT_SERVICE, for a laptop (Windows hides 0x1812)
 LATENCY_N = 200
-GAP_MS = 0  # pause after each character or step; 0 sends as fast as the radio takes it
+GAP_MS = 30  # pause after each character or step; 0 sends as fast as the radio takes it
 NAME = "bledev-hid-gate"
 LOG = "/hid_peripheral.log"
 
@@ -67,7 +67,9 @@ async def one_host(per):
     await hid_script.perform(per, steps, gap_ms=GAP_MS, sleep_ms=asyncio.sleep_ms)
     log("script sent in", time.ticks_diff(time.ticks_ms(), t0), "ms")
     # Let the host finish comparing, then time key presses.
-    await per.leds(30000)
+    t, data = await per.leds(30000)
+    last = per.devices[0].get_last_received_report()
+    log("LED report", data, "get_last_received_report()", last, "PASS" if last == data == b"\x01" else "FAIL")
     rtt = []
     for i in range(LATENCY_N):
         per.devices[0].send_report(b"\x00\x00\x04\x00\x00\x00\x00\x00")
