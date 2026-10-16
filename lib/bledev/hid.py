@@ -55,11 +55,11 @@ import struct
 
 try:
     from time import ticks_diff, ticks_us
-except ImportError:  # CPython
-    import time as _time
+except ImportError:  # CPython and CircuitPython: monotonic_ns is on both
+    from time import monotonic_ns as _monotonic_ns
 
     def ticks_us():
-        return int(_time.perf_counter() * 1000000)
+        return _monotonic_ns() // 1000
 
     def ticks_diff(a, b):
         return a - b

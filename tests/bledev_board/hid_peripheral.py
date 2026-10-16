@@ -17,7 +17,8 @@ comparison must then fail. ``ENCRYPTED = True`` makes the host pair first.
 Logs to /hid_peripheral.log and ends with ``DONE``.
 """
 import asyncio, gc, sys, time
-import bledev.mpble
+import bledev
+import bledev.mpble as backend  # the port line: bledev.cpble on CircuitPython
 import bledev.hid as hid
 import hid_script
 
@@ -58,14 +59,14 @@ async def one_host(per):
 
         keys = bledev.security.bonds()
         log("security: bonded", a.bonded, "key size", a.key_size, "key store", keys, "bonds in", bledev.security.store().kind)
-    await asyncio.sleep_ms(200)
+    await bledev.sleep_ms(200)
     steps = hid_script.STEPS
     if PLANT:
         text = steps[0][1]
         steps = (("type", text[0].lower()), ("type", text[1:])) + steps[1:]
-    t0 = time.ticks_ms()
-    await hid_script.perform(per, steps, gap_ms=GAP_MS, sleep_ms=asyncio.sleep_ms)
-    log("script sent in", time.ticks_diff(time.ticks_ms(), t0), "ms")
+    t0 = hid.ticks_us()
+    await hid_script.perform(per, steps, gap_ms=GAP_MS, sleep_ms=bledev.sleep_ms)
+    log("script sent in", hid.ticks_diff(hid.ticks_us(), t0) // 1000, "ms")
     # Let the host finish comparing, then time key presses.
     t, data = await per.leds(30000)
     last = per.devices[0].get_last_received_report()
@@ -75,9 +76,9 @@ async def one_host(per):
         per.devices[0].send_report(b"\x00\x00\x04\x00\x00\x00\x00\x00")
         start = per.last_send_us
         t, _ = await per.leds(5000)
-        rtt.append(time.ticks_diff(t, start))
+        rtt.append(hid.ticks_diff(t, start))
         per.devices[0].send_report(bytes(8))
-        await asyncio.sleep_ms(20)
+        await bledev.sleep_ms(20)
     log("round trip, press to the host's LED write:", stats(rtt))
     await conn.disconnected(60000)
     log("host gone")
@@ -90,7 +91,7 @@ async def main():
     except OSError:
         pass
     gc.collect()
-    ble = bledev.mpble.get()
+    ble = backend.get()
     if ENCRYPTED:
         ble.enable_bonding()
     per = hid.Peripheral(ble, name=NAME, encrypted=ENCRYPTED, gamepad=GAMEPAD,
