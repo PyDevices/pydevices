@@ -403,27 +403,39 @@ port = await midi.serve(ble, name="synth")      # on the board
 port = await midi.connect(ble, name="synth")    # on a laptop or another board
 ```
 
-What you get is a MIDI port, the same one usbif gives you for a USB MIDI
-function: `port.write(b"\x90\x3c\x64")` sends a note, and `port.read(buf)`
-returns whatever MIDI bytes have arrived, without blocking. So the loop you
-wrote for a USB controller works on a BLE one:
+What you get is a MIDI port in the shape of CircuitPython's `usb_midi`
+ports, so Adafruit's `adafruit_midi` reads and writes it, and the script you
+run over USB or a 5-pin cable runs over BLE with only the line that opens the
+port changed:
 
 ```python
-buf = bytearray(64)
-parser = usbif.MidiParser()                     # running status, SysEx, clock
+import adafruit_midi
+from adafruit_midi.note_on import NoteOn
+
+midi = adafruit_midi.MIDI(midi_in=port, midi_out=port, in_buf_size=512)
+midi.send(NoteOn(60, 100))
 while True:
-    n = port.read(buf)
-    parser.feed(buf, n)
-    for status, data in parser.drain():
-        ...
+    if port.any():
+        msg = midi.receive()
+        while msg is not None:
+            ...
+            msg = midi.receive()
     await asyncio.sleep(0.001)
 ```
 
-When usbif is installed, `port` is a `usbif.MidiPort`. If you'd rather have
-messages than bytes, with the sender's timestamp, use `ts, message = await
-port.receive()` or `async for ts, message in port`. Messages you write go out
-from a task, packed as many to a packet as fit, and `await port.drain()` waits
-for them.
+The port is the contract the [`midiports`](../midiports/README.md) package
+documents: `read(nbytes)` returns MIDI bytes or `None` and never blocks,
+`readinto(buf, nbytes)` does the same into your buffer without allocating,
+`any()` says how many bytes are waiting, and `write(buf, nbytes)` sends.
+Every message comes out whole, with its status byte, and a read takes only
+the whole messages that fit. Give `adafruit_midi` an `in_buf_size` bigger than
+your longest SysEx: its 1.6.0 parser throws away a SysEx that reaches it in
+two reads.
+
+If you'd rather have messages than bytes, with the sender's timestamp, use
+`ts, message = await port.receive()` or `async for ts, message in port`.
+Messages you write go out from a task, packed as many to a packet as fit, and
+`await port.drain()` waits for them.
 
 On a board, ask for the shortest connection interval when you connect:
 `midi.connect(ble, name="synth", min_conn_interval_us=7500,
@@ -471,21 +483,47 @@ next connect doesn't pair from scratch. The keys live in NVS on an ESP32
 forgets them, and a keyboard that remembers the board may then need putting
 back into pairing mode.
 
-**A board can be the keyboard, too.** It advertises as a keyboard, media
-remote and gamepad (or any one or two of them) and sends what you tell it:
+**A board can be the keyboard, too.** It advertises as a keyboard, mouse and
+media remote (and a gamepad if you ask), and its `devices` are CircuitPython's
+`usb_hid.devices`, so Adafruit's `adafruit_hid` drives them exactly as it
+drives USB:
 
 ```python
-kb = hid.Peripheral(ble)                  # keyboard=True, consumer=True, gamepad=True
-await kb.serve()                          # returns when a host connects
-await kb.keyboard.type("Hello\n")         # US layout
-await kb.keyboard.tap(0x06, hid.MOD_LCTRL)   # Ctrl+C
-await kb.consumer.tap(hid.VOLUME_UP)
-await kb.gamepad.send(axes=(0, 127, 0, 0), buttons=0b101, hat=2)
+from adafruit_hid.consumer_control import ConsumerControl
+from adafruit_hid.consumer_control_code import ConsumerControlCode
+from adafruit_hid.keyboard import Keyboard
+from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
+from adafruit_hid.keycode import Keycode
+from adafruit_hid.mouse import Mouse
+
+per = hid.Peripheral(ble)                 # keyboard, mouse, consumer control
+await per.serve()                         # returns when a host connects
+kb = Keyboard(per.devices)
+KeyboardLayoutUS(kb).write("Hello\n")
+kb.send(Keycode.CONTROL, Keycode.C)
+ConsumerControl(per.devices).send(ConsumerControlCode.VOLUME_INCREMENT)
+Mouse(per.devices).move(x=40, y=-12)
 ```
+
+Install `adafruit_hid` on MicroPython with
+`mip.install("github:PyDevices/pydevices/bledev_hid")`: it fetches
+Adafruit's files at a release tag, with one file patched so
+`consumer_control` imports on MicroPython, and micropython-lib's
+`__future__`. Each `send_report()` returns once the radio has the report,
+waiting briefly if its buffers are full. The keyboard's LED report (Caps
+Lock and friends) reaches `kb.led_on(Keyboard.LED_CAPS_LOCK)` the way it does
+over USB.
+
+`adafruit_hid` has had no gamepad since 5.0, so `bledev.hid_gamepad` gives
+one in the shape of Adafruit's `hid_gamepad.py` example, for a
+`Peripheral(ble, gamepad=True)`: `press_buttons()`, `move_joysticks()`,
+`set_hat()`, and `set()` for everything in one report.
 
 Its name, appearance and Report Map come from which functions you ask for,
 the same way every time, because hosts cache a device against its identity.
-Pass `encrypted=True` to make hosts pair first, as real keyboards do.
+Change the set, and a host that paired with the board before must forget it
+and pair again. Pass `encrypted=True` to make hosts pair first, as real
+keyboards do.
 
 **Don't pair a test board with the computer you're testing from.** Once
 paired, Windows and phones use it as a real keyboard, and it types into
@@ -498,6 +536,13 @@ rollover, and what a board central can't read are in
 [bledev-internals.md](bledev-internals.md#how-hid-gets-there).
 
 ## On CircuitPython
+
+On CircuitPython, `adafruit_midi` and `adafruit_hid` are already the way to
+do MIDI and HID, over `usb_midi` and `usb_hid`; over BLE, use
+`bledev.midi` and `bledev.hid` as above. The CircuitPython-compatible build
+for the ESP32-P4 has no Bluetooth at all (CircuitPython builds none for any
+P4), so there is no BLE MIDI or HID there, and no USB device either until
+CircuitPython gives the P4 one.
 
 The same code runs on a CircuitPython board with `bledev.cpble`, in either
 role: nus, MIDI, the contract's checks and the file client all passed over the
