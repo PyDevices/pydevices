@@ -30,15 +30,24 @@ The relay's messages are plain objects:
 
 Timestamps
 ----------
-Each input keeps the time every message arrived, in milliseconds on the
-``performance.now()`` clock, as Web MIDI stamps it. ``take_timestamp()``
-pops the oldest one not yet taken, or returns ``None`` when there is none.
-Call it once for each message ``adafruit_midi.MIDI.receive()`` hands you and
-you get that message's time::
+Each input keeps the time every message arrived, as the package's contract
+describes: whole microseconds, here on the page's ``performance.now()``
+clock (the time Web MIDI stamps each event with, times 1000), which is also
+what ``midiports.ticks_us()`` reads in Pyodide. ``take_timestamp()`` pops the
+oldest one not yet taken, or returns ``None`` when there is none. Call it
+once for each message ``adafruit_midi.MIDI.receive()`` hands you and you get
+that message's time::
 
     msg = midi.receive()
     if msg is not None:
         when = midi_in.take_timestamp()
+
+These are the browser's own times for each message, as fine as Web MIDI
+makes them, so they don't depend on how often you poll. A relay message
+without a ``timeStamp`` is stamped when it reaches the worker. A worker's
+``performance.now()`` starts from the worker's own origin, not the page's,
+so in a worker compare stamps with times the page sends, not with
+``ticks_us()``.
 
 That pairing holds because Web MIDI delivers whole messages, one timestamp
 each. A message dropped because the input was full takes its timestamp with
@@ -56,15 +65,10 @@ over whole messages, never running status and never a clock byte inside a
 note.
 """
 
-from array import array
-from math import isnan
-
-from . import PortIn, PortOut, _count, message_length
+from . import PortIn, PortOut, Stamps, _count, _stamp, message_length, ticks_us
 
 #: Longest unfinished message a write holds back, waiting for its end.
 PENDING_LIMIT = 4096
-
-_NAN = float("nan")
 
 
 # -- the browser's FFI, imported only when it's there ------------------------------
@@ -111,11 +115,12 @@ def _bytes(data):
     return to_bytes() if to_bytes is not None else bytes(data)
 
 
-def _ms(stamp):
+def _us(stamp):
+    """A Web MIDI ``timeStamp`` (ms) as whole microseconds; now if it has none."""
     try:
-        return float(stamp)
+        return int(round(float(stamp) * 1000))
     except (TypeError, ValueError):
-        return None
+        return ticks_us()
 
 
 def _matches(port, name):
@@ -141,14 +146,12 @@ class _RingIn(PortIn):
         # One timestamp per message, oldest first. Room for one per byte of
         # the ring, plus some for messages already read whose timestamp
         # hasn't been taken yet.
-        self._times = array("d", [0.0] * (ring + 64))
-        self._thead = 0
-        self._ttail = 0
+        self._stamps = Stamps(ring + 64)
         self.overflows = 0
         self._closed = False
 
     def push(self, data, timestamp=None):
-        """Queue one whole message that arrived at ``timestamp`` (ms)."""
+        """Queue one whole message that arrived at ``timestamp`` (us), or now."""
         if self._closed:
             return
         n = len(data)
@@ -164,24 +167,7 @@ class _RingIn(PortIn):
             ring[head] = data[i]
             head = (head + 1) % size
         self._head = head
-        times = self._times
-        tsize = len(times)
-        thead = self._thead
-        times[thead] = _NAN if timestamp is None else timestamp
-        thead = (thead + 1) % tsize
-        if thead == self._ttail:
-            # Full of timestamps nobody took: forget the oldest.
-            self._ttail = (self._ttail + 1) % tsize
-        self._thead = thead
-
-    def take_timestamp(self):
-        """The arrival time (ms) of the next message, in order, or ``None``."""
-        tail = self._ttail
-        if tail == self._thead:
-            return None
-        stamp = self._times[tail]
-        self._ttail = (tail + 1) % len(self._times)
-        return None if isnan(stamp) else stamp
+        _stamp(self._stamps, data[0], ticks_us() if timestamp is None else timestamp)
 
     def any(self):
         if self._closed:
@@ -347,7 +333,7 @@ class _Session:
         midi_in = self.midi_in
 
         def on_message(event):
-            midi_in.push(_bytes(event.data), _ms(event.timeStamp))
+            midi_in.push(_bytes(event.data), _us(event.timeStamp))
 
         handler = _proxy(on_message)
         self.inputs[port.id] = (port, handler)
@@ -444,7 +430,7 @@ class _RelayIn(_RingIn):
         data = getattr(message, "data", None)
         if data is None:
             return
-        self.push(_bytes(data), _ms(getattr(message, "timeStamp", None)))
+        self.push(_bytes(data), _us(getattr(message, "timeStamp", None)))
 
     def close(self):
         if not self._closed:

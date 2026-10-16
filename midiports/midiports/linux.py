@@ -25,6 +25,12 @@ with the direction first.
 
 Inputs open non-blocking, so a read on a silent instrument returns ``None``
 instead of hanging your loop.
+
+The input ``ports()`` returns stamps each message with its arrival time
+(``take_timestamp()``, the package's contract) through ``WholeMessages``, at
+the read that finds its first byte: as fine as how often you poll. A port
+from ``open_port()`` is the raw byte stream and has no stamps until you wrap
+it in ``WholeMessages`` too.
 """
 
 import os

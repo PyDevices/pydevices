@@ -16,6 +16,12 @@ That's 31250 baud, 8N1, and a zero read timeout so a poll never waits.
 ``ports`` passes anything else (``rxbuf``, ``invert``, ...) on to
 ``machine.UART``.
 
+Each message is stamped with its arrival time (``midi_in.take_timestamp()``,
+the package's contract) by the read that finds its first byte. The UART's
+driver buffers bytes without saying when each came, so a stamp is as fine as
+how often you poll, never finer than one byte's 320 us on the wire, and
+every message one read finds shares its time.
+
 To use a UART you've already made, check its timeout is 0 and pass
 ``MIDI(midi_in=WholeMessages(u), midi_out=u)``.
 
