@@ -112,7 +112,7 @@ async def main():
         "map", len(rmap.descriptor), "bytes, applications", ["0x%08x" % a for a in rmap.applications],
         "inputs", [(r.report_id, r.size) for r in rmap.inputs()], "conn", CONN, "service", service)
 
-    want = hid_script.expected()
+    want = hid_script.expected(has_gamepad=0x00010005 in rmap.applications)
     got = []
     while len(got) < len(want):
         try:

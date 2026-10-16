@@ -17,11 +17,15 @@ check it hasn't grown a copy, and this one checks hidreport hasn't.
 """
 
 from pathlib import Path
+import json
 import os
 import random
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
+import urllib.request
 
 _TESTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(_TESTS))
@@ -31,11 +35,48 @@ from test_bledev import _micropython  # noqa: E402
 
 SUITES = {
     "hidreport_vectors.py": ("bitorder", "unsigned", "range", "order", "rollover", "hat", "mousebutton", "wheel"),
-    "bledev_hid_checks.py": ("drop_report", "shift_lost", "axis_sign", "no_pair"),
+    "bledev_hid_checks.py": ("drop_report", "shift_lost", "shift_lost_host", "axis_sign", "no_pair"),
 }
 
 
+_PACKAGE = _TESTS.parent / "bledev_hid"
+_HTTPS = "https://raw.githubusercontent.com/"
+_adafruit = None
+
+
+def adafruit_hid_dir():
+    """A folder holding adafruit_hid as bledev_hid's package file installs it
+    (Adafruit's files at the pinned tag, our consumer_control), and a
+    ``shims`` folder for desktop runs: ``micropython.const`` and
+    ``usb_hid.Device`` for CPython, ``__future__`` for unix MicroPython
+    (mip brings that one on a board)."""
+    global _adafruit
+    if _adafruit is not None:
+        return _adafruit
+    urls = json.loads((_PACKAGE / "package.json").read_text())["urls"]
+    tag = next(u for _, u in urls if u.startswith(_HTTPS)).split("/")[5]
+    root = Path(tempfile.gettempdir()) / "bledev-adafruit_hid" / tag
+    for dest, url in urls:
+        target = root / dest
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if url.startswith("github:PyDevices/pydevices/"):
+            shutil.copyfile(_TESTS.parent / url[len("github:PyDevices/pydevices/"):], target)
+        elif not target.is_file():
+            with urllib.request.urlopen(url, timeout=30) as r:
+                target.write_bytes(r.read())
+    shims = root / "shims"
+    shims.mkdir(exist_ok=True)
+    (shims / "micropython.py").write_text("def const(x):\n    return x\n")
+    (shims / "__future__.py").write_text("annotations = True\n")
+    # adafruit_hid's annotations name usb_hid.Device, which CPython evaluates.
+    (shims / "usb_hid.py").write_text("class Device:\n    pass\n")
+    _adafruit = str(root)
+    return _adafruit
+
+
 def _run(interpreter, script, *args):
+    if script == "bledev_hid_checks.py":
+        args = ("--adafruit=" + adafruit_hid_dir(),) + args
     return subprocess.run(
         [interpreter, str(_TESTS / script), *args], capture_output=True, text=True, timeout=600
     )

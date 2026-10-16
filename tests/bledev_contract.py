@@ -815,13 +815,13 @@ async def midi_pair(air, *, mtu=midi.MTU, **options):
 
 
 async def _collect(port, n, buf=None):
-    """Read ``port`` as a MidiPort until ``n`` messages have come, as bytes."""
+    """Read ``port`` through ``readinto`` until ``n`` messages have come."""
     got = bytearray()
     buf = buf or bytearray(64)
     splitter = midi.Splitter()
     messages = []
     while len(messages) < n:
-        k = port.read(buf)
+        k = port.readinto(buf)
         if k:
             messages.extend(splitter.feed(buf[:k]))
         else:
@@ -855,13 +855,55 @@ def midi_mix(count):
 async def midi_notes_both_ways(air):
     server, client = await midi_pair(air)
     equal(server.connection._ble.config("gap_name"), "synth", "GAP name follows the advertised name")
-    expect(hasattr(client, "read") and hasattr(client, "write") and client.info.direction == "inout", "a MidiPort")
+    expect(client.info.direction == "inout", "one port, both ways")
+    equal(server.read(), None, "read() is None when nothing has come")
+    equal(server.readinto(bytearray(8)), None, "readinto() is None when nothing has come")
+    equal(server.any(), 0, "any() is 0 when nothing has come")
     client.write(b"\x90\x3c\x64\x3e\x64")  # running status on the way in
-    equal(await _collect(server, 2), [b"\x90\x3c\x64", b"\x90\x3e\x64"], "central -> peripheral")
+    for _ in range(200):
+        if server.any() >= 6:
+            break
+        await asyncio.sleep(0.001)
+    equal(server.any(), 6, "any() counts bytes, running status expanded")
+    equal(server.read(4), b"\x90\x3c\x64", "read(4) takes the whole messages that fit")
+    equal(server.read(), b"\x90\x3e\x64", "read() takes the rest")
+    equal(server.any(), 0, "nothing left")
+    equal(client.write(b"\x80\x3c\x00\x80\x3e", 3), 3, "write(buf, nbytes) sends the first nbytes")
+    equal(await _collect(server, 1), [b"\x80\x3c\x00"], "central -> peripheral, nbytes")
     server.write(b"\xb0\x07\x40")
     ts, message = await client.receive(timeout_ms=1000)
     equal(message, b"\xb0\x07\x40", "peripheral -> central")
     expect(0 <= ts <= 0x1FFF, "a 13-bit timestamp")
+
+
+@check
+async def midi_reads_never_split_a_message_that_fits(air):
+    server, client = await midi_pair(air)
+    sysex = bytes([0xF0] + [j % 128 for j in range(300)] + [0xF7])
+    client.write(b"\x90\x3c\x64" + sysex)
+    await client.drain()
+    for _ in range(500):
+        if server.any() >= 3 + len(sysex):
+            break
+        await asyncio.sleep(0.001)
+    buf = bytearray(320)
+    equal(server.readinto(buf, 200), 3, "a 200-byte read stops before a SysEx that won't fit")
+    equal(server.readinto(buf), len(sysex), "a big enough read takes the SysEx whole")
+    equal(bytes(buf[: len(sysex)]), sysex, "intact")
+    client.write(sysex)
+    await client.drain()
+    for _ in range(500):
+        if server.any():
+            break
+        await asyncio.sleep(0.001)
+    parts = []
+    while True:
+        k = server.readinto(buf, 100)
+        if not k:
+            break
+        parts.append(bytes(buf[:k]))
+    equal([len(p) for p in parts], [100, 100, 100, 2], "too big for the buffer: it comes in parts")
+    equal(b"".join(parts), sysex, "and the parts make it")
 
 
 @check
@@ -901,7 +943,7 @@ async def midi_overflow_is_counted(air):
             break
         await asyncio.sleep(0.005)
     expect(server.overflowed, "an overflow shows")
-    equal(server.dropped + server.any(), 30, "dropped + kept")
+    equal(server.dropped + server.any() // 3, 30, "dropped + kept")
 
 
 @check

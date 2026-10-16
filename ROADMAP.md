@@ -19,8 +19,6 @@ with each kind of peripheral described honestly by its role.
 - BLE MIDI through Windows MIDI Services' new Bluetooth transport: once it
   ships, a board running `bledev.midi.serve()` should open in any Windows MIDI
   app without pairing, and the BLE docs say so.
-- `bledev.midi` gives ports that `adafruit_midi` reads, and the HID device side
-  gives keyboards and mice that `adafruit_hid` code drives unchanged.
 
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
