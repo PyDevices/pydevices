@@ -13,6 +13,10 @@
       "github:PyDevices/pydevices/midiports/midiports/usb_device.py"
     ],
     [
+      "midiports/usb_host.py",
+      "github:PyDevices/pydevices/midiports/midiports/usb_host.py"
+    ],
+    [
       "midiports/usbif_shim.py",
       "github:PyDevices/pydevices/midiports/midiports/usbif_shim.py"
     ],

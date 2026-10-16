@@ -454,3 +454,89 @@ class WebMidiPort(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UsbHostPort(unittest.TestCase):
+    """midiports.usb_host on a fake usb.core device: packets in, bytes out."""
+
+    @classmethod
+    def setUpClass(cls):
+        import types
+
+        usb = types.ModuleType("usb")
+        core = types.ModuleType("usb.core")
+
+        class USBTimeoutError(OSError):
+            pass
+
+        core.USBTimeoutError = USBTimeoutError
+        usb.core = core
+        cls._saved = {k: sys.modules.get(k) for k in ("usb", "usb.core")}
+        sys.modules["usb"], sys.modules["usb.core"] = usb, core
+        sys.modules.pop("midiports.usb_host", None)
+        from midiports import usb_host
+
+        cls.usb_host, cls.core = usb_host, core
+
+    @classmethod
+    def tearDownClass(cls):
+        for k, v in cls._saved.items():
+            if v is None:
+                sys.modules.pop(k, None)
+            else:
+                sys.modules[k] = v
+
+    def _dev(self, incoming):
+        core = self.core
+        # A MIDIStreaming interface (class 1, subclass 3) with bulk 0x81/0x02.
+        cfg = bytes((9, 2, 32, 0, 1, 1, 0, 0x80, 50, 9, 4, 1, 0, 2, 1, 3, 0, 0,
+                     7, 5, 0x81, 2, 64, 0, 0, 7, 5, 0x02, 2, 64, 0, 0))
+
+        class Dev:
+            sent = []
+
+            def configuration_descriptor(self):
+                return cfg
+
+            def read(self, ep, buf, timeout):
+                if not incoming:
+                    raise core.USBTimeoutError(110)
+                pkt = incoming.pop(0)
+                buf[:len(pkt)] = pkt
+                return len(pkt)
+
+            def write(self, ep, data, timeout):
+                self.sent.append((ep, bytes(data)))
+                return len(data)
+
+            def _release_all(self):
+                pass
+
+        return Dev()
+
+    def test_packets_read_as_whole_messages(self):
+        # A note-on and the start of a SysEx in one packet, its end in the next.
+        dev = self._dev([bytes((0x09, 0x90, 60, 100, 0x04, 0xF0, 0x7E, 0x7F)),
+                         bytes((0x07, 0x06, 0x02, 0xF7))])
+        midi_in, _ = self.usb_host.ports(dev)
+        got = b""
+        for _ in range(6):
+            got += midi_in.read() or b""
+        self.assertEqual(got, bytes((0x90, 60, 100, 0xF0, 0x7E, 0x7F, 0x06, 0x02, 0xF7)))
+
+    def test_bytes_written_as_packets(self):
+        dev = self._dev([])
+        _, midi_out = self.usb_host.ports(dev)
+        # Running status, a clock inside a note, then a short SysEx.
+        midi_out.write(bytes((0x90, 60, 100, 62, 0xF8, 90, 0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7)))
+        (ep, data), = dev.sent
+        self.assertEqual(ep, 0x02)
+        self.assertEqual(data, bytes((0x09, 0x90, 60, 100, 0x0F, 0xF8, 0, 0, 0x09, 0x90, 62, 90,
+                                      0x04, 0xF0, 0x7E, 0x7F, 0x07, 0x06, 0x01, 0xF7)))
+
+    def test_a_device_without_midi_is_refused(self):
+        dev = self._dev([])
+        dev.configuration_descriptor = lambda: bytes((9, 2, 18, 0, 1, 1, 0, 0x80, 50, 9, 4, 0, 0, 0, 3, 1, 1, 0))
+        self.assertFalse(self.usb_host.is_midi(dev))
+        with self.assertRaises(ValueError):
+            self.usb_host.ports(dev)
