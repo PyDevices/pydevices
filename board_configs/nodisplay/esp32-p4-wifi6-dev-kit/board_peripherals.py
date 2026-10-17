@@ -466,7 +466,11 @@ def camera(**kwargs):
     kwargs.setdefault("sda", _I2C_SDA)
     kwargs.setdefault("scl", _I2C_SCL)
     kwargs.setdefault("i2c", _I2C_PORT)
-    return cameraif.Camera(**kwargs)
+    try:
+        import camera_sensors   # also finds sensors described in Python (an IMX219)
+    except ImportError:
+        return cameraif.Camera(**kwargs)
+    return camera_sensors.open(**kwargs)
 
 
 def ethernet():

@@ -25,6 +25,7 @@ board configs. Prefer single-file modules; MIP manifests live under `../packages
 | [`radio/sx1262.py`](radio/sx1262.py) | Semtech SX1262 LoRa transceiver: configure, send, receive, channel activity |
 | [`ir/ir_nec.py`](ir/ir_nec.py) | NEC infrared remote codes over an IR LED (`esp32.RMT` or `pulseio.PulseOut`) |
 | [`haptic/drv2605.py`](haptic/drv2605.py) | TI DRV2605 haptic motor driver |
+| [`camera/camera_sensors.py`](camera/camera_sensors.py) | Opens whichever camera is fitted: the firmware's own sensors, then each described one installed (P4 board configs' `camera()` use it) |
 | [`camera/imx219.py`](camera/imx219.py) | Sony IMX219 (Raspberry Pi Camera v2) described for `cameraif.Camera(sensor=...)`: modes, controls and tuning |
 | [`bus/rs485.py`](bus/rs485.py) | UART (+ optional DE) |
 | [`bus/canbus.py`](bus/canbus.py) | `machine.CAN` helper when firmware exposes TWAI |

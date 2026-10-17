@@ -525,7 +525,11 @@ def camera(**kwargs):
     kwargs.setdefault("sda", _CAM_SDA)
     kwargs.setdefault("scl", _CAM_SCL)
     kwargs.setdefault("i2c", _CAM_I2C_PORT)
-    return cameraif.Camera(**kwargs)
+    try:
+        import camera_sensors   # also finds sensors described in Python (an IMX219)
+    except ImportError:
+        return cameraif.Camera(**kwargs)
+    return camera_sensors.open(**kwargs)
 
 
 def radio():
