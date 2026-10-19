@@ -74,15 +74,18 @@ class TestHostloop(unittest.TestCase):
         self.assertEqual(1, len(stopped), "teardown still happens")
 
     def test_crashed_script_does_not_enter_the_loop(self):
-        count = []
+        # Watch the event itself: whether the hook enters the loop. A timer
+        # that counts ticks can't tell the hook's loop from the wake source,
+        # which fires a 5 ms timer on its own before the hook ever runs.
+        entered = []
+        self._patch(_hostloop, "_run_loop", lambda: entered.append(1))
         multimer.keepalive()
-        multimer.every(5, lambda t: count.append(1))
         self._force(_hostloop.EXIT_HOOK)
         _hostloop.mark_crashed()
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             _hostloop._exit_hook()
-        self.assertEqual(0, len(count))
+        self.assertEqual([], entered, "a crashed script must not enter the loop")
         self.assertIn("uncaught exception", err.getvalue(), "a skipped loop must say why")
 
     def test_micropython_ignores_a_stale_exc_info(self):
