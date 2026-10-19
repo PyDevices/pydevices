@@ -1,3 +1,32 @@
+## v0.7.6.dev1 (2026-10-19)
+
+- midiports: usb_device needs usb-device-midi 0.1.1 or later
+- The HID and MIDI gate scripts over USB: hid_script typed through usb_hid, and an adafruit_midi echo
+- The USB packages move in beside midiports, from usbif (e900c94)
+- midiports: usb_host.all_ports() hears every MIDI device at once, merged a whole message at a time, and writes to all
+- P4 board packages ship camera_sensors.py and imx219.py, which their camera() imports
+- docs/audio: capability.wire's live example is audiodsp's pump
+- midiports: usbif_shim goes; usb_host is the hosted-MIDI port, and the tests that leaned on the shim use it
+- camera_sensors: board camera() finds Python-described sensors too
+- drivers/camera/imx219.py: the Raspberry Pi Camera v2 as data for cameraif
+- midiports.usb_host: a MIDI device on the board's USB host port, over usb.core
+- pydevices-desktop.toml: regenerated for bledev.hid_gamepad
+- bledev.hid on CircuitPython: each report goes out once
+- bledev.hid: a paired computer lists the board under its HID name
+- bledev.hid: a send's timestamp works on CircuitPython; the keyboard rig differs only in its port line
+- Docs: bledev's MIDI and HID on adafruit_midi and adafruit_hid; no BLE on the CircuitPython P4
+- HID rig: 30 ms between steps, and the LED report checked through get_last_received_report
+- bledev.midi: reads hand out whole messages; the gate rig goes through adafruit_midi
+- bledev.hid: devices in usb_hid's shape, for adafruit_hid; a mouse; the old sugar goes
+- bledev.midi: Port presents the midiports contract, not usbif's MidiPort
+- midiports.windows: available() skips a device that leaves while it lists
+- midiports: real-time bytes inside a SysEx come out as their own messages over USB and usbif
+- midiports: an arrival time for every incoming message, on every input port
+- midiports: Web MIDI ports for Pyodide, on the page and relayed to a worker
+- uwin32: MIDI port names decode on MicroPython too
+- midiports: any() on input ports, for a poll loop beside audio
+- midiports: MIDI ports for adafruit_midi over USB device, UART, Windows and Linux
+
 ## v0.7.5 (2026-10-16)
 
 
