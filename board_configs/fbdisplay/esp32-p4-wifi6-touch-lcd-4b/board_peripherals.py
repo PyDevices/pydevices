@@ -8,6 +8,7 @@ PERIPHERALS = frozenset(
         "pcm_out",
         "pcm_in",
         "audio_power",
+        "audio_in_power",
         "sdcard",
         "camera",
         "radio",
@@ -21,7 +22,7 @@ PERIPHERALS = frozenset(
 # Audio roles are factories: first board_config access does not construct.
 # GUI: import board_config, then board_config.pcm_out(format=...).
 # Non-GUI: import board_peripherals and call the same factory.
-FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in", "audio_power"})
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in", "audio_power", "audio_in_power"})
 
 # Waveshare wiki I2S / ES8311 pin map (P4 panel family)
 _MCLK = 13
@@ -463,6 +464,46 @@ def _audio_power(enable=True, *, volume=None):
     return enable
 
 
+def _audio_in_power(enable=True, *, rate=None, gain=None):
+    """Bring the ES7210 microphones up or down WITHOUT opening an I2S stream.
+
+    For a recorder that drives I2S itself, which is what ``audioi2sin.I2SIn``
+    does, the way ``audio_power`` serves ``audiobusio.I2SOut``. CircuitPython's
+    capture code runs unchanged after it::
+
+        board_peripherals.audio_in_power(True, rate=16000)
+        mic = audioi2sin.I2SIn(12, 10, 11, main_clock=13, sample_rate=16000)
+        mic.record(buf, len(buf))
+
+    The ES7210 is set up with MCLK running, and before any I2S channel exists
+    nothing drives GPIO13, so PWM bootstraps it and lets go before this
+    returns. Pass ``main_clock=13`` to the recorder: it then drives MCLK from
+    the same PLL as BCLK, and the ADC follows whatever rate it records at
+    (MCLK stays at 256 times it). When a channel is already running, MCLK is
+    left to it.
+
+    The ES7210 sends zeros for its first 96 ms after MCLK reaches it, so a
+    recording opened straight after this starts with that much silence.
+    """
+    global _mclk_rate
+    if not enable:
+        codec = _INPUT_SESSION.codec
+        if codec is not None:
+            codec.enable_input(False)
+        return False
+    if rate is not None:
+        _mclk_rate = int(rate)
+    _ensure_mclk(_MCLK_FS)
+    try:
+        codec = _INPUT_SESSION.get_codec()
+        codec.enable_input(True)
+        if gain is not None:
+            codec.set_gain(gain)
+    finally:
+        _stop_mclk()
+    return True
+
+
 def _input_power(enable, rate):
     if enable:
         _INPUT_SESSION.get_codec().enable_input(True)
@@ -474,6 +515,7 @@ pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
 pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
 audio_out = AudioFactory(_audio_out, AUDIO_OUT)
 audio_power = _audio_power
+audio_in_power = _audio_in_power
 
 
 def sdcard():
