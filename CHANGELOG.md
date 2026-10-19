@@ -1,3 +1,12 @@
+## v0.7.6 (2026-10-19)
+
+- Workflows: publishing-v14, whose publisher publishes top-level packages (midiports, usb-*) to MIP
+- device-matrix: the P4 4B and the T-Embed list audio_in_power
+- Boards: audio_in_power brings the ES7210 up for audioi2sin.I2SIn on the P4 panel and the T-Embed
+- mip-split.toml: midiports and the usb-* packages publish to the MIP index by name (#226)
+- test_hostloop: the crashed-script test watches whether the loop is entered, not a 5 ms timer (#227)
+- The ecosystem map says where usbif, audioif, cameraif and displayif went
+
 ## v0.7.6.dev1 (2026-10-19)
 
 - midiports: usb_device needs usb-device-midi 0.1.1 or later
