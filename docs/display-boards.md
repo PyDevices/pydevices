@@ -13,9 +13,11 @@ Paths are under
 Device roles (eager / lazy):
 [`device-matrix.md`](device-matrix.md)
 
-Native drivers live in pydevices **displayif** (`displayif.DotClockFramebuffer`
-or `mipidsi`). Soft-reset / scanout lessons:
-[displayif `docs/soft-reset-and-bring-up.md`](https://github.com/PyDevices/displayif/blob/main/docs/soft-reset-and-bring-up.md).
+Native drivers live in **displayif** (`displayif.DotClockFramebuffer` or
+`mipidsi`), which is part of
+[micropython-pydevices](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/displayif).
+Soft-reset / scanout lessons:
+[displayif `docs/soft-reset-and-bring-up.md`](https://github.com/PyDevices/micropython-pydevices/blob/main/modules/displayif/docs/soft-reset-and-bring-up.md).
 
 Typical MicroPython flash for the ESP32-S3 RGB boards below:
 `ESP32_GENERIC_S3` + **`SPIRAM_OCT`** (8 MB octal PSRAM). P4 uses its own board

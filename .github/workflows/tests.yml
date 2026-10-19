@@ -77,7 +77,7 @@ jobs:
   # on a real interpreter. So this job builds one.
   #
   # It needs audiodsp and nothing else: `audiopump` the engine ships with
-  # audiodsp on every port, and the platform driver (PyDevices/audioif) is
+  # audiodsp on every port, and the platform driver (`modules/audioif` in micropython-pydevices) is
   # optional -- without it `threaded()` is False and the same loop runs on
   # the interpreter's own thread, which both probes pass on. That is what
   # makes this job possible in a public repository at all.
