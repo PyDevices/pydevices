@@ -18,12 +18,8 @@ organization. Edit the database, not the block below.
 Standard hardware driver engine and companion reference code.
 
 - [`pydevices`](https://github.com/PyDevices/pydevices) — Unified pure-Python hardware abstraction layer and core device contract for MicroPython, CircuitPython, CPython, direct WebAssembly, Pyodide, and Android.
-- [`displayif`](https://github.com/PyDevices/displayif) — High-performance C hardware bus engines (SPI, I2C, Intel 8080, RGB/DPI, MIPI DSI) and native usermod display drivers for MicroPython and CircuitPython.
 - [`audiodsp`](https://github.com/PyDevices/audiodsp) — CircuitPython's audio system (audiocore, synthio, audiomixer, effects, audiomp3) ported to MicroPython and CPython, extending CircuitPython along the way: dynamics, routing, convolution, and offline rendering. On PyPI as pydevices-audiodsp; the instrument and effect libraries built on it ship from audiocomponents.
-- [`audioif`](https://github.com/PyDevices/audioif) — The part of the audio stack that knows what a thread is, where the clock comes from and where the sound goes: a pinned task and the I2S peripheral on ESP32, a native thread on unix and Windows, and a CircuitPython-shaped audiobusio.I2SOut over all of it. With it in a firmware, a graph keeps an exact clock while a screen redraws and a USB stack runs, and audiodev plays through it without being asked. The portable half of the pump, and every DSP node, is audiodsp.
 - [`audiocomponents`](https://github.com/PyDevices/audiocomponents) — The instrument and effect libraries for audiodsp: audioinstruments (55 modelled classics, from the TR-808 to the DX7) and audioeffects (45 effect classes and racks), pure Python on MicroPython and CPython. Ships as pydevices-audioinstruments and pydevices-audioeffects, each a standalone distribution and a MIP package.
-- [`usbif`](https://github.com/PyDevices/usbif) — A board a computer sees as a sound card, a MIDI instrument, a keyboard, a drive or a webcam — and, on the same board, a USB host that a keyboard, thumb drive, MIDI controller or camera plugs into. One of the PyDevices *if modules, with displayif, audioif and cameraif: a native C module with a thin, stable Python surface that runs unchanged on a workstation.
-- [`cameraif`](https://github.com/PyDevices/cameraif) — Point the board at something and read the frame. The sensor is found by probing rather than named in code, so a different camera is a build-time option away, not a rewrite. Hardware JPEG, zero-copy frames and hardware scaling straight into a display's scanout buffer, with every rate in its README measured on the board it names.
 - [`pydevices-examples`](https://github.com/PyDevices/pydevices-examples) — Comprehensive example code, direct MicroPython WebAssembly demos, board configurations, and multi-interpreter showcase benchmarks.
 
 ### Tier 2: Python Framebuffers & GUI Toolkits
@@ -56,9 +52,16 @@ MIP package indexing, multi-usermod builds, and serial/FTP IDE extensions.
 
 - [`mpftp`](https://github.com/PyDevices/mpftp) — Connect MicroPython and CircuitPython boards from VS Code, Cursor, or the CLI, over USB or Wi-Fi: dual-pane file transfer, in-editor REPL, firmware builds and flashing, mip/circup, plus RPC, MCP, and an optional browser PWA.
 - [`mip`](https://github.com/PyDevices/mip) — Single source of truth (SoT) for precompiled MicroPython .mpy bytecode packages and pure-Python library distributions across the PyDevices ecosystem.
-- [`micropython-pydevices`](https://github.com/PyDevices/micropython-pydevices) — The PyDevices patch queue for MicroPython, kept like a distribution keeps one: an ordered, provenance-tracked patch series over the pinned upstream release (v1.29.0), with presets, boards and variants that build PyDevices modules into firmware with upstream's own make.
+- [`micropython-pydevices`](https://github.com/PyDevices/micropython-pydevices) — The PyDevices patch queue for MicroPython, kept like a distribution keeps one: an ordered, provenance-tracked patch series over the pinned upstream (MicroPython v1.30.0-preview-160), with presets, boards and variants that build PyDevices modules into firmware with upstream's own make.
 - [`workbench`](https://github.com/PyDevices/workbench) — A ViperIDE fork with a built-in WebAssembly MicroPython simulator: edit, run, and debug PyDevices code against a simulated board entirely in the browser, no hardware required.
 - [`mpvst`](https://github.com/PyDevices/mpvst) — Programmable VST3 instruments and effects: every audiocomponents instrument and effect as a named plug-in, each instance running its Python in a sidecar process. Installers for Windows and Linux; nothing has to be built.
+
+**Moved into other repositories:**
+
+- **displayif** — now [`modules/displayif`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/displayif) in micropython-pydevices. The old repository is archived.
+- **audioif** — now [`modules/audioif`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/audioif) in micropython-pydevices. The old repository is archived.
+- **cameraif** — now [`modules/cameraif`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/cameraif) in micropython-pydevices. The old repository is archived.
+- **usbif** — the C module is now [`modules/usbhost`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/usbhost) in micropython-pydevices; the Python USB packages are in [pydevices](https://github.com/PyDevices/pydevices/blob/main/docs/usb.md). The old repository is archived.
 
 **Deliberately absent from this map:**
 
