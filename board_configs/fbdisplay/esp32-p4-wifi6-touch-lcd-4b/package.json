@@ -23,6 +23,14 @@
     [
       "keypad_gpio.py",
       "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
+    ],
+    [
+      "camera_sensors.py",
+      "github:PyDevices/pydevices/drivers/camera/camera_sensors.py"
+    ],
+    [
+      "imx219.py",
+      "github:PyDevices/pydevices/drivers/camera/imx219.py"
     ]
   ],
   "deps": [
