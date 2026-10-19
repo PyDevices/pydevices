@@ -451,8 +451,7 @@ against the same file.
 ## Keyboards, mice and gamepads (HID)
 
 `bledev.hid` turns a BLE keyboard, mouse, media remote or game controller
-into the same `events` a USB keyboard gives you through usbif, or SDL gives
-you on the desktop: `events.Key` with `keys.K_*` codes and modifiers,
+into the same `events` SDL gives you on the desktop: `events.Key` with `keys.K_*` codes and modifiers,
 `events.Motion`, `Button` and `Wheel` for a mouse, and
 `events.JoyAxisMotion`, `JoyHatMotion`, `JoyButtonDown` and `JoyButtonUp`.
 Your app can't tell which one it's talking to.

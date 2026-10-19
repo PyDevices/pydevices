@@ -69,8 +69,9 @@ sounds like working audio at the wrong pitch, which is the kind of bug nobody
 notices until it ships.
 
 `capability.wire` is for the third kind of consumer: one that opens the
-peripheral itself and wants no Python device at all. usbif's C FreeRTOS pump
-(`soundcard.py`) is the live example.
+peripheral itself and wants no Python device at all. audiodsp's pump is the
+live example: `pump.BusioDriver(capability.wire, ...)` plays on the board's I2S
+from C.
 
 ## Channel conversion
 

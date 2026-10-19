@@ -23,7 +23,9 @@ yourself and start them together::
 
 Install ``usb-device-midi`` from micropython-lib first
 (``mip.install("usb-device-midi")``), unless your firmware already has it
-frozen in. It needs a port with ``machine.USBDevice``.
+frozen in. It needs a port with ``machine.USBDevice``, and version 0.1.1 or
+later: with 0.1.0 a fast burst from the computer fills the schedule queue and
+the board stops receiving until it resets.
 
 Each message is stamped with its arrival time (``midi_in.take_timestamp()``,
 the package's contract) in ``on_midi_event``, as the USB stack hands the

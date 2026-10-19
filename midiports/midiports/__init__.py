@@ -109,8 +109,9 @@ taking stamps partway through gets old ones first.
 How close the stamp is to the moment the byte reached the board or the
 computer depends on the transport, and each module says. Where a transport
 calls back when data arrives (USB on a board, Web MIDI), the stamp is taken
-there. Where it doesn't (a UART, Windows, Linux, usbif), it's taken by the
-read that finds the bytes, so it's only as fine as how often you poll.
+there. Where it doesn't (a UART, Windows, Linux, a hosted USB device), it's
+taken by the read that finds the bytes, so it's only as fine as how often you
+poll.
 
 :class:`PortIn` and :class:`PortOut` are bases a transport can build on: a
 subclass writes ``readinto`` or ``write`` and inherits the rest.

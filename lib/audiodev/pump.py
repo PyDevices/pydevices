@@ -220,9 +220,8 @@ def driver():
     only where there is hardware to drive. The I2S channel, the microphone
     ``Input`` and the round-trip probe are ITS names, not the engine's.
 
-    Private by convention, the way ``usbif`` ships a C ``_usbif`` under a
-    Python package: ``audiodev`` is the public face, and nothing outside this
-    module should import it.
+    Private by convention, as the underscore says: ``audiodev`` is the public
+    face, and nothing outside this module should import it.
     """
     global _driver, _driver_looked
     if _driver_looked:

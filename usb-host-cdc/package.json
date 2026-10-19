@@ -1,0 +1,7 @@
+{
+  "urls": [
+    ["usb/host/cdc.py", "github:PyDevices/pydevices/usb-host-cdc/usb/host/cdc.py"]
+  ],
+  "deps": [["github:PyDevices/pydevices/usb-core", "main"]],
+  "version": "0.1.0"
+}

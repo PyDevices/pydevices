@@ -167,7 +167,7 @@ class ESP32P4AudioTests(P4BoardFixture):
         self.assertEqual([], FakeI2S.constructed)
 
     def test_capability_publishes_the_wire_for_a_c_pump(self):
-        """usbif's C pump opens I2S itself and wants only the pin numbers."""
+        """A C pump opens I2S itself and wants only the pin numbers."""
         FakeI2S.constructed.clear()
         wire = self.board.AUDIO_OUT.wire
         self.assertEqual(12, wire.sck)

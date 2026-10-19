@@ -41,7 +41,7 @@ datasheet) and wiki:
   way to what they do), it goes to the onboard CH334F hub: J8's upper
   socket and both J2 sockets work at once and J8's lower one goes dead.
   Behind that hub only high-speed devices enumerate, unless the host is
-  started at full speed (usbif's ``full_speed=True``), which lets keyboards,
+  started at full speed (``usb.core.start(full_speed=True)``), which lets keyboards,
   MIDI controllers and other full-speed devices through. J8's 5 V is not
   switched, so a device stays powered through a board reset.
 - USB Serial/JTAG is the "USB" Type-C (GPIO24/25); a CH343 bridge is the
@@ -466,7 +466,11 @@ def camera(**kwargs):
     kwargs.setdefault("sda", _I2C_SDA)
     kwargs.setdefault("scl", _I2C_SCL)
     kwargs.setdefault("i2c", _I2C_PORT)
-    return cameraif.Camera(**kwargs)
+    try:
+        import camera_sensors   # also finds sensors described in Python (an IMX219)
+    except ImportError:
+        return cameraif.Camera(**kwargs)
+    return camera_sensors.open(**kwargs)
 
 
 def ethernet():

@@ -41,6 +41,7 @@ Write your display and hardware logic once and run across 6 supported Python env
 | [`drivers/`](drivers/) | Display, touch, bus, joystick, IO expander, input helpers |
 | [`lib/displaydev/`](lib/displaydev/) | Display backends (`BusDisplay`, `SDLDisplay`, …); `auto.py` is convenience only |
 | [`lib/`](lib/) | `audiodev/`, `displaydev/`, `appdev/`, `events.py`, `keys.py`, `multimer/`, `wifi.py`, `wifi_manager.py` |
+| `usb-core/`, `usb-host-*/`, `usb-device-*/`, `usb-hid/` | USB packages: `usb.core` and the host classes, and the board as a USB sound card, webcam, drive or keyboard ([docs/usb.md](docs/usb.md)) |
 | [`midiports/`](midiports/) | MIDI ports for `adafruit_midi` over USB, a UART, and Windows and Linux MIDI ([README](midiports/README.md)) |
 | [`utils/`](utils/) | Desktop-bundled helpers (`mip`, `mdns`, `frame_recorder`, `micropython`, `pngio`, `usdl2`, `uwin32`) |
 | [`tests/`](tests/) | Stdlib unittest for `displaydev`, `multimer`, `events`, `keys`, `audiodev`, `boarddev`, `mip` |
@@ -58,6 +59,7 @@ landing page.
 - [Display Boards](docs/display-boards.md) — panel, touch, and bring-up notes per board
 - [Cross-Platform Architecture](docs/architecture.md)
 - [Direct MicroPython WebAssembly](docs/wasm.md)
+- [USB, both ways round](docs/usb.md) — the `usb-*` packages, host and device
 - [Newcomer's guide](docs/newcomers.md) — installation, board contract, architecture, and repository map
 
 What's planned next is in [ROADMAP.md](ROADMAP.md).

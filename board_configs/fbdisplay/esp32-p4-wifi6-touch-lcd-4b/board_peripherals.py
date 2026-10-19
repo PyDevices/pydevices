@@ -434,8 +434,8 @@ def _audio_out(format=None, *, latency=None, queue_ms=None, **kwargs):
 def _audio_power(enable=True, *, volume=None):
     """Bring the analog path up or down WITHOUT opening an I2S stream.
 
-    For a consumer that drives the peripheral itself -- usbif's C FreeRTOS
-    pump reads ``AUDIO_OUT.wire`` and opens I2S in C. Two owners of one I2S
+    For a consumer that drives the peripheral itself -- audiodsp's C pump
+    (``pump.BusioDriver``) reads ``AUDIO_OUT.wire`` and opens I2S in C. Two owners of one I2S
     channel is a silent failure rather than an error, so Python must not
     open one; but the codec still has to be powered and unmuted or every
     byte moves and nothing is audible.
@@ -525,7 +525,11 @@ def camera(**kwargs):
     kwargs.setdefault("sda", _CAM_SDA)
     kwargs.setdefault("scl", _CAM_SCL)
     kwargs.setdefault("i2c", _CAM_I2C_PORT)
-    return cameraif.Camera(**kwargs)
+    try:
+        import camera_sensors   # also finds sensors described in Python (an IMX219)
+    except ImportError:
+        return cameraif.Camera(**kwargs)
+    return camera_sensors.open(**kwargs)
 
 
 def radio():

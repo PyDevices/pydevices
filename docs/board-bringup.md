@@ -20,13 +20,15 @@ marginal signal: measured on an ESP32-P4 at RSSI −85 dBm, connect 9.8 s,
 
 Check before installing anything. On an image built with the PyDevices C
 modules (micropython-pydevices' `build_mp.py --modules
-displayif,lvgl-micropython,usbif,pygraphics,audiodsp,ulab`, say) the following
+displayif,lvgl-micropython,usbhost,pygraphics,audiodsp,ulab`, say) the following
 are **frozen or built in** — installing them is wasted effort:
 
 - `lvgl` (from lvgl-micropython)
 - `dotclockframebuffer` (from displayif) — the RGB panel interface
-- `_usbif` and the `usbif` Python package: usbif's manifest freezes its
-  Python half beside its C half, because the two version together
+- `_usbhost`, the USB host's C module (usbhost). The USB packages that use
+  it (`usb.core`, `usb.host.*`, `usb.device.*`, from this repository's
+  `usb-*` directories) are installed with mip, except on a board variant
+  that freezes them (the WIFI6 DEV-KIT's)
 - `ulab`, `pygraphics`, and audiodsp's modules
 
 and the following are **not**, and must be installed:
@@ -41,7 +43,7 @@ and the following are **not**, and must be installed:
 
 ```python
 for m in ("lvgl", "display_driver", "dotclockframebuffer", "mipidsi",
-          "displaydev", "board_config", "usbif", "appdev", "multimer"):
+          "displaydev", "board_config", "_usbhost", "appdev", "multimer"):
     try:
         __import__(m); print("OK  ", m)
     except Exception as e:
@@ -51,9 +53,9 @@ for m in ("lvgl", "display_driver", "dotclockframebuffer", "mipidsi",
 (`mipidsi` is the panel interface on the ESP32-P4 boards, `dotclockframebuffer`
 on the RGB-panel S3 boards; whichever is not yours will simply be missing.)
 
-**Trap.** `import usbif` fails with `ImportError` on a bare board even
-though it is frozen — because `usbif` imports `events`, and it is *that*
-import failing (`no module named 'events'`). The probe prints the exception
+**Trap.** A frozen module can fail with `ImportError` on a bare board even
+though it is there — because it imports `events`, and it is *that* import
+failing (`no module named 'events'`). The probe prints the exception
 text so you can see which module is really absent; a frozen module that
 reports `MISS` with somebody else's name in the message is present and fine.
 Install `pydevices` (which carries `events`, `appdev` and `display_driver`),
