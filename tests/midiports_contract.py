@@ -55,7 +55,7 @@ from adafruit_midi.timing_clock import TimingClock
 import midiports
 from midiports import PortIn, PortOut, WholeMessages
 
-PLANTS = ("drop-status", "skip-clock-stamp")
+PLANTS = ("drop-status", "skip-clock-stamp", "interleave")
 
 if PLANT == "skip-clock-stamp":
     # Every port decides what to stamp through midiports._stamp. Planted, a
@@ -568,6 +568,10 @@ def _usb_host():
     sys.modules.pop("midiports.usb_host", None)
     from midiports import usb_host
 
+    if PLANT == "interleave":
+        # The merge of every device forgets which one is part way through a
+        # message, so it goes round to the next device whenever it can.
+        usb_host._mid_message = lambda port: False
     return usb_host
 
 
@@ -593,6 +597,147 @@ def c_usb_host():
         # and MicroPython allocates a traceback for each raise.
         midi_in.close()
         expect(dev.closed, "close reaches the device")
+    finally:
+        _drop_usb_host()
+
+
+def _hosted(*devices):
+    """A find() over these fake devices, each given the id usb.core gives."""
+    for k, dev in enumerate(devices):
+        dev._id = k + 1
+    present = list(devices)
+
+    def find():
+        return list(present)
+
+    return find, present
+
+
+def whole_or_why(data):
+    """None if ``data`` is whole messages back to back; else what's wrong."""
+    i = 0
+    while i < len(data):
+        b = data[i]
+        if b < 0x80:
+            return "data byte 0x%02x at %d with no status" % (b, i)
+        if b == 0xF0:
+            j = i + 1
+            while j < len(data) and data[j] != 0xF7:
+                if data[j] >= 0x80 and data[j] < 0xF8:
+                    return "status 0x%02x inside the SysEx at %d" % (data[j], i)
+                j += 1
+            if j == len(data):
+                return "the SysEx at %d never ends" % i
+            i = j + 1
+            continue
+        n = 1 + midiports.message_length(b)
+        for j in range(i + 1, i + n):
+            if j >= len(data) or data[j] >= 0x80:
+                return "message 0x%02x at %d cut short" % (b, i)
+        i += n
+    return None
+
+
+def drain(midi_in, nbytes):
+    data = bytearray()
+    idle = 0
+    while idle < 3:
+        chunk = midi_in.read(nbytes)
+        if chunk is None:
+            idle += 1
+        else:
+            idle = 0
+            data.extend(chunk)
+    return bytes(data)
+
+
+def c_usb_host_all():
+    usb_host = _usb_host()
+    try:
+        a, b = FakeMidiDevice(), FakeMidiDevice()
+        find, present = _hosted(a, b)
+        midi_in = usb_host._All(find, 64, 1, 1000, 0, 500)
+        midi_out = usb_host._AllOut(midi_in)
+        expect(len(midi_in.devices) == 2, "%d devices open, want 2" % len(midi_in.devices))
+        # a's SysEx comes over three packets, and b plays notes meanwhile.
+        a.feed_events((0x4, 0xF0, 0x7E, 0x7F))
+        b.feed(b"\x91\x40\x50")
+        a.feed_events((0x4, 0x06, 0x01, 0x02))
+        b.feed(b"\x81\x40\x00")
+        a.feed_events((0x6, 0x03, 0xF7, 0), (0x9, 0x90, 0x3C, 0x64))
+        b.feed(b"\xb1\x07\x7f")
+        # Small reads, so every message is handed out in pieces.
+        data = drain(midi_in, 2)
+        why = whole_or_why(data)
+        expect(why is None, "%s in %s" % (why, data.hex()))
+        expect(b"\xf0\x7e\x7f\x06\x01\x02\x03\xf7" in data, "a's SysEx, whole: " + data.hex())
+        for msg in (b"\x90\x3c\x64", b"\x91\x40\x50", b"\x81\x40\x00", b"\xb1\x07\x7f"):
+            expect(msg in data, "%s missing from %s" % (msg.hex(), data.hex()))
+        expect(len(data) == 20, "%d bytes, want 20" % len(data))
+        # Out goes to both, and each loopback brings every note back.
+        got = round_trip(midi_in, midi_out, notes=200)
+        expect(got == 200, "%d of 200 notes in order through the merge" % got)
+        # Running status, per device: each device's packets carry their own.
+        a.feed(b"\x92\x30\x40")
+        b.feed(b"\x93\x31\x41")
+        data = drain(midi_in, 64)
+        expect(sorted((data[:3], data[3:])) == [b"\x92\x30\x40", b"\x93\x31\x41"], data.hex())
+        # One leaves and one arrives; a rescan sees both.
+        c = FakeMidiDevice()
+        c._id = 3
+        present.remove(a)
+        present.append(c)
+        expect(midi_in.scan() == 2 and a.closed, "a dropped, c opened")
+        expect(midi_in.devices == [b, c], "devices %r" % (midi_in.devices,))
+        c.feed(b"\x94\x32\x42")
+        expect(drain(midi_in, 64) == b"\x94\x32\x42", "the newcomer heard")
+        midi_in.close()
+        expect(b.closed and c.closed and not midi_in.devices, "close reaches every device")
+    finally:
+        _drop_usb_host()
+
+
+def c_usb_host_all_stalled_sysex():
+    usb_host = _usb_host()
+    try:
+        a, b = FakeMidiDevice(), FakeMidiDevice()
+        find, present = _hosted(a, b)
+        midi_in = usb_host._All(find, 64, 1, 1000, 0, 0)
+        a.feed_events((0x4, 0xF0, 0x7E, 0x7F))
+        b.feed(b"\x91\x40\x50")
+        data = drain(midi_in, 64)
+        # a stopped inside its SysEx: it's ended, and then b is heard.
+        expect(data == b"\xf0\x7e\x7f\xf7\x91\x40\x50", "stalled SysEx: " + data.hex())
+        a.feed_events((0x7, 0x01, 0x02, 0xF7), (0x9, 0x90, 0x3C, 0x64))
+        data = drain(midi_in, 64)
+        expect(data == b"\x90\x3c\x64", "the rest of a's SysEx dropped, its note kept: " + data.hex())
+        # A device unplugged inside a SysEx has it ended too.
+        a.feed_events((0x4, 0xF0, 0x7E, 0x7F))
+        expect(midi_in.read(64) == b"\xf0\x7e\x7f", "a SysEx starts")
+        present.remove(a)
+        midi_in.scan()
+        data = drain(midi_in, 64)
+        expect(data == b"\xf7", "unplugged mid-SysEx: " + data.hex())
+    finally:
+        _drop_usb_host()
+
+
+def c_stamps_usb_host_all():
+    usb_host = _usb_host()
+    try:
+        use_fake_clock(midiports)
+        dev = FakeMidiDevice()
+        find, _ = _hosted(dev)
+        midi_in = usb_host._All(find, 64, 1, 1000, 0, 500)
+        chunks = list(WHOLE_ARRIVALS)
+
+        def pump():
+            if chunks and dev.idle():
+                dev.feed(chunks.pop(0))
+                _clock.t += 1000
+
+        _clock.t = 0
+        expect_stamps(stamps_per_message(midi_in, pump), WHOLE_WANT)
     finally:
         _drop_usb_host()
 
@@ -1412,6 +1557,8 @@ CHECKS = (
     ("usb_device: a host not reading drops and counts, never stalls", c_usb_device_full_host_drops_and_counts),
     ("usb_device: 200 of 200 through events and back", c_usb_device_round_trip),
     ("usb_host: 200 of 200 over a fake usb.core, packets to whole messages", c_usb_host),
+    ("usb_host all_ports: two devices merged whole, out to both, arrivals and departures", c_usb_host_all),
+    ("usb_host all_ports: a SysEx that stops, or whose device leaves, is ended", c_usb_host_all_stalled_sysex),
     ("windows: ports by name, short messages, drained input", c_windows),
     ("any(): counts without taking, allocates nothing, drives a loop", c_any),
     ("webmidi: a page MIDIAccess, 200 of 200, timestamps follow receive()", c_webmidi_page),
@@ -1423,6 +1570,7 @@ CHECKS = (
     ("stamps: uart", c_stamps_uart),
     ("stamps: usb_device, at the event callback", c_stamps_usb_device),
     ("stamps: usb_host", c_stamps_usb_host),
+    ("stamps: usb_host all_ports", c_stamps_usb_host_all),
     ("stamps: windows", c_stamps_windows),
     ("stamps: webmidi, one per message", c_stamps_webmidi),
     ("stamps: usb_device, real-time bytes inside a SysEx", c_stamps_realtime_in_sysex_usb_device),

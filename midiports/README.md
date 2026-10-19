@@ -27,6 +27,7 @@ To use another transport, change the line that opens the ports:
 |---|---|
 | USB, the board as a device | `usb_device.ports()` |
 | USB, a keyboard or synth plugged into the board | `usb_host.ports()` |
+| USB, every MIDI device plugged into the board, merged | `usb_host.all_ports()` |
 | A UART (5-pin DIN, TRS, board to board) | `uart.ports(1, tx=17, rx=18)` |
 | Windows' MIDI ports (a keyboard, loopMIDI, a DAW) | `windows.ports("loopMIDI")` |
 | Linux raw MIDI | `linux.ports("DMK25")` |
@@ -163,3 +164,7 @@ clock a worker's relayed times are on.
 - `usb_host` needs `usb.core` (the `usb-core` package) and a firmware with a
   USB host. On an ESP32-P4 with the keyboard behind a hub, call
   `usb.core.start(full_speed=True)` before `ports()`.
+- `usb_host.all_ports()` hears every MIDI device on the host at once, and
+  ones plugged in later. It never splits one device's message with
+  another's, so a long SysEx from one holds the rest until it ends. Writes
+  go to every device.

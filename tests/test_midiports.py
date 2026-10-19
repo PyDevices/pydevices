@@ -142,6 +142,14 @@ class Contract(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, "the plant went unnoticed:\n" + result.stdout)
         for port in ("WholeMessages", "uart", "usb_device", "usb_host", "windows", "webmidi"):
             self.assertIn("FAIL stamps: " + port, result.stdout)
+        self.assertIn("FAIL stamps: usb_host all_ports --", result.stdout)
+
+    def test_a_merge_that_switches_device_mid_message_fails_it(self):
+        result = run([sys.executable, CONTRACT, "--adafruit=" + adafruit_dir(self), "--plant=interleave"])
+        self.assertIn("PLANTED interleave", result.stdout)
+        self.assertNotEqual(result.returncode, 0, "the plant went unnoticed:\n" + result.stdout)
+        self.assertIn("FAIL usb_host all_ports: two devices merged whole", result.stdout)
+        self.assertIn("FAIL usb_host all_ports: a SysEx that stops", result.stdout)
 
 
 def _make_asound(root, entries):
@@ -530,6 +538,34 @@ class UsbHostPort(unittest.TestCase):
         self.assertEqual(ep, 0x02)
         self.assertEqual(data, bytes((0x09, 0x90, 60, 100, 0x0F, 0xF8, 0, 0, 0x09, 0x90, 62, 90,
                                       0x04, 0xF0, 0x7E, 0x7F, 0x07, 0x06, 0x01, 0xF7)))
+
+    def test_all_ports_finds_every_midi_device(self):
+        a = self._dev([bytes((0x09, 0x90, 60, 100))])
+        b = self._dev([bytes((0x09, 0x91, 62, 90))])
+        keyboard = self._dev([])
+        keyboard.configuration_descriptor = lambda: bytes((9, 2, 18, 0, 1, 1, 0, 0x80, 50, 9, 4, 0, 0, 0, 3, 1, 1, 0))
+        for k, dev in enumerate((a, keyboard, b)):
+            dev._id = k + 1
+        asked = []
+
+        def find(find_all=False, custom_match=None):
+            asked.append(find_all)
+            return iter([d for d in (a, keyboard, b) if custom_match(d)])
+
+        self.core.find = find
+        try:
+            midi_in, midi_out = self.usb_host.all_ports(rescan_ms=0)
+        finally:
+            del self.core.find
+        self.assertEqual(asked, [True])
+        self.assertEqual(midi_in.devices, [a, b])
+        got = b""
+        for _ in range(6):
+            got += midi_in.read() or b""
+        self.assertEqual(sorted((got[:3], got[3:])), [bytes((0x90, 60, 100)), bytes((0x91, 62, 90))])
+        midi_out.write(bytes((0xC0, 5)))
+        for dev in (a, b):
+            self.assertEqual(dev.sent, [(0x02, bytes((0x0C, 0xC0, 5, 0)))])
 
     def test_a_device_without_midi_is_refused(self):
         dev = self._dev([])
