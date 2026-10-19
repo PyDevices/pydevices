@@ -63,6 +63,17 @@ has had 0.1.1 since September 2026, but a firmware that freezes the package may 
 From a computer, `mpremote mip install github:PyDevices/pydevices/midiports`
 does the same.
 
+From release 0.7.6, `midiports` is in the PyDevices index too, so a board
+config can `require("midiports")` and you can install it by name:
+
+```python
+mip.install("midiports", index="https://PyDevices.github.io/mip")
+```
+
+That installs `midiports` alone, because `adafruit_midi` isn't in any mip
+index. If your board doesn't have it, use the `github:` install above, which
+fetches both.
+
 On desktop Python, the Windows port needs `uwin32` from `pydevices-desktop`.
 `midiports` isn't on PyPI yet, so put this folder on your path. Adafruit
 publishes `adafruit_midi` there as `adafruit-circuitpython-midi`.

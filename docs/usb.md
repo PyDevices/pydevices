@@ -19,11 +19,22 @@ directory each, installed with `mip`:
 | [`usb-hid`](../usb-hid) | `usb_hid` | CircuitPython's `usb_hid`, so `adafruit_hid` types and moves the mouse |
 
 MIDI is [`midiports`](../midiports/README.md): `midiports.usb_device` and
-`midiports.usb_host`.
+`midiports.usb_host`. It installs by name the same way.
+
+From release 0.7.6, each package is in the PyDevices index under the name in
+the table, and one install brings what it builds on with it:
 
 ```python
 import mip
-mip.install("github:PyDevices/pydevices/usb-host-msc")   # brings usb-core with it
+mip.install("usb-host-msc", index="https://PyDevices.github.io/mip")   # brings usb-core with it
+```
+
+A board config or your own `manifest.py` can `require("usb-core")` by the same
+names. To install a release before 0.7.6, or whatever is on `main`, fetch the
+directory from GitHub instead:
+
+```python
+mip.install("github:PyDevices/pydevices/usb-host-msc")
 ```
 
 ## What your firmware needs

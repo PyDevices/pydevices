@@ -1,6 +1,7 @@
 # Which modules in lib/ cannot run on a microcontroller, and which packages in
 # lib/ publish to MIP on their own instead of inside `pydevices` (`own-package`,
-# at the end: bledev).
+# bledev), and which top-level directories publish to MIP under their own name
+# (`top-level`, at the end: midiports and the usb-* packages).
 #
 # `displaydev`, `audiodev` and `multimer` each carry a full set of platform
 # backends and pick one at import time through their `auto` module. That design
@@ -94,3 +95,58 @@ host-only = ["bleak", "webble"]
 # On PyPI bledev stays inside the pydevices wheel. bleak is optional, behind
 # `pip install "pydevices[ble]"`.
 pypi-extras = { ble = ["bleak>=1.0"] }
+
+# midiports and the USB packages are directories at the top of the repository,
+# not in lib/, each with its own manifest.py. `top-level = true` publishes that
+# directory to the index under its own name, so a board installs it with
+#     mip.install("usb-host-msc", index="https://PyDevices.github.io/mip")
+# and a board config can require() it by name. The manifest.py is the single
+# source for what a package is, requires and ships: the publisher reads it, and
+# a firmware build freezes the same file. Only the version changes. The index
+# carries the release's version, not the 0.1.0 in the manifest, so every
+# PyDevices package in it is at the same number. A section takes no other keys.
+#
+# A package that require()s another here (usb-host-msc needs usb-core) must have
+# that one listed too; the publisher refuses to sync otherwise, and
+# tests/test_mip_split.py refuses a directory with a manifest.py that is missing
+# from this list. package.json is for installing straight from GitHub and is
+# not published.
+#
+# midiports reaches the index without Adafruit's adafruit_midi, which is not a
+# package in any mip index: install it as midiports/README.md says.
+
+[midiports]
+top-level = true
+
+[usb-core]
+top-level = true
+
+[usb-hid]
+top-level = true
+
+[usb-host-audio]
+top-level = true
+
+[usb-host-cdc]
+top-level = true
+
+[usb-host-hid]
+top-level = true
+
+[usb-host-msc]
+top-level = true
+
+[usb-host-net]
+top-level = true
+
+[usb-host-video]
+top-level = true
+
+[usb-device-audio]
+top-level = true
+
+[usb-device-msc]
+top-level = true
+
+[usb-device-video]
+top-level = true
