@@ -9,6 +9,15 @@ with each kind of peripheral described honestly by its role.
   MIDI themselves and encode from a mic, so they get a role of their own
   beside `pcm_out` and `pcm_in` instead of passing as PCM.
 
+## USB
+
+- A USB microphone on the device side, so a board can be a USB mic or a
+  full-duplex sound card for a computer or another board.
+- `network.USBD_NCM` (Ethernet over USB, MicroPython 1.29): a package for it,
+  or a note on turning it on.
+- Keyboards and mice on the host side through CircuitPython's `adafruit_hid`
+  API, so the same keyboard code runs over USB and over BLE.
+
 ## BLE
 
 - `bledev.hid` reads report descriptors of any length. Today a board reads

@@ -1,0 +1,17 @@
+{
+  "urls": [
+    [
+      "usb/core.py",
+      "github:PyDevices/pydevices/usb-core/usb/core.py"
+    ],
+    [
+      "usb/util.py",
+      "github:PyDevices/pydevices/usb-core/usb/util.py"
+    ],
+    [
+      "usb_host.py",
+      "github:PyDevices/pydevices/usb-core/usb_host.py"
+    ]
+  ],
+  "version": "0.1.0"
+}

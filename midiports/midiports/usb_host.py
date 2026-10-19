@@ -1,6 +1,6 @@
 """MIDI from a keyboard or synth plugged into this board's USB host port.
 
-Built on ``usb.core`` (usbif's ``usb-core`` package, in PyUSB's and
+Built on ``usb.core`` (the ``usb-core`` package beside this one, in PyUSB's and
 CircuitPython's shape). The device's USB-MIDI packets become a plain byte
 stream and back, so ``adafruit_midi`` reads and writes it like any other
 port::

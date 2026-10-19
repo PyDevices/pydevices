@@ -1,0 +1,7 @@
+{
+  "urls": [
+    ["usb/device/msc.py", "github:PyDevices/pydevices/usb-device-msc/usb/device/msc.py"]
+  ],
+  "deps": [["usb-device", "latest"]],
+  "version": "0.1.0"
+}
