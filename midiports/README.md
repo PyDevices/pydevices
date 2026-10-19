@@ -55,6 +55,11 @@ index, unless your firmware already has it frozen in:
 mip.install("usb-device-midi")
 ```
 
+It needs version 0.1.1 or later. With 0.1.0, a fast burst from the computer fills the
+board's schedule queue, and the board stops receiving MIDI until it resets. The index
+has had 0.1.1 since September 2026, but a firmware that freezes the package may carry
+0.1.0.
+
 From a computer, `mpremote mip install github:PyDevices/pydevices/midiports`
 does the same.
 
