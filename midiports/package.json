@@ -17,10 +17,6 @@
       "github:PyDevices/pydevices/midiports/midiports/usb_host.py"
     ],
     [
-      "midiports/usbif_shim.py",
-      "github:PyDevices/pydevices/midiports/midiports/usbif_shim.py"
-    ],
-    [
       "midiports/windows.py",
       "github:PyDevices/pydevices/midiports/midiports/windows.py"
     ],

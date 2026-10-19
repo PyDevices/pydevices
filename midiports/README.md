@@ -26,6 +26,7 @@ To use another transport, change the line that opens the ports:
 | Transport | The ports line |
 |---|---|
 | USB, the board as a device | `usb_device.ports()` |
+| USB, a keyboard or synth plugged into the board | `usb_host.ports()` |
 | A UART (5-pin DIN, TRS, board to board) | `uart.ports(1, tx=17, rx=18)` |
 | Windows' MIDI ports (a keyboard, loopMIDI, a DAW) | `windows.ports("loopMIDI")` |
 | Linux raw MIDI | `linux.ports("DMK25")` |
@@ -108,7 +109,7 @@ How close a time is depends on the transport:
 |---|---|---|
 | `usb_device` | in the USB event callback | one USB frame (1 ms at full speed), plus the wait for the scheduled callback |
 | Web MIDI | by the browser | the browser's event time |
-| `uart`, `linux`, `windows`, `usbif_shim` | by the read that finds the bytes | how often you poll |
+| `uart`, `linux`, `windows`, `usb_host` | by the read that finds the bytes | how often you poll |
 
 The [package docstring](midiports/__init__.py) has the rules: one time per
 message in order, how running status, SysEx and a message split across reads
@@ -159,6 +160,6 @@ clock a worker's relayed times are on.
 - USB: if the host stops reading, messages that don't fit within a few
   milliseconds are dropped and counted in `MIDIPortsInterface.dropped`, so
   your loop never stalls.
-- `usbif_shim` is temporary. It wraps the old `usbif` firmware's MIDI so
-  existing apps keep working, and goes once that firmware moves onto
-  `machine.USBDevice`.
+- `usb_host` needs `usb.core` (the `usb-core` package) and a firmware with a
+  USB host. On an ESP32-P4 with the keyboard behind a hub, call
+  `usb.core.start(full_speed=True)` before `ports()`.

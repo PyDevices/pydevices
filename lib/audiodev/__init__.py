@@ -129,9 +129,9 @@ class AudioFormat:  # noqa: PLW1641 - mutable value object is intentionally unha
 class I2SWire:
     """Physical facts about a board's I2S port, published without opening it.
 
-    A consumer that wants to drive the peripheral itself -- usbif's C
-    FreeRTOS pump is the live example -- needs the port and pin numbers and
-    no Python device at all. Publishing them on the capability is what lets
+    A consumer that wants to drive the peripheral itself -- audiodsp's C
+    pump, through ``pump.BusioDriver``, is the live example -- needs the port
+    and pin numbers and no Python device at all. Publishing them on the capability is what lets
     such a consumer stop reaching into a board module's private names.
     """
 

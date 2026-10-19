@@ -15,7 +15,7 @@ MicroPython (which has no unittest)::
 ``tests/test_midiports.py`` fetches it there and runs this every way.
 
 Each transport is checked with a fake underneath: a fake ``machine.UART``,
-a fake ``usb.device.midi.MIDIInterface``, a fake usbif ``MidiPort``, a
+a fake ``usb.device.midi.MIDIInterface``, a fake ``usb.core`` MIDI device, a
 fake ``uwin32`` and, for Web MIDI, a fake ``MIDIAccess`` and ``MessagePort``. The Linux port needs real files and is checked in
 ``test_midiports.py`` on CPython.
 
@@ -501,52 +501,100 @@ def c_usb_device_round_trip():
         _remove_fake_usb()
 
 
-# -- the usbif shim, over a fake MidiPort ------------------------------------------------
+# -- a hosted MIDI device, over a fake usb.core -----------------------------------------------
+
+# One MIDIStreaming interface (class 1, subclass 3) with bulk IN 0x81 and OUT
+# 0x02, 64-byte packets: what midiports.usb_host looks for.
+_MIDI_CONFIG = bytes((9, 2, 32, 0, 1, 1, 0, 0x80, 50, 9, 4, 1, 0, 2, 1, 3, 0, 0,
+                      7, 5, 0x81, 2, 64, 0, 0, 7, 5, 0x02, 2, 64, 0, 0))
 
 
-class FakeMidiPort:
-    """usbif's MidiPort shape: read(buf) fills and counts, write(data)."""
+class _FakeTimeout(OSError):
+    pass
+
+
+_TIMEOUT = _FakeTimeout(110)
+
+
+class FakeMidiDevice:
+    """A usb.core.Device with a MIDIStreaming interface. ``feed()`` queues
+    what the device sends, as USB-MIDI packets; whatever the board writes
+    comes straight back, as a loopback cable would return it."""
 
     def __init__(self):
-        self.rx = bytearray()
+        self.packets = []
         self.closed = False
 
-    def read(self, buf):
-        n = min(len(buf), len(self.rx))
-        if n:
-            for i in range(n):
-                buf[i] = self.rx[i]
-            self.rx = self.rx[n:]
-        return n
+    def feed(self, data):
+        """Queue MIDI bytes as USB-MIDI packets, one packet per call."""
+        pkt = bytearray()
+        for ev in _whole_events(bytes(data)):
+            pkt.extend(bytes(ev))
+        self.packets.append(bytes(pkt))
 
-    def write(self, data):
-        self.rx.extend(data)
+    def feed_events(self, *events):
+        """Queue USB-MIDI events, ``(cin, b0, b1, b2)``, as one packet."""
+        self.packets.append(b"".join(bytes(ev) for ev in events))
+
+    def idle(self):
+        return not self.packets
+
+    def configuration_descriptor(self):
+        return _MIDI_CONFIG
+
+    def read(self, endpoint, buf, timeout=None):
+        if not self.packets:
+            raise _TIMEOUT
+        pkt = self.packets.pop(0)
+        for i in range(len(pkt)):
+            buf[i] = pkt[i]
+        return len(pkt)
+
+    def write(self, endpoint, data, timeout=None):
+        self.packets.append(bytes(data))
         return len(data)
 
-    def close(self):
+    def _release_all(self):
         self.closed = True
 
 
-def c_usbif_shim():
-    from midiports import usbif_shim
+def _usb_host():
+    """midiports.usb_host imported over a fake usb.core."""
+    core = _Module()
+    core.USBTimeoutError = _FakeTimeout
+    usb = _Module()
+    usb.core = core
+    sys.modules["usb"], sys.modules["usb.core"] = usb, core
+    sys.modules.pop("midiports.usb_host", None)
+    from midiports import usb_host
 
-    port = FakeMidiPort()
-    midi_in, midi_out = usbif_shim.ports(port, size=8)
-    got = round_trip(midi_in, midi_out)
-    expect(got == 200, "%d of 200 notes through the shim" % got)
-    port.rx.extend(b"\x90\x3c\x64\x80\x3c\x00\xb0\x01\x02")  # more than one raw read
-    expect(midi_in.read(4) == b"\x90\x3c\x64\x80", "first 4")
-    expect(midi_in.read(30) == b"\x3c\x00", "rest of the raw read's whole messages")
-    expect(midi_in.read(30) == b"\xb0\x01\x02", "the CC, whole once the next raw read ends it")
-    expect(midi_in.read(30) is None, "empty")
-    if MICROPYTHON:
-        gc.collect()
-        before = gc.mem_alloc()
-        for _ in range(100):
-            midi_in.read(30)
-        expect(gc.mem_alloc() == before, "empty shim polls allocated")
-    midi_in.close()
-    expect(port.closed, "close reaches the usbif port")
+    return usb_host
+
+
+def _drop_usb_host():
+    for name in ("usb.core", "usb", "midiports.usb_host"):
+        sys.modules.pop(name, None)
+
+
+def c_usb_host():
+    usb_host = _usb_host()
+    try:
+        dev = FakeMidiDevice()
+        midi_in, midi_out = usb_host.ports(dev, size=8)
+        got = round_trip(midi_in, midi_out)
+        expect(got == 200, "%d of 200 notes through usb_host" % got)
+        dev.feed(b"\x90\x3c\x64\x80\x3c\x00\xb0\x01\x02")  # one packet, three messages
+        expect(midi_in.read(4) == b"\x90\x3c\x64\x80", "first 4")
+        expect(midi_in.read(30) == b"\x3c\x00", "rest of the first two messages")
+        expect(midi_in.read(30) == b"\xb0\x01\x02", "the CC, whole")
+        expect(midi_in.read(30) is None, "empty")
+        # An empty poll is not free here, unlike the other ports: usb.core
+        # reports "nothing yet" by raising USBTimeoutError, as PyUSB does,
+        # and MicroPython allocates a traceback for each raise.
+        midi_in.close()
+        expect(dev.closed, "close reaches the device")
+    finally:
+        _drop_usb_host()
 
 
 # -- Windows, over a fake uwin32 ---------------------------------------------------------
@@ -893,16 +941,17 @@ def quiet_any_allocates_nothing(port):
 
 
 def c_any():
-    from midiports import usbif_shim
-
-    port = FakeMidiPort()
-    midi_in, midi_out = usbif_shim.ports(port, size=8)
-    expect(midi_in.any() == 0, "shim: nothing waiting")
-    quiet_any_allocates_nothing(midi_in)
-    port.rx.extend(b"\x90\x3c\x64")
-    expect(midi_in.any() == 3 and midi_in.read(30) == b"\x90\x3c\x64", "shim: any, then read")
-    got = any_first(midi_in, midi_out)
-    expect(got == 200, "%d of 200 through the shim, any() first" % got)
+    usb_host = _usb_host()
+    try:
+        dev = FakeMidiDevice()
+        midi_in, midi_out = usb_host.ports(dev, size=8)
+        expect(midi_in.any() == 0, "usb_host: nothing waiting")
+        dev.feed(b"\x90\x3c\x64")
+        expect(midi_in.any() == 3 and midi_in.read(30) == b"\x90\x3c\x64", "usb_host: any, then read")
+        got = any_first(midi_in, midi_out)
+        expect(got == 200, "%d of 200 through usb_host, any() first" % got)
+    finally:
+        _drop_usb_host()
 
     wm = whole([b"\x90\x3c", b"\x64\x3e"])
     expect(wm.any() == 3, "WholeMessages: a whole message waiting")
@@ -1093,7 +1142,7 @@ def _whole_events(data):
     return events
 
 
-# What a whole-message transport (USB, usbif, Windows) delivers for
+# What a whole-message transport (USB, Windows) delivers for
 # STAMP_READS: running status expanded, the clock ahead of its note, the CC
 # whole in the read where it completed. One entry per arrival.
 WHOLE_ARRIVALS = (
@@ -1172,20 +1221,24 @@ def c_stamps_realtime_in_sysex_streams():
     _clock.t = 0
     port = WholeMessages(TickingIn(RT_IN_SYSEX))
     expect_stamps(stamps_after_drain(port), RT_IN_SYSEX_WANT)
-    # usbif's MidiPort.
-    from midiports import usbif_shim
+    # A hosted USB device, through usb.core.
+    usb_host = _usb_host()
+    try:
+        dev = FakeMidiDevice()
+        midi_in, _ = usb_host.ports(dev, size=64)
+        # The USB-MIDI events a host sends for RT_IN_SYSEX, one packet each.
+        chunks = [((0x4, 0xF0, 0x7D, 0x01),), ((0xF, 0xF8, 0, 0),), ((0x4, 0x02, 0x03, 0x04),),
+                  ((0xF, 0xFA, 0, 0),), ((0x6, 0x05, 0xF7, 0),), ((0x9, 0x90, 0x3C, 0x64),)]
 
-    raw = FakeMidiPort()
-    midi_in, _ = usbif_shim.ports(raw, size=64)
-    chunks = list(RT_IN_SYSEX)
+        def pump():
+            if chunks and dev.idle():
+                dev.feed_events(*chunks.pop(0))
+                _clock.t += 1000
 
-    def pump():
-        if chunks and not raw.rx:
-            raw.rx.extend(chunks.pop(0))
-            _clock.t += 1000
-
-    _clock.t = 0
-    expect_stamps(stamps_after_drain(midi_in, pump), RT_IN_SYSEX_WANT)
+        _clock.t = 0
+        expect_stamps(stamps_after_drain(midi_in, pump), RT_IN_SYSEX_WANT)
+    finally:
+        _drop_usb_host()
 
 
 def c_stamps_realtime_in_sysex_webmidi():
@@ -1232,21 +1285,23 @@ def c_stamps_usb_device():
         _remove_fake_usb()
 
 
-def c_stamps_usbif_shim():
-    from midiports import usbif_shim
+def c_stamps_usb_host():
+    usb_host = _usb_host()
+    try:
+        use_fake_clock(midiports)
+        dev = FakeMidiDevice()
+        midi_in, _ = usb_host.ports(dev, size=64)
+        chunks = list(WHOLE_ARRIVALS)
 
-    use_fake_clock(usbif_shim)
-    port = FakeMidiPort()
-    midi_in, _ = usbif_shim.ports(port, size=64)
-    chunks = list(WHOLE_ARRIVALS)
+        def pump():
+            if chunks and dev.idle():
+                dev.feed(chunks.pop(0))
+                _clock.t += 1000
 
-    def pump():
-        if chunks and not port.rx:
-            port.rx.extend(chunks.pop(0))
-            _clock.t += 1000
-
-    _clock.t = 0
-    expect_stamps(stamps_per_message(midi_in, pump), WHOLE_WANT)
+        _clock.t = 0
+        expect_stamps(stamps_per_message(midi_in, pump), WHOLE_WANT)
+    finally:
+        _drop_usb_host()
 
 
 def c_stamps_windows():
@@ -1356,7 +1411,7 @@ CHECKS = (
     ("usb_device: a full ring drops whole messages and counts", c_usb_device_overflow_drops_whole_messages),
     ("usb_device: a host not reading drops and counts, never stalls", c_usb_device_full_host_drops_and_counts),
     ("usb_device: 200 of 200 through events and back", c_usb_device_round_trip),
-    ("usbif_shim: 200 of 200, read(n) over read(buf)", c_usbif_shim),
+    ("usb_host: 200 of 200 over a fake usb.core, packets to whole messages", c_usb_host),
     ("windows: ports by name, short messages, drained input", c_windows),
     ("any(): counts without taking, allocates nothing, drives a loop", c_any),
     ("webmidi: a page MIDIAccess, 200 of 200, timestamps follow receive()", c_webmidi_page),
@@ -1367,11 +1422,11 @@ CHECKS = (
     ("stamps: WholeMessages, one per message across running status, clock, sysex, split reads", c_stamps_whole_messages),
     ("stamps: uart", c_stamps_uart),
     ("stamps: usb_device, at the event callback", c_stamps_usb_device),
-    ("stamps: usbif_shim", c_stamps_usbif_shim),
+    ("stamps: usb_host", c_stamps_usb_host),
     ("stamps: windows", c_stamps_windows),
     ("stamps: webmidi, one per message", c_stamps_webmidi),
     ("stamps: usb_device, real-time bytes inside a SysEx", c_stamps_realtime_in_sysex_usb_device),
-    ("stamps: WholeMessages and usbif_shim, real-time bytes inside a SysEx", c_stamps_realtime_in_sysex_streams),
+    ("stamps: WholeMessages and usb_host, real-time bytes inside a SysEx", c_stamps_realtime_in_sysex_streams),
     ("stamps: webmidi, real-time bytes beside a SysEx", c_stamps_realtime_in_sysex_webmidi),
 )
 

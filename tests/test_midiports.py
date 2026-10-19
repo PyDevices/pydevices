@@ -140,7 +140,7 @@ class Contract(unittest.TestCase):
                       "--plant=skip-clock-stamp"])
         self.assertIn("PLANTED skip-clock-stamp", result.stdout)
         self.assertNotEqual(result.returncode, 0, "the plant went unnoticed:\n" + result.stdout)
-        for port in ("WholeMessages", "uart", "usb_device", "usbif_shim", "windows", "webmidi"):
+        for port in ("WholeMessages", "uart", "usb_device", "usb_host", "windows", "webmidi"):
             self.assertIn("FAIL stamps: " + port, result.stdout)
 
 
@@ -452,9 +452,6 @@ class WebMidiPort(unittest.TestCase):
         self.assertEqual(port.posted[-1], {"data": b"\xfa"})
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class UsbHostPort(unittest.TestCase):
     """midiports.usb_host on a fake usb.core device: packets in, bytes out."""
@@ -540,3 +537,7 @@ class UsbHostPort(unittest.TestCase):
         self.assertFalse(self.usb_host.is_midi(dev))
         with self.assertRaises(ValueError):
             self.usb_host.ports(dev)
+
+
+if __name__ == "__main__":
+    unittest.main()
