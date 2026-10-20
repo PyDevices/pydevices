@@ -19,5 +19,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "DotStar 12x6 grid — MicroPython DotStar grid",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

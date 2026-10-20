@@ -15,5 +15,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "NXP MIMXRT1060-EVK + RK043FN66HS-CTG 4.3\" parallel RGB - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

@@ -1,6 +1,6 @@
 """Lazy roles for the Seeed Round Display on a XIAO nRF52840 (stock MicroPython).
 
-``sdcard`` is the display's microSD slot, an ``sdcard.SDCard`` block device on
+``sdcard`` is the display's microSD slot, an ``sdcard_nrf.SDCard`` block device on
 the display's SPI bus (chip select D2). Stock MicroPython on the nRF52840 has
 no FAT filesystem, only littlefs, so a FAT-formatted card reads and writes as
 blocks but can't be mounted; a card formatted with ``os.VfsLfs2.mkfs(card)``
@@ -35,7 +35,7 @@ def sdcard():
     import board_config as bc
     from machine import Pin
 
-    from sdcard import SDCard
+    from sdcard_nrf import SDCard
 
     # SDCard drives the SPI peripheral itself; the display's SPIBus re-applies
     # its own settings before every transfer, so the two take turns safely.

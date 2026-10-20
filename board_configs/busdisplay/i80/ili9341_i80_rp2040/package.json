@@ -19,5 +19,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "DIY Raspberry Pi Pico with ILI9341 2.8\" display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

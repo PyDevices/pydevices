@@ -15,5 +15,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "NXP MIMXRT1170-EVK + Waveshare 50H-800480-IPS DSI (800x480) on J84 - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

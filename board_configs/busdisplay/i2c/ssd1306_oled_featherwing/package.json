@@ -5,8 +5,8 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/i2c/ssd1306_oled_featherwing/board_config.py"
     ],
     [
-      "ssd1306.py",
-      "github:PyDevices/pydevices/drivers/display/ssd1306.py"
+      "ssd1306_bus.py",
+      "github:PyDevices/pydevices/drivers/display/ssd1306_bus.py"
     ]
   ],
   "deps": [
@@ -15,5 +15,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "Adafruit FeatherWing OLED 128x32 SSD1306 — MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

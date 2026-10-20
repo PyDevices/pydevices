@@ -11,5 +11,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "Adafruit RGB Matrix FeatherWing 64x32 — MicroPython (Feather ESP32-S3)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

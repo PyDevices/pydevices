@@ -12,5 +12,6 @@
     ]
   ],
   "version": "0.1",
-  "notes": "Stub: NotImplementedError \u2014 RP2040 SRAM limit; CP POC under cp/."
+  "description": "Adafruit Feather RP2040 DVI (320x240) — MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

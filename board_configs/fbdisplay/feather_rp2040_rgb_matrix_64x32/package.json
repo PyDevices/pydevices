@@ -15,5 +15,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "Adafruit Feather RP2040 + RGB Matrix FeatherWing 64x32 - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

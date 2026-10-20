@@ -15,5 +15,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "Adafruit RGB Matrix FeatherWing 64x32 — MicroPython (Teensy 4.1)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

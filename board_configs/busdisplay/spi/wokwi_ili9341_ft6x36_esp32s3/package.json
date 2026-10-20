@@ -19,5 +19,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "Wokwi ESP32S3 and ILI9341 Touchscreen Display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

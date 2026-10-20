@@ -15,5 +15,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "SSD1331 0.96\" OLED — MicroPython (Feather breakout pinout)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

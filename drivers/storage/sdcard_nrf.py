@@ -1,23 +1,16 @@
 """
-MicroPython driver for SD cards using SPI bus.
+SD card over SPI, for the nRF52: micropython-lib's ``sdcard`` with one fix.
 
-Requires an SPI bus and a CS pin.  Provides readblocks and writeblocks
-methods so the device can be mounted as a filesystem.
+On every other port, use micropython-lib's ``sdcard`` (``mip.install("sdcard")``).
+This copy differs only in sending its 0xFF filler bytes from a RAM buffer: the
+nRF52's SPI peripheral reads only RAM, so the literal ``b"\\xff"`` upstream
+writes, which lives in flash in a frozen or ROMFS module, clocked out nothing
+and every command after the first went astray. It keeps its own name so it
+can't shadow upstream's ``sdcard`` on a board that has both.
 
-Example usage on pyboard:
-
-    import pyb, sdcard, os
-    sd = sdcard.SDCard(pyb.SPI(1), pyb.Pin.board.X5)
-    pyb.mount(sd, '/sd2')
-    os.listdir('/')
-
-Example usage on ESP8266:
-
-    import machine, sdcard, os
-    sd = sdcard.SDCard(machine.SPI(1), machine.Pin(15))
-    os.mount(sd, '/sd')
-    os.listdir('/')
-
+    from sdcard_nrf import SDCard
+    sd = SDCard(spi, cs_pin)
+    os.mount(os.VfsLfs2(sd), "/sd")
 """
 
 from micropython import const

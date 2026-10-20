@@ -32,5 +32,6 @@
     ]
   ],
   "version": "0.2",
-  "notes": "Split board_config + board_peripherals (board peripherals contract). Product-owned boarddev."
+  "description": "Waveshare RP2040-Touch-LCD-1.28 GC9A01 240x240",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

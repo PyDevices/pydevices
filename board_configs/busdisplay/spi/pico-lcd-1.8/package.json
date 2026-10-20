@@ -15,5 +15,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "Waveshare Pico-LCD-1.8 128x160 ST7735S display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

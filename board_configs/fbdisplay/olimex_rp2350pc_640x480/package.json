@@ -16,5 +16,6 @@
     ]
   ],
   "version": "0.1",
-  "notes": "Olimex RP2350pc onboard HSTX HDMI; no FPC adapter."
+  "description": "Olimex RP2350pc onboard mini-HDMI (HSTX) 640x480 - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

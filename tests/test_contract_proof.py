@@ -134,6 +134,7 @@ class TestGraduatedBoardLayout(unittest.TestCase):
                 self.assertTrue(bc.is_file(), bc)
                 self.assertTrue(bd.is_file(), bd)
                 self.assertTrue(pkg.is_file(), pkg)
+                self.assertTrue((d / "manifest.py").is_file(), d / "manifest.py")
 
                 bc_tree = _parse(bc)
                 names = _assigned_names(bc_tree)

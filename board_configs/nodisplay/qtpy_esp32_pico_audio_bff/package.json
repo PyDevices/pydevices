@@ -12,5 +12,6 @@
     ]
   ],
   "version": "0.1.0",
-  "notes": "Headless: no board_config.py, because there is no display to construct. Import board_peripherals directly."
+  "description": "board_peripherals for a QT Py ESP32 Pico carrying an Adafruit Audio BFF",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

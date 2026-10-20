@@ -5,6 +5,10 @@
       "github:PyDevices/pydevices/board_configs/fbdisplay/m5stack_tab5_st7123/board_config.py"
     ],
     [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/fbdisplay/m5stack_tab5_st7123/board_peripherals.py"
+    ],
+    [
       "st7123.py",
       "github:PyDevices/pydevices/drivers/touch/st7123.py"
     ],
@@ -15,10 +19,6 @@
     [
       "tab5_st7123_init.py",
       "github:PyDevices/pydevices/drivers/display/tab5_st7123_init.py"
-    ],
-    [
-      "board_peripherals.py",
-      "github:PyDevices/pydevices/board_configs/fbdisplay/m5stack_tab5_st7123/board_peripherals.py"
     ],
     [
       "es7210.py",
@@ -36,5 +36,6 @@
     ]
   ],
   "version": "0.3",
-  "notes": "ES8388+ES7210 audio; camera stub."
+  "description": "M5Stack Tab5 (ST7123 TDDI) - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

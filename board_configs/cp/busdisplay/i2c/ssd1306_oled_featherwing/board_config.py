@@ -8,7 +8,7 @@ i2cbus.I2CBus on the board's I2C instead.
 import board
 from displayio import release_displays
 from i2cbus import I2CBus
-from ssd1306 import SSD1306
+from ssd1306_bus import SSD1306
 
 
 release_displays()

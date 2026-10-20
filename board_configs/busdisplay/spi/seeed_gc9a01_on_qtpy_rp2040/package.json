@@ -19,5 +19,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "Seeed Studio Round Display for XIAO GC9A01 240x240 display on Adafruit QT Py RP2040",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

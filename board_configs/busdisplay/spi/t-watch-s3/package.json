@@ -29,16 +29,16 @@
       "github:PyDevices/pydevices/drivers/imu/bma423.py"
     ],
     [
+      "bma423_config.py",
+      "github:PyDevices/pydevices/drivers/imu/bma423_config.py"
+    ],
+    [
       "pcf8563.py",
       "github:PyDevices/pydevices/drivers/rtc/pcf8563.py"
     ],
     [
       "drv2605.py",
       "github:PyDevices/pydevices/drivers/haptic/drv2605.py"
-    ],
-    [
-      "bma423_config.py",
-      "github:PyDevices/pydevices/drivers/imu/bma423_config.py"
     ],
     [
       "sx1262.py",
@@ -56,5 +56,6 @@
     ]
   ],
   "version": "0.1.0",
-  "notes": "AXP2101 powers display/touch/audio/haptic/radio first (TS sensing off, 125 mA charging); FT6336 touch; crown (PMU power key) + BOOT; MAX98357A audio_out/pcm_out on I2S1; PDM microphone pcm_in on I2S0 (needs I2S.PDM_RX firmware); BMA423 with step counter, wrist tilt and taps; PCF8563 with alarm and countdown; DRV2605; IR (esp32.RMT, ir_nec); SX1262 lora; sleep() with crown, touch, motion and rtc wake."
+  "description": "LILYGO T-Watch S3: ST7789 240x240 SPI, FT6336 touch, AXP2101 power (MicroPython)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

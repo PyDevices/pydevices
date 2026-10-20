@@ -1,11 +1,21 @@
 {
-  "urls": [],
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/desktop/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/desktop/board_peripherals.py"
+    ]
+  ],
   "deps": [
     [
       "pydevices-desktop",
       "latest"
     ]
   ],
-  "version": "0.0",
-  "notes": "Universal non-MCU board package with split board_config + board_peripherals for desktop, Jupyter, and PyScript interpreters."
+  "version": "0.7.7.dev1",
+  "description": "The board config for every desktop, browser and Android host",
+  "generated": "by tools/libbuild.py installers"
 }

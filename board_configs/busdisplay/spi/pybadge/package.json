@@ -17,6 +17,10 @@
       "github:PyDevices/pydevices/drivers/input/keypad_shift.py"
     ],
     [
+      "digitalio.py",
+      "github:PyDevices/pydevices/drivers/bus/digitalio.py"
+    ],
+    [
       "lis3dh.py",
       "github:PyDevices/pydevices/drivers/imu/lis3dh.py"
     ]
@@ -28,5 +32,6 @@
     ]
   ],
   "version": "0.2",
-  "notes": "Split board_peripherals; keypad + LIS3DH/NeoPixel/audio/i2c."
+  "description": "Adafruit PyBadge LC ST7789 + shift-register buttons — MicroPython (SAMD51)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

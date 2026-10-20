@@ -5,12 +5,12 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/t-qt-pro/board_config.py"
     ],
     [
-      "gc9a01.py",
-      "github:PyDevices/pydevices/drivers/display/gc9a01.py"
-    ],
-    [
       "board_peripherals.py",
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/t-qt-pro/board_peripherals.py"
+    ],
+    [
+      "gc9a01.py",
+      "github:PyDevices/pydevices/drivers/display/gc9a01.py"
     ],
     [
       "battery_adc.py",
@@ -23,5 +23,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "LILYGO T-QT Pro GC9107 128x128 display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

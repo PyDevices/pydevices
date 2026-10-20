@@ -5,12 +5,12 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/i80/bpi-centi-s3/board_config.py"
     ],
     [
-      "st7789.py",
-      "github:PyDevices/pydevices/drivers/display/st7789.py"
-    ],
-    [
       "board_peripherals.py",
       "github:PyDevices/pydevices/board_configs/busdisplay/i80/bpi-centi-s3/board_peripherals.py"
+    ],
+    [
+      "st7789.py",
+      "github:PyDevices/pydevices/drivers/display/st7789.py"
     ]
   ],
   "deps": [
@@ -20,5 +20,6 @@
     ]
   ],
   "version": "0.2",
-  "notes": "Encoder via machine.Encoder (MP \u2265 1.26)."
+  "description": "BPI-Centi-S3 170x320 ST7789 display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

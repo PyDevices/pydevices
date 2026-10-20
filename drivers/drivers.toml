@@ -1,0 +1,367 @@
+# The driver packages: one table per package, named by its module.
+#
+# Each publishes to the package index under its name, at its own version.
+# `modules` are the files it installs (flat, into the board's lib folder);
+# `requires` names other driver packages it imports. A board package names
+# the drivers it uses with require() in its manifest.py. Bump `version`
+# when you change a driver. `native = true` marks a module OmniPython
+# firmware builds in (the display buses): its package is the pure-Python
+# version for other firmware, and a board needn't require it. See
+# CONTRIBUTING.md.
+
+# Files under drivers/ that are not packages: CircuitPython-only copies,
+# work in progress, and the community folder.
+unpublished = [
+    "display/community/",
+    "display/work_in_progress/",
+    "touch/circuitpython/",
+    "bus/_rp2_wip.py",
+    "display/st7796_test.py",
+]
+
+[ahtx0]
+version = "0.1.0"
+description = "AHT10/AHT20 humidity + temperature"
+modules = ["env/ahtx0.py"]
+
+[aw88298]
+version = "0.1.0"
+description = "AW88298 smart amp init (CoreS3)"
+modules = ["codec/aw88298.py"]
+
+[axp2101]
+version = "0.1.0"
+description = "X-Powers AXP2101 PMU: rails, battery and charger, power key (T-Watch S3)"
+modules = ["power/axp2101.py"]
+
+[battery_adc]
+version = "0.1.0"
+description = "Battery voltage from machine.ADC through a resistor divider"
+modules = ["power/battery_adc.py"]
+
+[bma423]
+version = "0.1.0"
+description = "Bosch BMA423 / BMA456 accelerometer; step counter, taps and wrist-wear wake on the BMA423"
+modules = ["imu/bma423.py", "imu/bma423_config.py"]
+
+[bmp280]
+version = "0.1.0"
+description = "BMP280 pressure + temperature (dafvid/micropython-bmp280)"
+modules = ["env/bmp280.py"]
+
+[camera_sensors]
+version = "0.1.0"
+description = "Opens whichever camera is fitted: the firmware's own sensors, then each described one installed (P4 board configs' `camera()` use it)"
+modules = ["camera/camera_sensors.py"]
+
+[canbus]
+version = "0.1.0"
+description = "machine.CAN helper for firmware that exposes TWAI"
+modules = ["bus/canbus.py"]
+
+[ch422g]
+version = "0.1.0"
+description = "CH422G I2C IO expander (Waveshare ESP32-S3 RGB boards, etc.)"
+modules = ["io_expander/ch422g.py"]
+
+[chsc6x]
+version = "0.1.0"
+description = "CHSC6X touch driver"
+modules = ["touch/chsc6x.py"]
+
+[cst226]
+version = "0.1.0"
+description = "CST226 touch driver"
+modules = ["touch/cst226.py"]
+
+[cst8xx]
+version = "0.1.0"
+description = "CST8XX touch driver"
+modules = ["touch/cst8xx.py"]
+
+[digitalio]
+version = "0.1.0"
+description = "MicroPython shim for CircuitPython board configs that import ``digitalio``"
+modules = ["bus/digitalio.py"]
+
+[dotstar]
+version = "0.1.0"
+description = "APA102 / DotStar (mattytrentini/micropython-dotstar)"
+modules = ["led/dotstar.py"]
+
+[dps310]
+version = "0.1.0"
+description = "DPS310 pressure (hPa) + temperature (the FunHouse barometer)"
+modules = ["env/dps310.py"]
+
+[drv2605]
+version = "0.1.0"
+description = "TI DRV2605 haptic motor driver"
+modules = ["haptic/drv2605.py"]
+
+[es7210]
+version = "0.1.0"
+description = "Minimal ES7210 ADC init for I2S mics (`profile=\"m5\"` for CoreS3/Tab5)"
+modules = ["codec/es7210.py"]
+
+[es8311]
+version = "0.1.0"
+description = "ES8311 DAC/ADC init for I2S"
+modules = ["codec/es8311.py"]
+
+[es8388]
+version = "0.1.0"
+description = "ES8388 DAC init (Tab5)"
+modules = ["codec/es8388.py"]
+
+[ft6x36]
+version = "0.1.0"
+description = "FT6X36 touch driver"
+modules = ["touch/ft6x36.py"]
+
+[gc9a01]
+version = "0.1.0"
+description = "GC9A01 display driver"
+modules = ["display/gc9a01.py"]
+
+[gc9d01]
+version = "0.1.0"
+description = "GC9D01 display driver"
+modules = ["display/gc9d01.py"]
+
+[gpio_pin]
+version = "0.1.0"
+description = "Pin shim the i80bus fallback drives"
+modules = ["bus/gpio_pin.py"]
+
+[gpiojoystick]
+version = "0.1.0"
+description = "Joystick on GPIO buttons, for appdev"
+modules = ["joystick/gpiojoystick.py"]
+
+[gt911]
+version = "0.1.0"
+description = "GT911 touch driver"
+modules = ["touch/gt911.py"]
+
+[hx8357]
+version = "0.1.0"
+description = "HX8357 display driver (from adafruit_hx8357)"
+modules = ["display/hx8357.py"]
+
+[i2cbus]
+version = "0.1.0"
+native = true
+description = "I2C display bus for SSD1306-class OLED panels (MicroPython and CircuitPython)"
+modules = ["bus/i2cbus.py"]
+requires = ["digitalio"]
+
+[i80bus]
+version = "0.1.0"
+native = true
+description = "Pure-Python i80 display bus, for firmware without a native one"
+modules = ["bus/i80bus.py"]
+requires = ["gpio_pin"]
+
+[ili9163]
+version = "0.1.0"
+description = "ILI9163 display driver"
+modules = ["display/ili9163.py"]
+
+[ili9341]
+version = "0.1.0"
+description = "ILI9341 display driver"
+modules = ["display/ili9341.py"]
+
+[ili9488]
+version = "0.1.0"
+description = "ILI9488 display driver"
+modules = ["display/ili9488.py"]
+
+[imx219]
+version = "0.1.0"
+description = "Sony IMX219 (Raspberry Pi Camera v2) described for `cameraif.Camera(sensor=...)`: modes, controls and tuning"
+modules = ["camera/imx219.py"]
+
+[ir_nec]
+version = "0.1.0"
+description = "NEC infrared remote codes over an IR LED (`esp32.RMT` or `pulseio.PulseOut`)"
+modules = ["ir/ir_nec.py"]
+
+[keypad_gpio]
+version = "0.1.0"
+description = "GPIO button helper for appdev KEYPAD on CircuitPython and MicroPython"
+modules = ["input/keypad_gpio.py"]
+
+[keypad_shift]
+version = "0.1.0"
+description = "74HC165 shift-register keypad helper for PyBadge / PyGamer"
+modules = ["input/keypad_shift.py"]
+requires = ["digitalio"]
+
+[lis3dh]
+version = "0.1.0"
+description = "ST LIS3DH accelerometer (PyGamer / PyBadge)"
+modules = ["imu/lis3dh.py"]
+
+[pca9554]
+version = "0.1.0"
+description = "PCA9554 I/O expander driver"
+modules = ["io_expander/pca9554.py"]
+
+[pcd8544]
+version = "0.1.0"
+description = "PCD8544 display driver"
+modules = ["display/pcd8544.py"]
+requires = ["digitalio"]
+
+[pcf8563]
+version = "0.1.0"
+description = "NXP PCF8563 / BM8563 real-time clock with alarm and countdown, MicroPython and CircuitPython"
+modules = ["rtc/pcf8563.py"]
+
+[pi4ioe5v]
+version = "0.1.0"
+description = "PI4IOE5V6408 I2C GPIO expander (M5Stack Tab5 LCD reset path)"
+modules = ["io_expander/pi4ioe5v.py"]
+
+[qmi8658]
+version = "0.1.0"
+description = "QMI8658 6-axis IMU"
+modules = ["imu/qmi8658.py"]
+
+[rs485]
+version = "0.1.0"
+description = "RS485 as a UART, with an optional driver-enable pin"
+modules = ["bus/rs485.py"]
+
+[sdcard_nrf]
+version = "0.1.0"
+description = "SPI SD card block device: micropython-lib's sdcard with the nRF52 fix (sends from RAM, not flash). Elsewhere use upstream's sdcard"
+modules = ["storage/sdcard_nrf.py"]
+
+[sh1106]
+version = "0.1.0"
+description = "SH1106 monochrome OLED driver for MicroPython, CircuitPython and CPython"
+modules = ["display/sh1106.py"]
+
+[sh1107]
+version = "0.1.0"
+description = "SH1107 monochrome OLED driver for MicroPython, CircuitPython and CPython"
+modules = ["display/sh1107.py"]
+
+[spibus]
+version = "0.1.0"
+native = true
+description = "Pure-Python SPI display bus, for firmware without a native one"
+modules = ["bus/spibus.py"]
+
+[ssd1305]
+version = "0.1.0"
+description = "SSD1305 monochrome OLED driver for MicroPython, CircuitPython and CPython"
+modules = ["display/ssd1305.py"]
+
+[ssd1306_bus]
+version = "0.1.0"
+description = "SSD1306 monochrome OLED on a display bus, for MicroPython, CircuitPython and CPython. Not micropython-lib's framebuf ssd1306"
+modules = ["display/ssd1306_bus.py"]
+
+[ssd1322]
+version = "0.1.0"
+description = "SSD1322 grayscale OLED driver for MicroPython, CircuitPython and CPython"
+modules = ["display/ssd1322.py"]
+
+[ssd1325]
+version = "0.1.0"
+description = "SSD1325 grayscale OLED driver for MicroPython, CircuitPython and CPython"
+modules = ["display/ssd1325.py"]
+
+[ssd1327]
+version = "0.1.0"
+description = "SSD1327 grayscale OLED driver for MicroPython, CircuitPython and CPython"
+modules = ["display/ssd1327.py"]
+
+[ssd1331]
+version = "0.1.0"
+description = "SSD1331 display driver"
+modules = ["display/ssd1331.py"]
+
+[ssd1351]
+version = "0.1.0"
+description = "SSD1351 display driver"
+modules = ["display/ssd1351.py"]
+
+[st7123]
+version = "0.1.0"
+description = "ST7123 TDDI capacitive touch (M5Stack Tab5 revision, I2C @ 0x55)"
+modules = ["touch/st7123.py"]
+
+[st7701]
+version = "0.1.0"
+description = "ST7701 display driver"
+modules = ["display/st7701.py"]
+
+[st7735]
+version = "0.1.0"
+description = "ST7735 display driver (from adafruit_st7735)"
+modules = ["display/st7735.py"]
+
+[st7735r]
+version = "0.1.0"
+description = "ST7735R display driver (from adafruit_st7735r)"
+modules = ["display/st7735r.py"]
+
+[st7735r_1]
+version = "0.1.0"
+description = "ST7735R display driver, variant 1 (Waveshare Pico-LCD-1.8)"
+modules = ["display/st7735r_1.py"]
+
+[st7789]
+version = "0.1.0"
+description = "ST7789 display driver"
+modules = ["display/st7789.py"]
+
+[st7789vw]
+version = "0.1.0"
+description = "ST7789VW display driver"
+modules = ["display/st7789vw.py"]
+
+[st7796]
+version = "0.1.0"
+description = "ST7796 display driver"
+modules = ["display/st7796.py"]
+
+[stmpe610]
+version = "0.1.0"
+description = "MicroPython SPI driver for STMPE610 resistive touch (PiTFT FeatherWing)"
+modules = ["touch/stmpe610.py"]
+
+[sx1262]
+version = "0.1.0"
+description = "Semtech SX1262 LoRa transceiver: configure, send, receive, channel activity"
+modules = ["radio/sx1262.py"]
+
+[tab5_ili9881c_init]
+version = "0.1.0"
+description = "ILI9881C init bytes for M5Stack Tab5 (pre-ST7123 panels)"
+modules = ["display/tab5_ili9881c_init.py"]
+
+[tab5_st7123_init]
+version = "0.1.0"
+description = "ST7123 init bytes for M5Stack Tab5 (post-ILI9881C / integrated TDDI panels)"
+modules = ["display/tab5_st7123_init.py"]
+
+[tt21100]
+version = "0.1.0"
+description = "MicroPython driver for TT21100 capacitive touch controllers"
+modules = ["touch/tt21100.py"]
+
+[xl9535]
+version = "0.1.0"
+description = "XL9535 I/O expander driver"
+modules = ["io_expander/xl9535.py"]
+
+[xpt2046]
+version = "0.1.0"
+description = "XPT2046 resistive touch controller (MicroPython)"
+modules = ["touch/xpt2046.py"]

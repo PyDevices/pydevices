@@ -17,8 +17,8 @@
       "github:PyDevices/pydevices/drivers/touch/chsc6x.py"
     ],
     [
-      "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "sdcard_nrf.py",
+      "github:PyDevices/pydevices/drivers/storage/sdcard_nrf.py"
     ],
     [
       "pcf8563.py",
@@ -36,5 +36,6 @@
     ]
   ],
   "version": "0.1",
-  "notes": "Stock MicroPython on the nRF52840 has no mip or network; copy these files (see board_config.py)."
+  "description": "Seeed Studio Round Display for XIAO on a XIAO nRF52840",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

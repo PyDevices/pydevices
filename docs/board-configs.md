@@ -21,16 +21,18 @@ Typically:
 
 Configs live in
 [`PyDevices/pydevices`](https://github.com/PyDevices/pydevices)
-(`board_configs/`). Each MicroPython directory with a `package.json` can be installed via MIP:
+(`board_configs/`). Each MicroPython folder is a package named by the folder:
+its `manifest.py` says what it installs, and requires the driver packages it
+uses and `pydevices`, so one `mip.install` of the board brings everything. The
+`package.json` beside it installs the same files from GitHub, and is written
+from the manifest.
 
 See the canonical commands and verification steps in
-[install-workflows.md](install-workflows.md).
-
-Standard MCU pattern: install the matching `board_config` directory and let
-`package.json` dependencies resolve automatically from the PyDevices MIP index.
+[install-workflows.md](install-workflows.md). To add a board or a driver, or to
+mark one tested, see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 CircuitPython configs live under [`board_configs/cp/`](../board_configs/cp/) with the same bus layout and
-directory names as MicroPython (no `cp_` prefix, no `package.json` / MIP, no
+directory names as MicroPython (no `cp_` prefix, no package / MIP, no
 `board_peripherals.py`). MicroPython configs stay at the top level of
 `board_configs/` (not under an `mp/` folder).
 

@@ -18,7 +18,7 @@
     ],
     [
       "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "github:micropython/micropython-lib/micropython/drivers/storage/sdcard/sdcard.py"
     ]
   ],
   "deps": [
@@ -28,5 +28,6 @@
     ]
   ],
   "version": "0.2",
-  "notes": "Split board_config + board_peripherals (board peripherals contract). Product-owned boarddev."
+  "description": "Metro M7 + Adafruit 2.8\" TFT Touch Shield (cap) product 1947",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

@@ -5,16 +5,16 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/pitft_hx8357_featherwing/board_config.py"
     ],
     [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/pitft_hx8357_featherwing/board_peripherals.py"
+    ],
+    [
       "ili9341.py",
       "github:PyDevices/pydevices/drivers/display/ili9341.py"
     ],
     [
       "stmpe610.py",
       "github:PyDevices/pydevices/drivers/touch/stmpe610.py"
-    ],
-    [
-      "board_peripherals.py",
-      "github:PyDevices/pydevices/board_configs/busdisplay/spi/pitft_hx8357_featherwing/board_peripherals.py"
     ]
   ],
   "deps": [
@@ -23,5 +23,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "Adafruit 3.5\" TFT FeatherWing (HX8357D) + STMPE610 — MicroPython (Feather RP2040)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

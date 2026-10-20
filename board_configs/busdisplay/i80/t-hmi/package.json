@@ -24,5 +24,6 @@
     ]
   ],
   "version": "0.2",
-  "notes": "SDMMC 1-bit sdcard (SCLK=12 CMD=11 DAT0=13)."
+  "description": "LILYGO T-HMI 240x320 ST7789 I80 + XPT2046 (displayif native esp-lcd i80bus)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

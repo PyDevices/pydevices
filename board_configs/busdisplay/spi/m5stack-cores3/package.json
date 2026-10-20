@@ -5,16 +5,16 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/m5stack-cores3/board_config.py"
     ],
     [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/m5stack-cores3/board_peripherals.py"
+    ],
+    [
       "ili9341.py",
       "github:PyDevices/pydevices/drivers/display/ili9341.py"
     ],
     [
       "ft6x36.py",
       "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
-    ],
-    [
-      "board_peripherals.py",
-      "github:PyDevices/pydevices/board_configs/busdisplay/spi/m5stack-cores3/board_peripherals.py"
     ],
     [
       "es7210.py",
@@ -26,7 +26,7 @@
     ],
     [
       "bmi270.py",
-      "github:PyDevices/pydevices/drivers/imu/bmi270.py"
+      "github:micropython/micropython-lib/micropython/drivers/imu/bmi270/bmi270.py"
     ]
   ],
   "deps": [
@@ -36,5 +36,6 @@
     ]
   ],
   "version": "0.3",
-  "notes": "AW88298+ES7210 audio; BMI270 IMU; camera stub."
+  "description": "M5Stack CoreS3 with ILI9342 320x240 display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

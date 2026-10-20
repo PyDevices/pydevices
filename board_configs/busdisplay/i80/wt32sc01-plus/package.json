@@ -5,6 +5,10 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/i80/wt32sc01-plus/board_config.py"
     ],
     [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/i80/wt32sc01-plus/board_peripherals.py"
+    ],
+    [
       "st7796.py",
       "github:PyDevices/pydevices/drivers/display/st7796.py"
     ],
@@ -13,12 +17,8 @@
       "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
     ],
     [
-      "board_peripherals.py",
-      "github:PyDevices/pydevices/board_configs/busdisplay/i80/wt32sc01-plus/board_peripherals.py"
-    ],
-    [
       "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "github:micropython/micropython-lib/micropython/drivers/storage/sdcard/sdcard.py"
     ]
   ],
   "deps": [
@@ -27,5 +27,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "WT32-SC01 Plus 320x480 ST7796 display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

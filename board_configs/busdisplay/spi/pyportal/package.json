@@ -18,7 +18,7 @@
     ],
     [
       "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "github:micropython/micropython-lib/micropython/drivers/storage/sdcard/sdcard.py"
     ]
   ],
   "deps": [
@@ -28,5 +28,6 @@
     ]
   ],
   "version": "0.2",
-  "notes": "Split board_peripherals; sdcard/radio/audio/i2c/wlan."
+  "description": "Adafruit PyPortal ILI9341 + TT21100 — MicroPython (SAMD51)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

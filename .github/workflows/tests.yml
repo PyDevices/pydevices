@@ -8,14 +8,12 @@ on:
       - 'lib/**'
       - 'utils/**'
       - 'drivers/**'
-      - 'board_configs/**/package.json'
       # The contract proof (tests/test_contract_proof.py) reads and binds every
-      # board's board_config.py and board_peripherals.py, so a change to those
-      # must run the suite. The t-embed rail-power regression reached main
-      # untested because only package.json under board_configs was watched.
-      - 'board_configs/**/board_config.py'
-      - 'board_configs/**/board_peripherals.py'
-      - 'scripts/validate_board_mip_installers.py'
+      # board's board_config.py and board_peripherals.py, and the board package
+      # checks read every manifest.py and package.json, so any change there
+      # runs the suite. The t-embed rail-power regression reached main untested
+      # when only package.json under board_configs was watched.
+      - 'board_configs/**'
       # The package library builder and what it reads.
       - 'tools/libbuild.py'
       - 'lib-lock.json'
@@ -32,14 +30,12 @@ on:
       - 'lib/**'
       - 'utils/**'
       - 'drivers/**'
-      - 'board_configs/**/package.json'
       # The contract proof (tests/test_contract_proof.py) reads and binds every
-      # board's board_config.py and board_peripherals.py, so a change to those
-      # must run the suite. The t-embed rail-power regression reached main
-      # untested because only package.json under board_configs was watched.
-      - 'board_configs/**/board_config.py'
-      - 'board_configs/**/board_peripherals.py'
-      - 'scripts/validate_board_mip_installers.py'
+      # board's board_config.py and board_peripherals.py, and the board package
+      # checks read every manifest.py and package.json, so any change there
+      # runs the suite. The t-embed rail-power regression reached main untested
+      # when only package.json under board_configs was watched.
+      - 'board_configs/**'
       # The package library builder and what it reads.
       - 'tools/libbuild.py'
       - 'lib-lock.json'
@@ -74,9 +70,6 @@ jobs:
           SDL_VIDEODRIVER: dummy
           SDL_AUDIODRIVER: dummy
         run: python -m unittest discover -s tests -v
-
-      - name: Validate direct-GitHub board installers
-        run: python scripts/validate_board_mip_installers.py
 
   # The audio pump's C half. `lib/audiodev/pump.py` decides things CPython
   # can be shown deciding (tests/test_pump.py, with stand-ins), but whether
