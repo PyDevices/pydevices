@@ -336,7 +336,13 @@ class Device:
         buffer allocates nothing: poll an interrupt endpoint with a short
         timeout and "no report yet" costs no garbage. The transfer stays
         armed between such reads, so a report that lands in between is
-        kept for the next one."""
+        kept for the next one.
+
+        A negative timeout, with ``raise_on_timeout=False``, doesn't wait at
+        all: the read returns what the armed transfer has brought, or 0 at
+        once. An idle poll then costs microseconds rather than a
+        millisecond. (On a firmware whose usbhost predates this, it waits
+        1 ms instead.)"""
         self._claim(self._interface_of(endpoint))
         into = None
         if isinstance(size_or_buffer, int):
@@ -345,10 +351,17 @@ class Device:
             buf = size_or_buffer
         if not raise_on_timeout and timeout:
             try:
-                n = _usbhost.host_xfer(self._id, endpoint, buf, timeout, False)
+                if timeout > 0:
+                    n = _usbhost.host_xfer(self._id, endpoint, buf, timeout, False)
+                elif hasattr(_usbhost, "host_poll"):
+                    n = _usbhost.host_poll(self._id, endpoint, buf)
+                else:
+                    n = _usbhost.host_xfer(self._id, endpoint, buf, 1, False)
             except OSError as e:
                 _raise(e)
             return util._array(into, n) if into is not None else n
+        if timeout is not None and timeout < 0:
+            raise ValueError("a negative timeout needs raise_on_timeout=False")
         while True:
             try:
                 n = _usbhost.host_xfer(self._id, endpoint, buf, timeout or 250)

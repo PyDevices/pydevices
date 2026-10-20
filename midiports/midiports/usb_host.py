@@ -15,8 +15,12 @@ port::
 ``OSError`` if none does. On an ESP32-P4 with the device behind a hub, call
 ``usb.core.start(full_speed=True)`` first.
 
-Each read polls the device's bulk IN endpoint for up to ``poll_ms`` (1 ms by
-default), so a loop that reads often hears every note without blocking.
+Each read looks at the device's bulk IN endpoint without waiting (``poll_ms``
+0, the default) and returns at once when nothing has come, so a loop that
+reads often hears every note without blocking. The endpoint's transfer stays
+armed between reads, so a message that lands in between waits for the next
+one, and an idle read allocates nothing. A ``poll_ms`` above 0 waits up to
+that long for data instead.
 Messages come out whole (``midiports.WholeMessages``) and stamped with the
 time the read that found them returned (``midi_in.take_timestamp()``).
 
@@ -32,8 +36,8 @@ a long SysEx from one holds the others until it ends.
 Devices plugged in later are heard within ``rescan_ms``, and one unplugged is
 dropped. Writes go to every device that takes MIDI in; a device that refuses
 one (a timeout, or gone) gets no more writes. ``midi_in.devices`` lists the
-devices open now. Each read polls every device, so an idle read costs
-``poll_ms`` per device.
+devices open now. Each read polls every device, so with ``poll_ms`` above 0
+an idle read costs ``poll_ms`` per device.
 """
 
 import usb.core
@@ -79,7 +83,7 @@ class _Raw(PortIn):
         PortIn.__init__(self, packet)
         self._dev = dev
         self._ep = ep
-        self._poll = poll_ms
+        self._poll = poll_ms if poll_ms > 0 else -1     # -1: don't wait
         self._pkt = bytearray(packet)
         self._dec = bytearray(packet)
         self._have = 0
@@ -88,9 +92,10 @@ class _Raw(PortIn):
     def readinto(self, buf, nbytes=None):
         n = _count(buf, nbytes)
         if not self._have:
-            try:
-                got = self._dev.read(self._ep, self._pkt, self._poll)
-            except usb.core.USBTimeoutError:
+            # Nothing yet is 0, not a raise: no garbage, and the transfer
+            # stays armed for the next read.
+            got = self._dev.read(self._ep, self._pkt, self._poll, raise_on_timeout=False)
+            if not got:
                 return None
             pkt, dec, k = self._pkt, self._dec, 0
             for i in range(0, got - 3, 4):
@@ -379,7 +384,7 @@ class _AllOut(PortOut):
     deinit = close
 
 
-def all_ports(size=64, poll_ms=1, timeout_ms=1000, rescan_ms=1000, stall_ms=500):
+def all_ports(size=64, poll_ms=0, timeout_ms=1000, rescan_ms=1000, stall_ms=500):
     """``(midi_in, midi_out)`` for every MIDI device on the host port at once.
 
     Unlike ``ports()`` it doesn't wait or raise when there's no device yet:
@@ -395,7 +400,7 @@ def all_ports(size=64, poll_ms=1, timeout_ms=1000, rescan_ms=1000, stall_ms=500)
     return midi_in, _AllOut(midi_in)
 
 
-def ports(dev=None, size=64, poll_ms=1, timeout_ms=1000, wait_ms=5000):
+def ports(dev=None, size=64, poll_ms=0, timeout_ms=1000, wait_ms=5000):
     """``(midi_in, midi_out)`` for a MIDI device on the host port.
     ``midi_out`` is None when the device only sends."""
     if dev is None:

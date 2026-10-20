@@ -91,6 +91,7 @@ class FakeHost:
         self.streams = {}
         self.probe = bytearray(34)
         self.report = None
+        self.host_poll = self._host_poll    # absent on a firmware that predates it
 
     # -- usb.core's calls
     def host_start(self, classes, full_speed=False):
@@ -114,6 +115,13 @@ class FakeHost:
         if self.report is None:
             if raise_on_timeout:
                 raise OSError(110, "ETIMEDOUT")
+            return 0
+        buf[:len(self.report)] = self.report
+        return len(self.report)
+
+    def _host_poll(self, dev_id, ep, buf):
+        self.calls.append(("poll", ep))
+        if self.report is None:
             return 0
         buf[:len(self.report)] = self.report
         return len(self.report)
@@ -429,6 +437,23 @@ class TestCoreForPolling(unittest.TestCase):
         self.assertEqual(host.calls[-1], ("xfer", self.ep, 1, False))
         host.report = b"\x01\x02"
         self.assertEqual(self.dev.read(self.ep, buf, timeout=1, raise_on_timeout=False), 2)
+
+    def test_a_negative_timeout_polls_without_waiting(self):
+        buf = bytearray(8)
+        self.assertEqual(self.dev.read(self.ep, buf, timeout=-1, raise_on_timeout=False), 0)
+        self.assertEqual(host.calls[-1], ("poll", self.ep))
+        host.report = b"\x01\x02"
+        self.assertEqual(self.dev.read(self.ep, buf, timeout=-1, raise_on_timeout=False), 2)
+        self.assertEqual(buf[:2], b"\x01\x02")
+
+    def test_a_negative_timeout_on_an_older_firmware_waits_1_ms(self):
+        del host.host_poll
+        self.assertEqual(self.dev.read(self.ep, bytearray(8), timeout=-1, raise_on_timeout=False), 0)
+        self.assertEqual(host.calls[-1], ("xfer", self.ep, 1, False))
+
+    def test_a_negative_timeout_that_would_raise_is_refused(self):
+        with self.assertRaises(ValueError):
+            self.dev.read(self.ep, bytearray(8), timeout=-1)
 
     def test_the_default_still_raises(self):
         with self.assertRaises(usb.core.USBTimeoutError):

@@ -87,7 +87,9 @@ Start the host with the classes you'll stream
 the controller's FIFO split is fixed while the host runs. A loop that polls
 an endpoint every frame can read with
 `dev.read(ep, buf, timeout=1, raise_on_timeout=False)`, as on CircuitPython:
-"nothing yet" returns 0 and allocates nothing. `usb.core.running()` and
+"nothing yet" returns 0 and allocates nothing. The transfer stays armed
+between reads, so nothing that arrives in between is lost. With `timeout=-1`
+the read doesn't wait at all, which brings an idle poll down to microseconds. `usb.core.running()` and
 `usb.core.stats()` say whether the host is up and what it has seen.
 Adafruit's `adafruit_usb_host_midi` runs on it unchanged.
 
