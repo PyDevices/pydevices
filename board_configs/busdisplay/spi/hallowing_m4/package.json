@@ -5,12 +5,12 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/hallowing_m4/board_config.py"
     ],
     [
-      "st7735.py",
-      "github:PyDevices/pydevices/drivers/display/st7735.py"
-    ],
-    [
       "board_peripherals.py",
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/hallowing_m4/board_peripherals.py"
+    ],
+    [
+      "st7735.py",
+      "github:PyDevices/pydevices/drivers/display/st7735.py"
     ],
     [
       "lis3dh.py",
@@ -23,5 +23,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "Adafruit HalloWing M4 ST7735 — MicroPython (SAMD51)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

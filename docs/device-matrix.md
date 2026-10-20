@@ -91,8 +91,8 @@ mip.install(
 ```
 
 Replace `<path>` with a directory from the tables (for example
-`fbdisplay/esp32-p4-wifi6-touch-lcd-4b`). Also install the PyDevices packages
-listed in that board’s `package.json` `deps`.
+`fbdisplay/esp32-p4-wifi6-touch-lcd-4b`). The board package brings its drivers
+and `pydevices`; its `manifest.py` lists them.
 
 ---
 

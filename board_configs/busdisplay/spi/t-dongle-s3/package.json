@@ -5,12 +5,12 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/t-dongle-s3/board_config.py"
     ],
     [
-      "st7735.py",
-      "github:PyDevices/pydevices/drivers/display/st7735.py"
-    ],
-    [
       "board_peripherals.py",
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/t-dongle-s3/board_peripherals.py"
+    ],
+    [
+      "st7735.py",
+      "github:PyDevices/pydevices/drivers/display/st7735.py"
     ],
     [
       "dotstar.py",
@@ -23,5 +23,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "LilyGo T-Dongle-S3 80x160 ST7735 display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

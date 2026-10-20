@@ -9,12 +9,20 @@
       "github:PyDevices/pydevices/board_configs/nodisplay/esp32-p4-wifi6-dev-kit/board_peripherals.py"
     ],
     [
-      "ft6x36.py",
-      "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
-    ],
-    [
       "es8311.py",
       "github:PyDevices/pydevices/drivers/codec/es8311.py"
+    ],
+    [
+      "camera_sensors.py",
+      "github:PyDevices/pydevices/drivers/camera/camera_sensors.py"
+    ],
+    [
+      "imx219.py",
+      "github:PyDevices/pydevices/drivers/camera/imx219.py"
+    ],
+    [
+      "ft6x36.py",
+      "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
     ],
     [
       "keypad_gpio.py",
@@ -28,5 +36,6 @@
     ]
   ],
   "version": "0.3",
-  "notes": "KeDei 5in DSI (ICN6211) on the DEV-KIT's DSI connector; needs displayif with mipidsi non_burst/continuous_clock. The board's peripherals come from nodisplay/esp32-p4-wifi6-dev-kit."
+  "description": "Waveshare ESP32-P4-WIFI6-DEV-KIT with a KeDei 5\" DSI display (800x480) - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

@@ -16,5 +16,6 @@
     ]
   ],
   "version": "0.1",
-  "notes": "Pico 2 W + Adafruit DVI Sock or PiCowbell HSTX; CYW43 wlan/ble."
+  "description": "Raspberry Pi Pico 2 W + Adafruit DVI Sock or PiCowbell HSTX (640x480)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

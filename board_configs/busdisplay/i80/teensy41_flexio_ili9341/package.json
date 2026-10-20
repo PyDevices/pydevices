@@ -19,5 +19,7 @@
       "latest"
     ]
   ],
-  "version": "0.3"
+  "version": "0.3",
+  "description": "Teensy 4.1 + external ILI9341 on FlexIO 8080 bus — MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

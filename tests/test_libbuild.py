@@ -73,16 +73,27 @@ class BuiltRepository(unittest.TestCase):
         assert status == 0, cls.report.getvalue()
         cls.version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         cls.index = json.loads((cls.out / "index" / "index.json").read_text(encoding="utf-8"))
+        cls.untested = cls.out / "index" / "untested"
+        cls.everything = json.loads((cls.untested / "index.json").read_text(encoding="utf-8"))
+        cls.boards = libbuild.find_boards(ROOT)
+        cls.drivers = libbuild.read_drivers(ROOT)
 
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.scratch, ignore_errors=True)
 
     def version_of(self, name):
+        if name in self.drivers:
+            return self.drivers[name].version
+        if name in self.boards:
+            return libbuild.read_manifest("omnipython-lib", self.out / "library", name, None)._metadata[0]["version"]
         return _folder_version(name) if name in _folders() else self.version
 
     def package(self, name, kind="py"):
-        return json.loads((self.out / "index" / "package" / kind / name / "latest.json").read_text(encoding="utf-8"))
+        return json.loads((self.untested / "package" / kind / name / "latest.json").read_text(encoding="utf-8"))
+
+    def deps(self, name):
+        return [dep for dep, _version in self.package(name).get("deps", ())]
 
     def paths(self, name, kind="py"):
         return [path for path, _ in self.package(name, kind)["hashes"]]
@@ -92,28 +103,69 @@ class BuiltRepository(unittest.TestCase):
         expected = {"pydevices", "pydevices-desktop"}
         expected.update(name for name, section in split.items() if section.get("top-level") or section.get("own-package"))
         expected.update(_folders())
-        self.assertEqual({p["name"] for p in self.index["packages"]}, expected)
-        for entry in self.index["packages"]:
+        tested = {p["name"] for p in self.everything["packages"] if p.get("tested")}
+        self.assertEqual({p["name"] for p in self.index["packages"]}, expected | tested)
+        hardware = set(self.boards) | set(self.drivers) | {"desktop"}
+        self.assertEqual({p["name"] for p in self.everything["packages"]}, expected | hardware)
+        for entry in self.everything["packages"]:
             with self.subTest(package=entry["name"]):
                 self.assertEqual(entry["version"], self.version_of(entry["name"]))
                 self.assertTrue(entry["description"])
 
     def test_package_files_are_where_mip_reads_them(self):
-        for entry in self.index["packages"]:
+        for entry in self.everything["packages"]:
             name = entry["name"]
             with self.subTest(package=name):
                 version = self.version_of(name)
                 for kind in ("py", "6"):
                     for stem in ("latest", version):
-                        body = json.loads((self.out / "index" / "package" / kind / name / f"{stem}.json").read_text())
-                        self.assertEqual(set(body), {"v", "hashes", "version"})
+                        body = json.loads((self.untested / "package" / kind / name / f"{stem}.json").read_text())
+                        self.assertLessEqual(set(body), {"v", "hashes", "version", "deps"})
                         self.assertEqual(body["version"], version)
                 py = self.paths(name)
-                self.assertTrue(py)
-                self.assertEqual(self.paths(name, "6"), [path[:-2] + "mpy" for path in py])
+                self.assertTrue(py or self.deps(name))
+                for source, compiled in zip(py, self.paths(name, "6"), strict=True):
+                    self.assertIn(compiled, (source[:-2] + "mpy", source))
                 for path, short in self.package(name)["hashes"]:
-                    stored = self.out / "index" / "file" / short[:2] / short
+                    stored = self.untested / "file" / short[:2] / short
                     self.assertTrue(stored.is_file(), path)
+        for entry in self.index["packages"]:
+            for path, short in json.loads((self.out / "index" / "package" / "py" / entry["name"] / "latest.json").read_text())["hashes"]:
+                self.assertTrue((self.out / "index" / "file" / short[:2] / short).is_file(), path)
+
+    def test_a_file_with_native_code_ships_as_source_in_the_mpy_kind_too(self):
+        compiled = self.paths("t-watch-s3", "6")
+        self.assertIn("board_peripherals.py", compiled)
+        self.assertIn("board_config.mpy", compiled)
+
+    def test_a_board_package_depends_on_its_drivers_and_brings_no_copies(self):
+        self.assertEqual(self.deps("esp32-s3-touch-lcd-4_3"), ["pydevices", "ch422g", "gt911", "rs485", "canbus"])
+        self.assertEqual(sorted(self.paths("esp32-s3-touch-lcd-4_3")), ["board_config.py", "board_peripherals.py"])
+        self.assertEqual(self.paths("gt911"), ["gt911.py"])
+        self.assertIn("esp32-s3-touch-lcd-4_3 requires sdcard", self.report.getvalue())
+        self.assertEqual(sorted(self.paths("bma423")), ["bma423.py", "bma423_config.py"])
+        self.assertIn("esp32-p4-wifi6-dev-kit", self.deps("esp32-p4-wifi6-dev-kit_kedei-5in-dsi"))
+
+    def test_the_driver_copies_are_gone_or_renamed(self):
+        names = {p["name"] for p in self.everything["packages"]}
+        for gone in ("sdcard", "bmi270", "ssd1306"):
+            self.assertNotIn(gone, names)
+        self.assertIn("ssd1306_bus", self.deps("ssd1306_oled_featherwing"))
+        self.assertIn("sdcard_nrf", self.deps("seeed_gc9a01_on_xiao_nrf52840"))
+        self.assertIn("m5stack-cores3 requires bmi270", self.report.getvalue())
+
+    def test_host_board_configs_keep_their_own_board_config(self):
+        self.assertNotIn("board_config.py", self.paths("pydevices-desktop"))
+        self.assertEqual(self.deps("pgdisplay"), ["pydevices-desktop"])
+        self.assertIn("board_config.py", self.paths("desktop"))
+
+    def test_the_pyscript_table_points_at_the_index(self):
+        table = tomllib.loads((self.out / "index" / "pydevices-desktop.toml").read_text(encoding="utf-8"))["files"]
+        self.assertIn("/lib/board_config.py", table.values())
+        self.assertIn("/lib/displaydev/sdldisplay.py", table.values())
+        for url in table:
+            self.assertTrue(url.startswith("http://example.invalid/lib/"), url)
+            self.assertNotIn("github", url)
 
     def test_installed_source_carries_its_version(self):
         path, short = next(item for item in self.package("pydevices")["hashes"] if item[0] == "events.py")
@@ -132,13 +184,13 @@ class BuiltRepository(unittest.TestCase):
         self.assertIn("displaydev/auto.py", device)
 
     def test_desktop_brings_pydevices_with_it(self):
-        self.assertLessEqual(set(self.paths("pydevices")), set(self.paths("pydevices-desktop")))
+        self.assertEqual(self.deps("pydevices-desktop"), ["pydevices"])
 
     def test_a_required_sibling_is_named_by_library_in_the_tree(self):
         manifest = (self.out / "library" / "usb-host-msc" / "manifest.py").read_text(encoding="utf-8")
         self.assertIn('require("usb-core", library="omnipython-lib")', manifest)
         self.assertIn(f'version="{self.version}"', manifest)
-        self.assertTrue(set(self.paths("usb-core")) <= set(self.paths("usb-host-msc")))
+        self.assertIn("usb-core", self.deps("usb-host-msc"))
         desktop = (self.out / "library" / "pydevices-desktop" / "manifest.py").read_text(encoding="utf-8")
         self.assertIn('require("pydevices", library="omnipython-lib")', desktop)
 
@@ -157,7 +209,7 @@ class BuiltRepository(unittest.TestCase):
                 self.assertEqual(sorted(p.name for p in (self.out / "library" / name).iterdir()), sorted([name, "manifest.py"]))
 
     def test_appkit_brings_pydevices_with_it(self):
-        self.assertLessEqual(set(self.paths("pydevices")), set(self.paths("appkit")))
+        self.assertEqual(self.deps("appkit"), ["pydevices"])
         self.assertIn("appkit/launcher.py", self.paths("appkit"))
 
     def test_an_upstream_requirement_is_left_out_and_said(self):
@@ -169,6 +221,8 @@ class BuiltRepository(unittest.TestCase):
     def test_the_landing_page_shows_the_address_it_was_given(self):
         page = (self.out / "index" / "index.html").read_text(encoding="utf-8")
         self.assertIn('index="http://example.invalid/lib"', page)
+        page = (self.untested / "index.html").read_text(encoding="utf-8")
+        self.assertIn('index="http://example.invalid/lib/untested"', page)
 
     def test_an_index_compares_identical_to_itself_and_not_to_a_changed_copy(self):
         index = self.out / "index"
@@ -183,6 +237,9 @@ class BuiltRepository(unittest.TestCase):
         with redirect_stdout(StringIO()) as out:
             self.assertEqual(libbuild.main(["compare", str(index), str(changed), "--package", "pydevices"]), 1)
         self.assertIn("different content", out.getvalue())
+        # A dep's change shows in the package that depends on it: that is what lands.
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(libbuild.main(["compare", str(index), str(changed), "--package", "appkit"]), 1)
 
 
 class Manifests(unittest.TestCase):
@@ -204,7 +261,8 @@ class Manifests(unittest.TestCase):
         self.write("top", 'metadata(version="2.0")\nrequire("base", library="lib")\nmodule("top.py")\n', ["top.py"])
         manifest = libbuild.read_manifest("lib", self.library, "top", None)
         versions = {item.target_path: item.metadata.get("version") for item in manifest.files}
-        self.assertEqual(versions, {"base/__init__.py": "1.0", "top.py": "2.0"})
+        self.assertEqual(versions, {"top.py": "2.0"})
+        self.assertEqual(manifest.deps, ["base"])
 
     def test_a_require_from_another_library_is_refused(self):
         self.write("top", 'metadata(version="1")\nrequire("x", library="elsewhere")\n')
@@ -220,6 +278,82 @@ class Manifests(unittest.TestCase):
         self.write("top", 'metadata(version="1")\nfreeze("x")\n')
         with self.assertRaises(libbuild.BuildError):
             libbuild.read_manifest("lib", self.library, "top", None)
+
+
+class TestedAndUntested(unittest.TestCase):
+    def test_a_tested_board_brings_its_deps_into_the_main_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            board = Path(tmp, "board")
+            board.mkdir()
+            Path(tmp, "other").mkdir()
+            run = {"hardware": "x", "firmware": "y", "date": "2026-10-20", "smoke": "passed"}
+            (board / "tested.json").write_text(json.dumps({"runs": [run]}), encoding="utf-8")
+            tested = libbuild.tested_packages(
+                {"board": board, "other": Path(tmp, "other")}, {"board": ["pydevices", "gt911"], "gt911": [], "other": ["st7789"]}
+            )
+        self.assertEqual(set(tested), {"board", "pydevices", "gt911"})
+
+    def test_a_record_of_a_failed_run_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = {"hardware": "x", "firmware": "y", "date": "2026-10-20", "smoke": "failed"}
+            Path(tmp, "tested.json").write_text(json.dumps({"runs": [run]}), encoding="utf-8")
+            with self.assertRaises(libbuild.BuildError):
+                libbuild.read_tested(Path(tmp))
+
+    def test_a_dep_that_would_overwrite_a_packages_file_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, body in {
+                "host": {"hashes": [["board_config.py", "aaaa"]], "deps": [["desktop", "latest"]]},
+                "desktop": {"hashes": [["board_config.py", "bbbb"]]},
+            }.items():
+                path = Path(tmp, "package", "py", name, "latest.json")
+                path.parent.mkdir(parents=True)
+                path.write_text(json.dumps(body), encoding="utf-8")
+            with self.assertRaises(libbuild.BuildError):
+                libbuild.check_no_overwrites(Path(tmp), ["host", "desktop"])
+
+
+class ShapeCheck(unittest.TestCase):
+    UPSTREAM = frozenset({"sdcard", "bmi270", "ssd1306", "aioble", "usb-device", "usb-device-hid", "time"})
+
+    def copy_with_boards(self, tmp):
+        """A stand-in repository: everything linked, board_configs and drivers copied."""
+        root = Path(tmp)
+        for entry in ROOT.iterdir():
+            if entry.name in {"board_configs", "drivers", ".git", "build"}:
+                continue
+            (root / entry.name).symlink_to(entry)
+        shutil.copytree(ROOT / "board_configs", root / "board_configs")
+        shutil.copytree(ROOT / "drivers", root / "drivers")
+        return root
+
+    def test_every_board_and_driver_package_passes(self):
+        self.assertEqual(libbuild.check_shape(ROOT, self.UPSTREAM), [])
+
+    def test_a_driver_name_that_does_not_exist_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.copy_with_boards(tmp)
+            manifest = root / "board_configs/fbdisplay/esp32-s3-touch-lcd-4_3/manifest.py"
+            manifest.write_text(manifest.read_text().replace('require("gt911")', 'require("gt9111")'))
+            problems = libbuild.check_shape(root, self.UPSTREAM)
+        self.assertTrue(any("require('gt9111') names no package" in p for p in problems), problems)
+        self.assertTrue(any("imports 'gt911'" in p for p in problems), problems)
+
+    def test_a_name_upstream_uses_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.copy_with_boards(tmp)
+            toml = root / "drivers/drivers.toml"
+            toml.write_text(toml.read_text().replace("[ssd1306_bus]", "[ssd1306]").replace('"display/ssd1306_bus.py"', '"display/ssd1306.py"'))
+            (root / "drivers/display/ssd1306_bus.py").rename(root / "drivers/display/ssd1306.py")
+            problems = libbuild.check_shape(root, self.UPSTREAM)
+        self.assertTrue(any("'ssd1306' is micropython-lib's too" in p for p in problems), problems)
+
+    def test_a_driver_file_in_no_package_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.copy_with_boards(tmp)
+            (root / "drivers/touch/new_touch.py").write_text("x = 1\n")
+            with self.assertRaises(libbuild.BuildError):
+                libbuild.check_shape(root, self.UPSTREAM)
 
 
 class Lockfile(unittest.TestCase):

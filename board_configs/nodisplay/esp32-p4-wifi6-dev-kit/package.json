@@ -24,5 +24,6 @@
     ]
   ],
   "version": "0.1.0",
-  "notes": "Headless: no board_config.py. ES8311 speaker, headphone jack and microphone; SDMMC sdcard; IP101 Ethernet (ethernet); CSI camera; C6 radio=wlan."
+  "description": "board_peripherals for the Waveshare ESP32-P4-WIFI6-DEV-KIT, on MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

@@ -17,6 +17,10 @@
       "github:PyDevices/pydevices/drivers/input/keypad_shift.py"
     ],
     [
+      "digitalio.py",
+      "github:PyDevices/pydevices/drivers/bus/digitalio.py"
+    ],
+    [
       "gpiojoystick.py",
       "github:PyDevices/pydevices/drivers/joystick/gpiojoystick.py"
     ],
@@ -26,7 +30,7 @@
     ],
     [
       "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "github:micropython/micropython-lib/micropython/drivers/storage/sdcard/sdcard.py"
     ],
     [
       "battery_adc.py",
@@ -40,5 +44,6 @@
     ]
   ],
   "version": "0.2",
-  "notes": "keypad+joystick eager; lazy pixels/accel/sd/battery/audio/i2c."
+  "description": "Adafruit PyGamer ST7789 — MicroPython (SAMD51)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

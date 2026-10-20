@@ -12,5 +12,6 @@
     ]
   ],
   "version": "0.1",
-  "notes": "Linux KMS/DRM via SDL_VIDEODRIVER=kmsdrm (no X11/Wayland). Requires libsdl2 built with kmsdrm and access to /dev/dri."
+  "description": "Linux KMS / DRM board config (no X11/Wayland window manager)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

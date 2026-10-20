@@ -11,5 +11,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "Pimoroni Pico DV Demo Base + Raspberry Pi Pico (RP2040) - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

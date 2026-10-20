@@ -24,5 +24,6 @@
     ]
   ],
   "version": "0.1",
-  "notes": "Split board_config + board_peripherals (board peripherals contract). Product-owned boarddev."
+  "description": "Qualia S3 RGB-666 with TL040HDS20 4.0\" 720x720 Square Display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

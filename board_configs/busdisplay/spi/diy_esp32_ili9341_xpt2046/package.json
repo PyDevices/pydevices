@@ -19,5 +19,7 @@
       "latest"
     ]
   ],
-  "version": "0.1"
+  "version": "0.1",
+  "description": "DIY ESP32 psram with and ILI9341 2.8\" display and XPT2046 touch controller",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

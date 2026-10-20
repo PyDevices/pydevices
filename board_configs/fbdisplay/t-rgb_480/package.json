@@ -32,5 +32,6 @@
     ]
   ],
   "version": "0.2",
-  "notes": "Split board_config + board_peripherals (board peripherals contract). Product-owned boarddev."
+  "description": "480x480 ST7701 parallel RGB - MicroPython (ESP32-S3)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

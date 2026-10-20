@@ -10,7 +10,7 @@
     ],
     [
       "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "github:micropython/micropython-lib/micropython/drivers/storage/sdcard/sdcard.py"
     ]
   ],
   "deps": [
@@ -20,5 +20,6 @@
     ]
   ],
   "version": "0.1",
-  "notes": "IoT RedBoard + SparkFun HSTX-to-DVI breakout + 22-pin FPC; invert pairs."
+  "description": "SparkFun IoT RedBoard RP2350 + HSTX-to-DVI breakout + FPC cable (640x480)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

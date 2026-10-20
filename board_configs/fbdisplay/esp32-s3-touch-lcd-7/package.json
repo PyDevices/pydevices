@@ -18,7 +18,7 @@
     ],
     [
       "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "github:micropython/micropython-lib/micropython/drivers/storage/sdcard/sdcard.py"
     ],
     [
       "rs485.py",
@@ -36,5 +36,6 @@
     ]
   ],
   "version": "0.2",
-  "notes": "Split board_config + board_peripherals (board peripherals contract). Product-owned boarddev."
+  "description": "Waveshare ESP32-S3-Touch-LCD-7 — 800x480 RGB565 (ST7262) + GT911",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

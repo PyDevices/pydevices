@@ -5,16 +5,16 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/esp32_wrover_e_st7789_joystick/board_config.py"
     ],
     [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/esp32_wrover_e_st7789_joystick/board_peripherals.py"
+    ],
+    [
       "st7789.py",
       "github:PyDevices/pydevices/drivers/display/st7789.py"
     ],
     [
       "gpiojoystick.py",
       "github:PyDevices/pydevices/drivers/joystick/gpiojoystick.py"
-    ],
-    [
-      "board_peripherals.py",
-      "github:PyDevices/pydevices/board_configs/busdisplay/spi/esp32_wrover_e_st7789_joystick/board_peripherals.py"
     ]
   ],
   "deps": [
@@ -23,5 +23,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "ESP32 WROVER E with ST7789 display, and joystick instead of touchscreen",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

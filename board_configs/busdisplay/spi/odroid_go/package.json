@@ -5,12 +5,12 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/odroid_go/board_config.py"
     ],
     [
-      "ili9341.py",
-      "github:PyDevices/pydevices/drivers/display/ili9341.py"
-    ],
-    [
       "board_peripherals.py",
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/odroid_go/board_peripherals.py"
+    ],
+    [
+      "ili9341.py",
+      "github:PyDevices/pydevices/drivers/display/ili9341.py"
     ],
     [
       "battery_adc.py",
@@ -18,7 +18,7 @@
     ],
     [
       "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "github:micropython/micropython-lib/micropython/drivers/storage/sdcard/sdcard.py"
     ],
     [
       "keypad_gpio.py",
@@ -35,5 +35,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "ODROID GO with ILI9341 2.4\" display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

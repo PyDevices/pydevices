@@ -28,7 +28,7 @@ def _load(name, rel):
     return module
 
 
-ssd1306 = _load("ssd1306", "drivers/display/ssd1306.py")
+ssd1306 = _load("ssd1306_bus", "drivers/display/ssd1306_bus.py")
 i2cbus = _load("i2cbus", "drivers/bus/i2cbus.py")
 
 WHITE = 0xFFFF

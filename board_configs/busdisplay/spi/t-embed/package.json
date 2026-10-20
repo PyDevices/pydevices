@@ -22,7 +22,7 @@
     ],
     [
       "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "github:micropython/micropython-lib/micropython/drivers/storage/sdcard/sdcard.py"
     ],
     [
       "battery_adc.py",
@@ -36,5 +36,6 @@
     ]
   ],
   "version": "0.4",
-  "notes": "machine.Encoder; pixels/audio/mic/sd/battery via drivers."
+  "description": "LILYGO T-Embed ST7789 170x320 SPI + rotary (displayif native spibus)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

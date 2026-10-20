@@ -5,6 +5,10 @@
       "github:PyDevices/pydevices/board_configs/busdisplay/spi/t-display-s3-pro/board_config.py"
     ],
     [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/t-display-s3-pro/board_peripherals.py"
+    ],
+    [
       "st7796.py",
       "github:PyDevices/pydevices/drivers/display/st7796.py"
     ],
@@ -13,16 +17,12 @@
       "github:PyDevices/pydevices/drivers/touch/cst226.py"
     ],
     [
-      "board_peripherals.py",
-      "github:PyDevices/pydevices/board_configs/busdisplay/spi/t-display-s3-pro/board_peripherals.py"
-    ],
-    [
       "battery_adc.py",
       "github:PyDevices/pydevices/drivers/power/battery_adc.py"
     ],
     [
       "sdcard.py",
-      "github:PyDevices/pydevices/drivers/storage/sdcard.py"
+      "github:micropython/micropython-lib/micropython/drivers/storage/sdcard/sdcard.py"
     ]
   ],
   "deps": [
@@ -31,5 +31,7 @@
       "latest"
     ]
   ],
-  "version": "0.2"
+  "version": "0.2",
+  "description": "T-Display-S3 Pro 222x480 ST7796 display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
 }

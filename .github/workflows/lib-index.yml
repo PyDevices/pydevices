@@ -2,10 +2,17 @@ name: Package library
 
 # Builds the mip index and the library tree with tools/libbuild.py: this
 # repository's packages from the checkout (palettes, pdwidgets and appkit at
-# the versions in their folders), and the packages lib-lock.json pins from
-# other repositories at their tags. A packaging mistake (a mip-split.toml
-# name that no longer exists, a manifest naming a missing file, a module that
-# imports a host-only one at module scope) fails here, in the pull request.
+# the versions in their folders, every board config and driver), and the
+# packages lib-lock.json pins from other repositories at their tags. A
+# packaging mistake (a mip-split.toml name that no longer exists, a manifest
+# naming a missing file, a module that imports a host-only one at module
+# scope) fails here, in the pull request.
+#
+# The shape check runs first: it is what a board or driver contribution has
+# to pass (CONTRIBUTING.md). It fails on a require() that names no package,
+# here or in micropython-lib; on a package name micropython-lib already uses;
+# on a driver a board imports but doesn't require; on a driver file in no
+# package; and on a package.json that wasn't written from its manifest.py.
 
 on:
   push:
@@ -18,7 +25,8 @@ on:
       - 'VERSION'
       - 'lib/**'
       - 'utils/**'
-      - 'board_configs/desktop/**'
+      - 'board_configs/**'
+      - 'drivers/**'
       - 'midiports/**'
       - 'usb-*/**'
       - 'palettes/lib/**'
@@ -36,7 +44,8 @@ on:
       - 'VERSION'
       - 'lib/**'
       - 'utils/**'
-      - 'board_configs/desktop/**'
+      - 'board_configs/**'
+      - 'drivers/**'
       - 'midiports/**'
       - 'usb-*/**'
       - 'palettes/lib/**'
@@ -64,6 +73,11 @@ jobs:
       # The bytecode version every board reads today (mpy v6.3).
       - name: Install mpy-cross
         run: python -m pip install mpy-cross==1.29.0.post2
+
+      - name: Check the board and driver packages' shape
+        run: |
+          python tools/libbuild.py check
+          python tools/libbuild.py installers --check
 
       - name: Build the library tree and the index
         run: python tools/libbuild.py build --out build/lib

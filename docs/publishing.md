@@ -67,15 +67,20 @@ records `X.Y.Z` as its own version.
 
 ## Board installers
 
-Board `package.json` files are not published in the MIP index. Install them
-directly from their raw GitHub directory. Hardware installers depend on
-`pydevices` at `latest` and carry their board-specific Python drivers in their
-own `urls`. Optional Python bus fallbacks are not pulled: firmware-provided
-`i80bus`, `i2cbus`, `spibus`, and similar native modules take precedence.
+Each board config and each driver is a package of the library index that
+`tools/libbuild.py` builds: a board's `manifest.py` requires its driver
+packages (listed in [`drivers/drivers.toml`](../drivers/drivers.toml)) and
+`pydevices`, and mip installs them as `deps` from the same index. A board with
+a `tested.json` publishes to the main index with the drivers it uses; every
+other one is in the index's `untested/` folder, which holds everything.
+[CONTRIBUTING.md](../CONTRIBUTING.md) has the commands.
 
-The one desktop board installer depends on `pydevices-desktop` at `latest`.
-Run `python scripts/validate_board_mip_installers.py` to validate every board
-installer discovered under `board_configs/`.
+Until that index is served, a board also installs straight from GitHub with
+the `package.json` beside its manifest, which `python tools/libbuild.py
+installers` writes. Optional Python bus fallbacks are not pulled:
+firmware-provided `i80bus`, `i2cbus` and `spibus` take precedence. `python
+tools/libbuild.py check` and `installers --check` validate every board and
+driver package.
 
 ## PyScript filesystem
 
