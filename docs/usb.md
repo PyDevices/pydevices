@@ -135,9 +135,17 @@ the interpreter: `Speaker.c_sink()` hands that module a sink it writes from
 its own task. A microphone can too: `Microphone.start(ring)` with an
 audiodsp `audiopump.Ring` feeds the pump straight from the bus.
 
-Keyboards and MIDI controllers behind a hub on the ESP32-P4, the host's
-limits, and why its events are drained rather than called back are on the
-host's own page, in micropython-pydevices' `modules/usbhost/docs/host.md`.
+On the ESP32-P4 the host's port is high speed, so a keyboard or MIDI
+controller behind a hub needs `usb.core.start(full_speed=True)`. On the
+ESP32-P4 WIFI6 DEV-KIT, whose onboard hub nothing in software can power off,
+choose that speed once per power-up: a restart at the other speed can leave
+the hub dead until the board loses power, so `usb.core.start()` refuses it
+and says so. Stopping and starting at the same speed is fine.
+
+Keyboards and MIDI controllers behind a hub on the ESP32-P4, the DEV-KIT's
+hub, the host's limits, and why its events are drained rather than called back
+are on the host's own page, in micropython-pydevices'
+`modules/usbhost/docs/host.md`.
 
 ## Examples
 

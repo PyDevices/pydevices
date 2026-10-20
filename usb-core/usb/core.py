@@ -19,7 +19,12 @@
 # is high speed, that's how full- and low-speed devices behind a hub work
 # (ESP-IDF's host has no transaction translator). Underneath is ESP-IDF's USB
 # host library, driven by the firmware's _usbhost C module (micropython-pydevices' modules/usbhost).
+#
+# One speed per power-up on the ESP32-P4 WIFI6 DEV-KIT: its onboard hub can't
+# be power-cycled from software, and a host restarted at a different speed
+# leaves it dead until the board loses power. start() refuses that change.
 import errno
+import sys
 import time
 
 import _usbhost
@@ -54,6 +59,24 @@ class NoBackendError(ValueError):
     pass
 
 
+# Boards whose onboard hub keeps its power through a host stop, a reset and
+# everything else software can do, matched against the build's board name
+# (sys.implementation._machine). A hub like that has to see the same speed
+# from every start, or it stays dead until the board loses power.
+_FIXED_SPEED_BOARDS = ("ESP32-P4-WIFI6-DEV-KIT",)
+
+
+def _fixed_speed():
+    try:
+        name = sys.implementation._machine
+    except AttributeError:
+        return False
+    for board in _FIXED_SPEED_BOARDS:
+        if board in name:
+            return True
+    return False
+
+
 def _raise(e):
     if e.errno == _ETIMEDOUT:
         raise USBTimeoutError(e.errno, "timed out")
@@ -66,22 +89,45 @@ def _raise(e):
 
 _started = None
 _full_speed = None
+_ran_full_speed = None   # the speed of the first start since the interpreter began; stop() keeps it
 
 
 _classes = None
 
 
-def start(full_speed=False, classes=None):
+def start(full_speed=False, classes=None, force=False):
     """Start the host port, or restart it if a setting changed.
 
     ``classes`` names what this session will stream, for the controller's
     FIFO split, which is fixed while the host runs: ``("uvc",)`` leans to
     IN for a camera, ``("uac",)`` leaves room for a speaker's periodic OUT.
-    None asks for everything, which leans to IN."""
-    global _started, _full_speed, _classes
+    None asks for everything, which leans to IN.
+
+    ``full_speed`` can't change after the host has run on the ESP32-P4 WIFI6
+    DEV-KIT. Its onboard hub gets its power from the board's 3.3 V rail and
+    nothing in software can switch it off, so a hub that enumerated at one
+    speed and then sees the host come back at the other can stay dead, at
+    both speeds, until the board is power-cycled. There ``start()`` raises
+    ``USBError`` instead, before it touches the host, and the running host
+    is left as it was. Stopping and starting at the same speed is fine, and
+    so is a different ``classes``. Choose the speed once per power-up:
+    ``full_speed=True`` if a keyboard or MIDI controller will be behind the
+    hub, False otherwise. The memory is the interpreter's: a soft reset
+    forgets it, and the hub doesn't. ``force=True`` skips the check, for a
+    board whose host jumper sends the port straight to a socket, past the hub."""
+    global _started, _full_speed, _classes, _ran_full_speed
     want = tuple(classes) if classes else _ALL
     if _started is not None and full_speed == _full_speed and want == _classes:
         return
+    if _ran_full_speed is not None and full_speed != _ran_full_speed and not force and _fixed_speed():
+        was, now = ("full", "high") if _ran_full_speed else ("high", "full")
+        raise USBError(
+            _EOPNOTSUPP,
+            "the host ran at %s speed, and this board's onboard hub can't be power-cycled: "
+            "restarting at %s speed would leave it dead until the board loses power. "
+            "Keep full_speed=%s, or unplug the board's USB power to change speed "
+            "(force=True skips this check if the hub isn't in the path)" % (was, now, _ran_full_speed),
+        )
     if _started is not None:
         _usbhost.host_stop()
     try:
@@ -91,6 +137,8 @@ def start(full_speed=False, classes=None):
     _started = time.ticks_ms()
     _full_speed = full_speed
     _classes = want
+    if _ran_full_speed is None or force:
+        _ran_full_speed = full_speed
 
 
 def stop():
