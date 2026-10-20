@@ -1,0 +1,30 @@
+name: Publish release packages
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      release-ref:
+        description: Exact vX.Y.Z tag to retry
+        required: true
+        type: string
+
+# publishing-v5 needs contents:write (attach release assets) and
+# id-token:write (PyPI Trusted Publishing); a called workflow may not
+# exceed the caller's grant, so the ceiling is set here.
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    uses: PyDevices/.github/.github/workflows/reusable-publish-release-packages.yml@publishing-v6
+    with:
+      build-kind: pure-python
+      distribution-name: pydevices-palettes
+      import-name: palettes
+      mip-profile: palettes
+      release-ref: ${{ inputs.release-ref }}
+    secrets: inherit
