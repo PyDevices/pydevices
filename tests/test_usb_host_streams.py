@@ -19,6 +19,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
+import _env  # noqa: E402, F401  (lib/ on the path, for audiodev)
 from _usb_descriptors import _C920E, _CODEC, _uac2_blob  # noqa: E402
 
 if not hasattr(__import__("time"), "sleep_ms"):
@@ -207,6 +208,7 @@ usb_host.__path__ = [str(ROOT / "usb-host-audio" / "usb" / "host"),
 sys.modules["usb.host"] = usb_host
 usb.host = usb_host
 
+from usb.host import audio  # noqa: E402
 from usb.host.audio import Microphone, Speaker  # noqa: E402
 from usb.host.video import Camera  # noqa: E402
 
@@ -346,6 +348,148 @@ class TestMicrophone(unittest.TestCase):
         self.assertEqual(mic.read(bytearray(16)), 0)
         self.assertEqual(mic.queued(), 0)
         mic.stop()
+
+
+class Clock:
+    """ticks_ms that moves on each sleep, so a wait with a deadline ends."""
+
+    def __init__(self, mod):
+        self.mod, self.now = mod, 0
+        self.saved = (mod.time.ticks_ms, mod.time.sleep_ms)
+
+    def __enter__(self):
+        self.mod.time.ticks_ms = lambda: self.now
+        self.mod.time.sleep_ms = self.sleep
+        return self
+
+    def sleep(self, ms):
+        self.now += ms
+
+    def __exit__(self, *exc):
+        self.mod.time.ticks_ms, self.mod.time.sleep_ms = self.saved
+
+
+class TestAudiodev(unittest.TestCase):
+    """pcm_out(), pcm_in() and audio_out(): the devices as audiodev outputs
+    and inputs."""
+
+    def speaker(self, **kw):
+        from audiodev import AudioFormat
+
+        host.reset(_uac2_blob())
+        return audio.pcm_out(AudioFormat(48000, 2, 16), dev=device(), **kw)
+
+    def test_a_speaker_is_a_pcm_output_in_the_format_asked(self):
+        from audiodev import PCMOutput
+
+        out = self.speaker()
+        self.assertIsInstance(out, PCMOutput)
+        self.assertEqual((out.format.rate, out.format.channels, out.format.bits), (48000, 2, 16))
+        self.assertEqual(out.speaker.stream.endpoint, 0x03)
+        self.assertNotIn(0x03, host.streams)           # nothing streams until it opens
+
+    def test_write_opens_the_stream_and_close_parks_it(self):
+        out = self.speaker()
+        pcm = (1000).to_bytes(2, "little", signed=True) * 200
+        self.assertEqual(out.write(pcm), 400)
+        self.assertIn(0x03, host.streams)
+        self.assertEqual(bytes(host.streams[0x03].data), pcm)
+        self.assertEqual(out.queued_size(), 400)
+        self.assertTrue(out.is_active())
+        self.assertEqual(out.space(), out.capacity() - 400)
+        host.ctrl.clear()
+        out.close()
+        self.assertNotIn(0x03, host.streams)
+        self.assertEqual(host.ctrl[-1][:4], SET_INTERFACE + (0, 3))
+        self.assertEqual((out.queued_size(), out.space()), (0, 0))
+
+    def test_volume_is_applied_in_software(self):
+        out = self.speaker()
+        out.set_volume(50)
+        out.write((1000).to_bytes(2, "little", signed=True) * 2)
+        got = bytes(host.streams[0x03].data)
+        self.assertEqual(int.from_bytes(got[:2], "little", signed=True), 500)
+        out.mute()
+        host.streams[0x03].data.clear()
+        out.write((1000).to_bytes(2, "little", signed=True) * 2)
+        self.assertEqual(bytes(host.streams[0x03].data), bytes(4))
+        out.close()
+
+    def test_try_write_takes_what_fits_and_never_waits(self):
+        out = self.speaker(ring_ms=10)
+        out.open()
+        room = out.space()
+        self.assertEqual(out.try_write(bytes(room + 400)), room)
+        self.assertEqual(out.try_write(bytes(400)), 0)
+        out.close()
+
+    def test_a_ring_that_stays_full_is_a_stopped_stream(self):
+        from usb.host import _pcm
+
+        out = self.speaker(ring_ms=10)
+        out.open()
+        out.try_write(bytes(out.space()))
+        with Clock(_pcm) as clock, self.assertRaises(OSError):
+            out.write(bytes(400))
+        self.assertGreaterEqual(clock.now, _pcm._FULL_WAIT_MS)
+        out.close()
+
+    def test_without_a_device_it_starts_the_host_for_audio_and_finds_one(self):
+        from audiodev import AudioFormat
+
+        host.reset(_uac2_blob())
+        usb.core.stop()
+        out = audio.pcm_out(AudioFormat(48000, 2, 16))
+        self.assertEqual(host.calls[0], ("start", ("uac", "other")))
+        self.assertEqual(out.speaker.dev.idVendor, 0x08BB)
+
+    def test_no_speaker_raises_after_the_wait(self):
+        host.reset(_uac2_blob(ep=0x83))             # a microphone only
+        usb.core.stop()
+        with Clock(audio) as clock, self.assertRaises(OSError) as e:
+            audio.pcm_out(wait_ms=300)
+        self.assertIn("no USB speaker", str(e.exception))
+        self.assertGreaterEqual(clock.now, 300)
+
+    def test_a_microphone_is_a_pcm_input_mixed_to_mono_when_asked(self):
+        from audiodev import AudioFormat, PCMInput
+
+        host.reset(_uac2_blob(ep=0x83))
+        mic = audio.pcm_in(AudioFormat(48000, 1, 16), dev=device())
+        self.assertIsInstance(mic, PCMInput)
+        self.assertTrue(mic.microphone.downmix)
+        self.assertEqual((mic.format.channels, mic.format.frame_size), (1, 2))
+        self.assertEqual(mic.available(), 0)
+        buf = bytearray(8)
+        self.assertEqual(mic.readinto(buf), 0)           # opened, nothing yet
+        ring = host.streams[0x83]
+        ring.write((800).to_bytes(2, "little", signed=True) * 3)
+        self.assertEqual(mic.available(), 6)
+        mic.set_gain(50)
+        self.assertEqual(mic.readinto(buf), 6)
+        self.assertEqual(int.from_bytes(buf[:2], "little", signed=True), 400)
+        mic.close()
+        self.assertNotIn(0x83, host.streams)
+        self.assertEqual(mic.available(), 0)
+
+    def test_audio_out_wraps_the_speaker_in_a_player_off_the_pump(self):
+        fake = types.ModuleType("audiocore")
+        saved = sys.modules.get("audiocore")
+        sys.modules["audiocore"] = fake
+        try:
+            from audiodev.sample_out import AudioOut
+
+            host.reset(_uac2_blob())
+            out = audio.audio_out(dev=device())
+        finally:
+            if saved is None:
+                del sys.modules["audiocore"]
+            else:
+                sys.modules["audiocore"] = saved
+        self.assertIsInstance(out, AudioOut)
+        self.assertEqual(out.format.rate, 48000)
+        self.assertFalse(out._want_pump)
+        self.assertEqual(out.transport.speaker.dev.idVendor, 0x08BB)
 
 
 class TestCamera(unittest.TestCase):

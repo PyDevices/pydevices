@@ -109,6 +109,27 @@ ESP32-S3, whose host port is full speed. It speaks RNDIS, which Samsung and
 many other Android phones use; CDC-ECM, CDC-NCM and iPhone tethering are not
 implemented.
 
+A USB speaker or microphone can also stand in for a board's own codec, as an
+audiodev output or input, so code written for `audio_out` and `pcm_in` runs
+on it unchanged:
+
+```python
+from usb.host import audio
+
+out = audio.audio_out()       # an audiodev AudioOut on the first USB speaker
+out.play(synth)               # a synthio.Synthesizer, a RawSample, an audiodsp graph
+while out.playing:
+    out.service()             # or out.attach(app) to feed it from the app's timer
+
+mic = audio.pcm_in()          # an audiodev PCMInput on the first USB microphone
+n = mic.readinto(buf)         # what has arrived, in whole frames; 0 if nothing yet
+```
+
+`pcm_out()` and `pcm_in()` start the host for audio if it isn't running, wait
+up to three seconds for a device, and take an `audiodev.AudioFormat` to
+choose the stream (the device's best offer if you leave it out). Volume and
+gain are in software. They need audiodev, which PyDevices firmware carries.
+
 If you feed a hosted speaker from the interpreter while it also draws or
 talks to the network, open it with `Speaker(dev, ring_ms=2000)` and write
 what `space()` says fits. Audio made in C by another native module can skip
