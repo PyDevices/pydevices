@@ -15,9 +15,6 @@ with each kind of peripheral described honestly by its role.
   full-duplex sound card for a computer or another board.
 - `network.USBD_NCM` (Ethernet over USB, MicroPython 1.29): a package for it,
   or a note on turning it on.
-- Keyboards and mice on the host side: `usb-host-hid` reports key codes the
-  way `adafruit_hid` names them, so code that reads a keyboard plugged into
-  the board matches code that sends one.
 
 ## BLE
 
