@@ -178,6 +178,9 @@ jobs:
 
       - name: Each interpreter starts and carries the modules
         run: |
+          # The desktop display's runtime, which the Linux builds link to.
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-2.0-0 libffi8
           chmod +x bin/micropython bin/circuitpython
           bin/micropython -c "import sys; print(sys.version); import displaydev, appdev, lvgl, ulab, synthio, audiopump, audiosampler; print('micropython modules ok')"
           bin/circuitpython -c "import sys; print(sys.version); import pygraphics, lvgl; print(sys.implementation.name, 'modules ok')"
