@@ -1,0 +1,25 @@
+{
+  "board": "esp32-s3-touch-lcd-7",
+  "runs": [
+    {
+      "hardware": "Waveshare ESP32-S3-Touch-LCD-7 (800x480); no card answered in its microSD slot, so sdcard was skipped",
+      "firmware": "micropython 1.30.0 (Generic ESP32S3 module with Octal-SPIRAM with ESP32-S3), 2818d7fb1d-dirty on 2026-10-20",
+      "date": "2026-10-20",
+      "smoke": "passed",
+      "checks": [
+        "board_config imports",
+        "display draws",
+        "touch reads",
+        "ble answers",
+        "rs485 answers",
+        "wlan answers"
+      ],
+      "skipped": [
+        "can",
+        "sdcard",
+        "usb_device"
+      ],
+      "tool": "tools/mark_tested.py"
+    }
+  ]
+}
