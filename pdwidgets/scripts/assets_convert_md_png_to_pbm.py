@@ -10,8 +10,8 @@ Source path shape::
 For the curated runtime set under ``lib/pdwidgets/icons/``, use
 ``assets_generate_pdwidgets_icons.py`` instead.
 
-Run from the pdwidgets repo root (needs sibling ``pydevices-examples`` for
-``png`` and sibling ``pygraphics`` for the framebuffer)::
+Run from pdwidgets/ (needs ``pydevices-examples`` beside the pydevices repository for
+``png``, and ``pygraphics`` there for the framebuffer)::
 
     .venv/bin/python scripts/assets_convert_md_png_to_pbm.py
 """
@@ -30,7 +30,7 @@ def resolve_pydevices_examples_root() -> Path:
     candidates = []
     if env_root:
         candidates.append(Path(env_root))
-    candidates.append(REPO_ROOT.parent / "pydevices-examples")
+    candidates.append(REPO_ROOT.parent.parent / "pydevices-examples")
     for root in candidates:
         if (root / "lib" / "utils").is_dir():
             return root.resolve()
@@ -45,7 +45,7 @@ _pydevices_examples = resolve_pydevices_examples_root()
 # lib/ holds the utils package (utils.path); lib/utils/ holds its flat modules (png).
 sys.path.insert(0, str(_pydevices_examples / "lib" / "utils"))
 sys.path.insert(0, str(_pydevices_examples / "lib"))
-sys.path.insert(0, str(REPO_ROOT.parent / "pygraphics" / "lib"))
+sys.path.insert(0, str(REPO_ROOT.parent.parent / "pygraphics" / "lib"))
 from png import Reader  # noqa: E402
 from pygraphics import MONO_HLSB, FrameBuffer  # noqa: E402
 import utils.path  # noqa: E402, F401

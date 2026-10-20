@@ -11,7 +11,7 @@ The normal application path is `appdev.App` → `Display` → `Screen` → widge
 the app owns input and periodic rendering; most applications do not call
 `app.run()` themselves.
 
-The README's [Quick Start](https://github.com/PyDevices/pdwidgets#quick-start-interactive-button--screen)
+The README's [Quick Start](https://github.com/PyDevices/pydevices/tree/main/pdwidgets#quick-start-interactive-button--screen)
 builds a screen with a label and a button on that path.
 
 Labels use `value=` and buttons use `label=`; there is no `text=` keyword.
@@ -73,7 +73,7 @@ invalidation behavior. See [the layout guide](layout-guide.md),
 
 The package is source-only and development imports sibling `pydevices`,
 `pygraphics`, and `palettes` checkouts. Follow the `PYTHONPATH` test command
-in [AGENTS.md](https://github.com/PyDevices/pdwidgets/blob/main/AGENTS.md); bare unit-test discovery cannot resolve those
+in [AGENTS.md](https://github.com/PyDevices/pydevices/blob/main/pdwidgets/AGENTS.md); bare unit-test discovery cannot resolve those
 dependencies. Regenerate the widget dependency graph after widget edits with
 `scripts/pdwidgets_widget_deps.py`.
 

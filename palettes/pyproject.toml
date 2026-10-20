@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.8"
 authors = [{ name = "Brad Barnett" }]
-urls = { Homepage = "https://github.com/PyDevices/palettes", Issues = "https://github.com/PyDevices/palettes/issues" }
+urls = { Homepage = "https://github.com/PyDevices/pydevices/tree/main/palettes", Issues = "https://github.com/PyDevices/pydevices/issues" }
 
 [tool.setuptools.packages.find]
 where = ["lib"]

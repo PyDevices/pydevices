@@ -15,9 +15,10 @@ def bundle_assets(repo_root: Path) -> Path:
     assets_dir.mkdir(parents=True, exist_ok=True)
     bundle_zip = assets_dir / "pydevices_bundle.zip"
 
-    # Known sibling repositories and their library paths
-    workspace_root = repo_root.parent
-    repos_to_bundle = ["pydevices", "palettes", "pdwidgets", "pygraphics"]
+    # pydevices' lib/ and palettes beside this folder, and a pygraphics
+    # checkout beside the pydevices repository.
+    pydevices_root = repo_root.parent
+    sibling_libs = [pydevices_root / "lib", pydevices_root / "palettes" / "lib", pydevices_root.parent / "pygraphics" / "lib"]
 
     print(f"Bundling PyDevices packages into {bundle_zip}...")
     with zipfile.ZipFile(bundle_zip, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -29,8 +30,7 @@ def bundle_assets(repo_root: Path) -> Path:
                 zf.write(py_file, arcname=str(rel_path))
 
         # Bundle sibling repos' lib/
-        for sibling_name in repos_to_bundle:
-            sibling_lib = workspace_root / sibling_name / "lib"
+        for sibling_lib in sibling_libs:
             if sibling_lib.exists() and sibling_lib != current_lib:
                 for py_file in sorted(sibling_lib.rglob("*.py")):
                     rel_path = py_file.relative_to(sibling_lib)

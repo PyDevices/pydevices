@@ -1,7 +1,7 @@
 site_name: palettes
 site_url: https://palettes.readthedocs.io
-repo_url: https://github.com/PyDevices/palettes/
-edit_uri: edit/main/docs/
+repo_url: https://github.com/PyDevices/pydevices/
+edit_uri: edit/main/palettes/docs/
 copyright: "Copyright 2024–2026, Brad Barnett & PyDevices Contributors"
 docs_dir: docs
 site_dir: site
@@ -76,7 +76,7 @@ extra_css:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/PyDevices/palettes
+      link: https://github.com/PyDevices/pydevices/tree/main/palettes
     - icon: fontawesome/brands/python
       link: https://test.pypi.org/project/pydevices-palettes/
     - icon: fontawesome/solid/globe

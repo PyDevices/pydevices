@@ -27,7 +27,7 @@ wheel = get_palette(name="wheel", length=360, saturation=1.0, color_depth=16)
 color = wheel[180]  # get color at hue angle 180°
 ```
 
-![Color Wheel Preview](https://raw.githubusercontent.com/PyDevices/palettes/main/docs/images/palette_wheel.png)
+![Color Wheel Preview](https://raw.githubusercontent.com/PyDevices/pydevices/main/palettes/docs/images/palette_wheel.png)
 
 ---
 
@@ -40,7 +40,7 @@ primary_color = material.RED_S500     # shades are attributes: <FAMILY>_S<shade>
 accent_color  = material.BLUE_A400    # accents: <FAMILY>_A<shade>
 ```
 
-![Material Design Preview](https://raw.githubusercontent.com/PyDevices/palettes/main/docs/images/palette_material.png)
+![Material Design Preview](https://raw.githubusercontent.com/PyDevices/pydevices/main/palettes/docs/images/palette_material.png)
 
 ---
 
@@ -51,7 +51,7 @@ A structured 3D RGB color cube mapped into a discrete indexed palette. Excellent
 cube = get_palette(name="cube", size=5, color_depth=16)
 ```
 
-![Color Cube Preview](https://raw.githubusercontent.com/PyDevices/palettes/main/docs/images/palette_cube.png)
+![Color Cube Preview](https://raw.githubusercontent.com/PyDevices/pydevices/main/palettes/docs/images/palette_cube.png)
 
 ---
 
@@ -63,7 +63,7 @@ win16 = get_palette(name="default", color_depth=16)
 navy = win16[1]  # Black, Navy, Blue, Green, Teal, Lime, Cyan, etc.
 ```
 
-![Windows-16 Preview](https://raw.githubusercontent.com/PyDevices/palettes/main/docs/images/palette_win16.png)
+![Windows-16 Preview](https://raw.githubusercontent.com/PyDevices/pydevices/main/palettes/docs/images/palette_win16.png)
 
 ---
 
@@ -136,7 +136,7 @@ current channel; use the command above.
 ### From source
 
 ```bash
-git clone https://github.com/PyDevices/palettes && cd palettes
+git clone https://github.com/PyDevices/pydevices && cd pydevices/palettes
 pip install -e .                                  # or just PYTHONPATH=lib
 PYTHONPATH=lib python3 -m unittest discover -s tests
 ruff check lib tests scripts
@@ -172,9 +172,9 @@ What's planned next is in [ROADMAP.md](ROADMAP.md).
 ## Links & Demos
 
 - [Documentation](https://palettes.readthedocs.io)
-- [Source Code](https://github.com/PyDevices/palettes)
+- [Source Code](https://github.com/PyDevices/pydevices/tree/main/palettes)
 - [PyScript Live Demos](https://pydevices.github.io/pydevices-examples/pyscript/) (`palettes_demo.py`)
-- Related: [pydevices](https://github.com/PyDevices/pydevices), [pdwidgets](https://github.com/PyDevices/pdwidgets), [pydevices-examples](https://github.com/PyDevices/pydevices-examples)
+- Related: [pydevices](https://github.com/PyDevices/pydevices), [pdwidgets](https://github.com/PyDevices/pydevices/tree/main/pdwidgets), [pydevices-examples](https://github.com/PyDevices/pydevices-examples)
 
 ## License
 
