@@ -16,6 +16,10 @@ on:
       - 'board_configs/**/board_config.py'
       - 'board_configs/**/board_peripherals.py'
       - 'scripts/validate_board_mip_installers.py'
+      # The package library builder and what it reads.
+      - 'tools/libbuild.py'
+      - 'lib-lock.json'
+      - 'mip-split.toml'
       # test_desktop_publication asserts this file lists every source under
       # lib/ and utils/, so a change to it has to run the suite. Without this
       # the assertion only fires when something ELSE changes: the wifi.py move
@@ -36,6 +40,10 @@ on:
       - 'board_configs/**/board_config.py'
       - 'board_configs/**/board_peripherals.py'
       - 'scripts/validate_board_mip_installers.py'
+      # The package library builder and what it reads.
+      - 'tools/libbuild.py'
+      - 'lib-lock.json'
+      - 'mip-split.toml'
       # test_desktop_publication asserts this file lists every source under
       # lib/ and utils/, so a change to it has to run the suite. Without this
       # the assertion only fires when something ELSE changes: the wifi.py move
