@@ -32,7 +32,7 @@ from test_bledev import _micropython  # noqa: E402
 
 SUITES = {
     "hidreport_vectors.py": ("bitorder", "unsigned", "range", "order", "rollover", "hat", "mousebutton", "wheel"),
-    "bledev_hid_checks.py": ("drop_report", "shift_lost", "shift_lost_host", "axis_sign", "no_pair"),
+    "bledev_hid_checks.py": ("drop_report", "unstamped", "shift_lost", "shift_lost_host", "axis_sign", "no_pair"),
 }
 
 

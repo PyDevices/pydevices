@@ -113,13 +113,19 @@ def _errno(e):
     return e.args[0] if e.args else None
 
 
+_arrivals = 0  # notifications received by this radio so far, across every characteristic
+
+
 class _Queue:
     """Stands in for aioble's one-slot deque: same three operations, but it
     keeps ``limit`` entries and turns an overflow into an error.
 
     It ignores everything until ``subscribe()`` opens it. NimBLE's server
     notifies whether or not the central subscribed, and the contract (like
-    bleak and browsers) delivers nothing before a subscription."""
+    bleak and browsers) delivers nothing before a subscription.
+
+    ``append()`` runs in the radio's IRQ, so it numbers each entry as it
+    arrives; ``popleft()`` leaves that number in :attr:`arrival`."""
 
     def __init__(self, limit, what):
         self._items = []
@@ -127,17 +133,20 @@ class _Queue:
         self._what = what
         self.overrun = 0
         self.accepting = False
+        self.arrival = None
 
     def __len__(self):
         return len(self._items)
 
     def append(self, item):
+        global _arrivals
         if not self.accepting:
             return
         if len(self._items) >= self._limit:
             self.overrun += 1
         else:
-            self._items.append(item)
+            _arrivals += 1
+            self._items.append((_arrivals, item))
 
     def popleft(self):
         if self.overrun:
@@ -146,7 +155,8 @@ class _Queue:
                     self._what, self.overrun, self._limit
                 )
             )
-        return self._items.pop(0)
+        self.arrival, item = self._items.pop(0)
+        return item
 
 
 class _Translate:
@@ -768,7 +778,9 @@ class _MPClientCharacteristic(ClientCharacteristic):
         aconn = self._achar._connection()
         while True:
             if len(queue):
-                return bytes(queue.popleft())
+                data = bytes(queue.popleft())
+                self.arrival = queue.arrival
+                return data
             if not aconn.is_connected():
                 raise DisconnectedError("{}: disconnected".format(what))
             with _Translate(what):

@@ -183,6 +183,45 @@ async def c_script_round_trip(air):
     await host.close()
 
 
+async def c_reports_keep_the_order_they_were_sent(air):
+    # A key, a mouse move and a media key, round and round, sent back to back.
+    # The radio hands the host each function's reports on its own and wakes
+    # the functions' readers in the opposite order (wake_reversed); the events
+    # must still come out in the order they were sent.
+    board, host_ble, per, host = await _pair_up(air)
+    await per.leds(2000)
+    for link in air_links(board):
+        link.wake_reversed = True
+    kbd, mouse, media = per.devices
+    n = 90
+    for i in range(n):
+        j = i // 3
+        if i % 3 == 0:
+            mouse.send_report(bytes((0, 1, 0, 0)))
+        elif i % 3 == 1:
+            kbd.send_report(bytes((0, 0, 4 + j % 26, 0, 0, 0, 0, 0)))
+        else:
+            media.send_report(bytes((0xE9 + j % 2, 0)))
+    got = [e for e in await _collect(host, n) if e.type in (hidreport.events.MOUSEMOTION, hidreport.events.KEYDOWN)]
+    seen = []
+    keys = media_keys = 0
+    for e in got:
+        if e.type == hidreport.events.MOUSEMOTION:
+            seen.append(3 * (e.pos[0] - 1))
+        elif e.scancode >= 0x10000:
+            seen.append(3 * media_keys + 2)
+            media_keys += 1
+        else:
+            seen.append(3 * keys + 1)
+            keys += 1
+    equal(seen, list(range(n)), "the order the reports were sent in")
+    await host.close()
+
+
+def air_links(ble):
+    return list(ble._links)
+
+
 async def c_encrypted_pairs_and_bonds(air):
     board, host_ble, per, host = await _pair_up(air, encrypted=True)
     equal(host.paired, True, "the host had to pair")
@@ -275,6 +314,7 @@ TESTS = [
     c_a_busy_radio_gives_up,
     c_script_round_trip,
     c_gamepad_round_trip,
+    c_reports_keep_the_order_they_were_sent,
     c_encrypted_pairs_and_bonds,
     c_unpaired_read_refused,
     c_short_read_host_says_why,
@@ -295,6 +335,14 @@ def _plant(name):
                 self.event.set()
                 return
             orig(self, item)
+
+        fake._Inbox.put = put
+    elif name == "unstamped":
+        # The backend doesn't say what order the notifications arrived in.
+        orig = fake._Inbox.put
+
+        def put(self, item, stamp=None):
+            orig(self, item, None)
 
         fake._Inbox.put = put
     elif name == "shift_lost":
@@ -336,7 +384,7 @@ def _plant(name):
         raise SystemExit("unknown plant " + name)
 
 
-PLANTS = ("drop_report", "shift_lost", "axis_sign", "no_pair")
+PLANTS = ("drop_report", "unstamped", "shift_lost", "axis_sign", "no_pair")
 
 
 def run():
