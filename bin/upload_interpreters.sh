@@ -9,6 +9,13 @@
 #
 #   ./bin/upload_interpreters.sh v0.3.8.dev1
 #   ./bin/upload_interpreters.sh v0.3.8.dev1 --clobber   # overwrite existing assets
+#
+# Environment:
+#   PROVENANCE  the manifest's provenance text. The release workflow
+#               (.github/workflows/release-interpreters.yml) sets it to its own
+#               run; by hand it defaults to a local build.
+#   DRY_RUN=1   write interpreters.json and stop before uploading, and skip the
+#               gh checks. The workflow's dry run uses it.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=PyDevices/pydevices
@@ -20,13 +27,21 @@ if [[ -z "$TAG" ]]; then
     exit 1
 fi
 
-if ! command -v gh >/dev/null 2>&1; then
-    echo "error: the gh CLI is required (https://cli.github.com/) and was not found on PATH." >&2
-    exit 1
-fi
-if ! gh auth status >/dev/null 2>&1; then
-    echo "error: gh is not authenticated. Run 'gh auth login' first." >&2
-    exit 1
+DRY_RUN="${DRY_RUN:-0}"
+PROVENANCE="${PROVENANCE:-built locally and uploaded by bin/upload_interpreters.sh}"
+# The text goes into JSON between double quotes.
+PROVENANCE="${PROVENANCE//\\/\\\\}"
+PROVENANCE="${PROVENANCE//\"/\\\"}"
+
+if [[ "$DRY_RUN" != "1" ]]; then
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "error: the gh CLI is required (https://cli.github.com/) and was not found on PATH." >&2
+        exit 1
+    fi
+    if ! gh auth status >/dev/null 2>&1; then
+        echo "error: gh is not authenticated. Run 'gh auth login' first." >&2
+        exit 1
+    fi
 fi
 
 FILES=(micropython micropython.exe circuitpython micropython.mjs micropython.wasm)
@@ -52,7 +67,7 @@ MANIFEST="$HERE/interpreters.json"
 {
     echo "{"
     echo "  \"tag\": \"$TAG\","
-    echo "  \"provenance\": \"built by tools/build_interpreters.sh on the maintainer workstation\","
+    echo "  \"provenance\": \"$PROVENANCE\","
     echo "  \"files\": {"
 
     declare -A PLATFORMS=(
@@ -93,6 +108,10 @@ MANIFEST="$HERE/interpreters.json"
 } > "$MANIFEST"
 
 echo "Wrote $MANIFEST"
+if [[ "$DRY_RUN" == "1" ]]; then
+    echo "DRY_RUN=1: not uploading to $REPO $TAG"
+    exit 0
+fi
 
 CLOBBER_FLAG=()
 [[ "$CLOBBER" == "--clobber" ]] && CLOBBER_FLAG=(--clobber)

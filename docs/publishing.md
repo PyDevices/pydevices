@@ -30,6 +30,21 @@ by
   desktop board config directory ([`board_configs/desktop`](../board_configs/desktop/)). Utilities do not get their own
   distributions.
 
+## Interpreters on final releases
+
+A final release (`vX.Y.Z`) also gets fresh desktop interpreters as release
+assets, built by
+[`release-interpreters.yml`](../.github/workflows/release-interpreters.yml):
+`micropython`, `micropython.exe`, `micropython.mjs`, `micropython.wasm` and
+`circuitpython`, each carrying every PyDevices module with this release's
+`pydevices` frozen in, plus an `interpreters.json` listing each file's sha256,
+size and version. A dev, a, b or rc release gets none.
+[`bin/fetch_interpreters.sh`](../bin/fetch_interpreters.sh) downloads the
+newest set and checks it against that manifest. To rebuild without releasing,
+run the workflow by hand from the Actions tab: it keeps the files as a run
+artifact and attaches nothing unless you tick "attach" with a final tag. The
+recipe is [`scripts/release_interpreters.sh`](../scripts/release_interpreters.sh).
+
 This replaced an earlier model that built one TestPyPI distribution per `lib/`
 leaf (`pydevices-multimer`, `pydevices-displaydev`, `pydevices-events`,
 `pydevices-keys`) alongside `pydevices` and `pydevices-desktop`. Republishing
