@@ -21,6 +21,21 @@
 # Start the host with classes=("uac",): the controller's FIFO split is fixed
 # while it runs, and one set up for video has no room for a speaker's
 # periodic OUT packets.
+#
+# The same devices as audiodev outputs and inputs, to play and record the way
+# a board's own codec does:
+#
+#     from usb.host import audio
+#
+#     out = audio.audio_out()         # an audiodev.AudioOut on the speaker
+#     out.play(synth)                 # a synthio or audiodsp graph
+#     mic = audio.pcm_in()            # an audiodev.PCMInput on the microphone
+#     n = mic.readinto(buf)
+#
+# pcm_out() and pcm_in() start the host if it isn't running, wait for a
+# device, and take an audiodev.AudioFormat; they need audiodev on the board.
+import time
+
 import _usbhost
 
 from machine import USBDevice
@@ -259,3 +274,72 @@ class Microphone(_Stream):
         """Bytes recorded and not yet read."""
         r = self._ring
         return r.any() if self._open and isinstance(r, USBDevice.Ring) else 0
+
+
+_WAIT_MS = 3000             # how long pcm_out() and pcm_in() wait for a device
+_PCM_RING_MS = 250          # more than audiodev.AudioOut queues ahead
+
+
+def _device(cls, dev, wait_ms, full_speed):
+    import usb.core
+
+    if dev is not None:
+        return dev
+    if not usb.core.running():
+        usb.core.start(full_speed=full_speed, classes=("uac",))
+    deadline = time.ticks_add(time.ticks_ms(), wait_ms)
+    while True:
+        dev = usb.core.find(custom_match=cls.match)
+        if dev is not None or time.ticks_diff(deadline, time.ticks_ms()) <= 0:
+            break
+        time.sleep_ms(100)
+    if dev is None:
+        raise OSError(19, "no USB %s on the host port" % ("speaker" if cls is Speaker else "microphone"))
+    return dev
+
+
+def _format(format):
+    if format is None:
+        return {}
+    return {"rate": format.rate, "channels": format.channels, "bits": format.bits}
+
+
+def pcm_out(format=None, *, dev=None, ring_ms=_PCM_RING_MS, wait_ms=_WAIT_MS, full_speed=False,
+            **kwargs):
+    """A USB speaker on the host port as an audiodev ``PCMOutput``.
+
+    ``format`` (an ``audiodev.AudioFormat``) picks the stream; None takes
+    the device's best offer, and the output's ``format`` says what that was.
+    ``dev`` is a ``usb.core`` device; None finds the first speaker, starting
+    the host for audio (``full_speed`` as for ``usb.core.start()``) if it
+    isn't running, and waits up to ``wait_ms`` for one to arrive.
+    ``ring_ms`` sizes the ring as for ``Speaker``; the default, 250 ms,
+    holds more than ``AudioOut`` queues ahead. Other keywords go to
+    ``PCMOutput``."""
+    from . import _pcm
+
+    spk = Speaker(_device(Speaker, dev, wait_ms, full_speed), ring_ms=ring_ms, **_format(format))
+    return _pcm.SpeakerOutput(spk, **kwargs)
+
+
+def pcm_in(format=None, *, dev=None, ring_ms=_PCM_RING_MS, wait_ms=_WAIT_MS, full_speed=False,
+           **kwargs):
+    """A USB microphone on the host port as an audiodev ``PCMInput``.
+
+    As ``pcm_out``. A mono ``format`` on a stereo-only microphone (a
+    webcam's, often) is mixed down as the packets land."""
+    from . import _pcm
+
+    mic = Microphone(_device(Microphone, dev, wait_ms, full_speed), ring_ms=ring_ms, **_format(format))
+    return _pcm.MicrophoneInput(mic, **kwargs)
+
+
+def audio_out(format=None, **kwargs):
+    """``pcm_out()`` wrapped in an ``audiodev.AudioOut``, the player a
+    board's ``audio_out`` role returns: ``play()``, ``stop()``, ``playing``.
+    Call its ``service()`` often, or ``attach()`` it to an app, to keep the
+    speaker fed. The graph is pulled on the interpreter thread: the board's
+    audio pump drives I2S, not this bus."""
+    from audiodev.sample_out import AudioOut
+
+    return AudioOut(pcm_out(format, **kwargs), pump=False)
