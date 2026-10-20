@@ -1,0 +1,132 @@
+# Publish a palettes or pdwidgets release: build the distribution from the
+# package's folder at the release tag, check the wheel installs and imports,
+# upload it to TestPyPI, and attach it to the GitHub Release. pydevices' own
+# releases (vX.Y.Z tags) go through publish-release-packages.yml instead.
+#
+# Production PyPI and the mip index aren't here. Neither is published from
+# this repository's pydevices chain either.
+name: Publish package release
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      release-ref:
+        description: Exact <package>-vX.Y.Z tag to retry, e.g. palettes-v0.0.15
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.event.release.tag_name, 'palettes-v')
+      || startsWith(github.event.release.tag_name, 'pdwidgets-v')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      package: ${{ steps.release.outputs.package }}
+      distribution: ${{ steps.release.outputs.distribution }}
+      version: ${{ steps.release.outputs.version }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+    steps:
+      - name: Resolve and validate the release tag
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release-ref }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^(palettes|pdwidgets)-v([0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+|\.dev[0-9]+)?)$ ]]; then
+            echo "Release ref must be palettes-vX.Y.Z or pdwidgets-vX.Y.Z[{a|b|rc}N|.devN]: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          {
+            echo "tag=$RELEASE_TAG"
+            echo "package=${BASH_REMATCH[1]}"
+            echo "distribution=pydevices-${BASH_REMATCH[1]}"
+            echo "version=${BASH_REMATCH[2]}"
+            if [[ -n "${BASH_REMATCH[3]}" ]]; then echo "prerelease=true"; else echo "prerelease=false"; fi
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: resolve
+    uses: PyDevices/.github/.github/workflows/reusable-build-pure-python-distribution.yml@publishing-v14
+    with:
+      distribution-name: ${{ needs.resolve.outputs.distribution }}
+      import-name: ${{ needs.resolve.outputs.package }}
+      release-ref: ${{ needs.resolve.outputs.tag }}
+      version: ${{ needs.resolve.outputs.version }}
+      working-directory: ${{ needs.resolve.outputs.package }}
+      # pdwidgets' smoke test imports it, and it imports its dependencies.
+      install-dependencies: ${{ needs.resolve.outputs.package == 'pdwidgets' }}
+
+  publish-to-testpypi:
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download the validated distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: testpypi-${{ needs.resolve.outputs.distribution }}-${{ needs.resolve.outputs.version }}
+          path: dist
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.TESTPYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  attach-release-assets:
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download the validated distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: testpypi-${{ needs.resolve.outputs.distribution }}-${{ needs.resolve.outputs.version }}
+          path: dist
+      - name: Attach distributions to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ needs.resolve.outputs.tag }}" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  report-release-health:
+    # The Release Health dashboard in PyDevices/.github, as the pydevices
+    # chain feeds it. A reporting failure never fails the release.
+    if: always() && needs.resolve.result == 'success'
+    needs: [resolve, build, publish-to-testpypi, attach-release-assets]
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mint App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.PYDEVICES_APP_ID }}
+          private-key: ${{ secrets.PYDEVICES_APP_PRIVATE_KEY }}
+          owner: PyDevices
+          repositories: .github
+      - name: Dispatch health report
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api repos/PyDevices/.github/dispatches -f event_type=release-health \
+            -F 'client_payload[repo]='"${GITHUB_REPOSITORY#*/}" \
+            -F 'client_payload[distribution]=${{ needs.resolve.outputs.distribution }}' \
+            -F 'client_payload[version]=${{ needs.resolve.outputs.version }}' \
+            -F 'client_payload[prerelease]=${{ needs.resolve.outputs.prerelease }}' \
+            -F 'client_payload[testpypi]=${{ needs.publish-to-testpypi.result }}' \
+            -F 'client_payload[assets]=${{ needs.attach-release-assets.result }}' \
+            -F 'client_payload[mip]=skipped' \
+            -F 'client_payload[pypi]=skipped' \
+            -F 'client_payload[run_url]='"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
