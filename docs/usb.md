@@ -67,9 +67,7 @@ with `readblocks`, `writeblocks` and `ioctl`. When the computer ejects it,
 the board can mount it again.
 
 The sound card wants TinyUSB 0.19 or later, which re-arms its endpoint in the
-USB interrupt. The ESP32-P4 builds 0.21; the S2 and S3 stay on 0.18 for now
-([usbif#48](https://github.com/PyDevices/usbif/issues/48)), so an S3 sound
-card can tick under load.
+USB interrupt. The ESP32-P4, S3 and S2 builds all carry 0.21.
 
 ## The board as a USB host
 
