@@ -66,6 +66,14 @@ with a `ValueError` naming the endpoint.
 with `readblocks`, `writeblocks` and `ioctl`. When the computer ejects it,
 the board can mount it again.
 
+The sound card sizes its packets from the link's speed: 196 bytes a
+millisecond at full speed, 28 bytes every 125 us at high speed. A board can't
+know which until a computer has configured it, so it starts with the
+controller's fastest guess and, if the computer is full speed, rewrites its
+endpoints and re-enumerates once, the first time it plays. If you know the
+link, say so and skip that step: `SpeakerInterface(high_speed=False)`.
+`packet=` sets the packet size in bytes.
+
 The sound card wants TinyUSB 0.19 or later, which re-arms its endpoint in the
 USB interrupt. The ESP32-P4, S3 and S2 builds all carry 0.21.
 
