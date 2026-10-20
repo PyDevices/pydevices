@@ -1,0 +1,63 @@
+name: Package library
+
+# Builds the mip index and the library tree with tools/libbuild.py: this
+# repository's packages from the checkout, and the packages lib-lock.json pins
+# from other repositories at their tags. A packaging mistake (a mip-split.toml
+# name that no longer exists, a manifest naming a missing file, a module that
+# imports a host-only one at module scope) fails here, in the pull request.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/libbuild.py'
+      - 'lib-lock.json'
+      - 'mip-split.toml'
+      - 'VERSION'
+      - 'lib/**'
+      - 'utils/**'
+      - 'board_configs/desktop/**'
+      - 'midiports/**'
+      - 'usb-*/**'
+      - '.github/workflows/lib-index.yml'
+  pull_request:
+    paths:
+      - 'tools/libbuild.py'
+      - 'lib-lock.json'
+      - 'mip-split.toml'
+      - 'VERSION'
+      - 'lib/**'
+      - 'utils/**'
+      - 'board_configs/desktop/**'
+      - 'midiports/**'
+      - 'usb-*/**'
+      - '.github/workflows/lib-index.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      # The bytecode version every board reads today (mpy v6.3).
+      - name: Install mpy-cross
+        run: python -m pip install mpy-cross==1.29.0.post2
+
+      - name: Build the library tree and the index
+        run: python tools/libbuild.py build --out build/lib
+
+      - name: Upload the build
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-library
+          path: build/lib
+          retention-days: 14
