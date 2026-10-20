@@ -542,9 +542,13 @@ class FakeMidiDevice:
     def configuration_descriptor(self):
         return _MIDI_CONFIG
 
-    def read(self, endpoint, buf, timeout=None):
+    def read(self, endpoint, buf, timeout=None, raise_on_timeout=True):
+        # usb.core's: "nothing yet" raises, or is 0 with raise_on_timeout
+        # False, which a poll must use to be free.
         if not self.packets:
-            raise _TIMEOUT
+            if raise_on_timeout:
+                raise _TIMEOUT
+            return 0
         pkt = self.packets.pop(0)
         for i in range(len(pkt)):
             buf[i] = pkt[i]
@@ -592,9 +596,9 @@ def c_usb_host():
         expect(midi_in.read(30) == b"\x3c\x00", "rest of the first two messages")
         expect(midi_in.read(30) == b"\xb0\x01\x02", "the CC, whole")
         expect(midi_in.read(30) is None, "empty")
-        # An empty poll is not free here, unlike the other ports: usb.core
-        # reports "nothing yet" by raising USBTimeoutError, as PyUSB does,
-        # and MicroPython allocates a traceback for each raise.
+        # usb.core says "nothing yet" without raising, as the poll asks it
+        # to; a raise would allocate a traceback every time.
+        quiet_any_allocates_nothing(midi_in)
         midi_in.close()
         expect(dev.closed, "close reaches the device")
     finally:

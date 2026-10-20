@@ -52,6 +52,12 @@ class _FakeHost:
             raise OSError(110)
         return 0
 
+    def host_poll(self, dev_id, ep, buf):
+        if _report[0]:
+            buf[0] = _report[0]
+            return 1
+        return 0
+
 
 sys.modules["_usbhost"] = _FakeHost()
 
@@ -62,28 +68,31 @@ buf = bytearray(8)
 dev.read(0x81, buf, timeout=1, raise_on_timeout=False)   # the first read caches the endpoint's interface
 
 
-def polls(dev, buf, times):
+def polls(dev, buf, times, timeout):
     # In a function: a module-level loop and its globals allocate by
     # themselves, which would hide what this is checking.
     empty = 0
     i = 0
     while i < times:
-        if dev.read(0x81, buf, timeout=1, raise_on_timeout=False) == 0:
+        if dev.read(0x81, buf, timeout=timeout, raise_on_timeout=False) == 0:
             empty += 1
         i += 1
     return empty
 
 
-n = empty = 0
-micropython.heap_lock()
-try:
-    empty = polls(dev, buf, 1000)
-    _report[0] = 7
-    n = dev.read(0x81, buf, timeout=1, raise_on_timeout=False)
-finally:
-    micropython.heap_unlock()
-assert empty == 1000, empty
-assert n == 1 and buf[0] == 7, (n, buf[0])
+# timeout=1 waits up to a millisecond; timeout=-1 doesn't wait at all.
+for timeout in (1, -1):
+    n = empty = 0
+    _report[0] = 0
+    micropython.heap_lock()
+    try:
+        empty = polls(dev, buf, 1000, timeout)
+        _report[0] = 7
+        n = dev.read(0x81, buf, timeout=timeout, raise_on_timeout=False)
+    finally:
+        micropython.heap_unlock()
+    assert empty == 1000, (timeout, empty)
+    assert n == 1 and buf[0] == 7, (timeout, n, buf[0])
 
 # The control: the raising read allocates its exception, so it must fail
 # under the same lock.

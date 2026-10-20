@@ -499,13 +499,17 @@ class UsbHostPort(unittest.TestCase):
 
         class Dev:
             sent = []
+            reads = []
 
             def configuration_descriptor(self):
                 return cfg
 
-            def read(self, ep, buf, timeout):
+            def read(self, ep, buf, timeout, raise_on_timeout=True):
+                self.reads.append((timeout, raise_on_timeout))
                 if not incoming:
-                    raise core.USBTimeoutError(110)
+                    if raise_on_timeout:
+                        raise core.USBTimeoutError(110)
+                    return 0
                 pkt = incoming.pop(0)
                 buf[:len(pkt)] = pkt
                 return len(pkt)
@@ -528,6 +532,22 @@ class UsbHostPort(unittest.TestCase):
         for _ in range(6):
             got += midi_in.read() or b""
         self.assertEqual(got, bytes((0x90, 60, 100, 0xF0, 0x7E, 0x7F, 0x06, 0x02, 0xF7)))
+
+    def test_an_empty_poll_neither_waits_nor_raises(self):
+        # A raise allocates on MicroPython and retires the transfer, and a
+        # wait costs the whole poll: an idle keyboard would cost both.
+        dev = self._dev([])
+        midi_in, _ = self.usb_host.ports(dev)
+        self.assertIsNone(midi_in.read())
+        self.assertEqual(midi_in.any(), 0)
+        self.assertTrue(dev.reads)
+        self.assertEqual(set(dev.reads), {(-1, False)})
+
+    def test_poll_ms_still_waits_when_asked(self):
+        dev = self._dev([])
+        midi_in, _ = self.usb_host.ports(dev, poll_ms=2)
+        self.assertIsNone(midi_in.read())
+        self.assertEqual(set(dev.reads), {(2, False)})
 
     def test_bytes_written_as_packets(self):
         dev = self._dev([])
