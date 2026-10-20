@@ -6,7 +6,7 @@ metadata(
 
 require("pydevices")
 require("ch422g")
-require("gt911")
+require("gt9111")
 require("sdcard")  # micropython-lib's: frozen into OmniPython firmware, or mip.install("sdcard") first
 require("rs485")
 require("canbus")
