@@ -84,7 +84,7 @@ what you can compile:
 | Approach | Use it for | Package |
 |---|---|---|
 | **Raw graphics / canvas** | Direct pixel, line, and shape drawing | [`displaydev`](displaydev.md) with [`pygraphics`](https://github.com/PyDevices/pygraphics) |
-| **Pure-Python GUI** | Portable buttons, lists, themes, and screen management with nothing to compile | [`pdwidgets`](https://github.com/PyDevices/pdwidgets) |
+| **Pure-Python GUI** | Portable buttons, lists, themes, and screen management with nothing to compile | [`pdwidgets`](https://github.com/PyDevices/pydevices/tree/main/pdwidgets) |
 | **C-native GUI** | Complex vector widgets and a C-accelerated animation engine | [`lvgl`](https://github.com/PyDevices/lvgl-bindings) — see [using LVGL with PyDevices](lvgl.md) |
 
 All three sit on the same board contract, so the choice does not change how your

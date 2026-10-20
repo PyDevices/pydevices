@@ -43,6 +43,9 @@ Write your display and hardware logic once and run across 6 supported Python env
 | [`lib/`](lib/) | `audiodev/`, `displaydev/`, `appdev/`, `events.py`, `keys.py`, `multimer/`, `wifi.py`, `wifi_manager.py` |
 | `usb-core/`, `usb-host-*/`, `usb-device-*/`, `usb-hid/` | USB packages: `usb.core` and the host classes, and the board as a USB sound card, webcam, drive or keyboard ([docs/usb.md](docs/usb.md)) |
 | [`midiports/`](midiports/) | MIDI ports for `adafruit_midi` over USB, a UART, and Windows and Linux MIDI ([README](midiports/README.md)) |
+| [`palettes/`](palettes/) | Color palettes: an HSV wheel, RGB cubes, Material Design swatches and Win16 names (`pydevices-palettes`, [docs](https://palettes.readthedocs.io)) |
+| [`pdwidgets/`](pdwidgets/) | A pure-Python widget toolkit: buttons, sliders, labels, themes and screens (`pydevices-pdwidgets`, [docs](https://pdwidgets.readthedocs.io)) |
+| [`appkit/`](appkit/) | Several apps in one program: a launcher, a home screen, and each app's memory back when it closes ([README](appkit/README.md)) |
 | [`utils/`](utils/) | Desktop-bundled helpers (`mip`, `mdns`, `frame_recorder`, `micropython`, `pngio`, `usdl2`, `uwin32`) |
 | [`tests/`](tests/) | Stdlib unittest for `displaydev`, `multimer`, `events`, `keys`, `audiodev`, `boarddev`, `mip` |
 | [`docs/`](docs/) | Hardware and Board Contract documentation ([index](docs/README.md)) |

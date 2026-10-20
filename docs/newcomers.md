@@ -49,7 +49,7 @@ Read [the board contract](board-peripherals.md) before adding a board and [app a
 ## Choose a GUI layer
 
 - Use displaydev and pygraphics for direct drawing.
-- Use [pdwidgets](https://github.com/PyDevices/pdwidgets) for a pure-Python widget toolkit.
+- Use [pdwidgets](https://github.com/PyDevices/pydevices/tree/main/pdwidgets) for a pure-Python widget toolkit.
 - Use [LVGL](lvgl.md) when the firmware or the pydevices-lvgl wheel provides the lvgl module.
 
 The hardware configuration remains the same whichever layer you choose. Ready-to-run programs live in [pydevices-examples](https://github.com/PyDevices/pydevices-examples), not this product repository.
