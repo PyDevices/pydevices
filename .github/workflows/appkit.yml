@@ -1,0 +1,56 @@
+# appkit's tests. A change under appkit/ runs them, and so does a change to
+# the lib/ modules it builds on.
+#
+# Here they run on CPython only. The MicroPython half needs a unix
+# micropython with LVGL as current as the lib/ it runs, and the newest one
+# attached to a release (v0.5.5's) is older than that, so it skips here,
+# loudly. Run it locally with PYDEVICES_MICROPYTHON set (appkit/README.md).
+name: appkit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'appkit/**'
+      - 'lib/**'
+      - '.github/workflows/appkit.yml'
+  pull_request:
+    paths:
+      - 'appkit/**'
+      - 'lib/**'
+      - '.github/workflows/appkit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # MicroPython's manifest reader, for the test that freezes a sample
+      # app set through appkit's manifest.py.
+      - uses: actions/checkout@v7
+        with:
+          repository: micropython/micropython
+          ref: v1.29.0
+          path: micropython
+          sparse-checkout: |
+            tools
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install SDL and LVGL for CPython
+        run: |
+          sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0
+          python -m pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ pydevices-lvgl
+      - name: Unit tests
+        working-directory: appkit
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+          MICROPYTHON_MANIFESTFILE: ${{ github.workspace }}/micropython/tools/manifestfile.py
+        run: python -m unittest discover -s tests -p 'test_*.py' -v

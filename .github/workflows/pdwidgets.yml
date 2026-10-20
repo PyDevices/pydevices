@@ -1,0 +1,77 @@
+# pdwidgets' own checks: its tests, its docs site as Read the Docs builds it,
+# and its PyScript filesystem TOML. A change under pdwidgets/ runs them, and
+# so does a change to what it imports from this repository (lib/, palettes/).
+name: pdwidgets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pdwidgets/**'
+      - 'palettes/lib/**'
+      - 'lib/**'
+      - '.github/workflows/pdwidgets.yml'
+  pull_request:
+    paths:
+      - 'pdwidgets/**'
+      - 'palettes/lib/**'
+      - 'lib/**'
+      - '.github/workflows/pdwidgets.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pdwidgets
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: PyDevices/pygraphics
+          path: pygraphics
+          sparse-checkout: |
+            lib/pygraphics
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install ruff
+        run: pip install ruff
+      - name: Ruff
+        run: ruff check lib tests scripts
+      - name: Unit tests
+        env:
+          PYTHONPATH: lib:tests/stubs:../lib:../palettes/lib:../pygraphics/lib
+        run: python -m unittest discover -s tests
+
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # From the repository root with pdwidgets/.readthedocs.yaml's paths, the
+    # way Read the Docs runs it.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install docs requirements
+        run: pip install -r pdwidgets/docs/requirements.txt
+      - name: Build docs
+        run: |
+          mkdocs build --clean --site-dir _site/pdwidgets --config-file pdwidgets/mkdocs.yml 2>&1 | tee build.log
+          if grep -i griffe build.log; then
+            echo "::error::griffe complained; the reference page will be wrong"
+            exit 1
+          fi
+
+  validate-pyscript-filesystem-toml:
+    uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v14
+    with:
+      config-path: pdwidgets/pdwidgets.toml
+      source-mappings: pdwidgets/lib=/lib

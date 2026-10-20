@@ -1,8 +1,9 @@
 name: Package library
 
 # Builds the mip index and the library tree with tools/libbuild.py: this
-# repository's packages from the checkout, and the packages lib-lock.json pins
-# from other repositories at their tags. A packaging mistake (a mip-split.toml
+# repository's packages from the checkout (palettes, pdwidgets and appkit at
+# the versions in their folders), and the packages lib-lock.json pins from
+# other repositories at their tags. A packaging mistake (a mip-split.toml
 # name that no longer exists, a manifest naming a missing file, a module that
 # imports a host-only one at module scope) fails here, in the pull request.
 
@@ -20,6 +21,12 @@ on:
       - 'board_configs/desktop/**'
       - 'midiports/**'
       - 'usb-*/**'
+      - 'palettes/lib/**'
+      - 'palettes/VERSION'
+      - 'pdwidgets/lib/**'
+      - 'pdwidgets/VERSION'
+      - 'appkit/lib/**'
+      - 'appkit/VERSION'
       - '.github/workflows/lib-index.yml'
   pull_request:
     paths:
@@ -32,6 +39,12 @@ on:
       - 'board_configs/desktop/**'
       - 'midiports/**'
       - 'usb-*/**'
+      - 'palettes/lib/**'
+      - 'palettes/VERSION'
+      - 'pdwidgets/lib/**'
+      - 'pdwidgets/VERSION'
+      - 'appkit/lib/**'
+      - 'appkit/VERSION'
       - '.github/workflows/lib-index.yml'
   workflow_dispatch:
 

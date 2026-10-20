@@ -1,0 +1,80 @@
+# palettes' own checks: its tests, its docs site as Read the Docs builds it,
+# and its PyScript filesystem TOML. Only a change under palettes/ runs them.
+name: palettes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'palettes/**'
+      - '.github/workflows/palettes.yml'
+  pull_request:
+    paths:
+      - 'palettes/**'
+      - '.github/workflows/palettes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: palettes
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install ruff
+        run: pip install ruff
+      - name: Ruff
+        run: ruff check lib tests scripts
+      - name: Unit tests
+        env:
+          PYTHONPATH: lib
+        run: python -m unittest discover -s tests
+
+      # Google style only, no Sphinx directives (palettes#16), so the
+      # generated reference pages stay accurate.
+      - name: Docstring style (no Sphinx roles)
+        run: |
+          if grep -rnoE ':(meth|class|attr|func|mod|exc|data|obj):`' lib --include='*.py'; then
+            echo "::error::Sphinx roles in docstrings; use [Name][path] or plain backticks"
+            exit 1
+          fi
+          echo "no Sphinx roles"
+
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # From the repository root with palettes/.readthedocs.yaml's paths, the
+    # way Read the Docs runs it. strict: true in mkdocs.yml turns a warning
+    # into a failure.
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install docs requirements
+        run: pip install -r palettes/docs/requirements.txt
+      - name: Build docs
+        run: |
+          mkdocs build --clean --site-dir _site/palettes --config-file palettes/mkdocs.yml 2>&1 | tee build.log
+          if grep -i griffe build.log; then
+            echo "::error::griffe complained; the reference page will be wrong"
+            exit 1
+          fi
+
+  validate-pyscript-filesystem-toml:
+    uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v14
+    with:
+      config-path: palettes/palettes.toml
+      source-mappings: palettes/lib=/lib
