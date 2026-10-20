@@ -1,3 +1,9 @@
+## v0.7.7.dev1 (2026-10-20)
+
+- midiports.usb_host: an empty poll neither raises nor waits, and keeps its transfer
+- ROADMAP: host-side keyboards and mice through usb-host-hid
+- bledev.hid: reports from different functions come out in the order they were sent
+
 ## v0.7.6 (2026-10-19)
 
 - Workflows: publishing-v14, whose publisher publishes top-level packages (midiports, usb-*) to MIP
