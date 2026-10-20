@@ -46,6 +46,11 @@ on:
 permissions:
   contents: read
 
+# bash with -eo pipefail, so a failing gate is not hidden by the tee after it.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   gate:
     runs-on: ubuntu-latest
