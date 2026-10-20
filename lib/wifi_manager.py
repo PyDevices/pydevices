@@ -94,6 +94,7 @@ CACHE_FILE = "/wifi_networks.json"
 JOIN_TIMEOUT_S = 20
 # Seconds between scans for a known network while setup mode waits.
 RESCAN_S = 60
+_WRONG_HOLD_MS = 8000  # how long esp32 must report a bad password before we believe it
 
 _MAX_NETWORKS = 16
 _MAGIC = b"WSU1"
@@ -470,7 +471,9 @@ class _MPRadio:
         net = self._net
         # esp32 reports these while it retries, so they only end the wait
         # after a grace period.  15 and 204 are handshake timeouts, which is
-        # how most WPA2 routers turn away a wrong password.
+        # how most WPA2 routers turn away a wrong password.  The first join
+        # after a boot can sit in 202 for seconds and then connect, so the
+        # status has to hold for _WRONG_HOLD_MS, not just show once.
         wrong = (getattr(net, "STAT_WRONG_PASSWORD", 202), 15, 204)
         no_ap = getattr(net, "STAT_NO_AP_FOUND", 201)
         try:
@@ -482,18 +485,27 @@ class _MPRadio:
         self.sta.connect(ssid, password)
         t0 = _ticks_ms()
         reason = "timed out after %ds" % timeout
+        wrong_at = None
         while _ticks_diff(_ticks_ms(), t0) < timeout * 1000:
             if self.ip():
                 return None
             if _ticks_diff(_ticks_ms(), t0) > 6000:
                 st = self.sta.status()
                 if st in wrong:
-                    reason = "wrong password"
-                    break
+                    if wrong_at is None:
+                        wrong_at = _ticks_ms()
+                    if _ticks_diff(_ticks_ms(), wrong_at) >= _WRONG_HOLD_MS:
+                        reason = "wrong password"
+                        break
+                else:
+                    wrong_at = None
                 if st == no_ap:
                     reason = "network not found"
                     break
             _sleep_ms(200)
+        else:
+            if wrong_at is not None:
+                reason = "wrong password"
         try:
             self.sta.disconnect()
         except OSError:

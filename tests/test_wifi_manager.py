@@ -109,6 +109,63 @@ class _Patched(unittest.TestCase):
             self.on_sleep(self.sleeps)
 
 
+class FakeSta:
+    """An esp32 station: ``status()`` follows *timeline*, a list of
+    ``(ms from connect, status)``, and it is connected from *up_at* on."""
+
+    def __init__(self, timeline, up_at=None):
+        self.timeline = timeline
+        self.up_at = up_at
+        self.t0 = None
+
+    def disconnect(self):
+        self.t0 = None
+
+    def connect(self, ssid, password):
+        self.t0 = _clock[0]
+
+    def isconnected(self):
+        return self.up_at is not None and _clock[0] - self.t0 >= self.up_at
+
+    def ifconfig(self):
+        return ("10.0.0.7", "255.255.255.0", "10.0.0.1", "10.0.0.1")
+
+    def status(self):
+        now = _clock[0] - self.t0
+        return [st for at, st in self.timeline if at <= now][-1]
+
+
+class FakeNet:
+    STAT_WRONG_PASSWORD = 202
+    STAT_NO_AP_FOUND = 201
+
+
+class MPRadioJoinTest(_Patched):
+    def _radio(self, sta):
+        radio = wm._MPRadio.__new__(wm._MPRadio)
+        radio._net = FakeNet
+        radio.sta = sta
+        return radio
+
+    def test_a_join_that_reports_wrong_password_and_then_connects_is_not_given_up(self):
+        # What the DEV-KIT does on its first join after a boot.
+        sta = FakeSta([(0, 1001), (7400, 202)], up_at=11300)
+        self.assertIsNone(self._radio(sta).join("home", "pw", 20))
+
+    def test_a_wrong_password_that_holds_is_reported(self):
+        sta = FakeSta([(0, 1001), (4000, 202)])
+        self.assertEqual(self._radio(sta).join("home", "pw", 20), "wrong password")
+        self.assertLess(_clock[0], 20000)
+
+    def test_a_wrong_password_seen_late_is_still_wrong_at_the_timeout(self):
+        sta = FakeSta([(0, 1001), (15000, 202)])
+        self.assertEqual(self._radio(sta).join("home", "pw", 20), "wrong password")
+
+    def test_no_access_point_is_reported(self):
+        sta = FakeSta([(0, 1001), (3000, 201)])
+        self.assertEqual(self._radio(sta).join("home", "pw", 20), "network not found")
+
+
 class JoinKnownTest(_Patched):
     def test_in_range_first_strongest_first_then_the_rest(self):
         self.known = [_net("away"), _net("weak"), _net("strong")]
