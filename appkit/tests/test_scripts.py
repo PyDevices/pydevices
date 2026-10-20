@@ -115,8 +115,9 @@ class RoundTrip(ContractCase):
         env.update(extra or {})
         if plant:
             env["APPKIT_PLANT"] = plant
-        # board_config for the desktop, after pydevices' lib.
-        configs = str(_board_configs())
+        # board_config for the desktop, and the desktop helpers it imports
+        # (usdl2 and the rest, in utils/), after pydevices' lib.
+        configs = os.pathsep.join((str(PYDEVICES_LIB.parent / "utils"), str(_board_configs())))
         mp_path = os.pathsep.join(p for p in (env.pop("FROZEN", None), str(LIB), str(PYDEVICES_LIB), configs) if p)
         env["MICROPYPATH"] = mp_path.replace(os.pathsep, ":") + ":.frozen"
         env["PYTHONPATH"] = os.pathsep.join(

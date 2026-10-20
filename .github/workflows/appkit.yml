@@ -40,9 +40,12 @@ jobs:
           sparse-checkout: |
             tools
           sparse-checkout-cone-mode: false
+      # 3.12: the scope's leak check allows CPython 32 KB of drift over 190
+      # open/close cycles. 3.12 drifts 15-21 KB; 3.13 drifts 28-36 KB with
+      # LVGL, so it fails about one run in two.
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: '3.12'
       - name: Install SDL and LVGL for CPython
         run: |
           sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0
