@@ -1,3 +1,9 @@
+## Unreleased
+
+- **Breaking change** (pydevices is under 1.0, so it lands without waiting for 2.0): `usb.host.hid` returns key presses, mouse buttons and movement as events named the way `adafruit_hid` names them, and no longer returns raw reports. In 0.7.6, `Device.read()` returned the report's bytes (a keyboard's modifier byte, a reserved byte, then the keys held); it now returns `None` or a tuple: `(KEY_DOWN, keycode, modifiers)`, `(KEY_UP, ...)`, `(CONSUMER_DOWN, code, 0)`, `(CONSUMER_UP, ...)`, or `(MOUSE_EVENT, buttons, dx, dy, wheel)`. Code that unpacked report bytes has to change; there is no switch to get the bytes back. `Device(dev, KEYBOARD)` and `Device.match()` work as before. See [docs/usb.md](docs/usb.md).
+- usb-host-hid: new `usb.host.hid_codes` with `Keycode`, `ConsumerControlCode` and `Mouse`'s button names, at `adafruit_hid`'s values, so nothing needs `adafruit_hid` installed
+- usb-host-hid: `Device(..., boot=False)` reads the report descriptor, so media keys, 12 and 16-bit mouse movement and report IDs decode; `interface=` picks a particular HID interface
+
 ## v0.7.7.dev1 (2026-10-20)
 
 - midiports.usb_host: an empty poll neither raises nor waits, and keeps its transfer

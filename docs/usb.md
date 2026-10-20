@@ -8,7 +8,7 @@ directory each, installed with `mip`:
 |---|---|---|
 | [`usb-core`](../usb-core) | `usb.core`, `usb.util`, `usb_host` | Talk to USB devices from the board's host port, in PyUSB's and CircuitPython's shape |
 | [`usb-host-msc`](../usb-host-msc) | `usb.host.msc` | Mount a flash drive |
-| [`usb-host-hid`](../usb-host-hid) | `usb.host.hid` | Read a keyboard or mouse (raw reports) |
+| [`usb-host-hid`](../usb-host-hid) | `usb.host.hid` | Read a keyboard or mouse: keys, buttons and movement named the way `adafruit_hid` names them |
 | [`usb-host-cdc`](../usb-host-cdc) | `usb.host.cdc` | A USB serial device |
 | [`usb-host-audio`](../usb-host-audio) | `usb.host.audio` | Play to a USB speaker, record from a USB microphone |
 | [`usb-host-video`](../usb-host-video) | `usb.host.video` | Frames from a USB webcam |
@@ -114,6 +114,56 @@ ESP32-P4, directly or through a high-speed hub, and about 4 Mbit/s on an
 ESP32-S3, whose host port is full speed. It speaks RNDIS, which Samsung and
 many other Android phones use; CDC-ECM, CDC-NCM and iPhone tethering are not
 implemented.
+
+A keyboard or mouse plugged into the host port comes back as events, with
+the key and button names `adafruit_hid` uses, so code that reads a keyboard
+here compares against the same `Keycode.A` that code sending one uses:
+
+```python
+import usb.core
+from usb.host.hid import Device, KEYBOARD, KEY_DOWN
+from usb.host.hid_codes import Keycode
+
+kbd = Device(usb.core.find(custom_match=Device.match(KEYBOARD)), KEYBOARD)
+while True:
+    ev = kbd.read(50)                       # None if nothing happened
+    if ev and ev[0] == KEY_DOWN and ev[1] == Keycode.A:
+        print("a was pressed, modifiers", ev[2])
+```
+
+`read(timeout_ms)` returns one event at a time, as a tuple whose first item
+says what it is. One report can make several events (a chord), so a program
+that drains them calls `read()` until it gets `None`.
+
+| Event | What it holds |
+|---|---|
+| `(KEY_DOWN, keycode, modifiers)` and `(KEY_UP, keycode, modifiers)` | `keycode` is the `Keycode` value, and the modifier keys are events too (`Keycode.LEFT_SHIFT` and the rest). `modifiers` is a bit mask of the modifiers held after that report: `Keycode.modifier_bit(Keycode.LEFT_SHIFT)` is the bit to test. |
+| `(CONSUMER_DOWN, code, 0)` and `(CONSUMER_UP, code, 0)` | A media key, as a `ConsumerControlCode` value: volume, mute, play/pause, next track. |
+| `(MOUSE_EVENT, buttons, dx, dy, wheel)` | `buttons` is the mask of `Mouse.LEFT_BUTTON`, `RIGHT_BUTTON`, `MIDDLE_BUTTON`, `BACK_BUTTON` and `FORWARD_BUTTON` held; `dx`, `dy` and `wheel` are how far it moved since the last report. A report that changes nothing makes no event. |
+
+`usb.host.hid_codes` carries `Keycode`, `ConsumerControlCode` and `Mouse`'s
+button names with `adafruit_hid`'s values (a test compares them), so you don't
+need `adafruit_hid` installed on the board; if it is, its constants are the
+same numbers. `kbd.modifiers` and `kbd.buttons` hold what is down right now,
+`kbd.set_leds(0b010)` lights Caps Lock, and `Device(dev, MOUSE)` reads a
+mouse.
+
+By default a device is read in boot protocol, which every keyboard and mouse
+speaks and which needs no report descriptor read: eight modifier bits and six
+keys; or buttons with `x`, `y` and a wheel when the mouse sends one. That is
+all a keyboard sends in boot protocol, so its media keys don't arrive.
+`Device(dev, KEYBOARD, boot=False)` asks for report protocol and reads the
+descriptor instead: media keys on the same interface, a mouse that
+sends 12 or 16 bits of movement, a wheel and extra buttons, and a keyboard or
+mouse with a report ID. A media-key interface of its own is
+`Device(dev, KEYBOARD, boot=False, interface=n)`. It reads the standard
+shapes (modifiers with a key array, buttons with `x`, `y` and wheel, a
+media-key array or one bit per key) and raises a `ValueError` for a device
+whose descriptor it can't, such as a keyboard that reports a bit per key; use
+boot protocol for that one.
+
+Before this release `read()` returned the report's raw bytes. It no longer
+does; the CHANGELOG has the details.
 
 A USB speaker or microphone can also stand in for a board's own codec, as an
 audiodev output or input, so code written for `audio_out` and `pcm_in` runs
