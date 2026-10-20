@@ -71,7 +71,7 @@
 === "From source"
 
     ```bash
-    git clone https://github.com/PyDevices/palettes && cd palettes
+    git clone https://github.com/PyDevices/pydevices && cd pydevices/palettes
     pip install -e .                                  # or just PYTHONPATH=lib
     PYTHONPATH=lib python3 -m unittest discover -s tests
     ruff check lib tests scripts

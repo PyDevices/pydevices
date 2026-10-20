@@ -62,7 +62,7 @@ btn.add_event_cb(pd.events.MOUSEBUTTONUP, on_button_click)
   from pdwidgets.widgets.button import Button
   from pdwidgets.screen import Screen
   ```
-- **Integrated Theming**: Customizable color schemes, border radii, and visual states using [`palettes`](https://github.com/PyDevices/palettes).
+- **Integrated Theming**: Customizable color schemes, border radii, and visual states using [`palettes`](https://github.com/PyDevices/pydevices/tree/main/palettes).
 
 ---
 
@@ -137,9 +137,9 @@ What's planned next is in [ROADMAP.md](ROADMAP.md).
 ## Links & Demos
 
 - [Documentation](https://pdwidgets.readthedocs.io)
-- [Source Code](https://github.com/PyDevices/pdwidgets)
+- [Source Code](https://github.com/PyDevices/pydevices/tree/main/pdwidgets)
 - [PyScript Live Demos](https://pydevices.github.io/pydevices-examples/pyscript/)
-- Related: [pydevices](https://github.com/PyDevices/pydevices), [palettes](https://github.com/PyDevices/palettes), [pydevices-examples](https://github.com/PyDevices/pydevices-examples)
+- Related: [pydevices](https://github.com/PyDevices/pydevices), [palettes](https://github.com/PyDevices/pydevices/tree/main/palettes), [pydevices-examples](https://github.com/PyDevices/pydevices-examples)
 
 ## License
 
@@ -153,7 +153,7 @@ MIT — see [LICENSE](LICENSE).
 `pdwidgets` is pure Python and imports its three siblings from source. Clone
 them beside this repo — [pydevices](https://github.com/PyDevices/pydevices),
 [pygraphics](https://github.com/PyDevices/pygraphics) and
-[palettes](https://github.com/PyDevices/palettes) — then:
+[palettes](https://github.com/PyDevices/pydevices/tree/main/palettes) — then:
 
 ```bash
 python3 -m venv .venv

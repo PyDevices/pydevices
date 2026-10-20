@@ -4,8 +4,10 @@ Cross-platform widget toolkit for PyDevices (`import pdwidgets`).
 
 ## Environment
 
-- Python venv at `.venv` — `.venv/bin/python`, `.venv/bin/ruff`
-- Depends on canonical PyDevices packages: `appdev`, `pygraphics`, `multimer`, `palettes`
+- A folder of the pydevices repository; run the commands below from here
+  (`pdwidgets/`)
+- Depends on `appdev` and `multimer` (pydevices' `lib/`), `palettes`
+  (`../palettes`) and `pygraphics` (its own repository)
 - Source layout: `lib/pdwidgets/` (import name `pdwidgets`)
 
 ## Tests and lint
@@ -14,23 +16,25 @@ Cross-platform widget toolkit for PyDevices (`import pdwidgets`).
 # pdwidgets is source-only and imports siblings, so PYTHONPATH is required --
 # see "Import path" below. The bare unittest command fails with
 # ModuleNotFoundError: No module named 'events'.
-PYTHONPATH="lib:tests/stubs:../pydevices/lib:../pygraphics/lib:../palettes/lib" \
-  .venv/bin/python -m unittest discover -s tests
-.venv/bin/ruff check lib tests scripts
+PYTHONPATH="lib:tests/stubs:../lib:../palettes/lib:$PYGRAPHICS/lib" \
+  python -m unittest discover -s tests
+ruff check lib tests scripts
 ```
 
 Headless bench (needs pydevices-examples `board_config` on path):
 
 ```bash
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-  .venv/bin/python tools/pdwidgets_bench.py
+  python tools/pdwidgets_bench.py
 ```
 
 ## Publishing
 
-Commit `VERSION=X.Y.Z` and publish GitHub Release `vX.Y.Z`. The import and MIP
-name stay `pdwidgets`; the TestPyPI distribution is `pydevices-pdwidgets`.
-Procedure: [.github/docs/publishing-automation.md](https://github.com/PyDevices/.github/blob/main/docs/publishing-automation.md).
+pdwidgets has its own version, in `VERSION` here, apart from the pydevices
+release. A pull request that changes `VERSION` (and `CHANGELOG.md`) and merges
+tags `pdwidgets-vX.Y.Z` and publishes `pydevices-pdwidgets` to TestPyPI from
+the pydevices repository's release chain. The import and mip name stay
+`pdwidgets`.
 
 ## Widget API (agent contract)
 
@@ -50,27 +54,13 @@ Procedure: [.github/docs/publishing-automation.md](https://github.com/PyDevices/
 Regenerate after editing widgets:
 
 ```bash
-.venv/bin/python scripts/pdwidgets_widget_deps.py
+python scripts/pdwidgets_widget_deps.py
 ```
 
-## Cursor Cloud specific instructions
+## Import path
 
-The Cloud Agent update script creates the repo-root `.venv` (with `ruff`).
-`pdwidgets` is source-only and imports `palettes` plus product-owned
-`appdev`/`multimer` and sibling `pygraphics` — none are pip-installed, so the bare
-`unittest discover` / bench commands above fail without `PYTHONPATH`. In this
-multi-repo workspace `palettes` and `pygraphics` come from sibling repos:
-
-```bash
-PYTHONPATH="lib:tests/stubs:../pydevices/lib:../pygraphics/lib:../palettes/lib" \
-  .venv/bin/python -m unittest discover -s tests
-```
-
-Relative sibling paths, not `/agent/repos/...`: they resolve on a developer
-workspace and on the cloud VM alike, since the VM's workspace root symlinks to
-`/agent/repos`. This mirrors the `PYTHONPATH` that `.github/workflows/tests.yml`
-builds after checking the siblings out.
-
-The pydevices-examples repo's `.venv` also gets a `pydevices_siblings.pth` (added by the
-update script) listing `palettes/lib`, `pdwidgets/lib`, and `pygraphics/lib`, so
-pydevices-examples applications that import them run in the cross-interpreter matrix.
+`pdwidgets` is source-only and imports `palettes`, `appdev`, `multimer` and
+`pygraphics`, none of them pip-installed in CI, so the bare `unittest
+discover` and bench commands fail without `PYTHONPATH`. `$PYGRAPHICS` above
+is a checkout of [pygraphics](https://github.com/PyDevices/pygraphics); the
+`pdwidgets` workflow in `.github/workflows/` checks it out the same way.

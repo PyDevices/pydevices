@@ -20,7 +20,7 @@ dependencies = [
   "pydevices-pygraphics",
   "pydevices-palettes",
 ]
-urls = { Homepage = "https://github.com/PyDevices/pdwidgets", Issues = "https://github.com/PyDevices/pdwidgets/issues" }
+urls = { Homepage = "https://github.com/PyDevices/pydevices/tree/main/pdwidgets", Issues = "https://github.com/PyDevices/pydevices/issues" }
 
 [tool.setuptools.packages.find]
 where = ["lib"]

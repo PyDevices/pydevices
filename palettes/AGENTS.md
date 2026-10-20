@@ -4,7 +4,8 @@ Color palette toolkit for PyDevices (`import palettes`).
 
 ## Environment
 
-- Python venv at `.venv` — `python3`, `ruff`
+- A folder of the pydevices repository; run the commands below from here
+  (`palettes/`)
 - No runtime dependencies on other PyDevices packages
 - Source layout: `lib/palettes/` (import name `palettes`)
 
@@ -17,12 +18,8 @@ ruff check lib tests scripts
 
 ## Publishing
 
-Commit `VERSION=X.Y.Z` and publish GitHub Release `vX.Y.Z`. The import and MIP
-name stay `palettes`; the distribution is `pydevices-palettes` on both
-indexes -- TestPyPI is the live channel, and the production PyPI name is a
-parked mirror that trails it (0.0.12 against TestPyPI's 0.0.13 today).
-Procedure: [.github/docs/publishing-automation.md](https://github.com/PyDevices/.github/blob/main/docs/publishing-automation.md).
-
-## Cursor Cloud specific instructions
-
-The Cloud Agent update script creates the repo-root `.venv` (with `ruff`).
+palettes has its own version, in `VERSION` here, apart from the pydevices
+release. A pull request that changes `VERSION` (and `CHANGELOG.md`) and merges
+tags `palettes-vX.Y.Z` and publishes `pydevices-palettes` to TestPyPI from the
+pydevices repository's release chain. The import and mip name stay
+`palettes`.
