@@ -1,3 +1,7 @@
+## v0.0.25rc1 (2026-10-20)
+
+- pdwidgets now lives in the pydevices repository, in its `pdwidgets/` folder, and releases from there with tags named `pdwidgets-vX.Y.Z`. The package, its import name and its version numbers are unchanged. Its docs, issues and source links point at pydevices.
+
 ## v0.0.24 (2026-09-24)
 
 - Smoke test: skip scripts that need a sibling pydevices-examples checkout
