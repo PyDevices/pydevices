@@ -404,6 +404,8 @@ class Host:
         #: When the last input report arrived, in ``ticks_us``.
         self.last_report_us = None
         self._queue = []
+        self._stamps = []
+        self._seen = 0
         self._limit = queue_limit
         self._overrun = 0
         self._flag = asyncio.Event()
@@ -488,11 +490,23 @@ class Host:
             while True:
                 data = await characteristic.notified()
                 self.last_report_us = ticks_us()
+                # Each input report is its own characteristic, and waking
+                # them is in no particular order. Where the backend numbers
+                # notifications as the radio gets them, line the events up by
+                # that number, so they come out in the order they were sent.
+                stamp = characteristic.arrival
+                if stamp is None:
+                    self._seen += 1
+                    stamp = self._seen
                 for event in self.decoder.feed(data, report_id):
                     if len(self._queue) >= self._limit:
                         self._overrun += 1
                     else:
-                        self._queue.append(event)
+                        k = len(self._queue)
+                        while k and self._stamps[k - 1] > stamp:
+                            k -= 1
+                        self._queue.insert(k, event)
+                        self._stamps.insert(k, stamp)
                 self._flag.set()
         except asyncio.CancelledError:
             raise
@@ -509,12 +523,18 @@ class Host:
         """Every event decoded so far, as a list (possibly empty). Never waits."""
         self._check()
         out, self._queue = self._queue, []
+        self._stamps = []
         if not out and self._error is not None:
             raise self._error
         return out
 
     async def events(self, timeout_ms=None):
-        """Wait for at least one event, and return every one waiting."""
+        """Wait for at least one event, and return every one waiting.
+
+        They come in the order the device sent them, whichever function
+        (keyboard, mouse, media keys) each report was for, on a backend that
+        numbers notifications as they arrive (MicroPython does).
+        """
         while not self._queue:
             self._check()
             if self._error is not None:

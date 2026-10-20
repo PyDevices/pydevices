@@ -911,7 +911,18 @@ class ClientCharacteristic:
     silently dropped: a backend whose queue overflows raises
     :class:`BLEError` from the next ``notified()``. Call ``subscribe()``
     before you expect any to arrive.
+
+    ``arrival`` says in what order the last notification came in, relative
+    to the other characteristics' (it is ``None`` on a backend that doesn't
+    number them). Each queue is in order on its own, but waiting on two
+    characteristics at once wakes them in no particular order; the number is
+    taken when the radio receives the notification, so you can put them back.
     """
+
+    #: After ``notified()`` returns, an integer that grows with every
+    #: notification the radio receives, whichever characteristic it is on, or
+    #: ``None`` if the backend doesn't number them.
+    arrival = None
 
     def __init__(self, service, uuid, properties):
         self.service = service

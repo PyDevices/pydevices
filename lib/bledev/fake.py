@@ -112,17 +112,20 @@ class _Inbox:
 
     def __init__(self, limit, what):
         self.items = []
+        self.stamps = []
+        self.arrival = None
         self.event = asyncio.Event()
         self.limit = limit
         self.what = what
         self.overrun = 0
         self.closed = False
 
-    def put(self, item):
+    def put(self, item, stamp=None):
         if len(self.items) >= self.limit:
             self.overrun += 1
         else:
             self.items.append(item)
+            self.stamps.append(stamp)
         self.event.set()
 
     def close(self):
@@ -137,6 +140,7 @@ class _Inbox:
                     "{} behind".format(self.what, self.overrun, self.limit)
                 )
             if self.items:
+                self.arrival = self.stamps.pop(0)
                 return self.items.pop(0)
             if self.closed:
                 raise DisconnectedError("{}: disconnected".format(self.what))
@@ -372,6 +376,11 @@ class _Link:
         self.subscribed = {}
         self.in_flight = []
         self._drain_task = None
+        self._arrivals = 0
+        #: A test knob: land each characteristic's notifications in the
+        #: reverse of the order the characteristics first sent, so a host that
+        #: waits on several wakes them out of order, as a real radio's can.
+        self.wake_reversed = False
         self.encrypted = False
         self.authenticated = False
         central_ble._links.append(self)
@@ -399,7 +408,8 @@ class _Link:
         self.check()
         if busy_check and len(self.in_flight) >= self.peripheral_ble.notify_buffers:
             raise BusyError("{} notifications already in flight".format(len(self.in_flight)))
-        self.in_flight.append((server_char, kind, data))
+        self._arrivals += 1
+        self.in_flight.append((server_char, kind, data, self._arrivals))
         if self._drain_task is None:
             # Held so CPython can't collect the task mid-flight.
             self._drain_task = asyncio.create_task(self._drain())
@@ -411,10 +421,20 @@ class _Link:
         pending, self.in_flight = self.in_flight, []
         if not self.connected:
             return
-        for server_char, kind, data in pending:
+        if self.wake_reversed:
+            groups = []
+            for entry in pending:
+                for group in groups:
+                    if group[0][0] is entry[0] and group[0][1] == entry[1]:
+                        group.append(entry)
+                        break
+                else:
+                    groups.append([entry])
+            pending = [entry for group in reversed(groups) for entry in group]
+        for server_char, kind, data, stamp in pending:
             notify, indicate = self.subscribed.get(id(server_char), (False, False))
             if (kind == "notify" and notify) or (kind == "indicate" and indicate):
-                self.inbox(server_char, kind, self.central_ble.queue_limit).put(data)
+                self.inbox(server_char, kind, self.central_ble.queue_limit).put(data, stamp)
 
     def drop(self):
         if not self.connected:
@@ -596,7 +616,10 @@ class _FakeClientCharacteristic(ClientCharacteristic):
     async def notified(self, timeout_ms=None):
         self._check(FLAG_NOTIFY, "notify")
         link = self.connection._link
-        return await link.inbox(self._server, "notify", link.central_ble.queue_limit).get(timeout_ms)
+        box = link.inbox(self._server, "notify", link.central_ble.queue_limit)
+        data = await box.get(timeout_ms)
+        self.arrival = box.arrival
+        return data
 
     async def indicated(self, timeout_ms=None):
         self._check(FLAG_INDICATE, "indicate")
