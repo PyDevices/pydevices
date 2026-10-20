@@ -1,0 +1,20 @@
+{
+  "board": "desktop",
+  "runs": [
+    {
+      "hardware": "Linux x86-64 (WSL2 with WSLg), unix MicroPython, an SDL window",
+      "firmware": "micropython 1.30.0 (linux [GCC 13.3.0] version)",
+      "date": "2026-10-20",
+      "smoke": "passed",
+      "checks": [
+        "board_config imports",
+        "display draws",
+        "audio_out answers",
+        "pcm_in answers",
+        "pcm_out answers"
+      ],
+      "skipped": [],
+      "tool": "tools/mark_tested.py"
+    }
+  ]
+}
