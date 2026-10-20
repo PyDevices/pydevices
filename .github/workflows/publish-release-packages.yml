@@ -20,6 +20,9 @@ permissions:
 
 jobs:
   publish:
+    # pydevices' own vX.Y.Z releases. palettes-v and pdwidgets-v releases are
+    # publish-package-release.yml's.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     uses: PyDevices/.github/.github/workflows/reusable-publish-release-packages.yml@publishing-v14
     with:
       build-kind: pydevices-multi
