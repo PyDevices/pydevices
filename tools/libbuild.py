@@ -11,8 +11,11 @@ From the repository root:
     python tools/libbuild.py compare build/lib/index https://pydevices.github.io/mip
 
 ``build`` assembles every package this repository publishes (the ones
-``mip-split.toml`` names, plus ``pydevices`` and ``pydevices-desktop``) and
-every package ``lib-lock.json`` pins from another repository, into
+``mip-split.toml`` names, plus ``pydevices`` and ``pydevices-desktop``, all at
+the repository's version), the packages in their own folders here that
+``lib-lock.json`` lists under ``folders`` (palettes, pdwidgets, appkit, each
+at the version in its folder's ``VERSION``), and every package
+``lib-lock.json`` pins from another repository, into
 ``<out>/library``: one directory per package, each with a ``manifest.py``
 beside its sources. A firmware manifest uses it with::
 
@@ -100,9 +103,25 @@ class Pinned:
 
 
 @dataclass(frozen=True)
+class Folder:
+    """A package in a folder of this repository, with a version of its own.
+
+    The folder holds ``VERSION`` and the sources in ``lib/<name>/``; the
+    folder's own ``manifest.py`` is for freezing it from a checkout, and the
+    library tree gets one written from this entry instead.
+    """
+
+    name: str
+    description: str
+    pypi: str | None
+    requires: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Lock:
     repo: dict[str, dict]
     pinned: dict[str, Pinned]
+    folders: dict[str, Folder] = field(default_factory=dict)
 
 
 def read_lock(root: Path) -> Lock:
@@ -113,7 +132,7 @@ def read_lock(root: Path) -> Lock:
         raise BuildError(f"{path} is missing") from None
     except json.JSONDecodeError as exc:
         raise BuildError(f"{path} is not valid JSON: {exc}") from None
-    unknown = sorted(set(data) - {"repo", "pinned"})
+    unknown = sorted(set(data) - {"repo", "pinned", "folders"})
     if unknown:
         raise BuildError(f"{LOCKFILE} has unknown keys: {', '.join(unknown)}")
     repo = data.get("repo", {})
@@ -129,7 +148,17 @@ def read_lock(root: Path) -> Lock:
             if not entry.get(key):
                 raise BuildError(f"{LOCKFILE} pinned.{name} has no {key}")
         pinned[name] = Pinned(name, entry["repository"], entry["ref"], entry["description"], entry.get("pypi"))
-    return Lock(repo, pinned)
+    folders = {}
+    for name, entry in data.get("folders", {}).items():
+        extra = sorted(set(entry) - {"description", "pypi", "requires"})
+        if extra:
+            raise BuildError(f"{LOCKFILE} folders.{name} has unknown keys: {', '.join(extra)}")
+        if not entry.get("description"):
+            raise BuildError(f"{LOCKFILE} folders.{name} has no description")
+        if name in pinned:
+            raise BuildError(f"{LOCKFILE} names {name!r} both as pinned and as a folder")
+        folders[name] = Folder(name, entry["description"], entry.get("pypi"), tuple(entry.get("requires", ())))
+    return Lock(repo, pinned, folders)
 
 
 # ---------------------------------------------------------------------------
@@ -454,10 +483,44 @@ def assemble_pinned(pinned: Pinned, source_root: Path, tree: Tree, library: str,
     )
 
 
+def folder_version(root: Path, name: str) -> str:
+    path = root / name / "VERSION"
+    if not path.is_file():
+        raise BuildError(f"{LOCKFILE} lists folder package {name!r}, but {name}/VERSION is missing")
+    version = path.read_text(encoding="utf-8").strip()
+    if not version:
+        raise BuildError(f"{name}/VERSION is empty")
+    return version
+
+
+def assemble_folder(folder: Folder, root: Path, tree: Tree, library: str, local: frozenset[str]) -> None:
+    source = root / folder.name / "lib" / folder.name
+    if not source.is_dir():
+        raise BuildError(f"{LOCKFILE} lists folder package {folder.name!r}, but {folder.name}/lib/{folder.name} is not a directory")
+    if folder.name in tree.packages:
+        raise BuildError(f"two packages are named {folder.name!r}: {tree.packages[folder.name]} and {folder.name}/")
+    version = folder_version(root, folder.name)
+    tree.packages[folder.name] = f"{folder.name}/"
+    destination = tree.path / folder.name
+    shutil.copytree(source, destination / folder.name, ignore=_ignore_debris)
+    (destination / "manifest.py").write_text(
+        render_manifest(
+            description=folder.description,
+            version=version,
+            pypi=folder.pypi,
+            requires=folder.requires,
+            payloads=(f'package("{folder.name}")',),
+            library=library,
+            local=local,
+        ),
+        encoding="utf-8",
+    )
+
+
 def local_names(root: Path, lock: Lock) -> frozenset[str]:
     """Every package name the library will hold, known before assembling it."""
     split = read_split(root)
-    names = {"pydevices", "pydevices-desktop", *lock.pinned}
+    names = {"pydevices", "pydevices-desktop", *lock.pinned, *lock.folders}
     names.update(name for name, section in split.items() if section.get("own-package") or section.get("top-level"))
     return frozenset(names)
 
@@ -781,6 +844,8 @@ def cmd_build(args) -> int:
     tree.path.mkdir(parents=True)
     local = local_names(root, lock)
     assemble_repo_packages(root, lock, version, tree, library, local)
+    for folder in lock.folders.values():
+        assemble_folder(folder, root, tree, library, local)
     cache = Path(args.cache).resolve()
     for pinned in lock.pinned.values():
         source = overrides.get(pinned.name) or fetch(pinned, cache)
@@ -863,7 +928,7 @@ def main(argv=None) -> int:
     build.add_argument("--out", default="build/lib", help="output folder; replaced on each build (default build/lib)")
     build.add_argument("--root", default=str(ROOT), help="the repository to build from (default: this one)")
     build.add_argument("--lock", help=f"folder holding {LOCKFILE} (default: --root)")
-    build.add_argument("--version", help="version of this repository's packages (default: its VERSION file)")
+    build.add_argument("--version", help="version of this repository's packages (default: its VERSION file); a folder package keeps its own")
     build.add_argument("--cache", default=str(ROOT / "build" / "lib-sources"), help="where pinned sources are cloned")
     build.add_argument("--source", action="append", default=[], metavar="NAME=PATH", help="use a local checkout for a pinned package")
     build.add_argument("--mpy-cross", help="the mpy-cross to use (default: $MPY_CROSS, then PATH)")

@@ -10,19 +10,23 @@
       "description": "Portable async Bluetooth Low Energy for PyDevices, over aioble on boards"
     }
   },
-  "pinned": {
+  "folders": {
     "palettes": {
-      "repository": "PyDevices/palettes",
-      "ref": "v0.0.14",
       "description": "Color palette toolkit for PyDevices (wheel, cube, material_design)",
       "pypi": "pydevices-palettes"
     },
     "pdwidgets": {
-      "repository": "PyDevices/pdwidgets",
-      "ref": "v0.0.24",
       "description": "Cross-platform widget toolkit for PyDevices",
       "pypi": "pydevices-pdwidgets"
     },
+    "appkit": {
+      "description": "Several apps in one program for PyDevices: a launcher, a home screen, and each app's memory back when it closes",
+      "requires": [
+        "pydevices"
+      ]
+    }
+  },
+  "pinned": {
     "pygraphics": {
       "repository": "PyDevices/pygraphics",
       "ref": "v0.1.0",

@@ -43,6 +43,14 @@ def _split():
     return tomllib.loads((ROOT / "mip-split.toml").read_text(encoding="utf-8"))
 
 
+def _folders():
+    return json.loads((ROOT / "lib-lock.json").read_text(encoding="utf-8")).get("folders", {})
+
+
+def _folder_version(name):
+    return (ROOT / name / "VERSION").read_text(encoding="utf-8").strip()
+
+
 class BuiltRepository(unittest.TestCase):
     """One build of this repository, shared by the tests that read it."""
 
@@ -70,6 +78,9 @@ class BuiltRepository(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.scratch, ignore_errors=True)
 
+    def version_of(self, name):
+        return _folder_version(name) if name in _folders() else self.version
+
     def package(self, name, kind="py"):
         return json.loads((self.out / "index" / "package" / kind / name / "latest.json").read_text(encoding="utf-8"))
 
@@ -80,21 +91,23 @@ class BuiltRepository(unittest.TestCase):
         split = _split()
         expected = {"pydevices", "pydevices-desktop"}
         expected.update(name for name, section in split.items() if section.get("top-level") or section.get("own-package"))
+        expected.update(_folders())
         self.assertEqual({p["name"] for p in self.index["packages"]}, expected)
         for entry in self.index["packages"]:
             with self.subTest(package=entry["name"]):
-                self.assertEqual(entry["version"], self.version)
+                self.assertEqual(entry["version"], self.version_of(entry["name"]))
                 self.assertTrue(entry["description"])
 
     def test_package_files_are_where_mip_reads_them(self):
         for entry in self.index["packages"]:
             name = entry["name"]
             with self.subTest(package=name):
+                version = self.version_of(name)
                 for kind in ("py", "6"):
-                    for stem in ("latest", self.version):
+                    for stem in ("latest", version):
                         body = json.loads((self.out / "index" / "package" / kind / name / f"{stem}.json").read_text())
                         self.assertEqual(set(body), {"v", "hashes", "version"})
-                        self.assertEqual(body["version"], self.version)
+                        self.assertEqual(body["version"], version)
                 py = self.paths(name)
                 self.assertTrue(py)
                 self.assertEqual(self.paths(name, "6"), [path[:-2] + "mpy" for path in py])
@@ -128,6 +141,24 @@ class BuiltRepository(unittest.TestCase):
         self.assertTrue(set(self.paths("usb-core")) <= set(self.paths("usb-host-msc")))
         desktop = (self.out / "library" / "pydevices-desktop" / "manifest.py").read_text(encoding="utf-8")
         self.assertIn('require("pydevices", library="omnipython-lib")', desktop)
+
+    def test_a_folder_package_has_its_own_version_and_only_its_sources(self):
+        for name in _folders():
+            with self.subTest(package=name):
+                version = _folder_version(name)
+                manifest = (self.out / "library" / name / "manifest.py").read_text(encoding="utf-8")
+                self.assertIn(f'version="{version}"', manifest)
+                own = [path for path in self.paths(name) if path.startswith(f"{name}/")]
+                self.assertTrue(own)
+                for path, short in self.package(name)["hashes"]:
+                    if path.startswith(f"{name}/"):
+                        text = (self.out / "index" / "file" / short[:2] / short).read_text(encoding="utf-8")
+                        self.assertTrue(text.endswith(f"\n\n__version__ = {version!r}\n"), path)
+                self.assertEqual(sorted(p.name for p in (self.out / "library" / name).iterdir()), sorted([name, "manifest.py"]))
+
+    def test_appkit_brings_pydevices_with_it(self):
+        self.assertLessEqual(set(self.paths("pydevices")), set(self.paths("appkit")))
+        self.assertIn("appkit/launcher.py", self.paths("appkit"))
 
     def test_an_upstream_requirement_is_left_out_and_said(self):
         self.assertNotIn("aioble/core.py", self.paths("bledev"))
@@ -202,8 +233,26 @@ class Lockfile(unittest.TestCase):
 
     def test_no_pinned_package_shadows_one_built_here(self):
         lock = libbuild.read_lock(ROOT)
-        here = {"pydevices", "pydevices-desktop", *(n for n, s in _split().items() if s.get("top-level") or s.get("own-package"))}
+        here = {"pydevices", "pydevices-desktop", *lock.folders, *(n for n, s in _split().items() if s.get("top-level") or s.get("own-package"))}
         self.assertEqual(set(lock.pinned) & here, set())
+
+    def test_every_folder_package_has_a_version_and_its_sources(self):
+        lock = libbuild.read_lock(ROOT)
+        self.assertTrue(lock.folders)
+        for name in lock.folders:
+            with self.subTest(package=name):
+                self.assertRegex(_folder_version(name), r"^\d+\.\d+\.\d+")
+                self.assertTrue((ROOT / name / "lib" / name / "__init__.py").is_file())
+                self.assertNotIn(name, _split(), "a folder package has its own version; mip-split.toml is for the repository's")
+
+    def test_a_package_both_pinned_and_in_a_folder_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"repository": "PyDevices/x", "ref": "v1.0.0", "description": "x"}
+            Path(tmp, "lib-lock.json").write_text(
+                json.dumps({"repo": {}, "pinned": {"x": entry}, "folders": {"x": {"description": "x"}}}), encoding="utf-8"
+            )
+            with self.assertRaises(libbuild.BuildError):
+                libbuild.read_lock(Path(tmp))
 
 
 if __name__ == "__main__":
