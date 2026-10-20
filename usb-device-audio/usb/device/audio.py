@@ -23,10 +23,20 @@
 # only calls service() now and then.
 #
 # mute and volume (in 1/256 dB) are what the computer's volume control set.
+#
+# The packet size follows the link. A USB device can't tell which speed it will
+# run at until a computer has configured it, and the descriptor is read before
+# that, so the speaker offers the controller's fastest speed first. If the
+# computer turns out to be full speed, the speaker rewrites its endpoints
+# (196-byte packets every millisecond, in place of a high-speed link's 28 bytes
+# every 125 us) and re-enumerates once, the first time service() runs or the
+# computer starts playing. Pass high_speed=True or False when you know the
+# link, and none of that happens; packet= sets the packet size yourself.
 import struct
+import time
 
 import machine
-from micropython import const
+from micropython import const, schedule
 
 from .core import Interface, split_bmRequestType
 
@@ -57,19 +67,29 @@ _VOLUME_RES = const(256)
 
 class SpeakerInterface(Interface):
     """A stereo UAC2 speaker. ``ring_bytes`` sizes the ring the samples land
-    in; about 50 ms of audio by default."""
+    in; about 50 ms of audio by default.
 
-    def __init__(self, *, rate=48000, channels=2, sample_bytes=2, ring_bytes=8192, sink=None, interface_str=None):
+    ``high_speed`` is None to follow the link (see the top of this file),
+    True or False to say which speed the speaker is built for and keep it
+    there. ``packet`` is the isochronous packet size in bytes, by default one
+    frame's worth of samples plus one of slack. Both can be set on the
+    instance before ``init()`` too."""
+
+    def __init__(self, *, rate=48000, channels=2, sample_bytes=2, ring_bytes=8192, sink=None, interface_str=None,
+                 high_speed=None, packet=None):
         super().__init__()
         self.rate = rate
         self.channels = channels
         self.sample_bytes = sample_bytes
         self.frame_bytes = channels * sample_bytes
-        self.high_speed = machine.USBDevice().speed() == 2
-        # One frame's worth (1 ms at full speed, 125 us at high speed), plus
-        # one sample frame of slack for a clock running fast.
-        per_frame = rate // (8000 if self.high_speed else 1000)
-        self.packet = (per_frame + 1) * self.frame_bytes
+        self._usbd = machine.USBDevice()
+        self._want_hs = None if high_speed is None else bool(high_speed)
+        self._want_packet = packet
+        # What the descriptor was built for. Before init() it is the
+        # controller's answer now, which is only a guess: before a computer
+        # has configured the board, speed() reports the fastest the
+        # controller can run, whatever the link will turn out to be.
+        self._assumed = self._usbd.speed() == 2
         # sink: an audiodsp audiopump.Ring the samples go to instead, from the
         # USB interrupt straight to the pump that plays it (Ring.from_usb).
         self.sink = sink
@@ -82,14 +102,43 @@ class SpeakerInterface(Interface):
         capacity = sink.level() + sink.space() if sink is not None else self.ring.stats()[0]
         #: The level, in bytes, service() steers the computer's clock to hold.
         self.target = (capacity // 2) // self.frame_bytes * self.frame_bytes
+        self._desc = None  # the configuration descriptor's bytes, once built
+        self._ep_off = 0  # where this speaker's endpoint descriptors start in it
+        self._verify = False
+        self._resize()
+
+    @property
+    def high_speed(self):
+        """True if the descriptor is built for a high-speed link."""
+        return self._assumed if self._want_hs is None else self._want_hs
+
+    @high_speed.setter
+    def high_speed(self, value):
+        self._want_hs = bool(value)
+        self._resize()
+
+    @property
+    def packet(self):
+        """The isochronous OUT packet size, in bytes."""
+        if self._want_packet is not None:
+            return self._want_packet
+        # One frame's worth (1 ms at full speed, 125 us at high speed), plus
+        # one sample frame of slack for a clock running fast.
+        per_frame = self.rate // (8000 if self.high_speed else 1000)
+        return (per_frame + 1) * self.frame_bytes
+
+    @packet.setter
+    def packet(self, value):
+        self._want_packet = value
+
+    def _resize(self):
         # Feedback: samples per frame, 10.14 at full speed in 3 bytes, 16.16
         # at high speed in 4.
         if self.high_speed:
-            self._nominal = (rate << 16) // 8000
+            self._nominal = (self.rate << 16) // 8000
         else:
-            self._nominal = (rate << 14) // 1000
+            self._nominal = (self.rate << 14) // 1000
         self._fb = self._nominal
-        self._usbd = machine.USBDevice()
 
     # -- descriptors
 
@@ -107,7 +156,11 @@ class SpeakerInterface(Interface):
             istr = 0
         self.ep_out = ep_num
         self.ep_fb = ep_num | _EP_IN_FLAG
-        fb_interval = 4 if self.high_speed else 1  # 1 ms either way
+        if self._want_hs is None:
+            # As late as it can be: init() builds the descriptor just before
+            # the computer reads it.
+            self._assumed = self._usbd.speed() == 2
+        self._resize()
         cs_ac_total = 9 + 8 + 17 + 12 + 18
         desc.extend(bytes((8, 0x0B, itf_num, 2, 0x01, 0x00, 0x20, 0)))  # IAD
         desc.extend(bytes((9, 0x04, itf_num, 0, 0, 0x01, 0x01, 0x20, istr)))  # AC interface
@@ -124,9 +177,10 @@ class SpeakerInterface(Interface):
         desc.extend(bytes((9, 0x04, itf_num + 1, 1, 2, 0x01, 0x02, 0x20, 0)))  # AS alt 1
         desc.extend(struct.pack("<BBBBBBIBIB", 16, 0x24, 0x01, _INPUT_ID, 0, 0x01, 0x01, self.channels, 0, 0))
         desc.extend(bytes((6, 0x24, 0x02, 0x01, self.sample_bytes, self.sample_bytes * 8)))  # Type I format
-        desc.extend(struct.pack("<BBBBHB", 7, 0x05, self.ep_out, 0x05, self.packet, 1))  # iso OUT, async
-        desc.extend(bytes((8, 0x25, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00)))  # CS iso endpoint
-        desc.extend(struct.pack("<BBBBHB", 7, 0x05, self.ep_fb, 0x11, 4 if self.high_speed else 3, fb_interval))
+        self._ep_off = desc.o
+        desc.extend(self._endpoints())
+        if desc.b:  # the real pass, not the one that only measures
+            self._desc = desc.b
         self._itf = itf_num
         # UAC2 class requests name their target entity in wIndex's high byte,
         # and usb-device's core looks the interface up by the whole wIndex, so
@@ -137,6 +191,15 @@ class SpeakerInterface(Interface):
         itfs = get()._itfs
         for entity in (_CLOCK_ID, _INPUT_ID, _FEATURE_ID, _OUTPUT_ID):
             itfs[(entity << 8) | itf_num] = self
+
+    def _endpoints(self):
+        # The streaming endpoint, its class-specific descriptor and the
+        # feedback endpoint, sized for the speed this speaker is built for.
+        hs = self.high_speed
+        out = struct.pack("<BBBBHB", 7, 0x05, self.ep_out, 0x05, self.packet, 1)  # iso OUT, async
+        out += bytes((8, 0x25, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00))  # CS iso endpoint
+        out += struct.pack("<BBBBHB", 7, 0x05, self.ep_fb, 0x11, 4 if hs else 3, 4 if hs else 1)  # 1 ms either way
+        return out
 
     # -- control requests
 
@@ -200,6 +263,8 @@ class SpeakerInterface(Interface):
     def _set_alt(self, alt):
         self.alt = alt
         if alt:
+            if self._check_speed():
+                return  # re-enumerating; the computer selects this again
             self._fb = self._nominal
             if self.sink is not None:
                 self.sink.from_usb(self.ep_out, self.packet)
@@ -216,9 +281,43 @@ class SpeakerInterface(Interface):
     def _fb_bytes(self):
         return struct.pack("<I", self._fb)[: 4 if self.high_speed else 3]
 
+    def on_open(self):
+        super().on_open()
+        self._verify = self._want_hs is None
+
     def on_reset(self):
         super().on_reset()
         self.alt = 0
+
+    # -- the link's speed
+
+    def _check_speed(self):
+        """Once a computer has configured the board, speed() is the speed it
+        negotiated. If this speaker was sized for the other one, rewrite its
+        endpoints to match and re-enumerate, so the computer reads packets it
+        can fill. True if it did. Never when ``high_speed`` was given."""
+        self._verify = False
+        if self._want_hs is not None or self._desc is None:
+            return False
+        actual = self._usbd.speed() == 2
+        if actual == self._assumed:
+            return False
+        self._assumed = actual
+        self._resize()
+        end = self._ep_off + 22
+        self._desc[self._ep_off : end] = self._endpoints()
+        # The control transfer that got us here can't tear the device down
+        # underneath itself.
+        schedule(self._reattach, None)
+        return True
+
+    def _reattach(self, _=None):
+        from . import get
+
+        dev = get()
+        dev.active(False)
+        time.sleep_ms(250)
+        dev.active(True)
 
     # -- the clock
 
@@ -235,6 +334,8 @@ class SpeakerInterface(Interface):
         (an effect chain's own ring), pass that ``level`` in bytes and set
         ``target`` to the level to hold there: the computer's clock is then
         steered by what actually builds up."""
+        if self._verify:
+            self._check_speed()
         if not self.alt:
             return
         if level is None:
