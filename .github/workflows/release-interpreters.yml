@@ -225,7 +225,7 @@ jobs:
           # Every source commit, read from the trees themselves.
           SOURCES_JSON=$RUNNER_TEMP/sources.json
           export SOURCES_JSON
-          scripts/release_interpreters/sources.py record --mpp micropython-pydevices \
+          python3 scripts/release_interpreters/sources.py record --mpp micropython-pydevices \
             --lvgl-circuitpython lvgl-circuitpython --pydevices pydevices \
             --pydevices-ref "${TAG#unreleased}" | tee "$SOURCES_JSON"
           # An attached set is made only from the pins.
