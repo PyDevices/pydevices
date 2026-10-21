@@ -49,4 +49,7 @@ Transports are swappable and neither side knows which carries it:
 | A UART or USB CDC | `stream.link(uart)` | `stream.link(uart)` |
 
 Runs on MicroPython, CircuitPython and CPython, with no threads and no
-asyncio. `hmilink/tests/run.py` runs on all three.
+asyncio. `hmilink/tests/run.py` runs on all three (CircuitPython has no
+sockets on the desktop, so the TCP checks are skipped there).
+
+This is a preview: it isn't released yet, and the names may still change.
