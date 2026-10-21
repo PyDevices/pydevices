@@ -98,6 +98,7 @@ An exact match for all four is rare; bus + display controller is usually enough 
 | `fbdisplay/adafruit_metro_rp2350_hstx_640x480` | Metro RP2350 + Adafruit HSTX→DVI adapter |
 | `cp/fbdisplay/qualia_tl040hds20` | CircuitPython Qualia |
 | `cp/fbdisplay/esp32-s3-touch-lcd-7` | Waveshare ESP32-S3-Touch-LCD-7 on CircuitPython-compatible firmware with its own board definition (`board.DISPLAY` is the 800×480 panel; GT911 touch) |
+| `cp/fbdisplay/esp32-s3-touch-lcd-4_3` | Waveshare ESP32-S3-Touch-LCD-4.3 on CircuitPython-compatible firmware with its own board definition (`board.DISPLAY` is the 800×480 panel; GT911 touch) |
 | `cp/fbdisplay/usb_video` | CircuitPython USB Video |
 | `cp/fbdisplay/matrixportal_s3_64x64` | MatrixPortal S3 HUB75 64×64 |
 | `fbdisplay/matrixportal_s3_64x64` | MP skeleton (rgbmatrix cmod) |
