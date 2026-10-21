@@ -1,0 +1,32 @@
+{
+  "board": "esp32-p4-wifi6-dev-kit_kedei-5in-dsi",
+  "runs": [
+    {
+      "hardware": "Waveshare ESP32-P4-WIFI6-DEV-KIT with a KeDei 5-inch DSI display",
+      "firmware": "micropython 1.30.0 (Waveshare ESP32-P4-WIFI6-DEV-KIT, USB device on H2 with ESP32-P4), v1.30.0-preview.161.g52813b3bb4.dirty on 2026-10-20",
+      "date": "2026-10-20",
+      "smoke": "passed",
+      "checks": [
+        "board_config imports",
+        "display draws",
+        "touch reads",
+        "audio_out answers",
+        "audio_power answers",
+        "ble answers",
+        "boot_button answers",
+        "camera answers",
+        "ethernet answers",
+        "i2c answers",
+        "pcm_in answers",
+        "pcm_out answers",
+        "radio answers",
+        "sdcard answers",
+        "wlan answers"
+      ],
+      "skipped": [
+        "usb_device"
+      ],
+      "tool": "tools/mark_tested.py"
+    }
+  ]
+}
