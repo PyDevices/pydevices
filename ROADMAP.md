@@ -30,5 +30,11 @@ with each kind of peripheral described honestly by its role.
   ships, a board running `bledev.midi.serve()` should open in any Windows MIDI
   app without pairing, and the BLE docs say so.
 
+## hmilink
+
+- Announce the device over mDNS, so a phone finds it without typing its address.
+- A TouchOSC/OSC codec at the edge, so those controllers can be panels. The
+  codec layer is already separate from the transports.
+
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
