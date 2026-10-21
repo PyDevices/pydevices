@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sayso"
+version = "0.1.0"
+description = "Lightweight Spotify Web API client experiments for CPython, MicroPython, and CircuitPython"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    { name = "Brad" }
+]
+keywords = ["spotify", "web-api", "micropython", "circuitpython"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+
+[project.optional-dependencies]
+schema = ["PyYAML"]
+
+[tool.setuptools]
+packages = ["sayso"]
+
+[tool.setuptools.exclude-package-data]
+sayso = ["generated_object_specs.py"]
