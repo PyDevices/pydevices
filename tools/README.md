@@ -64,9 +64,9 @@ repositories (palettes, pdwidgets, pygraphics, audioinstruments, audioeffects)
 are cloned at the tags [`lib-lock.json`](../lib-lock.json) names; pass
 `--source palettes=../palettes` to build one from a local checkout instead.
 
-A package that requires one of micropython-lib's (`bledev` requires `aioble`)
-is built without it, and the build says so: install the upstream package from
-micropython-lib's index first. `--upstream-lib PATH` includes it from a
+A package that requires one of micropython-lib's (the board configs that
+need `sdcard`, say) is built without it, and the build says so: install the
+upstream package from micropython-lib's index first. `--upstream-lib PATH` includes it from a
 micropython-lib checkout instead.
 
 To check a build against another index, file hash by file hash:

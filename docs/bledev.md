@@ -44,16 +44,20 @@ than doing nothing.
 
 ## Installing it
 
-On a board, once `bledev` is published to the PyDevices index:
+On a board, install aioble from MicroPython's own index, then bledev from
+the PyDevices index:
 
 ```python
 import mip
+mip.install("aioble")
 mip.install("bledev", index="https://PyDevices.github.io/mip")
 ```
 
-That one install brings aioble with it; our firmware has `bluetooth` but
-doesn't freeze aioble. Until then, `mip.install("aioble", index=...)` and copy
-[`lib/bledev/`](../lib/bledev/) to `/lib/bledev/` yourself.
+`mip` takes every file of a package from the one index you give it, so a
+package from the PyDevices index can't pull aioble from MicroPython's. Do the
+aioble line once per board. Firmware that freezes aioble (OmniPython's, in time)
+needs neither step for it. Our firmware has `bluetooth` but doesn't freeze
+aioble yet.
 
 On a laptop, bledev is inside the `pydevices` wheel. `pip install "pydevices[ble]"`
 adds bleak, which the laptop backend needs.

@@ -82,6 +82,19 @@ firmware-provided `i80bus`, `i2cbus` and `spibus` take precedence. `python
 tools/libbuild.py check` and `installers --check` validate every board and
 driver package.
 
+## The library index
+
+Every release also asks the library index to rebuild. A `vX.Y.Z` release, a
+pre-release included, and a `palettes-vX.Y.Z` or `pdwidgets-vX.Y.Z` release
+each send [PyDevices/lib](https://github.com/PyDevices/lib) a request naming
+the tag. It records the tag, builds every package with `tools/libbuild.py`
+from the releases it has recorded, and serves the result from GitHub Pages at
+`https://pydevices.github.io/lib` (the address moves to `lib.omnipython.org`).
+Unlike the mip index at `PyDevices.github.io/mip`, which only takes finals,
+the library index takes pre-releases, so its `latest` can be a release
+candidate. A board installs from it with
+`mip.install("pydevices", index="https://pydevices.github.io/lib")`.
+
 ## PyScript filesystem
 
 [`pydevices-desktop.toml`](../pydevices-desktop.toml) is a generated, committed filesystem mapping that

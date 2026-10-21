@@ -48,7 +48,8 @@ Docs are markdown under `docs/`, published only via GitHub Pages
   `pydevices-desktop` without becoming a separate package. The desktop package
   depends on `pydevices`.
   `bledev` is the one `lib/` package declared to publish to MIP on its own
-  (`mip-split.toml`, `own-package`), requiring aioble; `bledev.auto` is
+  (`mip-split.toml`, `own-package`); aioble comes from micropython-lib,
+  installed first; `bledev.auto` is
   never imported by `bledev/__init__.py` or a backend.
   `AutoDisplay` is `displaydev.auto` only — never re-exported from
   `displaydev/__init__.py`. Backends must not import `.auto`.
