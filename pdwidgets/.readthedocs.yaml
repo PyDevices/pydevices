@@ -9,8 +9,9 @@ build:
   tools:
     python: "3.13"
 
-mkdocs:
-  configuration: pdwidgets/mkdocs.yml
+sphinx:
+  configuration: pdwidgets/docs/conf.py
+  fail_on_warning: true
 
 python:
   install:

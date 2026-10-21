@@ -8,6 +8,7 @@ A comprehensive reference for all 50+ pure-Python UI components available in `pd
 
 Interact with buttons, sliders, progress bars, and switches live in your browser:
 
+````{raw} html
 <div class="pydevices-live-demo">
   <div class="demo-editor-pane">
     <textarea class="code-editor">
@@ -40,6 +41,7 @@ print("Playground widgets initialized!")
     <canvas id="canvas_widget_catalog" width="320" height="240" tabindex="0"></canvas>
   </div>
 </div>
+````
 
 ---
 

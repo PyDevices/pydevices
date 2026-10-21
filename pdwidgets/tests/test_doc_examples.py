@@ -34,7 +34,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 DOC_FILES = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
 
-# ```python fences are sometimes indented (mkdocs tabs, list items); allow a
+# ```python fences are sometimes indented (tabs, list items); allow a
 # common leading-whitespace prefix on both fence lines and dedent the body.
 FENCE_RE = re.compile(r"^[ \t]*```python\n(.*?)^[ \t]*```", re.DOTALL | re.MULTILINE)
 

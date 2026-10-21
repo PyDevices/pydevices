@@ -9,8 +9,9 @@ build:
   tools:
     python: "3.13"
 
-mkdocs:
-  configuration: palettes/mkdocs.yml
+sphinx:
+  configuration: palettes/docs/conf.py
+  fail_on_warning: true
 
 python:
   install:

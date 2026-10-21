@@ -27,8 +27,8 @@ class WheelPalette(_Palette):
     through hue at a fixed saturation and brightness for more controlled ramps.
 
     Args:
-        name (str): Prefix for [name][palettes.Palette.name] (length suffix is added).
-        color_depth (int): Output format; see [Palette][palettes.Palette].
+        name (str): Prefix for `name <palettes.Palette.name>` (length suffix is added).
+        color_depth (int): Output format; see `Palette <palettes.Palette>`.
         swapped (bool): Byte-swap 16-bit colors when ``True``.
         cached (bool): Memoize index lookups when ``True`` (default).
         length (int): Number of colors in the wheel (default ``256``).
@@ -54,9 +54,9 @@ class WheelPalette(_Palette):
         """Create a wheel or fixed-saturation HSV ramp palette.
 
         Args:
-            name (str): Prefix for [name][palettes.Palette.name] (length suffix
+            name (str): Prefix for `name <palettes.Palette.name>` (length suffix
                 is added).
-            color_depth (int): Output format; see [Palette][palettes.Palette].
+            color_depth (int): Output format; see `Palette <palettes.Palette>`.
             swapped (bool): Byte-swap 16-bit colors when ``True``.
             cached (bool): Memoize index lookups when ``True`` (default).
             length (int): Number of colors in the wheel (default ``256``).
