@@ -82,7 +82,20 @@ tft_timings = {
     "pclk_idle_high": False,
 }
 
-fb = dotclockframebuffer.DotClockFramebuffer(**tft_pins, **tft_timings)
+# Bounce buffers: two of them, each BOUNCE_ROWS rows of the panel, refilled
+# from the PSRAM frame buffer while the panel scans. They come out of internal
+# DMA RAM, which Wi-Fi, BLE, TLS and a USB host need too: 10 rows is 32 KB,
+# the driver's default of 20 is 64 KB. Fewer rows mean more refill interrupts
+# per frame, not less throughput. Any divisor of 480 from 4 to 20 works;
+# displayif builds without bounce_rows keep their own default.
+BOUNCE_ROWS = 10
+
+try:
+    fb = dotclockframebuffer.DotClockFramebuffer(
+        **tft_pins, **tft_timings, bounce_rows=BOUNCE_ROWS
+    )
+except TypeError:
+    fb = dotclockframebuffer.DotClockFramebuffer(**tft_pins, **tft_timings)
 display_drv = FBDisplay(fb)
 
 # GT911: RST on CH422G EXIO1, INT=GPIO4 (address-select during reset → 0x5D)
