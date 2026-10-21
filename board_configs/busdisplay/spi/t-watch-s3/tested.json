@@ -1,0 +1,33 @@
+{
+  "board": "t-watch-s3",
+  "runs": [
+    {
+      "hardware": "LILYGO T-Watch S3 (ESP32-S3, 16 MB flash, 8 MB PSRAM)",
+      "firmware": "micropython 1.30.0 (Generic ESP32S3 module with Octal-SPIRAM with ESP32-S3), v1.30.0-preview.161.g2d7003333b.dirty on 2026-10-20",
+      "date": "2026-10-21",
+      "smoke": "passed",
+      "checks": [
+        "board_config imports",
+        "display draws",
+        "touch reads",
+        "accelerometer answers",
+        "audio_out answers",
+        "audio_power answers",
+        "battery answers",
+        "ble answers",
+        "boot_button answers",
+        "haptic answers",
+        "ir answers",
+        "lora answers",
+        "pcm_in answers",
+        "pcm_out answers",
+        "rtc answers",
+        "wlan answers"
+      ],
+      "skipped": [
+        "sleep"
+      ],
+      "tool": "tools/mark_tested.py"
+    }
+  ]
+}

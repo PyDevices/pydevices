@@ -13,6 +13,8 @@
 
 - bledev declares no dependency on aioble; releases also ask the library index to rebuild (#261)
 - Tested: the P4 panel and the S3 LCD-4.3 pass their smoke tests (#260)
+- Tested: the LILYGO T-Watch S3 passes its smoke test
+- The board smoke test never calls a role that would put the board to sleep or reset it (`sleep`, `reset`, and the like); it only checks the role is there. On the T-Watch S3 a `sleep` check used to leave the board in light sleep
 - Tested: the ESP32-P4 WIFI6 DEV-KIT with the KeDei 5-inch display passes its smoke test (#259)
 - backends: a registry AutoDisplay and audiodev.auto look their backend up in (experimental) (#258)
 - Tested: the S3 LCD-7 and the desktop board config pass their smoke tests (#257)
