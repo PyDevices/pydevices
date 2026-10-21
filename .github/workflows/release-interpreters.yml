@@ -140,21 +140,15 @@ jobs:
             sudo apt-get install -y $pkgs
           fi
 
-      - name: CircuitPython's frozen Python and widgets
+      - name: CircuitPython's LVGL helpers
         if: matrix.target == 'cp-unix'
         env:
           LVGL_CP_REF: ${{ inputs.lvgl-circuitpython-ref }}
         run: |
-          # lvgl-circuitpython at its pin, then pdwidgets and palettes at the
-          # commits micropython-pydevices pins.
+          # lvgl-circuitpython at its pin; pdwidgets and palettes are frozen
+          # from this release's own library.
           mkdir -p ws && cd ws
           ../recipe/scripts/release_interpreters.sh fetch lvgl-circuitpython lvgl-circuitpython "$LVGL_CP_REF"
-          for name in pdwidgets palettes; do
-            read -r _ url commit < <(grep "^$name[[:space:]]" ../micropython-pydevices/modules.lock)
-            git init --quiet "$name"
-            git -C "$name" fetch --quiet --depth 1 "$url" "$commit"
-            git -C "$name" checkout --quiet FETCH_HEAD
-          done
           ls
 
       - name: Build ${{ matrix.target }}

@@ -4,12 +4,13 @@
 # SHAs: GitHub serves a fetch by commit only for the whole hash.
 #
 #   micropython-pydevices   build_mp.py, its patches, and its own locks: the
-#                           MicroPython commit, the toolchains, and every module
-#                           except pydevices (that one is the release's tag)
+#                           MicroPython commit, the toolchains, and every module;
+#                           the library (pydevices, palettes, pdwidgets) is the
+#                           release's tag
 #   lvgl-circuitpython      the LVGL bindings the CircuitPython build compiles
 #
 # To move them to the current tips of their default branches, run
 #   python3 scripts/release_interpreters/sources.py bump
 # and commit the result. docs/publishing.md has the rest.
-micropython-pydevices   https://github.com/PyDevices/micropython-pydevices.git   bc7fe13d65e45f270a52a6d8429ea77e248cd9cc
+micropython-pydevices   https://github.com/PyDevices/micropython-pydevices.git   daefecb7aecdae7b4d120b6c8a120d6af79a0c02
 lvgl-circuitpython      https://github.com/PyDevices/lvgl-circuitpython.git      7fb257a5f3d0d5c2f28c27c235e6239714e740c4

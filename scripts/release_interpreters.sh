@@ -30,8 +30,8 @@
 #         MPP_DIR  a micropython-pydevices checkout (required)
 #         PYD_DIR  the pydevices tree to build into the interpreters
 #                  (default: the one this script lives in)
-#         WS_DIR   cp-unix only: a directory holding checkouts of
-#                  lvgl-circuitpython, pdwidgets and palettes
+#         WS_DIR   cp-unix only: a directory holding a checkout of
+#                  lvgl-circuitpython
 #         JOBS     make parallelism (default: nproc)
 #
 # Every interpreter carries every module, the way the desktop builds are
@@ -109,10 +109,11 @@ build() {
     out=$(cd "$out" && pwd)
 
     # The release's own pydevices goes into the interpreter, not the commit
-    # modules.lock names: build_mp.py fetches a module only when
-    # modules/<name> is missing, and a link there wins.
-    if [[ ! -e "$mpp/modules/pydevices" ]]; then
-        ln -s "$pyd" "$mpp/modules/pydevices"
+    # modules.lock names for omnipython-lib: build_mp.py takes the library from
+    # modules/.omnipython-lib when it is there, and a link wins. The packages
+    # of the release (pydevices, palettes, pdwidgets) come out of this tree.
+    if [[ ! -e "$mpp/modules/.omnipython-lib" ]]; then
+        ln -s "$pyd" "$mpp/modules/.omnipython-lib"
     fi
 
     cd "$mpp"
@@ -132,17 +133,15 @@ build() {
             install -m 755 builds/webassembly/pydevices/micropython.wasm "$out/micropython.wasm"
             ;;
         cp-unix)
-            : "${WS_DIR:?set WS_DIR to a directory with lvgl-circuitpython, pdwidgets and palettes}"
+            : "${WS_DIR:?set WS_DIR to a directory with a checkout of lvgl-circuitpython}"
             local ws cp_dir
             ws=$(cd "$WS_DIR" && pwd)
             cp_dir="$HERE/release_interpreters/circuitpython"
-            for d in lvgl-circuitpython pdwidgets palettes; do
-                [[ -f "$ws/$d/manifest.py" ]] || { echo "error: $ws/$d is not a checkout" >&2; return 1; }
-            done
-            RELEASE_INTERPRETERS_WS="$ws" JOBS="$jobs" python3 build_mp.py \
+            [[ -f "$ws/lvgl-circuitpython/manifest.py" ]] || { echo "error: $ws/lvgl-circuitpython is not a checkout" >&2; return 1; }
+            # pdwidgets and palettes are frozen from the library, by build_mp.py.
+            JOBS="$jobs" python3 build_mp.py \
                 --interpreter circuitpython --port unix \
-                --modules "audiodsp,displayif,pygraphics,$ws/lvgl-circuitpython,$cp_dir/unix-extras" \
-                FROZEN_MANIFEST="$cp_dir/manifest.py"
+                --modules "audiodsp,displayif,pygraphics,pdwidgets,palettes,$ws/lvgl-circuitpython,$cp_dir/unix-extras"
             install -m 755 builds/circuitpython/unix/coverage/micropython "$out/circuitpython"
             ;;
         *)
