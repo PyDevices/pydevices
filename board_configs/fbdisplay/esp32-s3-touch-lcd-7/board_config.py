@@ -3,6 +3,9 @@
 Pin map / timings match ESP32_Display_Panel / Waveshare wiki for
 ``ESP32-S3-Touch-LCD-7`` (same RGB GPIO map as the 4.3″ sibling).
 Backlight + LCD/touch reset via CH422G on I2C (SDA=8, SCL=9).
+
+Install it with ``mip.install("esp32-s3-touch-lcd-7",
+index="https://pydevices.github.io/lib")``.
 """
 
 import time
