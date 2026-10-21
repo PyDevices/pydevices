@@ -3,9 +3,9 @@
     from bledev.mpble import MPBLE
     ble = MPBLE()                  # or MPBLE(bluetooth.BLE()) from a board config
 
-Needs aioble, which isn't frozen into our firmware: install it with
-``mip.install("aioble")``, or install ``bledev`` from the PyDevices index, which
-brings aioble with it.
+Needs aioble, which isn't frozen into our firmware: install it once with
+``mip.install("aioble")`` (MicroPython's index), then ``bledev`` from the
+PyDevices index.
 
 aioble owns the one ``bluetooth.BLE()`` object and its IRQ handler. An
 :class:`MPBLE` also answers every ``bluetooth.BLE`` method (``active()``,

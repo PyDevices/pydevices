@@ -3,8 +3,8 @@
 # upload it to TestPyPI, and attach it to the GitHub Release. pydevices' own
 # releases (vX.Y.Z tags) go through publish-release-packages.yml instead.
 #
-# Production PyPI and the mip index aren't here. Neither is published from
-# this repository's pydevices chain either.
+# Production PyPI isn't here, and neither is the mip index. The library index
+# (PyDevices/lib) is asked for the folder at its tag.
 name: Publish package release
 
 on:
@@ -99,11 +99,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ needs.resolve.outputs.tag }}" dist/* --clobber --repo "$GITHUB_REPOSITORY"
 
+  request-library-publication:
+    # The library index (PyDevices/lib) builds this folder at this tag. The mip
+    # index doesn't take it: its palettes and pdwidgets profiles are locked to
+    # the archived repositories.
+    needs: [resolve, build, publish-to-testpypi]
+    uses: PyDevices/.github/.github/workflows/reusable-request-mip-publication.yml@publishing-v15
+    with:
+      release-ref: ${{ needs.resolve.outputs.tag }}
+      version: ${{ needs.resolve.outputs.version }}
+      profile: ${{ needs.resolve.outputs.package }}
+      prerelease: ${{ needs.resolve.outputs.prerelease == 'true' }}
+      legacy-index: false
+    secrets: inherit
+
   report-release-health:
     # The Release Health dashboard in PyDevices/.github, as the pydevices
     # chain feeds it. A reporting failure never fails the release.
     if: always() && needs.resolve.result == 'success'
-    needs: [resolve, build, publish-to-testpypi, attach-release-assets]
+    needs: [resolve, build, publish-to-testpypi, attach-release-assets, request-library-publication]
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -127,6 +141,6 @@ jobs:
             -F 'client_payload[prerelease]=${{ needs.resolve.outputs.prerelease }}' \
             -F 'client_payload[testpypi]=${{ needs.publish-to-testpypi.result }}' \
             -F 'client_payload[assets]=${{ needs.attach-release-assets.result }}' \
-            -F 'client_payload[mip]=skipped' \
+            -F 'client_payload[mip]=${{ needs.request-library-publication.result }}' \
             -F 'client_payload[pypi]=skipped' \
             -F 'client_payload[run_url]='"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

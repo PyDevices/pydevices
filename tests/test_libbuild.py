@@ -213,10 +213,18 @@ class BuiltRepository(unittest.TestCase):
         self.assertIn("appkit/launcher.py", self.paths("appkit"))
 
     def test_an_upstream_requirement_is_left_out_and_said(self):
+        self.assertIn("usb-device-msc requires usb-device", self.report.getvalue())
+        manifest = (self.out / "library" / "usb-device-msc" / "manifest.py").read_text(encoding="utf-8")
+        self.assertIn('require("usb-device")\n', manifest)
+
+    def test_bledev_declares_no_dependency_on_aioble(self):
+        # aioble is micropython-lib's, and an index can't depend on another one:
+        # bledev's docs show the two-step install instead.
         self.assertNotIn("aioble/core.py", self.paths("bledev"))
-        self.assertIn("bledev requires aioble", self.report.getvalue())
+        self.assertNotIn("bledev requires aioble", self.report.getvalue())
+        self.assertEqual(self.deps("bledev"), [])
         manifest = (self.out / "library" / "bledev" / "manifest.py").read_text(encoding="utf-8")
-        self.assertIn('require("aioble")\n', manifest)
+        self.assertNotIn('require("aioble")', manifest)
 
     def test_the_landing_page_shows_the_address_it_was_given(self):
         page = (self.out / "index" / "index.html").read_text(encoding="utf-8")
