@@ -13,10 +13,7 @@ notification and ``--plant=drop`` loses one; each must make the run fail.
 Ends with ``N passed, M failed``.
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 import os
 import sys

@@ -33,10 +33,7 @@ raises, so a bug shows up in a test rather than as corruption on a board:
   MicroPython does (it has no long read).
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 from . import (
     BLE,

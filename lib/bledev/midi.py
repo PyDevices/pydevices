@@ -35,10 +35,7 @@ controllers) uses the same two UUIDs.
 
 import sys
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 from . import (
     BLEError,

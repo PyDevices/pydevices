@@ -29,10 +29,7 @@ _sep = "\\" if "\\" in _here else "/"
 _dir = _here.rsplit(_sep, 1)[0] if _sep in _here else "."
 sys.path.insert(0, _dir + _sep + ".." + _sep + "lib")
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 import bledev
 from bledev import (

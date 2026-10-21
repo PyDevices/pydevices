@@ -23,10 +23,7 @@ writes; ``TX`` is what the peripheral notifies.
 :class:`bledev.mpble.MPBLE` for you.
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 from . import (
     BLEError,

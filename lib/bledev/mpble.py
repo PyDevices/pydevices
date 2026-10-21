@@ -26,10 +26,7 @@ Where aioble would lose data, this backend doesn't:
   letting NimBLE truncate it.
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 import time
 

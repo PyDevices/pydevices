@@ -53,10 +53,7 @@ The ``_bleio`` objects are there when you need them: ``ble.raw`` is
 ``_bleio.adapter`` and ``connection.native`` a ``_bleio.Connection``.
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 import _bleio
 

@@ -28,10 +28,7 @@ rather than pretending:
   see the real value.
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 import json
 

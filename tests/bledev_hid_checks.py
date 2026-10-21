@@ -31,10 +31,7 @@ for _a in sys.argv[1:]:
         sys.path.insert(0, _a[len("--adafruit="):])
         sys.path.append(_a[len("--adafruit="):] + _sep + "shims")
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 import bledev
 from bledev import BLEError, GattError, INSUFFICIENT_ENCRYPTION, fake, hid, hidreport
