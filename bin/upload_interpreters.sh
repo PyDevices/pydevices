@@ -65,12 +65,19 @@ sha256_of() {
 
 MP_VERSION=$("$HERE"/micropython -c "import sys; print(sys.version)" 2>/dev/null)
 CP_VERSION=$("$HERE"/circuitpython -c "import sys; print(sys.version)" 2>/dev/null)
+# What each is built on, for the release notes. A MicroPython build with no git
+# tags reports a commit in sys.version, so MicroPython's number comes from
+# sys.implementation (1.30.0-preview). CircuitPython puts its own in sys.version
+# (11.0.0-alpha.1); a build from a modified tree adds "-dirty", which isn't part of it.
+MP_BUILT_ON=$("$HERE"/micropython -c "import sys; v = sys.implementation.version; print('.'.join(str(n) for n in v[:3]) + ('-' + v[3] if len(v) > 3 and v[3] else ''))" 2>/dev/null)
+CP_BUILT_ON=$(printf '%s' "$CP_VERSION" | sed -n '/CircuitPython /{s/.*CircuitPython \([^ ;]*\).*/\1/;s/-dirty$//;p;}')
 
 MANIFEST="$HERE/interpreters.json"
 {
     echo "{"
     echo "  \"tag\": \"$TAG\","
     echo "  \"provenance\": \"$PROVENANCE\","
+    echo "  \"built_on\": {\"micropython\": \"$MP_BUILT_ON\", \"circuitpython\": \"$CP_BUILT_ON\"},"
     if [[ -n "${SOURCES_JSON:-}" ]]; then
         echo "  \"sources\": $(sed '2,$s/^/  /' "$SOURCES_JSON"),"
     fi

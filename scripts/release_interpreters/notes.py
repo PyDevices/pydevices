@@ -3,7 +3,8 @@
 
 A final attaches desktop interpreters even when they are built on a MicroPython
 or CircuitPython pre-release, so the release page says which. The versions come
-from the interpreters.json manifest the same run wrote, not from anywhere else.
+from the ``built_on`` record in the interpreters.json manifest the same run wrote
+(bin/upload_interpreters.sh asks the binaries), not from anywhere else.
 
     notes.py line interpreters.json              print the line
     notes.py release TAG interpreters.json       put the line at the end of TAG's
@@ -21,25 +22,9 @@ from pathlib import Path
 #: The line starts with this, so a second run finds it and replaces it.
 MARK = "<!-- interpreters -->"
 
-#: MicroPython reports "v1.30.0-preview.161.g52813b3bb4", CircuitPython "11.0.0-alpha.1".
-MICROPYTHON = re.compile(r"MicroPython (v?\d[^\s;]*)")
-CIRCUITPYTHON = re.compile(r"CircuitPython (v?\d[^\s;]*)")
 #: A release is a plain number. Anything after it (preview, alpha, beta, rc, or a
 #: build past a tag) is not one.
 RELEASE = re.compile(r"v?\d+\.\d+(\.\d+)?")
-
-
-def _version(files, pattern, wanted):
-    """The version shared by the manifest's files for which wanted(name) is true."""
-    found = set()
-    for name, entry in files.items():
-        if wanted(name):
-            match = pattern.search(entry.get("version", ""))
-            if match:
-                found.add(match.group(1))
-    if len(found) > 1:
-        raise SystemExit(f"the manifest has more than one version for one interpreter: {sorted(found)}")
-    return found.pop() if found else None
 
 
 def _label(version):
@@ -48,11 +33,10 @@ def _label(version):
 
 def line(manifest):
     """One sentence for the release notes, from a parsed interpreters.json."""
-    files = manifest["files"]
-    mp = _version(files, MICROPYTHON, lambda n: not n.startswith("circuitpython"))
-    cp = _version(files, CIRCUITPYTHON, lambda n: n.startswith("circuitpython"))
+    built_on = manifest.get("built_on", {})
+    mp, cp = built_on.get("micropython"), built_on.get("circuitpython")
     if not mp or not cp:
-        raise SystemExit("the manifest names no MicroPython or no CircuitPython version")
+        raise SystemExit("the manifest's built_on names no MicroPython or no CircuitPython version")
     return f"{MARK}The attached interpreters are built on MicroPython {_label(mp)} and CircuitPython {_label(cp)}."
 
 
