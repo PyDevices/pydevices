@@ -15,7 +15,8 @@ dist/
 
 # Repo-specific
 .venv-docs/
-site/
+docs/_build/
+docs/reference/
 wheels/
 .mypy_cache/
 .ruff_cache/

@@ -1,83 +1,94 @@
 # palettes
 
+```{raw} html
 <div class="hero-banner">
-  <h1>🎨 palettes</h1>
   <p><strong>A lightweight, pure-Python color palette and UI theme engine</strong> for microcontrollers, embedded displays, desktop Python, and the browser.</p>
-  <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.75rem;">
-    <span class="badge badge-orange">📦 MIP: palettes</span>
-    <span class="badge badge-orange">🐍 PyPI: pydevices-palettes</span>
-    <span class="badge badge-green">⚡ Zero C Dependencies</span>
-    <span class="badge">🌐 CPython · WebAssembly · MicroPython · CircuitPython</span>
+  <div class="badge-row">
+    <span class="badge badge-brand">MIP: palettes</span>
+    <span class="badge badge-brand">PyPI: pydevices-palettes</span>
+    <span class="badge badge-green">Zero C dependencies</span>
+    <span class="badge">CPython · WebAssembly · MicroPython · CircuitPython</span>
   </div>
 </div>
+```
 
-<div class="grid cards">
-  <div>
-    <h3>🌈 Color Wheels</h3>
-    <p>Generate continuous color ramps and rainbow gradients with configurable saturation and hue lengths.</p>
-  </div>
-  <div>
-    <h3>🎯 Material Design</h3>
-    <p>Access standardized semantic UI palettes with shades from 50 to 900 for modern themes and widgets.</p>
-  </div>
-  <div>
-    <h3>🧊 Color Cubes</h3>
-    <p>Evenly distributed 8, 27, 64, and 125 color spaces optimized for dithering and quantized graphics.</p>
-  </div>
-  <div>
-    <h3>🔄 Byte-Swapping</h3>
-    <p>First-class 16-bit RGB565 byte swapping (<code>swapped=True</code>) for direct SPI panel compatibility.</p>
-  </div>
-</div>
+::::{grid} 1 2 2 4
+:gutter: 2
+
+:::{grid-item-card} Color wheels
+Generate continuous color ramps and rainbow gradients with configurable saturation and hue lengths.
+:::
+
+:::{grid-item-card} Material Design
+Access standardized semantic UI palettes with shades from 50 to 900 for modern themes and widgets.
+:::
+
+:::{grid-item-card} Color cubes
+Evenly distributed 8, 27, 64, and 125 color spaces optimized for dithering and quantized graphics.
+:::
+
+:::{grid-item-card} Byte-swapping
+First-class 16-bit RGB565 byte swapping (`swapped=True`) for direct SPI panel compatibility.
+:::
+::::
 
 ---
 
 ## 🚀 Quick Install
 
-=== "MicroPython (MIP)"
+::::{tab-set}
 
-    ```python
-    import mip
-    mip.install("palettes", index="https://PyDevices.github.io/mip")
-    ```
+:::{tab-item} MicroPython (MIP)
 
-=== "CPython (TestPyPI)"
+```python
+import mip
+mip.install("palettes", index="https://PyDevices.github.io/mip")
+```
+:::
 
-    ```bash
-    pip install -i https://test.pypi.org/simple/ \
-      --extra-index-url https://pypi.org/simple/ pydevices-palettes
-    ```
+:::{tab-item} CPython (TestPyPI)
 
-=== "CircuitPython"
+```bash
+pip install -i https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple/ pydevices-palettes
+```
+:::
 
-    Copy the `palettes/` folder from the repository into your board's `CIRCUITPY/lib/` folder.
+:::{tab-item} CircuitPython
 
-=== "PyScript / Pyodide"
+Copy the `palettes/` folder from the repository into your board's `CIRCUITPY/lib/` folder.
+:::
 
-    In PyScript headers or Pyodide configurations, declare:
-    ```python
-    import micropip
-    await micropip.install(
-        "pydevices-palettes", index_urls="https://test.pypi.org/simple/"
-    )
+:::{tab-item} PyScript / Pyodide
 
-    from palettes import get_palette
-    ```
+In PyScript headers or Pyodide configurations, declare:
+```python
+import micropip
+await micropip.install(
+    "pydevices-palettes", index_urls="https://test.pypi.org/simple/"
+)
 
-    The wheel is named `pydevices-palettes`; the module you import is
-    `palettes`. On MicroPython the MIP package name is `palettes`
-    (`mip.install("palettes", index="https://PyDevices.github.io/mip")`).
+from palettes import get_palette
+```
 
-=== "From source"
+The wheel is named `pydevices-palettes`; the module you import is
+`palettes`. On MicroPython the MIP package name is `palettes`
+(`mip.install("palettes", index="https://PyDevices.github.io/mip")`).
+:::
 
-    ```bash
-    git clone https://github.com/PyDevices/pydevices && cd pydevices/palettes
-    pip install -e .                                  # or just PYTHONPATH=lib
-    PYTHONPATH=lib python3 -m unittest discover -s tests
-    ruff check lib tests scripts
-    ```
+:::{tab-item} From source
 
-    The last two are what CI runs.
+```bash
+git clone https://github.com/PyDevices/pydevices && cd pydevices/palettes
+pip install -e .                                  # or just PYTHONPATH=lib
+PYTHONPATH=lib python3 -m unittest discover -s tests
+ruff check lib tests scripts
+```
+
+The last two are what CI runs.
+:::
+
+::::
 
 `pydevices-palettes` is also parked on production PyPI, one release behind, so
 a plain `pip install pydevices-palettes` succeeds and gives you the older one.
@@ -89,6 +100,7 @@ TestPyPI is the current channel.
 
 Try tweaking the palette parameters below. Click **▶ Run** to execute the code with direct MicroPython WebAssembly:
 
+````{raw} html
 <div class="pydevices-live-demo">
   <div class="demo-editor-pane">
     <textarea class="code-editor">
@@ -131,6 +143,7 @@ print("Drawn 32 color wheel bands and 10 Material Design amber shades!")
     <canvas id="canvas_palettes_index" width="320" height="240" tabindex="0"></canvas>
   </div>
 </div>
+````
 
 ---
 
@@ -161,28 +174,42 @@ palette = get_palette(name="wheel", color_depth=16, swapped=True)
 
 Explore full-color gradient and animation applications built with `palettes`:
 
-<div class="grid cards">
-  <div>
-    <h3>🎨 Palettes Gallery Showcase</h3>
-    <p>Interactive color visualizer exploring Material Design tokens, HSV wheels, and RGB cubes.</p>
-    <p><a href="https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=palettes_demo&deps=pydevices-palettes,pydevices-pygraphics" target="_blank" rel="noopener"><strong>▶ Launch Live Demo</strong></a></p>
-  </div>
-  <div>
-    <h3>🪶 Rainbow Feathers</h3>
-    <p>Geometric generative art rendering smooth multi-chromatic feather curves.</p>
-    <p><a href="https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=feathers&deps=pydevices-palettes,pydevices-pygraphics" target="_blank" rel="noopener"><strong>▶ Launch Live Demo</strong></a></p>
-  </div>
-  <div>
-    <h3>🔄 Palette Rotations</h3>
-    <p>Real-time palette cycling and rotational sweeps demonstrating zero-cost animations.</p>
-    <p><a href="https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=rotations&deps=pydevices-palettes,pydevices-pygraphics" target="_blank" rel="noopener"><strong>▶ Launch Live Demo</strong></a></p>
-  </div>
-  <div>
-    <h3>📜 Gradient Scrolling</h3>
-    <p>Hardware vertical scrolling demonstration paired with high-precision palette shading.</p>
-    <p><a href="https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=scroll&deps=pydevices-palettes,pydevices-pygraphics" target="_blank" rel="noopener"><strong>▶ Launch Live Demo</strong></a></p>
-  </div>
-</div>
+::::{grid} 1 1 2 2
+:gutter: 2
+
+:::{grid-item-card} Palettes Gallery Showcase
+:link: https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=palettes_demo&deps=pydevices-palettes,pydevices-pygraphics
+:link-type: url
+Interactive color visualizer exploring Material Design tokens, HSV wheels, and RGB cubes.
+
+Launch Live Demo
+:::
+
+:::{grid-item-card} Rainbow Feathers
+:link: https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=feathers&deps=pydevices-palettes,pydevices-pygraphics
+:link-type: url
+Geometric generative art rendering smooth multi-chromatic feather curves.
+
+Launch Live Demo
+:::
+
+:::{grid-item-card} Palette Rotations
+:link: https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=rotations&deps=pydevices-palettes,pydevices-pygraphics
+:link-type: url
+Real-time palette cycling and rotational sweeps demonstrating zero-cost animations.
+
+Launch Live Demo
+:::
+
+:::{grid-item-card} Gradient Scrolling
+:link: https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=scroll&deps=pydevices-palettes,pydevices-pygraphics
+:link-type: url
+Hardware vertical scrolling demonstration paired with high-precision palette shading.
+
+Launch Live Demo
+:::
+
+::::
 
 ---
 
@@ -191,4 +218,14 @@ Explore full-color gradient and animation applications built with `palettes`:
 * 🎨 [**Palette Gallery**](palette-gallery.md) — Visual previews and tables for Wheel, Material Design, Cube, and Win16 palettes.
 * 🔢 [**Color Math & Formats**](color-math.md) — RGB565 bit-packing, endianness swapping, and HSV math.
 * 🧩 [**Integrations**](integrations.md) — Recipes for `pygraphics`, `pdwidgets`, and hardware display drivers.
-* 📚 [**API Reference**](reference/palettes/index.md) — Complete docstrings and class references.
+* 📚 [**API Reference**](reference/index.rst) — Complete docstrings and class references.
+
+```{toctree}
+:hidden:
+
+newcomers
+palette-gallery
+color-math
+integrations
+reference/index
+```

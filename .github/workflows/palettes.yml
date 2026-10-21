@@ -40,11 +40,12 @@ jobs:
         run: python -m unittest discover -s tests
 
       # Google style only, no Sphinx directives (palettes#16), so the
-      # generated reference pages stay accurate.
+      # generated reference pages stay accurate. Cross-reference with a
+      # single backtick: `Name <path>`.
       - name: Docstring style (no Sphinx roles)
         run: |
           if grep -rnoE ':(meth|class|attr|func|mod|exc|data|obj):`' lib --include='*.py'; then
-            echo "::error::Sphinx roles in docstrings; use [Name][path] or plain backticks"
+            echo "::error::Sphinx roles in docstrings; use a single backtick, as in Name <path>"
             exit 1
           fi
           echo "no Sphinx roles"
@@ -53,8 +54,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # From the repository root with palettes/.readthedocs.yaml's paths, the
-    # way Read the Docs runs it. strict: true in mkdocs.yml turns a warning
-    # into a failure.
+    # way Read the Docs runs it. -W turns a warning into a failure, as
+    # fail_on_warning does there.
     defaults:
       run:
         working-directory: .
@@ -66,12 +67,7 @@ jobs:
       - name: Install docs requirements
         run: pip install -r palettes/docs/requirements.txt
       - name: Build docs
-        run: |
-          mkdocs build --clean --site-dir _site/palettes --config-file palettes/mkdocs.yml 2>&1 | tee build.log
-          if grep -i griffe build.log; then
-            echo "::error::griffe complained; the reference page will be wrong"
-            exit 1
-          fi
+        run: sphinx-build -W --keep-going -b html palettes/docs _site/palettes
 
   validate-pyscript-filesystem-toml:
     uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v14

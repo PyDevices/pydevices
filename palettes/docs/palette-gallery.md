@@ -15,6 +15,7 @@ A visual reference and interactive explorer for all built-in color palette famil
 
 Adjust the palette parameters below and click **▶ Run** to see the colors render live in your browser:
 
+````{raw} html
 <div class="pydevices-live-demo">
   <div class="demo-editor-pane">
     <textarea class="code-editor">
@@ -45,6 +46,7 @@ print(f"Rendered {len(palette)} colors from the wheel palette!")
     <canvas id="canvas_palette_gallery" width="320" height="240" tabindex="0"></canvas>
   </div>
 </div>
+````
 
 ---
 

@@ -5,7 +5,7 @@
 
 Samples the RGB cube at evenly spaced points. Supported cube sizes are
 2, 3, 4, and 5 (8, 27, 64, or 125 colors). Each size uses a built-in
-name table for [color_name][palettes.Palette.color_name].
+name table for `color_name <palettes.Palette.color_name>`.
 
 Example:
     >>> from palettes import get_palette
@@ -29,8 +29,8 @@ class CubePalette(_Palette):
     values are spaced from ``0`` to ``255`` inclusive.
 
     Args:
-        name (str): Prefix for [name][palettes.Palette.name] (length suffix is added).
-        color_depth (int): Output format; see [Palette][palettes.Palette].
+        name (str): Prefix for `name <palettes.Palette.name>` (length suffix is added).
+        color_depth (int): Output format; see `Palette <palettes.Palette>`.
         swapped (bool): Byte-swap 16-bit colors when ``True``.
         cached (bool): Memoize index lookups when ``True`` (default).
         size (int): Cube edge length. Must be ``2``, ``3``, ``4``, or ``5``.
@@ -40,9 +40,9 @@ class CubePalette(_Palette):
         """Create an evenly spaced RGB cube palette.
 
         Args:
-            name (str): Prefix for [name][palettes.Palette.name] (length suffix
+            name (str): Prefix for `name <palettes.Palette.name>` (length suffix
                 is added).
-            color_depth (int): Output format; see [Palette][palettes.Palette].
+            color_depth (int): Output format; see `Palette <palettes.Palette>`.
             swapped (bool): Byte-swap 16-bit colors when ``True``.
             cached (bool): Memoize index lookups when ``True`` (default).
             size (int): Cube edge length. Must be ``2``, ``3``, ``4``, or ``5``.

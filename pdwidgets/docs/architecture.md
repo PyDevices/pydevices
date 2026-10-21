@@ -8,7 +8,7 @@ An overview of `pdwidgets`'s component hierarchy, dirty-rectangle rendering pipe
 
 Every `pdwidgets` UI forms a tree starting with an `App` controller, a root `Display` viewport, an active `Screen`, and nested `Widget` containers:
 
-```mermaid
+```{mermaid}
 graph TD
     App["appdev.App<br/>(Event Loop & Async Timers)"] --> Display["pdwidgets.Display<br/>(Display Driver & Viewport)"]
     Display --> Screen1["pdwidgets.Screen (Active)"]
@@ -33,7 +33,7 @@ graph TD
 
 `pdwidgets` avoids costly full-screen redraws on embedded microcontrollers by tracking **dirty rectangles**:
 
-```mermaid
+```{mermaid}
 sequenceDiagram
     participant User as User / Event
     participant Widget as pd.Widget
@@ -61,7 +61,7 @@ sequenceDiagram
 
 Input events from touch screens, mouse pointers, rotary encoders, or keyboards flow cleanly from the hardware driver to the targeted widget:
 
-```mermaid
+```{mermaid}
 flowchart LR
     Input[Touch / Mouse / Key] --> App[appdev.App]
     App --> Display[pd.Display]

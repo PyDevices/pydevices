@@ -5,7 +5,7 @@
 
 Use this package when a UI or graphics routine needs a predictable set of
 colors rather than hard-coded values. The public API is small: call
-[get_palette][palettes.get_palette] to create a palette, then index it to get display-ready
+`get_palette <palettes.get_palette>` to create a palette, then index it to get display-ready
 colors for fills, gradients, labels, progress bars, and other visual states.
 
 A common pattern is to create one palette per display or scene and reuse it
@@ -21,8 +21,8 @@ Example:
 
 Attributes:
     WIN16: Ordered ``(0xRRGGBB, name)`` pairs for the Windows 16 colors, the
-        default name table for [Palette][palettes.Palette] and
-        [WheelPalette][palettes.wheel.WheelPalette]. A pair's position is its palette
+        default name table for `Palette <palettes.Palette>` and
+        `WheelPalette <palettes.wheel.WheelPalette>`. A pair's position is its palette
         index. This is a tuple rather than a dict on purpose: MicroPython and
         CircuitPython do not preserve dict insertion order, so a dict would
         give a different index order on each interpreter.
@@ -60,13 +60,13 @@ def get_palette(name="default", **kwargs):
     Args:
         name (str): Palette type. One of ``"default"`` (Windows 16-color),
             ``"wheel"``, ``"cube"``, or ``"material_design"``. Unknown names
-            fall back to [Palette][palettes.Palette].
+            fall back to `Palette <palettes.Palette>`.
         **kwargs (Any): Forwarded to the palette constructor (for example
             ``color_depth``, ``length``, ``size``, ``saturation``, and
             ``swapped``).
 
     Returns:
-        Palette: A [Palette][palettes.Palette] subclass instance.
+        Palette: A `Palette <palettes.Palette>` subclass instance.
 
     Example:
         >>> pal = get_palette(name="cube", size=3, color_depth=16)
@@ -328,7 +328,7 @@ class MappedPalette(Palette):
     """Palette backed by a flat RGB byte map.
 
     Each color occupies three consecutive bytes ``(r, g, b)`` in
-    ``color_map``. Subclasses such as [MDPalette][palettes.material_design.MDPalette]
+    ``color_map``. Subclasses such as `MDPalette <palettes.material_design.MDPalette>`
     supply a pre-built map and named-color attributes.
 
     Args:

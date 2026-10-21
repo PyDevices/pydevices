@@ -26,9 +26,8 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-# Runs its work at import by design, inside mkdocs-gen-files' runtime, which is
-# not present in the unit-test environment.
-IMPORT_EXEMPT = {"mkdocs_gen_ref_pages"}
+# Scripts that run their work at import by design and cannot be imported here.
+IMPORT_EXEMPT = set()
 
 # Third-party packages an authoring script needs but the test environment does
 # not install. A script that dies for one of these is skipped, by name, so the

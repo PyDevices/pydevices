@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/bundle_pyscript_assets.py — Bundle pure-Python packages for Pyodide in MkDocs.
+scripts/bundle_pyscript_assets.py — Bundle pure-Python packages for Pyodide in the docs site.
 
 Packages lib/ from the current repository and sibling PyDevices repositories
 into docs/assets/pyscript/pydevices_bundle.zip for zero-network execution on ReadTheDocs.

@@ -112,11 +112,12 @@ Those mechanisms deliberately consume the same source package. A library
 change normally belongs in `lib/palettes`; change distribution metadata or
 generated gallery inputs only when the release workflow actually requires it.
 
-The human-facing documentation is an MkDocs site configured by `mkdocs.yml`.
-Its API pages are generated from docstrings by
-`scripts/mkdocs_gen_ref_pages.py`, while `docs/summary.md` supplies the site
-navigation. Keep a conceptual overview here or in the existing hand-written
-pages; keep API-level detail in the relevant docstring.
+The human-facing documentation is a Sphinx site configured by `docs/conf.py`,
+which takes its theme and settings from the shared `pydevices-docs` package.
+Its API pages are generated from docstrings when you build, and the `toctree`
+at the bottom of `docs/index.md` supplies the site navigation. Keep a
+conceptual overview here or in the existing hand-written pages; keep API-level
+detail in the relevant docstring.
 
 ## Build, test, and make a safe first change
 

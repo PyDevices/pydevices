@@ -54,7 +54,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # From the repository root with pdwidgets/.readthedocs.yaml's paths, the
-    # way Read the Docs runs it.
+    # way Read the Docs runs it. -W turns a warning into a failure, as
+    # fail_on_warning does there.
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -63,12 +64,7 @@ jobs:
       - name: Install docs requirements
         run: pip install -r pdwidgets/docs/requirements.txt
       - name: Build docs
-        run: |
-          mkdocs build --clean --site-dir _site/pdwidgets --config-file pdwidgets/mkdocs.yml 2>&1 | tee build.log
-          if grep -i griffe build.log; then
-            echo "::error::griffe complained; the reference page will be wrong"
-            exit 1
-          fi
+        run: sphinx-build -W --keep-going -b html pdwidgets/docs _site/pdwidgets
 
   validate-pyscript-filesystem-toml:
     uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v14
