@@ -15,6 +15,9 @@ with each kind of peripheral described honestly by its role.
   full-duplex sound card for a computer or another board.
 - `network.USBD_NCM` (Ethernet over USB, MicroPython 1.29): a package for it,
   or a note on turning it on.
+- The HID, CDC and MSC host drivers on CircuitPython's own `usb.core` (RP2040,
+  i.MX): they lack only `configuration_descriptor()` and the private
+  `_release_all()` there. Audio, video and net need the usbhost engine.
 
 ## BLE
 
