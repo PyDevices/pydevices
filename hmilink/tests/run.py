@@ -343,6 +343,39 @@ def test_tcp():
     device.close()
 
 
+def test_pty():
+    """The stream transport over real ttys: two pty pairs, raw mode, non-blocking reads."""
+    import fcntl
+    import tty
+
+    class Tty:
+        def __init__(self, fd):
+            self.fd = fd
+            fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK)
+
+        def read(self, n):
+            try:
+                return os.read(self.fd, n)
+            except BlockingIOError:
+                return None
+
+        def write(self, data):
+            return os.write(self.fd, data)
+
+    m1, s1 = os.openpty()
+    m2, s2 = os.openpty()
+    for fd in (m1, s1, m2, s2):
+        tty.setraw(fd)
+    device = hmilink.Device(Knobs())
+    device.add(stream.link(Tty(m1)))
+    device.add(stream.link(Tty(m2)))
+    p1 = hmilink.Panel(stream.link(Tty(s1)))
+    p2 = hmilink.Panel(stream.link(Tty(s2)))
+    exercise(device, p1, p2)
+    for fd in (m1, s1, m2, s2):
+        os.close(fd)
+
+
 def test_all():
     test_ops()
     print("ops ok")
@@ -350,6 +383,16 @@ def test_all():
     print("local ok")
     test_stream()
     print("stream ok")
+    try:
+        import fcntl  # noqa: F401
+        import tty  # noqa: F401
+
+        has_pty = hasattr(os, "openpty")
+    except ImportError:
+        has_pty = False
+    if has_pty:
+        test_pty()
+        print("stream over ptys ok")
     if tcp is not None and getattr(tcp, "_socket", None) is not None:
         test_tcp()
         print("tcp ok (lines, WebSocket, page)")
