@@ -66,7 +66,7 @@ class Drive:
             if self._command(bytes((0x00, 0, 0, 0, 0, 0))) == 0:   # TEST UNIT READY
                 break
             self._sense()
-            time.sleep_ms(100)
+            time.sleep(0.1)
         cap = bytearray(8)
         if self._command(bytes((0x25,)) + bytes(9), data_in=cap) != 0:
             raise OSError(5, "READ CAPACITY failed")
