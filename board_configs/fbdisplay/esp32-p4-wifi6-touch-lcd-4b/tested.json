@@ -1,0 +1,31 @@
+{
+  "board": "esp32-p4-wifi6-touch-lcd-4b",
+  "runs": [
+    {
+      "hardware": "Waveshare ESP32-P4-WIFI6-Touch-LCD-4B; microSD (SDIO) mounted and listed",
+      "firmware": "micropython 1.30.0 (Generic ESP32P4 module with pre revision 3 chip and ESP32C6 hosted WIFI with ESP32-P4), v1.30.0-preview.161.g2d7003333b.dirty on 2026-10-20",
+      "date": "2026-10-20",
+      "smoke": "passed",
+      "checks": [
+        "board_config imports",
+        "display draws",
+        "touch reads",
+        "audio_in_power answers",
+        "audio_out answers",
+        "audio_power answers",
+        "ble answers",
+        "boot_button answers",
+        "camera answers",
+        "pcm_in answers",
+        "pcm_out answers",
+        "radio answers",
+        "sdcard answers",
+        "wlan answers"
+      ],
+      "skipped": [
+        "usb_device"
+      ],
+      "tool": "tools/mark_tested.py"
+    }
+  ]
+}
