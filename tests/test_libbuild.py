@@ -20,6 +20,7 @@ import tomllib
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -192,7 +193,16 @@ class BuiltRepository(unittest.TestCase):
         self.assertIn(f'version="{self.version}"', manifest)
         self.assertIn("usb-core", self.deps("usb-host-msc"))
         desktop = (self.out / "library" / "pydevices-desktop" / "manifest.py").read_text(encoding="utf-8")
-        self.assertIn('require("pydevices", library="omnipython-lib")', desktop)
+        self.assertIn('require("pydevices", library="omnipython-lib", opt=options.opt)', desktop)
+
+    def test_a_firmware_build_can_choose_the_optimisation_of_what_it_freezes(self):
+        # The index compiles with no opt, as it always did; a build that
+        # require()s the package passes opt= and every file it freezes takes it.
+        manifest = (self.out / "library" / "pydevices" / "manifest.py").read_text(encoding="utf-8")
+        self.assertIn("options.defaults(opt=None)", manifest)
+        calls = [line for line in manifest.splitlines() if line.startswith(("package(", "module("))]
+        self.assertTrue(calls)
+        self.assertTrue(all(line.endswith("opt=options.opt)") for line in calls), calls)
 
     def test_a_folder_package_has_its_own_version_and_only_its_sources(self):
         for name in _folders():
@@ -225,6 +235,18 @@ class BuiltRepository(unittest.TestCase):
         self.assertEqual(self.deps("bledev"), [])
         manifest = (self.out / "library" / "bledev" / "manifest.py").read_text(encoding="utf-8")
         self.assertNotIn('require("aioble")', manifest)
+
+    def test_a_tree_only_build_writes_the_tree_and_no_index_and_needs_no_mpy_cross(self):
+        lock_dir = self.scratch / "lock"
+        out = self.scratch / "tree-only"
+        with redirect_stdout(StringIO()), mock.patch.dict(os.environ, {"PATH": "", "MPY_CROSS": ""}):
+            status = libbuild.main(["build", "--tree-only", "--out", str(out), "--lock", str(lock_dir)])
+        self.assertEqual(status, 0)
+        self.assertFalse((out / "index").exists())
+        self.assertEqual(
+            (out / "library" / "pydevices" / "manifest.py").read_text(encoding="utf-8"),
+            (self.out / "library" / "pydevices" / "manifest.py").read_text(encoding="utf-8"),
+        )
 
     def test_the_landing_page_shows_the_address_it_was_given(self):
         page = (self.out / "index" / "index.html").read_text(encoding="utf-8")
