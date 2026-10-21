@@ -21,6 +21,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/web_audio.py" = "/lib/audiodev/web_audio.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/win_audio.py" = "/lib/audiodev/win_audio.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/audiodev/worklet_audio.py" = "/lib/audiodev/worklet_audio.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/backends.py" = "/lib/backends.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/__init__.py" = "/lib/bledev/__init__.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/auto.py" = "/lib/bledev/auto.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/bledev/bleak.py" = "/lib/bledev/bleak.py"

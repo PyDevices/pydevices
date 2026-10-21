@@ -334,6 +334,20 @@ Pyodide Web Audio, Windows `uwin32`, `usdl2`, then pygame-ce, in that order.
 Constructing `AudioOut` without `audiocore` fails immediately with the install
 command above; direct raw `write()`/`readinto()` remains independent.
 
+### Experimental: your own transport
+
+`audiodev.auto` looks its transport up in the same small registry as `AutoDisplay` ([`backends`](../lib/backends.py), explained in [Displays](displaydev.md#experimental-your-own-backend)), and may still change. A transport is a module that provides `pcm_out` and `pcm_in`:
+
+```python
+import backends
+backends.register("audio", "mine", "my_audio", probe=lambda: my_card_present())
+
+# board_config.py
+backends.require("audio", "mine")
+```
+
+`select_backend()` tries the `PYDEVICES_AUDIO` environment variable (one name, nothing else), then what a config `require`d, in order and skipping any whose probe says no, then the built-in transports in the order above. The built-in names are `wasm_audio`, `web_audio`, `win_audio`, `sdl2_audio` and `pygame_audio`. A transport you registered is never picked unless it was required or you named it. On MicroPython, `require` is the only way a transport gets registered; nothing scans for installed ones.
+
 ## Emulated devices (CI / no hardware)
 
 `audiodev.emulated_audio` implements WAV files, a waveform generator, in-memory

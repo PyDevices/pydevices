@@ -23,6 +23,7 @@ Do not run audiodev tests while another process is playing audio — see
 | [`test_display_driver.py`](test_display_driver.py) | `DisplayDriver` base class |
 | [`test_fbdisplay.py`](test_fbdisplay.py) | `FBDisplay` on a fake framebuffer |
 | [`test_autodisplay.py`](test_autodisplay.py) | `displaydev.auto` host selection |
+| [`test_backends.py`](test_backends.py) | the `backends` registry (register, require, probes, env override) and `AutoDisplay` / `audiodev.auto` searching it |
 | [`test_displaydev_auto.py`](test_displaydev_auto.py) | backends must not import `displaydev.auto` |
 | [`test_displaydev_lifecycle.py`](test_displaydev_lifecycle.py) / [`test_displaydev_capabilities.py`](test_displaydev_capabilities.py) | quit lifecycle and `capabilities()` |
 | [`test_displaydev_fps.py`](test_displaydev_fps.py) | frame-rate meter: nothing wrapped while off, frames/present/busy counted while on, `flush_rect` as flushes not frames, the appdev refresh calling a wrapper installed late |
