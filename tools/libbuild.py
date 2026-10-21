@@ -13,7 +13,7 @@ From the repository root:
 ``build`` assembles every package this repository publishes (the ones
 ``mip-split.toml`` names, plus ``pydevices`` and ``pydevices-desktop``, all at
 the repository's version), the packages in their own folders here that
-``lib-lock.json`` lists under ``folders`` (palettes, pdwidgets, appkit, each
+``lib-lock.json`` lists under ``folders`` (palettes, pdwidgets, appkit, sayso, each
 at the version in its folder's ``VERSION``), and every package
 ``lib-lock.json`` pins from another repository, into
 ``<out>/library``: one directory per package, each with a ``manifest.py``

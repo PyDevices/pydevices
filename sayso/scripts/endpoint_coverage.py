@@ -9,7 +9,7 @@ except ImportError:
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_CLIENT_PATH = os.path.join(ROOT, "sayso", "client.py")
+DEFAULT_CLIENT_PATH = os.path.join(ROOT, "lib", "sayso", "client.py")
 
 REQUEST_HELPERS = {
     "_get_json": "GET",

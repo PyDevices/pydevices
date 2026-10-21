@@ -5,5 +5,5 @@
 #   micropython -m spotify_remote [speaker-name]
 # from a directory holding sayso.local.json and tokens.json (see
 # apps/spotify_remote/README.md).
-package("sayso")
+package("sayso", base_path="lib")
 package("spotify_remote", base_path="apps")

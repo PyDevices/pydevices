@@ -126,7 +126,7 @@ On embedded targets, pass credentials and tokens explicitly to `SpotifyClient`
 or `AuthorizationCodeAuth` rather than relying on `sayso.local.json`,
 browser OAuth, or `tokens.json` in the project root.
 
-Suggested hardware smoke commands (from the repo root on the device):
+Suggested hardware smoke commands (from the sayso folder on the device):
 
 ```text
 micropython scripts/sayso_simpletest.py

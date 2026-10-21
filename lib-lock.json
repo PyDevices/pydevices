@@ -24,6 +24,9 @@
       "requires": [
         "pydevices"
       ]
+    },
+    "sayso": {
+      "description": "Lightweight Spotify Web API client for CPython, MicroPython and CircuitPython"
     }
   },
   "pinned": {

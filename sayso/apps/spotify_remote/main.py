@@ -10,7 +10,7 @@ def _parent(path):
 
 
 # Run from anywhere: the spotify_remote package lives in apps/, and the sayso
-# package at the repo root, two levels above this file.
+# package in lib/, beside apps/.
 # Only from a source tree: frozen into firmware, or installed on a board, the
 # packages are already importable, and the entries this would add ("/", "//.")
 # made every later import search the root three times (~185 ms each on an
@@ -19,7 +19,7 @@ _APPS_DIR = _parent(_parent(__file__))
 if not _APPS_DIR.startswith("/") and ":" not in _APPS_DIR:
     _APPS_DIR = os.getcwd().replace("\\", "/") + "/" + _APPS_DIR
 if _APPS_DIR.rstrip("/").endswith("/apps"):
-    for _path in (_parent(_APPS_DIR), _APPS_DIR):
+    for _path in (_parent(_APPS_DIR) + "/lib", _APPS_DIR):
         if _path not in sys.path:
             sys.path.insert(0, _path)
 

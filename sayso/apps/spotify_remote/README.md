@@ -28,7 +28,7 @@ MicroPython (Linux and Windows) under the PyDevices stack.
 
 ## Prerequisites
 
-- `sayso` package on `sys.path` (for example `~/.micropython/lib/sayso` → repo `sayso/`)
+- `sayso` package on `sys.path` (for example `~/.micropython/lib/sayso` → this folder's `lib/sayso`)
 - `sayso.local.json` and `tokens.json` in **this directory** (see [Config](#config))
 - Spotify app scopes: user profile, playback read/write, playlist read/write,
   library read/write, and `user-follow-read` for followed artists
@@ -51,11 +51,11 @@ from the process cwd. Copy or symlink secrets here:
 cd apps/spotify_remote
 cp ../../sayso.local.json.example sayso.local.json
 # edit sayso.local.json, run desktop OAuth once, then copy or link tokens.json
-ln -s ../../tokens.json tokens.json   # optional: reuse repo-root tokens
+ln -s ../../tokens.json tokens.json   # optional: reuse this folder's tokens
 ```
 
 Both files are gitignored. When a file here cannot be opened (Windows reaching a WSL symlink over
-`\\wsl.localhost`), the repo-root copy is used instead.
+`\\wsl.localhost`), the copy in this folder's root is used instead.
 
 Cover art is cached under `art_cache/` beside the app. The cache is gitignored
 and reused across app restarts. Limits are set in `config.py`:
@@ -79,11 +79,11 @@ Restart the app after changing `config.py`.
 
 Runs on CPython and MicroPython with the released PyDevices stack installed
 (`pydevices-desktop` and `pydevices-lvgl` from pip on CPython; the mip desktop
-board in `~/.micropython/lib` on MicroPython). `main.py` puts the repo root
-and `apps/` on `sys.path` itself, so run it from the sayso repo root:
+board in `~/.micropython/lib` on MicroPython). `main.py` puts `lib/`
+and `apps/` on `sys.path` itself, so run it from the sayso folder:
 
 ```bash
-cd /path/to/sayso
+cd /path/to/pydevices/sayso
 micropython -X heapsize=8M apps/spotify_remote/main.py
 python apps/spotify_remote/main.py           # or micropython.exe / python.exe on Windows
 ```
@@ -97,14 +97,14 @@ firmware, LVGL's TJPGD on CPython. Without one the view shows
 
 ## Frozen into firmware
 
-[`manifest.py`](../../manifest.py) at the repo root freezes sayso and this
-app. Name this repo by path in a micropython-pydevices build, with earful and
+[`manifest.py`](../../manifest.py) in the sayso folder freezes sayso and this
+app. Name that folder by path in a micropython-pydevices build, with earful and
 every PyDevices module, for a `micropython.exe` (or board image) that is both
 the remote and the speaker:
 
 ```bash
-/home/brad/gh/pydevices/micropython-pydevices/build_mp.py --port windows --variant pydevices \
-    --modules all,/home/brad/gh/bdbarnett/earful,/home/brad/gh/bdbarnett/say-so
+build_mp.py --port windows --variant pydevices \
+    --modules all,/path/to/earful,/path/to/pydevices/sayso
 ```
 
 Run it from any directory holding `sayso.local.json` and `tokens.json`; the art caches are
@@ -122,7 +122,7 @@ loads from `~/.micropython/lib` until pydevices publishes a freeze manifest
 
 ## Playing on itself (earful)
 
-With an interpreter that has the [earful](https://github.com/bdbarnett/earful)
+With an interpreter that has the earful
 usermod, the remote can also be the speaker. Give it a Connect name as the
 first argument, or set `LOCAL_SPEAKER` in `config.py`:
 
@@ -153,7 +153,7 @@ offer and runs without a speaker.
 ## Hardware (ESP32 and other MCUs)
 
 1. Flash lvgl_micropython for your board with matching `DISPLAY` and `INDEV`.
-2. Copy `sayso/` and this app to the device.
+2. Copy `lib/sayso` and this app to the device.
 3. Place `sayso.local.json` and `tokens.json` in this app directory, or
    construct auth with an in-memory refresh token (no browser OAuth on-device).
 4. In `main.py`, replace the driver comment block with your display/touch init

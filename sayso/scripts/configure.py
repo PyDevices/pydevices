@@ -4,8 +4,9 @@ import sys
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+LIB = os.path.join(ROOT, "lib")
+if LIB not in sys.path:
+    sys.path.insert(0, LIB)
 
 from sayso import DEFAULT_CONFIG_PATH, save_config
 

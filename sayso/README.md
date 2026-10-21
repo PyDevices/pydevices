@@ -18,6 +18,21 @@ OAuth Authorization Code helpers include URL generation, callback parsing,
 token exchange, refresh handling, PKCE helpers, and CPython interactive login
 through `sayso.auth`.
 
+## Install
+
+sayso is pure Python and imports as `sayso`. It lives in the
+[pydevices repository](https://github.com/PyDevices/pydevices/tree/main/sayso)
+and has no release on PyPI or in the mip index yet. From a checkout, work in
+this folder and put `lib` on the import path:
+
+```bash
+cd sayso
+PYTHONPATH=lib python -c "import sayso"
+```
+
+On a board, copy `lib/sayso` to `/lib/sayso`, or freeze it with
+[`manifest.py`](manifest.py).
+
 ## Setup
 
 Copy the example config and add your Spotify app credentials:
@@ -260,13 +275,13 @@ control, library browse, queue, search, and cover art. It runs on CPython and
 MicroPython, Linux and Windows, on the
 [PyDevices](https://github.com/PyDevices/pydevices) stack. See
 [`apps/spotify_remote/README.md`](apps/spotify_remote/README.md) for setup;
-`sayso.local.json` and `tokens.json` live in the app directory, not the repo
-root.
+`sayso.local.json` and `tokens.json` live in the app directory, not in this
+folder.
 
 ## Tests
 
-```powershell
-python -m unittest discover -s tests -v
+```bash
+PYTHONPATH=lib python -m unittest discover -s tests -v
 ```
 
 - `tests/test_objects.py` — offline unit tests for lazy hydration, `HydrationError`,
