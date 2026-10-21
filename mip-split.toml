@@ -117,6 +117,9 @@ pypi-extras = { ble = ["bleak>=1.0"] }
 [midiports]
 top-level = true
 
+[hmilink]
+top-level = true
+
 [usb-core]
 top-level = true
 
