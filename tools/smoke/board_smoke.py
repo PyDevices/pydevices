@@ -5,7 +5,8 @@
 
 It checks what a board package promises: ``board_config`` imports, the
 display draws, touch reads, and each peripheral in ``PERIPHERALS`` answers
-(its factory builds one without raising). It prints one line,
+(its factory builds one without raising). Roles that would take the board
+away, such as ``sleep``, are looked up but never called. It prints one line,
 ``SMOKE {json}``, for ``tools/mark_tested.py`` to read.
 
 ``tools/mark_tested.py`` runs it for you. To run it by hand, copy it to the
@@ -26,6 +27,10 @@ try:
     sys.path.insert(0, SMOKE_PATH)  # noqa: F821
 except NameError:
     pass
+
+# Roles whose factory takes the board away (it sleeps, resets or powers off).
+# A smoke test never calls these: it only proves the role is there and callable.
+NEVER_CALL = frozenset({"sleep", "lightsleep", "deepsleep", "reset", "soft_reset", "bootloader", "poweroff", "power_off", "shutdown"})
 
 _checks = []
 
@@ -89,6 +94,10 @@ for _role in sorted(getattr(bc, "PERIPHERALS", ()) if bc is not None else ()):
 
     def _answer(role=_role):
         obj = getattr(bc, role)
+        if role in NEVER_CALL:
+            if not callable(obj):
+                raise TypeError("{} is not callable".format(role))
+            return "present, not called"
         if role in _factories:
             obj = obj()
             kind = type(obj).__name__
