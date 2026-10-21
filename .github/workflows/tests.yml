@@ -24,6 +24,10 @@ on:
       # left the TOML stale, and the fix could not trigger its own test.
       - 'pydevices-desktop.toml'
       - 'tests/**'
+      # The interpreters' pins and recipe, which tests/test_release_interpreters.py runs.
+      - 'scripts/release_interpreters.sh'
+      - 'scripts/release_interpreters/**'
+      - 'bin/upload_interpreters.sh'
       - '.github/workflows/tests.yml'
   pull_request:
     paths:
@@ -46,6 +50,10 @@ on:
       # left the TOML stale, and the fix could not trigger its own test.
       - 'pydevices-desktop.toml'
       - 'tests/**'
+      # The interpreters' pins and recipe, which tests/test_release_interpreters.py runs.
+      - 'scripts/release_interpreters.sh'
+      - 'scripts/release_interpreters/**'
+      - 'bin/upload_interpreters.sh'
       - '.github/workflows/tests.yml'
   workflow_dispatch:
 

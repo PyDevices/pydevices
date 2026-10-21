@@ -45,6 +45,35 @@ run the workflow by hand from the Actions tab: it keeps the files as a run
 artifact and attaches nothing unless you tick "attach" with a final tag. The
 recipe is [`scripts/release_interpreters.sh`](../scripts/release_interpreters.sh).
 
+### The sources are pinned
+
+What you download from a final must be what that release built, so the
+interpreters are made from fixed commits, never from a branch tip.
+[`scripts/release_interpreters/sources.lock`](../scripts/release_interpreters/sources.lock)
+names the commit of `micropython-pydevices` (the build script, its patches, and
+its own locks for MicroPython, the toolchains and every module) and of
+`lvgl-circuitpython`. `interpreters.json` records every commit that went in:
+this release's `pydevices`, the two pins, the MicroPython commit, the
+CircuitPython version and each module's commit, with `"pinned": true` when the
+build used exactly the pins. A run that attaches always does; to try another
+`micropython-pydevices` or `lvgl-circuitpython`, name it in the two inputs of a
+manual run, which then attaches nothing.
+
+**Before you cut a final, move the pins:**
+
+```bash
+python3 scripts/release_interpreters/sources.py bump
+git diff scripts/release_interpreters/sources.lock   # check what moved
+```
+
+Commit that change in a pull request; its checks build all four interpreters
+from the new pins. The workflow prints a warning on every run whose pin is
+behind its repository's default branch, but never fails on it, because
+holding a pin back is sometimes right. `bump --dry-run` shows what would move.
+The interpreter versions are whatever the pinned `micropython-pydevices` builds,
+so a MicroPython or CircuitPython pre-release in its locks reaches the
+interpreters as it is; the manifest's `version` fields say which.
+
 This replaced an earlier model that built one TestPyPI distribution per `lib/`
 leaf (`pydevices-multimer`, `pydevices-displaydev`, `pydevices-events`,
 `pydevices-keys`) alongside `pydevices` and `pydevices-desktop`. Republishing
