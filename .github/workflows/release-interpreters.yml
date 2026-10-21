@@ -5,13 +5,17 @@
 #
 # A final release (vX.Y.Z) builds and attaches them. A dev, a, b or rc release
 # gets none. Every build comes from the release's own tag, with the
-# micropython-pydevices and lvgl-circuitpython default branches, and the manifest
-# says which commits.
+# micropython-pydevices and lvgl-circuitpython commits that
+# scripts/release_interpreters/sources.lock pins, and the manifest lists every
+# source commit that went in. Move the pins before a final with
+# scripts/release_interpreters/sources.py bump (docs/publishing.md).
 #
 # By hand: Actions > Release interpreters > Run workflow builds every
 # interpreter from the branch or tag you name and keeps them as a run artifact,
 # attaching nothing. Tick "attach" with a final tag to (re)attach to that
-# release. Changes to this recipe run the same builds on their pull request.
+# release; that always uses the pins. To try another micropython-pydevices or
+# lvgl-circuitpython, name it in the two inputs below, and the run attaches
+# nothing. Changes to this recipe run the same builds on their pull request.
 name: Release interpreters
 
 on:
@@ -29,12 +33,12 @@ on:
         default: false
         type: boolean
       micropython-pydevices-ref:
-        description: micropython-pydevices branch, tag or commit to build with
-        default: main
+        description: micropython-pydevices branch, tag or commit to build with (empty uses the pin in sources.lock; never attached)
+        default: ""
         type: string
       lvgl-circuitpython-ref:
-        description: lvgl-circuitpython branch, tag or commit for the CircuitPython build
-        default: main
+        description: lvgl-circuitpython branch, tag or commit for the CircuitPython build (empty uses the pin in sources.lock; never attached)
+        default: ""
         type: string
   pull_request:
     paths:
@@ -59,6 +63,8 @@ jobs:
       attach: ${{ steps.gate.outputs.attach }}
       tag: ${{ steps.gate.outputs.tag }}
       ref: ${{ steps.ref.outputs.ref }}
+      mpp: ${{ steps.gate.outputs.mpp }}
+      lvgl_cp: ${{ steps.gate.outputs.lvgl_cp }}
     steps:
       - uses: actions/checkout@v7
       - name: Decide whether this run builds and whether it attaches
@@ -68,6 +74,8 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           INPUT_REF: ${{ inputs.ref }}
           INPUT_ATTACH: ${{ inputs.attach }}
+          INPUT_MPP: ${{ inputs.micropython-pydevices-ref }}
+          INPUT_LVGL: ${{ inputs.lvgl-circuitpython-ref }}
         run: |
           case "$EVENT" in
             release) ref="$RELEASE_TAG" ;;
@@ -75,7 +83,9 @@ jobs:
           esac
           # A pull request and a dispatch build and never attach unless a
           # dispatch asks to and names a final tag.
-          scripts/release_interpreters.sh gate "$EVENT" "$ref" "${INPUT_ATTACH:-false}" | tee -a "$GITHUB_OUTPUT"
+          scripts/release_interpreters.sh gate "$EVENT" "$ref" "${INPUT_ATTACH:-false}" "$INPUT_MPP" "$INPUT_LVGL" | tee -a "$GITHUB_OUTPUT"
+      - name: Say when a pin is behind its default branch
+        run: python3 scripts/release_interpreters/sources.py stale
       - name: What to check out
         id: ref
         env:
@@ -111,8 +121,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: PyDevices/micropython-pydevices
-          ref: ${{ inputs.micropython-pydevices-ref || 'main' }}
+          ref: ${{ inputs.micropython-pydevices-ref || needs.gate.outputs.mpp }}
           path: micropython-pydevices
+      - name: micropython-pydevices is the pinned commit
+        if: inputs.micropython-pydevices-ref == ''
+        run: python3 recipe/scripts/release_interpreters/sources.py --lock recipe/scripts/release_interpreters/sources.lock verify micropython-pydevices micropython-pydevices
 
       - name: Packages the ${{ matrix.target }} build needs
         run: |
@@ -130,13 +143,12 @@ jobs:
       - name: CircuitPython's frozen Python and widgets
         if: matrix.target == 'cp-unix'
         env:
-          LVGL_CP_REF: ${{ inputs.lvgl-circuitpython-ref || 'main' }}
+          LVGL_CP_REF: ${{ inputs.lvgl-circuitpython-ref }}
         run: |
-          # pdwidgets and palettes at the commits micropython-pydevices pins.
+          # lvgl-circuitpython at its pin, then pdwidgets and palettes at the
+          # commits micropython-pydevices pins.
           mkdir -p ws && cd ws
-          git clone --quiet --depth 1 --branch "$LVGL_CP_REF" https://github.com/PyDevices/lvgl-circuitpython.git \
-            || { git clone --quiet https://github.com/PyDevices/lvgl-circuitpython.git \
-                 && git -C lvgl-circuitpython checkout --quiet "$LVGL_CP_REF"; }
+          ../recipe/scripts/release_interpreters.sh fetch lvgl-circuitpython lvgl-circuitpython "$LVGL_CP_REF"
           for name in pdwidgets palettes; do
             read -r _ url commit < <(grep "^$name[[:space:]]" ../micropython-pydevices/modules.lock)
             git init --quiet "$name"
@@ -165,11 +177,22 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+      # The three trees the interpreters were built from, to record their
+      # commits: the release's pydevices, and the two pinned sources.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.ref }}
+          path: pydevices
       - uses: actions/checkout@v7
         with:
           repository: PyDevices/micropython-pydevices
-          ref: ${{ inputs.micropython-pydevices-ref || 'main' }}
+          ref: ${{ inputs.micropython-pydevices-ref || needs.gate.outputs.mpp }}
           path: micropython-pydevices
+      - uses: actions/checkout@v7
+        with:
+          repository: PyDevices/lvgl-circuitpython
+          ref: ${{ inputs.lvgl-circuitpython-ref || needs.gate.outputs.lvgl_cp }}
+          path: lvgl-circuitpython
       - uses: actions/download-artifact@v8
         with:
           pattern: interpreter-*
@@ -199,6 +222,16 @@ jobs:
         run: |
           mpp=$(git -C micropython-pydevices rev-parse --short=12 HEAD)
           export PROVENANCE="built by GitHub Actions run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID from $GITHUB_REPOSITORY $GITHUB_SHA with micropython-pydevices $mpp"
+          # Every source commit, read from the trees themselves.
+          SOURCES_JSON=$RUNNER_TEMP/sources.json
+          export SOURCES_JSON
+          python3 scripts/release_interpreters/sources.py record --mpp micropython-pydevices \
+            --lvgl-circuitpython lvgl-circuitpython --pydevices pydevices \
+            --pydevices-ref "${TAG#unreleased}" | tee "$SOURCES_JSON"
+          # An attached set is made only from the pins.
+          if [[ "$DRY_RUN" == 0 ]]; then
+            python3 -c "import json,sys; sys.exit(0 if json.load(open('$SOURCES_JSON'))['pinned'] else 'not built from the pinned sources')"
+          fi
           # Writes the manifest; uploads only when this run attaches.
           bin/upload_interpreters.sh "$TAG" --clobber
           cat bin/interpreters.json

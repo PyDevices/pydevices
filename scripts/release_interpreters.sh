@@ -3,7 +3,7 @@
 # .github/workflows/release-interpreters.yml calls this; every step also runs
 # by hand on Linux or WSL.
 #
-#   release_interpreters.sh gate <event> <ref> <attach>
+#   release_interpreters.sh gate <event> <ref> <attach> [<mpp-ref> <lvgl-cp-ref>]
 #       Decide what a run does. <event> is "release", "workflow_dispatch" or
 #       "pull_request";
 #       <ref> is the release tag, or for a dispatch the branch or tag to
@@ -11,6 +11,13 @@
 #       event always attaches). Prints build=, attach= and tag= lines for
 #       $GITHUB_OUTPUT. Only a final tag (vX.Y.Z) is ever attached: a dev, a,
 #       b or rc release gets no interpreters, and a branch is only ever built.
+#       The optional refs override the commits release_interpreters/sources.lock
+#       pins for micropython-pydevices and lvgl-circuitpython; a run that
+#       overrides one never attaches. Also prints mpp= and lvgl_cp=, the pins.
+#
+#   release_interpreters.sh fetch <name> <dir> [<ref>]
+#       Check out lvgl-circuitpython (or another source in sources.lock) into
+#       <dir> at its pinned commit, or at <ref> when one is given.
 #
 #   release_interpreters.sh build <target> <out-dir>
 #       Build one interpreter with micropython-pydevices' build_mp.py and put
@@ -32,10 +39,11 @@
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
+SOURCES="$HERE/release_interpreters/sources.py"
 FINAL_TAG='^v[0-9]+\.[0-9]+\.[0-9]+$'
 
 gate() {
-    local event="${1:?event}" ref="${2:-}" attach="${3:-false}"
+    local event="${1:?event}" ref="${2:-}" attach="${3:-false}" mpp_ref="${4:-}" lvgl_ref="${5:-}"
     local build=false do_attach=false tag=""
     case "$event" in
         release)
@@ -59,9 +67,35 @@ gate() {
             return 1
             ;;
     esac
+    if [[ "$do_attach" == "true" && ( -n "$mpp_ref" || -n "$lvgl_ref" ) ]]; then
+        echo "error: will not attach interpreters built from another micropython-pydevices or lvgl-circuitpython than sources.lock pins" >&2
+        return 1
+    fi
     echo "build=$build"
     echo "attach=$do_attach"
     echo "tag=$tag"
+    python3 "$SOURCES" pins
+}
+
+# A shallow checkout of one source at its pin, or at <ref> (a branch, a tag or
+# any commit). A pin is checked after the checkout, so a moved or missing
+# commit fails here and not in the middle of a build.
+fetch() {
+    local name="${1:?name}" dir="${2:?dir}" ref="${3:-}"
+    local url commit
+    read -r _ url commit < <(grep "^$name[[:space:]]" "$HERE/release_interpreters/sources.lock")
+    git init --quiet "$dir"
+    if [[ -z "$ref" ]]; then
+        git -C "$dir" fetch --quiet --depth 1 "$url" "$commit"
+        git -C "$dir" checkout --quiet FETCH_HEAD
+        python3 "$SOURCES" verify "$name" "$dir"
+    elif git -C "$dir" fetch --quiet --depth 1 "$url" "$ref" 2>/dev/null; then
+        git -C "$dir" checkout --quiet FETCH_HEAD
+    else
+        # A short commit hash: GitHub only serves a fetch by the whole hash.
+        git -C "$dir" fetch --quiet "$url" '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+        git -C "$dir" checkout --quiet "$ref"
+    fi
 }
 
 build() {
@@ -123,6 +157,7 @@ cmd="${1:-}"
 [[ $# -gt 0 ]] && shift
 case "$cmd" in
     gate) gate "$@" ;;
+    fetch) fetch "$@" ;;
     build) build "$@" ;;
-    *) sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    *) sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

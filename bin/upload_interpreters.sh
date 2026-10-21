@@ -14,6 +14,9 @@
 #   PROVENANCE  the manifest's provenance text. The release workflow
 #               (.github/workflows/release-interpreters.yml) sets it to its own
 #               run; by hand it defaults to a local build.
+#   SOURCES_JSON  a file holding the "sources" object (every commit the
+#               interpreters were built from; scripts/release_interpreters/sources.py
+#               record writes it). The manifest carries it when set.
 #   DRY_RUN=1   write interpreters.json and stop before uploading, and skip the
 #               gh checks. The workflow's dry run uses it.
 set -euo pipefail
@@ -68,6 +71,9 @@ MANIFEST="$HERE/interpreters.json"
     echo "{"
     echo "  \"tag\": \"$TAG\","
     echo "  \"provenance\": \"$PROVENANCE\","
+    if [[ -n "${SOURCES_JSON:-}" ]]; then
+        echo "  \"sources\": $(sed '2,$s/^/  /' "$SOURCES_JSON"),"
+    fi
     echo "  \"files\": {"
 
     declare -A PLATFORMS=(
