@@ -1,0 +1,54 @@
+name: Publish boards to the library index
+
+# A board config or a driver is published when it merges, not at the next
+# release. A merge to main that touches board_configs/ (a tested.json
+# included) or drivers/ (drivers.toml included) asks the library index
+# (PyDevices/lib) to republish with that commit's two folders laid over the
+# core of the pinned release. Nothing else on main does: the library's own
+# code, the other packages and the docs wait for a release. The next vX.Y.Z
+# release clears the commit from the index's pins.
+#
+# No test runs here. The pull request's checks (lib-index.yml, tests.yml) are
+# the gate; the index's build fails, and the live index stays as it was, if the
+# merged files don't build over the released core.
+#
+# The mip index (PyDevices.github.io/mip) takes releases only and isn't asked.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'board_configs/**'
+      - 'drivers/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Requests go out in the order the merges happened; the index queues them.
+concurrency:
+  group: lib-boards-publication
+  cancel-in-progress: false
+
+jobs:
+  version:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+
+  request-library-publication:
+    needs: version
+    uses: PyDevices/.github/.github/workflows/reusable-request-mip-publication.yml@publishing-v15
+    with:
+      release-ref: ${{ github.sha }}
+      version: ${{ needs.version.outputs.version }}
+      profile: boards
+      prerelease: true
+      legacy-index: false
+    secrets: inherit
