@@ -11,6 +11,12 @@ Touch is the GT911 on the board's I2C bus, read directly (no library needed).
 Unlike the LCD-7, this board's GT911 reports landscape values with the axes
 reflected over the diagonal, as it does on MicroPython; ``touch_read`` undoes
 that.
+
+Writing a file from your program (``open(..., "w")``, ``flush()``,
+``os.remove``) stops the board's memory for tens of milliseconds, about 60 ms
+for a one-line write, and the panel can flash or shift while it lasts. Keep
+file writes out of code that runs while the screen is live, such as a touch
+handler; log to a list and save it when you're done.
 """
 
 import board
