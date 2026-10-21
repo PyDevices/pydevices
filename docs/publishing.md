@@ -72,7 +72,12 @@ behind its repository's default branch, but never fails on it, because
 holding a pin back is sometimes right. `bump --dry-run` shows what would move.
 The interpreter versions are whatever the pinned `micropython-pydevices` builds,
 so a MicroPython or CircuitPython pre-release in its locks reaches the
-interpreters as it is; the manifest's `version` fields say which.
+interpreters as it is; the manifest's `version` fields say which. The
+release's notes say so too: the workflow ends them with one line naming the
+MicroPython and CircuitPython the interpreters are built on, marked "(a
+preview)" when either is not a release
+([`notes.py`](../scripts/release_interpreters/notes.py), which reads the line
+from `interpreters.json`). Attaching again replaces that line.
 
 This replaced an earlier model that built one TestPyPI distribution per `lib/`
 leaf (`pydevices-multimer`, `pydevices-displaydev`, `pydevices-events`,

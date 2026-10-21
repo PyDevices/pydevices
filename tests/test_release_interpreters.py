@@ -262,5 +262,111 @@ class TheManifest(Scratch):
         self.assertIn('if [[ -n "${SOURCES_JSON:-}" ]]', text)
 
 
+NOTES_PY = SCRIPTS / "release_interpreters" / "notes.py"
+spec = importlib.util.spec_from_file_location("release_interpreters_notes", str(NOTES_PY))
+assert spec and spec.loader
+notes = importlib.util.module_from_spec(spec)
+sys.modules["release_interpreters_notes"] = notes
+spec.loader.exec_module(notes)
+
+def manifest(mp, cp):
+    return {"built_on": {"micropython": mp, "circuitpython": cp}}
+
+
+class TheReleaseNotesLine(unittest.TestCase):
+    def test_says_both_are_previews(self):
+        self.assertEqual(notes.line(manifest("1.30.0-preview", "11.0.0-alpha.1")),
+                         notes.MARK + "The attached interpreters are built on MicroPython "
+                         "1.30.0-preview (a preview) and CircuitPython 11.0.0-alpha.1 (a preview).")
+
+    def test_labels_only_the_one_that_is_a_preview(self):
+        text = notes.line(manifest("1.29.0", "11.0.0-alpha.1"))
+        self.assertIn("MicroPython 1.29.0 and", text)
+        self.assertIn("CircuitPython 11.0.0-alpha.1 (a preview).", text)
+        text = notes.line(manifest("1.30.0-preview", "10.1.0"))
+        self.assertIn("(a preview) and CircuitPython 10.1.0.", text)
+
+    def test_calls_nothing_a_preview_when_both_are_releases(self):
+        text = notes.line(manifest("1.29.0", "10.1.0"))
+        self.assertNotIn("preview", text)
+        self.assertIn("MicroPython 1.29.0 and CircuitPython 10.1.0.", text)
+
+    def test_a_build_past_a_tag_is_not_a_release(self):
+        self.assertIn("1.29.0-12-gabc1234 (a preview)", notes.line(manifest("1.29.0-12-gabc1234", "10.1.0")))
+
+    def test_reads_the_versions_and_does_not_invent_them(self):
+        text = notes.line(manifest("9.9.9-preview", "8.8.8-beta.2"))
+        self.assertIn("9.9.9-preview (a preview)", text)
+        self.assertIn("8.8.8-beta.2 (a preview)", text)
+
+    def test_stops_when_the_manifest_does_not_say(self):
+        for bad in ({}, {"built_on": {"micropython": "1.29.0"}}, manifest("", "10.1.0")):
+            with self.assertRaises(SystemExit):
+                notes.line(bad)
+
+
+class PuttingTheLineInTheNotes(unittest.TestCase):
+    def test_goes_last_after_a_blank_line(self):
+        body = "## What's Changed\n* a thing\n\n**Full Changelog**: https://example.com\n"
+        self.assertEqual(notes.with_line(body, notes.MARK + "X."), body + "\n" + notes.MARK + "X.\n")
+
+    def test_an_empty_body_is_just_the_line(self):
+        self.assertEqual(notes.with_line("", notes.MARK + "X."), notes.MARK + "X.\n")
+
+    def test_a_second_run_replaces_the_line(self):
+        once = notes.with_line("Notes.\n", notes.MARK + "old.")
+        twice = notes.with_line(once, notes.MARK + "new.")
+        self.assertEqual(twice, "Notes.\n\n" + notes.MARK + "new.\n")
+
+
+@unittest.skipUnless(HAVE_BASH, "needs bash")
+class TheLineFromARealManifest(Scratch):
+    """upload_interpreters.sh writes the manifest the workflow gives notes.py."""
+
+    def make_bin(self, mp, cp):
+        bindir = self.dir / "bin"
+        bindir.mkdir()
+        shutil.copy(ROOT / "bin" / "upload_interpreters.sh", bindir)
+        # sys.version is what the manifest's per-file "version" holds; a build with
+        # no git tags says a commit there, so MicroPython's number is asked of
+        # sys.implementation instead.
+        (bindir / "micropython").write_text(
+            "#!/bin/sh\n"
+            f'case "$2" in *sys.implementation*) echo "{mp}";; *) echo "3.4.0; MicroPython 02b9097057-dirty on 2026-10-21";; esac\n')
+        (bindir / "circuitpython").write_text(f"#!/bin/sh\necho '3.4.0; CircuitPython {cp}-dirty on 2026-10-21'\n")
+        for name in ("micropython", "circuitpython"):
+            (bindir / name).chmod(0o755)
+        for name in ("micropython.exe", "micropython.mjs", "micropython.wasm"):
+            (bindir / name).write_text("x")
+        subprocess.run(["bash", str(bindir / "upload_interpreters.sh"), "v1.2.3"], check=True,
+                       capture_output=True, env=dict(os.environ, DRY_RUN="1"))
+        return bindir / "interpreters.json"
+
+    def test_line_command_reads_the_file(self):
+        path = self.make_bin("1.30.0-preview", "11.0.0-alpha.1")
+        out = subprocess.run([sys.executable, str(NOTES_PY), "line", str(path)], check=True,
+                             capture_output=True, text=True).stdout
+        self.assertIn("MicroPython 1.30.0-preview (a preview) and CircuitPython 11.0.0-alpha.1 (a preview)", out)
+        recorded = json.loads(path.read_text())
+        self.assertEqual(recorded["built_on"], {"micropython": "1.30.0-preview", "circuitpython": "11.0.0-alpha.1"})
+        self.assertIn("02b9097057-dirty", recorded["files"]["micropython"]["version"])
+
+    def test_release_command_edits_the_notes_through_gh(self):
+        path = self.make_bin("1.29.0", "11.0.0-alpha.1")
+        fake = self.dir / "fakebin"
+        fake.mkdir()
+        gh = fake / "gh"
+        gh.write_text("#!/bin/bash\n"
+                      'if [[ "$2" == view ]]; then printf "Release notes.\\n"; exit 0; fi\n'
+                      'while [[ $# -gt 0 ]]; do [[ "$1" == --notes-file ]] && cp "$2" "$GH_OUT"; shift; done\n')
+        gh.chmod(0o755)
+        env = dict(os.environ, PATH=f"{fake}{os.pathsep}{os.environ['PATH']}", GH_OUT=str(self.dir / "out.md"))
+        subprocess.run([sys.executable, str(NOTES_PY), "release", "v1.2.3", str(path)], check=True,
+                       capture_output=True, env=env)
+        self.assertEqual((self.dir / "out.md").read_text(),
+                         "Release notes.\n\n" + notes.MARK + "The attached interpreters are built on MicroPython "
+                         "1.29.0 and CircuitPython 11.0.0-alpha.1 (a preview).\n")
+
+
 if __name__ == "__main__":
     unittest.main()
