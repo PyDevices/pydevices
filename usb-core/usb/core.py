@@ -31,6 +31,22 @@ import _usbhost
 
 from . import util
 
+# CircuitPython's time has no ticks. Its monotonic clock doesn't wrap, so a
+# difference there is a plain subtraction.
+try:
+    _ticks_ms, _ticks_diff, _sleep_ms = time.ticks_ms, time.ticks_diff, time.sleep_ms
+except AttributeError:
+
+    def _ticks_ms():
+        return time.monotonic_ns() // 1000000
+
+    def _ticks_diff(end, start):
+        return end - start
+
+    def _sleep_ms(ms):
+        time.sleep(ms / 1000)
+
+
 _ALL = ("cdc", "hid", "msc", "midi", "uac", "uvc", "other")
 _SPEEDS = {"low": 1, "full": 2, "high": 3}
 _SETTLE_MS = 1500   # a device just plugged in needs this long to enumerate
@@ -134,7 +150,7 @@ def start(full_speed=False, classes=None, force=False):
         _usbhost.host_start(want + ("other",) if "other" not in want else want, full_speed=full_speed)
     except AttributeError:
         raise NoBackendError("this firmware has no USB host")
-    _started = time.ticks_ms()
+    _started = _ticks_ms()
     _full_speed = full_speed
     _classes = want
     if _ran_full_speed is None or force:
@@ -176,9 +192,9 @@ def stats():
 def _start():
     if _started is None:
         start()
-    wait = _SETTLE_MS - time.ticks_diff(time.ticks_ms(), _started)
+    wait = _SETTLE_MS - _ticks_diff(_ticks_ms(), _started)
     if wait > 0:
-        time.sleep_ms(wait)
+        _sleep_ms(wait)
 
 
 def find(find_all=False, *, idVendor=None, idProduct=None, custom_match=None):
