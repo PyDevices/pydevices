@@ -15,7 +15,6 @@
       "latest"
     ]
   ],
-  "version": "0.7.7rc1",
   "description": "The board config for every desktop, browser and Android host",
   "generated": "by tools/libbuild.py installers"
 }
