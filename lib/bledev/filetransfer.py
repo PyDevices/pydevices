@@ -46,10 +46,7 @@ The protocol carries no checksum of its own beyond the link layer's CRC, so a
 client that must be sure checks what landed (mpftp compares SHA-256).
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 import struct
 

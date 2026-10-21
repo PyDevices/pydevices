@@ -226,10 +226,8 @@ async def perform(peripheral, steps=STEPS, gap_ms=0, sleep_ms=None):
 
 
 async def _yield():
-    try:
-        import asyncio
-    except ImportError:  # pragma: no cover
-        import uasyncio as asyncio
+    import asyncio
+
     await asyncio.sleep(0)
 
 

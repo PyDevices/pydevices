@@ -46,10 +46,7 @@ Windows keeps HID devices for itself once paired; don't pair a board you are
 testing with the PC you are testing from, or it will type into it.
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 import struct
 

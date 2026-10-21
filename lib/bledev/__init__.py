@@ -23,10 +23,7 @@ The shape is aioble's, and it is async throughout. The pieces:
 Nothing here imports a backend, and nothing here imports :mod:`bledev.auto`.
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover - very old MicroPython
-    import uasyncio as asyncio
+import asyncio
 
 import struct
 

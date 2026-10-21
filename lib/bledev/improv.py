@@ -25,10 +25,7 @@ logs them. Saving them for the next boot is the app's job (``on_join``), so
 nothing here writes a credential to the filesystem.
 """
 
-try:
-    import asyncio
-except ImportError:  # pragma: no cover
-    import uasyncio as asyncio
+import asyncio
 
 import sys
 
