@@ -1,4 +1,4 @@
-## Unreleased
+## v0.7.7rc1 (2026-10-21)
 
 - Experimental: `backends`, a small registry that `AutoDisplay` and `audiodev.auto` now look their backend up in. `backends.register("display", name, "module:Class", probe=...)` adds one and `backends.require(kind, name)` asks for it from a `board_config.py`. The search order is the `PYDEVICES_DISPLAY` / `PYDEVICES_AUDIO` environment variable, then what the config required, then the built-in host backends in the order they were tried before; a backend you register is never picked unless it was required or named. `AutoDisplay` passes extra keyword arguments to the backend that wins. What `auto` picks on each host is unchanged. See [docs/displaydev.md](docs/displaydev.md#experimental-your-own-backend)
 - Every board config and every driver is a package of the library index, named by its folder or module. A board's `manifest.py` requires the driver packages it uses, and mip installs them as `deps` from the same index, so a driver fixed once reaches every board. Drivers are listed in `drivers/drivers.toml`. Boards with a `tested.json` (written by `tools/mark_tested.py` after the smoke test passes) publish to the main index with their drivers; the rest are in the index's `untested/` folder. [CONTRIBUTING.md](CONTRIBUTING.md) says how to add one
@@ -10,6 +10,13 @@
 - **Breaking change** (pydevices is under 1.0, so it lands without waiting for 2.0): `usb.host.hid` returns key presses, mouse buttons and movement as events named the way `adafruit_hid` names them, and no longer returns raw reports. In 0.7.6, `Device.read()` returned the report's bytes (a keyboard's modifier byte, a reserved byte, then the keys held); it now returns `None` or a tuple: `(KEY_DOWN, keycode, modifiers)`, `(KEY_UP, ...)`, `(CONSUMER_DOWN, code, 0)`, `(CONSUMER_UP, ...)`, or `(MOUSE_EVENT, buttons, dx, dy, wheel)`. Code that unpacked report bytes has to change; there is no switch to get the bytes back. `Device(dev, KEYBOARD)` and `Device.match()` work as before. See [docs/usb.md](docs/usb.md).
 - usb-host-hid: new `usb.host.hid_codes` with `Keycode`, `ConsumerControlCode` and `Mouse`'s button names, at `adafruit_hid`'s values, so nothing needs `adafruit_hid` installed
 - usb-host-hid: `Device(..., boot=False)` reads the report descriptor, so media keys, 12 and 16-bit mouse movement and report IDs decode; `interface=` picks a particular HID interface
+
+- bledev declares no dependency on aioble; releases also ask the library index to rebuild (#261)
+- Tested: the P4 panel and the S3 LCD-4.3 pass their smoke tests (#260)
+- Tested: the ESP32-P4 WIFI6 DEV-KIT with the KeDei 5-inch display passes its smoke test (#259)
+- backends: a registry AutoDisplay and audiodev.auto look their backend up in (experimental) (#258)
+- Tested: the S3 LCD-7 and the desktop board config pass their smoke tests (#257)
+- Board configs and drivers become packages of the library index (#255)
 
 ## v0.7.7.dev1 (2026-10-20)
 
