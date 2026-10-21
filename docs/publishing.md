@@ -124,6 +124,18 @@ the library index takes pre-releases, so its `latest` can be a release
 candidate. A board installs from it with
 `mip.install("pydevices", index="https://pydevices.github.io/lib")`.
 
+Boards and drivers don't wait for a release. A merge to `main` that touches
+`board_configs/` (a `tested.json` included) or `drivers/` runs
+[`publish-lib-boards.yml`](../.github/workflows/publish-lib-boards.yml), which
+sends the library index a `boards` request naming the merge commit. The index
+takes those two folders from that commit and everything else from the last
+`vX.Y.Z` release, so the new board file is live a few minutes after the merge
+while `pydevices` itself keeps its released version. A board's version is still
+the repository's, so the file hashes in its `package.json` tell two builds
+apart. The next release clears the commit. A merge that touches neither folder
+sends nothing. If the combination doesn't build, the index's run fails and the
+index stays as it was; the fix is another merge.
+
 ## PyScript filesystem
 
 [`pydevices-desktop.toml`](../pydevices-desktop.toml) is a generated, committed filesystem mapping that
