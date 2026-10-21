@@ -1,0 +1,105 @@
+from . import objects as _objects
+from .auth import (
+    AuthorizationCodeAuth,
+    ClientCredentialsAuth,
+    SpotifyAuthError,
+    SpotifyConfigError,
+    authorization_url,
+    authorize_with_local_server,
+    code_challenge_s256,
+    config_available,
+    config_value,
+    credentials_from_config,
+    generate_code_verifier,
+    load_config,
+    oauth_error_from_transport,
+    parse_callback_url,
+    pkce_pair,
+    post_oauth_token,
+    redirect_uri_from_config,
+    save_config,
+    scopes_from_config,
+    token_cache_from_config,
+    DEFAULT_CONFIG_PATH,
+    DEFAULT_REDIRECT_URI,
+    DEFAULT_TOKEN_CACHE_PATH,
+    TokenCache,
+    EXAMPLE_SCOPES,
+    FOLLOW_WRITE_SCOPES,
+    LIBRARY_READ_SCOPES,
+    LIBRARY_WRITE_SCOPES,
+    PLAYBACK_READ_SCOPES,
+    PLAYBACK_WRITE_SCOPES,
+    PLAYLIST_READ_SCOPES,
+    PLAYLIST_WRITE_SCOPES,
+    USER_PROFILE_SCOPES,
+)
+from .client import SpotifyClient, SpotifyClientError, snapshot_id
+from .local import EarfulAdapter
+from .object_specs import SPOTIFY_OBJECT_SPECS
+from .objects import (
+    HydrationError,
+    Page,
+    SpotifyObject,
+    get_client,
+    make_spotify_class,
+    make_spotify_classes,
+    set_client,
+)
+
+
+for _spec in SPOTIFY_OBJECT_SPECS:
+    globals()[_spec["name"]] = getattr(_objects, _spec["name"])
+
+
+__all__ = (
+    "Page",
+    "SPOTIFY_OBJECT_SPECS",
+    "ClientCredentialsAuth",
+    "AuthorizationCodeAuth",
+    "SpotifyAuthError",
+    "SpotifyConfigError",
+    "SpotifyClient",
+    "SpotifyClientError",
+    "EarfulAdapter",
+    "HydrationError",
+    "SpotifyObject",
+    "get_client",
+    "make_spotify_class",
+    "make_spotify_classes",
+    "set_client",
+    "snapshot_id",
+    "authorization_url",
+    "authorize_with_local_server",
+    "code_challenge_s256",
+    "config_available",
+    "config_value",
+    "credentials_from_config",
+    "DEFAULT_CONFIG_PATH",
+    "DEFAULT_REDIRECT_URI",
+    "DEFAULT_TOKEN_CACHE_PATH",
+    "generate_code_verifier",
+    "load_config",
+    "oauth_error_from_transport",
+    "parse_callback_url",
+    "pkce_pair",
+    "post_oauth_token",
+    "redirect_uri_from_config",
+    "save_config",
+    "scopes_from_config",
+    "token_cache_from_config",
+    "EXAMPLE_SCOPES",
+    "FOLLOW_WRITE_SCOPES",
+    "LIBRARY_READ_SCOPES",
+    "LIBRARY_WRITE_SCOPES",
+    "PLAYBACK_READ_SCOPES",
+    "PLAYBACK_WRITE_SCOPES",
+    "PLAYLIST_READ_SCOPES",
+    "PLAYLIST_WRITE_SCOPES",
+    "USER_PROFILE_SCOPES",
+    "TokenCache",
+) + tuple(_spec["name"] for _spec in SPOTIFY_OBJECT_SPECS)
+
+
+del _objects
+del _spec
