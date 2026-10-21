@@ -49,7 +49,7 @@ display_drv.show()
 Optional host auto-selection lives in `displaydev.auto` (never imported from the
 package root); `AutoDisplay` picks `PSDisplay` on PyScript, `JNDisplay` on
 Jupyter, and `WinDisplay`→`PGDisplay`→`SDLDisplay` on desktop. Explicit boards
-import a backend directly.
+import a backend directly. The choice is a lookup in the [`backends`](../backends.py) registry, which you can add to (experimental): see [Displays](../../docs/displaydev.md#experimental-your-own-backend).
 
 Install a board package for MCU pins, or the desktop bundle from pydevices —
 see [install workflows](https://github.com/PyDevices/pydevices/blob/main/docs/install-workflows.md).

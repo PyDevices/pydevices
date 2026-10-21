@@ -256,6 +256,35 @@ BusDisplay uses CircuitPython-style rotation degrees (`0`, `90`, `180`, `270`).
 
 Known issues: Unix SDL rotation clears the screen; scrolling while rotated has edge cases on desktop and MCU — track work on [GitHub Issues](https://github.com/PyDevices/pydevices-examples/issues).
 
+## Experimental: your own backend
+
+`AutoDisplay` (what the desktop board config calls) looks its backend up in a small registry, [`backends`](../lib/backends.py). You can register one of your own. This is new, and its names and calling convention may still change.
+
+```python
+# in your backend's package
+import backends
+backends.register("display", "hls", "hls_display:HlsDisplay", probe=have_ffmpeg)
+
+# board_config.py
+import backends
+backends.require("display", "hls", module="hls_display")
+display_drv = AutoDisplay(1280, 720, tv=TV)      # extra keywords go to the winner
+```
+
+`register` takes a name, a `"module:Class"` string (nothing is imported until the backend is tried), and an optional `probe()` that returns false when this machine can't run it. `require` imports the module you name, which registers the backend, and raises an `ImportError` that names the module if it isn't installed.
+
+`AutoDisplay` tries, in order:
+
+1. the backend named by the `PYDEVICES_DISPLAY` environment variable, if it is set, and nothing else. The built-in names are `wasm`, `pyscript`, `jupyter`, `android`, `win`, `pygame` and `sdl`;
+2. the backends your config `require`d, in the order it asked, skipping any whose probe says no;
+3. the built-in backends for this host, as before.
+
+A backend that isn't built in is never picked unless a config required it or you named it, so a backend that streams to a TV never chooses itself. A backend from outside the box is called as `Class(width=..., height=..., **extra)`, with whatever extra keywords you gave `AutoDisplay`; it can raise `backends.Decline` to hand the choice to the next one.
+
+On MicroPython there is no scanning for installed backends: `require` is the only way in. A frozen module imports like any other, so what you freeze decides what is present and `require` decides what is used.
+
+The Roku, HLS and Miracast displays in pydevices-examples don't register themselves yet; you still choose them by putting their `board_config.py` first on the path.
+
 ## Next
 
 - [Display backend internals](displaydev-internals.md) — GRAM/present model, 565 API, color conversion per backend

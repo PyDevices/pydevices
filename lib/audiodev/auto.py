@@ -2,6 +2,8 @@
 
 import sys
 
+import backends
+
 
 def host_kind():
     try:
@@ -40,18 +42,39 @@ def _is_micropython():
     return getattr(getattr(sys, "implementation", None), "name", "") == "micropython"
 
 
+def _wasm_probe():
+    return _is_micropython() and _module_available("_wasm_bridge")
+
+
+def _web_probe():
+    return not _is_micropython() and sys.platform == "emscripten"
+
+
+def _pygame_probe():
+    return not _is_micropython() and _module_available("pygame")
+
+
+# The transports in the box, in the order they are tried. A spec names a module
+# that provides ``pcm_out`` and ``pcm_in``.
+for _name, _spec, _probe in (
+    ("wasm_audio", "audiodev.wasm_audio", _wasm_probe),
+    ("web_audio", "audiodev.web_audio", _web_probe),
+    ("win_audio", "audiodev.win_audio", lambda: _uwin32_available()),
+    ("sdl2_audio", "audiodev.sdl2_audio", lambda: _module_available("usdl2")),
+    ("pygame_audio", "audiodev.pygame_audio", _pygame_probe),
+):
+    backends.register("audio", _name, _spec, probe=_probe, builtin=True)
+
+
 def select_backend():
-    """Return the first usable output backend in the documented probe order."""
-    if _is_micropython() and _module_available("_wasm_bridge"):
-        return "wasm_audio"
-    if not _is_micropython() and sys.platform == "emscripten":
-        return "web_audio"
-    if _uwin32_available():
-        return "win_audio"
-    if _module_available("usdl2"):
-        return "sdl2_audio"
-    if not _is_micropython() and _module_available("pygame"):
-        return "pygame_audio"
+    """Return the name of the first usable output backend.
+
+    Experimental search order: ``PYDEVICES_AUDIO`` if set, then the backends a
+    board config ``require``d (see :mod:`backends`), then the ones in the box
+    in the documented probe order: wasm, Web Audio, Windows, SDL2, pygame.
+    """
+    for name, _spec, _builtin in backends.candidates("audio", backends.env("PYDEVICES_AUDIO")):
+        return name
     raise ImportError(
         "no usable audio transport: install pygame-ce, install/provide usdl2, "
         "or explicitly wrap an SDL, WASAPI, Web Audio, I2S, wasm, or emulated transport"
@@ -59,19 +82,10 @@ def select_backend():
 
 
 def _impl(name, direction):
-    if name == "wasm_audio":
-        from audiodev import wasm_audio as mod
-    elif name == "win_audio":
-        from audiodev import win_audio as mod
-    elif name == "sdl2_audio":
-        from audiodev import sdl2_audio as mod
-    elif name == "web_audio":
-        from audiodev import web_audio as mod
-    elif name == "pygame_audio":
-        from audiodev import pygame_audio as mod
-    else:
+    spec = backends.spec("audio", name)
+    if spec is None:
         raise ValueError("unknown audiodev backend: %s" % name)
-    return getattr(mod, direction)
+    return getattr(backends.load(spec), direction)
 
 
 def pcm_out(format=None, **kwargs):
