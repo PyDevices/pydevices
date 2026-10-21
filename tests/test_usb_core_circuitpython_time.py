@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: MIT
 """usb.core on a time module without ticks, as CircuitPython's is.
 
-CPython's time has no ticks_ms either, so importing usb.core here takes the
-same path it takes on CircuitPython: monotonic_ns() and sleep().
+With the ticks taken off CPython's time, importing usb.core takes the path it
+takes on CircuitPython: monotonic_ns() and sleep().
 """
 
 import pathlib
@@ -34,8 +34,11 @@ class CircuitPythonTimeTests(unittest.TestCase):
             mp = types.ModuleType("micropython")
             mp.const = lambda x: x
             sys.modules["micropython"] = mp
+        # Hide any ticks another test (or a desktop shim) put on time.
         for name in ("ticks_ms", "ticks_diff", "sleep_ms"):
-            self.assertFalse(hasattr(time, name))
+            if hasattr(time, name):
+                self.addCleanup(setattr, time, name, getattr(time, name))
+                delattr(time, name)
         sys.modules["_usbhost"] = FakeHost()
         for n in ("usb", "usb.core", "usb.util"):
             sys.modules.pop(n, None)
