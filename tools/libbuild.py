@@ -26,6 +26,9 @@ It then compiles that tree into ``<out>/index``, the layout ``mip`` reads:
 ``package/<mpy version>/<name>/latest.json``, ``package/py/<name>/...`` and the
 files under ``file/<hash[:2]>/<hash>``, with ``.mpy`` and ``.py`` for each.
 
+``build --tree-only`` stops after the tree, which needs no ``mpy-cross``:
+that is what a firmware build asks for.
+
 ``compare`` checks a built index against another one, file hash by file
 hash, for every package in the built one.
 
@@ -223,6 +226,9 @@ def _copy(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
+_PAYLOAD_CALL = re.compile(r"^(package|module)\((.*)\)$")
+
+
 def _payload(path: Path) -> str:
     return f'module("{path.name}")' if path.is_file() else f'package("{path.name}")'
 
@@ -252,12 +258,16 @@ def render_manifest(
     if pypi:
         lines.append(f'    pypi_publish="{pypi}",')
     lines.append(")")
+    # A firmware build chooses the optimisation level of what it freezes:
+    # require("palettes", library="omnipython-lib", opt=3). The index passes
+    # none, so what mip installs is compiled as it always was.
+    lines.append("options.defaults(opt=None)")
     for name in requires:
         if name in local:
-            lines.append(f'require("{name}", library="{library}")')
+            lines.append(f'require("{name}", library="{library}", opt=options.opt)')
         else:
             lines.append(f'require("{name}")')
-    lines.extend(payloads)
+    lines.extend(_PAYLOAD_CALL.sub(r"\1(\2, opt=options.opt)", payload) for payload in payloads)
     lines.append("")
     return "\n".join(lines)
 
@@ -792,6 +802,15 @@ class ManifestFile:
     opt: int | None
 
 
+class _Options:
+    """The ``options`` an included manifest reads: here only the defaults a
+    manifest declares, since nothing in the index is built with options."""
+
+    def defaults(self, **kwargs) -> None:
+        for name, value in kwargs.items():
+            self.__dict__.setdefault(name, value)
+
+
 class Manifest:
     def __init__(self, library: str, library_path: Path, upstream: Path | None):
         self.library = library
@@ -862,6 +881,7 @@ class Manifest:
                     "include": self.include,
                     "package": self.package,
                     "module": self.module,
+                    "options": _Options(),
                 },
             )
         except BuildError:
@@ -1425,7 +1445,7 @@ def cmd_build(args) -> int:
     unknown = sorted(set(overrides) - set(lock.pinned))
     if unknown:
         raise BuildError(f"--source names packages {LOCKFILE} doesn't pin: {', '.join(unknown)}")
-    mpy_cross = MpyCross(args.mpy_cross)
+    mpy_cross = None if args.tree_only else MpyCross(args.mpy_cross)
 
     if out.exists():
         shutil.rmtree(out)
@@ -1443,6 +1463,9 @@ def cmd_build(args) -> int:
     drivers = read_drivers(root)
     assemble_boards(root, boards, version, tree, library, local)
     assemble_drivers(root, drivers, tree, library, local)
+    if args.tree_only:
+        print(f"library tree: {tree.path} ({len(tree.packages)} packages)")
+        return 0
 
     # Everything goes in the untested index, so whatever an untested package
     # depends on installs from there too. The main index holds the rest of the
@@ -1590,6 +1613,7 @@ def main(argv=None) -> int:
     build.add_argument("--library-name", default=DEFAULT_LIBRARY_NAME, help=f"the name firmware builds add_library() it under (default {DEFAULT_LIBRARY_NAME})")
     build.add_argument("--base-url", help="the address the index will be served from; writes an index.html that shows it")
     build.add_argument("--hash-prefix", type=int, default=8, help="file hash prefix length (default 8)")
+    build.add_argument("--tree-only", action="store_true", help="write the library tree and stop: no index, so no mpy-cross (what a firmware build needs)")
     build.set_defaults(func=cmd_build)
 
     check = commands.add_parser("check", help="check every board and driver package's shape, as CI does")
