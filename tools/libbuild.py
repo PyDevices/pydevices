@@ -1266,7 +1266,6 @@ def render_installers(root: Path) -> dict[Path, str]:
         body = {
             "urls": [[f, f"github:{GITHUB_REPO}/{DESKTOP_BOARD_DIR}/{f}"] for f in files],
             "deps": [["pydevices-desktop", "latest"]],
-            "version": (root / "VERSION").read_text(encoding="utf-8").strip(),
             "description": "The board config for every desktop, browser and Android host",
             "generated": "by tools/libbuild.py installers",
         }
