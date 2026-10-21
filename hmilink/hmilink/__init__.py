@@ -167,6 +167,12 @@ def apply_op(doc, op):
     return node
 
 
+def _list_path(path):
+    """True when a path ends in a list index or ``-``: its add and remove aren't idempotent."""
+    keys = split_pointer(path)
+    return bool(keys) and (keys[-1] == "-" or keys[-1].isdigit())
+
+
 def get_path(doc, path, default=None):
     """The value at a JSON Pointer path, or ``default``."""
     node = doc
@@ -514,6 +520,12 @@ class Panel:
             if mine and path in self._pending:
                 if msg.get("id") == self._pending[path]:
                     del self._pending[path]
+                    if _list_path(path):
+                        # Already applied when sent, and an append or a list
+                        # remove is not idempotent: don't apply the echo.
+                        if self.on_op:
+                            self.on_op(msg)
+                        return
                 else:
                     self.stats["echo_skipped"] += 1
                     return

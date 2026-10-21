@@ -24,7 +24,25 @@ try:
 except ImportError:
     tcp = None
 
-PORT = 8765  # 19411 is refused on Windows (10013), though netsh lists no exclusion there
+# Windows refuses some ports with 10013 and the set moves (Hyper-V and WSL
+# reserve ranges as they go; 19411 and later 8765 were refused here on
+# 2026-10-21 with nothing listening), so the checks take the first that binds.
+PORTS = (8765, 8766, 9765, 9876, 18765, 28765)
+PORT = None
+
+
+def pick_port():
+    global PORT
+    if PORT is not None:
+        return PORT
+    for port in PORTS:
+        try:
+            tcp.serve(port, bind="127.0.0.1").close()
+        except OSError:
+            continue
+        PORT = port
+        return port
+    raise OSError("no port in %r would bind" % (PORTS,))
 
 
 def check(cond, what):
@@ -160,6 +178,20 @@ def exercise(device, p1, p2, telemetry=True):
     pump(device, (p1, p2))
     check(p1.stats["echo_skipped"] == before + 1, "stale echo skipped")
     check(p1.doc["knobs"]["a"] == 0.2 and p2.doc["knobs"]["a"] == 0.2, "both at the newest")
+
+    # an append applied when sent must not be applied again by its own echo
+    device.model.apply = lambda op: (hmilink.apply_op(device.model.doc, op), op)[1]
+    device.model.doc["list"] = []
+    p1.doc["list"] = []
+    p2.doc["list"] = []
+    p1.send("add", "/list/-", 1)
+    p1.send("add", "/list/-", 2)
+    pump(device, (p1, p2))
+    check(p1.doc["list"] == [1, 2], "the sender has each append once: %r" % p1.doc["list"])
+    check(p2.doc["list"] == [1, 2], "the other panel too: %r" % p2.doc["list"])
+    p2.remove("/list/0")
+    pump(device, (p1, p2))
+    check(p1.doc["list"] == [2] and p2.doc["list"] == [2], "a list remove lands once")
     return True
 
 
@@ -276,6 +308,7 @@ class WSClient:
 def test_tcp():
     import socket
 
+    pick_port()
     device = hmilink.Device(Knobs())
     device.add(tcp.serve(PORT, bind="127.0.0.1", page=b"<html>hi</html>"))
     p1 = hmilink.Panel(tcp.connect("127.0.0.1", PORT))
@@ -291,7 +324,9 @@ def test_tcp():
     s.connect(socket.getaddrinfo("127.0.0.1", PORT)[0][-1])
     s.send(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")
     got = b""
-    for _ in range(50):
+    import time
+
+    for _ in range(100):
         device.poll()
         try:
             s.setblocking(False)
@@ -300,6 +335,7 @@ def test_tcp():
             pass
         if b"</html>" in got:
             break
+        time.sleep(0.002)
     check(b"200 OK" in got and got.endswith(b"<html>hi</html>"), "the page is served")
     s.close()
     p1.close()
