@@ -11,6 +11,7 @@
 - usb-host-hid: new `usb.host.hid_codes` with `Keycode`, `ConsumerControlCode` and `Mouse`'s button names, at `adafruit_hid`'s values, so nothing needs `adafruit_hid` installed
 - usb-host-hid: `Device(..., boot=False)` reads the report descriptor, so media keys, 12 and 16-bit mouse movement and report IDs decode; `interface=` picks a particular HID interface
 
+- es8311: `enable_output(False)` also powers the DAC down (REG12), so the DEV-KIT's jack no longer pops when a stream starts. A DAC left powered with no MCLK sat at a third output level, and the clock starting was a 30-40 mV step; powered down, it joins the clocked level without one. The first start after a reset that interrupted playback still pops once
 - bledev declares no dependency on aioble; releases also ask the library index to rebuild (#261)
 - Tested: the P4 panel and the S3 LCD-4.3 pass their smoke tests (#260)
 - Tested: the LILYGO T-Watch S3 passes its smoke test

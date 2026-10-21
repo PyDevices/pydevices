@@ -51,6 +51,8 @@ _REG0A_SDP_OUT  = const(0x0A)  # serial data port for ADC (recording output from
 _REG0D_SYS      = const(0x0D)  # system: power-up analog circuitry
 _REG0E_SYS      = const(0x0E)  # system: enable analog PGA + ADC modulator
 _REG12_DAC_EN   = const(0x12)  # system: power-up DAC
+_DAC_POWER_UP   = const(0x00)  # REG12: DAC powered
+_DAC_POWER_DOWN = const(0x02)  # REG12: DAC powered down
 _REG13_SYS      = const(0x13)  # system: enable HP output driver
 _REG14_MIC      = const(0x14)  # microphone: DMIC select, analog PGA gain
 _REG16_ADC_GAIN = const(0x16)  # ADC digital gain (separate from volume; default 4 = 24 dB)
@@ -206,14 +208,22 @@ class ES8311:
         self.adc_volume = percent
 
     def enable_output(self, enable=True):
-        """Enable or safely mute the DAC and headphone output path."""
+        """Power the DAC and headphone output path up, or mute and power it down.
+
+        Power it down only while the I2S clocks are still running, and up
+        only once they are: a DAC left powered with no MCLK sits at a third
+        output level, and leaving that state (clock starting, or the DAC
+        powering down) is a step of 30-40 mV on the jack. Powered with a
+        clock and powered down are the two levels that join without one.
+        """
         enable = bool(enable)
         if enable:
-            self._wr(_REG12_DAC_EN, 0x00)
+            self._wr(_REG12_DAC_EN, _DAC_POWER_UP)
             self._wr(_REG13_SYS, 0x10)
         else:
             self.dac_mute(True)
             self._wr(_REG13_SYS, 0x00)
+            self._wr(_REG12_DAC_EN, _DAC_POWER_DOWN)
         self.output_enabled = enable
 
     def enable_input(self, enable=True):

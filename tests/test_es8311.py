@@ -65,6 +65,35 @@ class ES8311Tests(unittest.TestCase):
         self.assertFalse(self.codec.output_enabled)
         self.assertFalse(self.codec.input_enabled)
 
+    def test_output_power_down_and_up(self):
+        # A DAC powered with no MCLK sits at a third output level, and leaving
+        # it is a 30-40 mV pop on the jack. So the output goes down with the
+        # clock still running and comes up once it is: REG12 follows
+        # enable_output, not just the headphone driver in REG13.
+        self.codec.enable_output(True)
+        self.assertEqual(self.register(0x12), 0x00)
+        self.assertEqual(self.register(0x13), 0x10)
+        self.codec.enable_output(False)
+        self.assertEqual(self.register(0x12), 0x02)
+        self.assertEqual(self.register(0x13), 0x00)
+        self.assertTrue(self.codec.dac_muted)
+        self.codec.enable_output(True)
+        self.assertEqual(self.register(0x12), 0x00)
+
+    def test_power_down_mutes_before_it_cuts_the_driver_and_the_dac(self):
+        order = []
+        write = self.i2c.writeto_mem
+
+        def logged(address, register, data):
+            order.append((register, data[0]))
+            write(address, register, data)
+
+        self.i2c.writeto_mem = logged
+        self.codec.enable_output(False)
+        registers = [register for register, _ in order]
+        self.assertLess(registers.index(0x31), registers.index(0x13))
+        self.assertLess(registers.index(0x13), registers.index(0x12))
+
     def test_class_advertises_mono(self):
         self.assertEqual(ES8311.channels, 1)
 
