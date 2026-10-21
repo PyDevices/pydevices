@@ -1004,7 +1004,7 @@ class BusioDriver(_Driver):
 
     needs_service = False
 
-    def __init__(self, wire, fmt, *, power=None, volume=100, transport=None):
+    def __init__(self, wire, fmt, *, power=None, volume=None, transport=None):
         self.wire = wire
         self.fmt = fmt
         # The transport that published the wire. Nothing opens it on this
@@ -1012,6 +1012,10 @@ class BusioDriver(_Driver):
         # and mute() go nowhere -- see PCMOutput.hardware_live.
         self.transport = transport
         self._power = power
+        # `volume=` is where the codec will sit while this plays. Left out, it
+        # is whatever the transport is already holding (100 with no transport).
+        if volume is None:
+            volume = getattr(transport, "volume", 100)
         self.volume = int(volume)
         self.out = None
 
@@ -1068,7 +1072,18 @@ class BusioDriver(_Driver):
 
     def _mark_transport(self, live):
         t = self.transport
-        if t is not None and hasattr(t, "hardware_live"):
+        if t is None:
+            return
+        if (live and hasattr(t, "set_volume")
+                and getattr(t, "volume", None) != self.volume):
+            # Going live makes the transport write the volume IT holds to the
+            # codec (hardware_live below), after `power(True, volume=...)` has
+            # written ours. Two numbers for one register, and the transport's
+            # won: a driver built with volume=85 played at the transport's 100
+            # (REG32 0xBF, not 0xB0). The driver's number is the one it was
+            # asked for, so the transport takes it first.
+            t.set_volume(self.volume)
+        if hasattr(t, "hardware_live"):
             t.hardware_live(live)
 
     def opened(self):
