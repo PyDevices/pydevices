@@ -283,7 +283,7 @@ A backend that isn't built in is never picked unless a config required it or you
 
 On MicroPython there is no scanning for installed backends: `require` is the only way in. A frozen module imports like any other, so what you freeze decides what is present and `require` decides what is used.
 
-The Roku, HLS and Miracast displays in pydevices-examples don't register themselves yet; you still choose them by putting their `board_config.py` first on the path.
+The Roku, HLS and Miracast displays in pydevices-examples register themselves as `roku`, `hls` and `cast`, and their `board_config.py` files `require` them, so under one of those configs `AutoDisplay` finds the display; `PYDEVICES_DISPLAY=hls` names one for a single run. Their options go through `AutoDisplay` as keywords (`tv=` for `roku` and `hls`, `sink=` and `kind=` for `cast`); see the [casting guide](https://github.com/PyDevices/pydevices-examples/blob/main/docs/casting.md#let-autodisplay-pick-a-cast-display).
 
 ## Next
 
