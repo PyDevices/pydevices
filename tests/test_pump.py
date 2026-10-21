@@ -1132,6 +1132,45 @@ class TheBoardPlaysThroughAudiobusio(PumpFixture):
                          "the transport was never told its codec is live, so "
                          "set_volume() and mute() reach nothing")
 
+    def test_a_drivers_volume_is_the_one_the_codec_ends_on(self):
+        """``BusioDriver(volume=85)`` on a transport holding 100.
+
+        Going live made the transport write its own volume to the codec after
+        the driver had written 85, so the codec played at 100: the DEV-KIT's
+        ES8311 REG32 read 0xBF, not 0xB0. The register is a stand-in here, a
+        hardware-volume hook that remembers the last number it was given.
+        """
+        regs = []
+        transport = Recorder(wire=FakeWire(), power=True)
+        transport._set_hardware_volume = regs.append
+        self.assertEqual(transport.volume, 100)
+        drv = pump_mod.BusioDriver(
+            transport.wire, FMT, power=transport.audio_power,
+            volume=85, transport=transport)
+        drv.open()
+        self.addCleanup(drv.close)
+        self.assertEqual(regs[-1], 85,
+                         "the transport's own volume reached the codec last")
+        self.assertEqual(transport.volume, 85)
+        self.assertEqual(transport.powered, [(True, 85)])
+        # And the knob still works while it plays.
+        transport.set_volume(30)
+        self.assertEqual(regs[-1], 30)
+
+    def test_a_driver_with_no_volume_keeps_the_transports(self):
+        regs = []
+        transport = Recorder(wire=FakeWire(), power=True)
+        transport._set_hardware_volume = regs.append
+        transport.set_volume(40)
+        drv = pump_mod.BusioDriver(
+            transport.wire, FMT, power=transport.audio_power,
+            transport=transport)
+        drv.open()
+        self.addCleanup(drv.close)
+        self.assertEqual(transport.powered, [(True, 40)])
+        self.assertEqual(regs[-1], 40)
+        self.assertEqual(transport.volume, 40)
+
     def test_a_board_whose_power_role_takes_no_keyword_still_comes_up(self):
         transport = Recorder(wire=FakeWire(), power=True)
         calls = []
