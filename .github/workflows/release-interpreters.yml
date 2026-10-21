@@ -2,6 +2,8 @@
 # micropython.exe (Windows), micropython.mjs and micropython.wasm (browser and
 # Node), and circuitpython (Linux), each with every PyDevices module, plus the
 # interpreters.json manifest that bin/fetch_interpreters.sh checks them against.
+# The release notes get one line saying which MicroPython and CircuitPython the
+# interpreters are built on, and when either is a preview.
 #
 # A final release (vX.Y.Z) builds and attaches them. A dev, a, b or rc release
 # gets none. Every build comes from the release's own tag, with the
@@ -235,6 +237,21 @@ jobs:
           # Writes the manifest; uploads only when this run attaches.
           bin/upload_interpreters.sh "$TAG" --clobber
           cat bin/interpreters.json
+
+      - name: Say in the release notes which MicroPython and CircuitPython these are built on
+        env:
+          TAG: ${{ needs.gate.outputs.tag }}
+          ATTACH: ${{ needs.gate.outputs.attach }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The versions come from the manifest just written. A run that
+          # attaches puts the line at the end of the release's notes; any
+          # other run only prints it.
+          if [[ "$ATTACH" == true ]]; then
+            python3 scripts/release_interpreters/notes.py release "$TAG" bin/interpreters.json
+          else
+            python3 scripts/release_interpreters/notes.py line bin/interpreters.json
+          fi
 
       - uses: actions/upload-artifact@v7
         with:
