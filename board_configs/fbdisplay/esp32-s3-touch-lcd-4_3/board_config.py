@@ -65,8 +65,15 @@ tft_pins = {
     "red": (1, 2, 42, 41, 40),
 }
 
+# 14 MHz pixel clock (~34 Hz refresh), not 16 (~39 Hz): at 16 MHz the panel's
+# scanout takes enough PSRAM bandwidth that Wi-Fi falls apart beside it. A
+# 300 KB plain-HTTP download, ten runs each with lv_test_timer on the panel:
+# at 16 MHz the median was 39 KB/s, 3 runs hadn't finished in 25 s and one
+# stalled for 9.7 s; at 14 MHz (as on the LCD-7) the median was 268 KB/s, all
+# finished and the worst stall was 3.5 s; 12 MHz was no faster to download, and costs
+# refresh. 2026-10-21 (pydevices#281).
 tft_timings = {
-    "frequency": 16_000_000,
+    "frequency": 14_000_000,
     "width": 800,
     "height": 480,
     "hsync_pulse_width": 4,

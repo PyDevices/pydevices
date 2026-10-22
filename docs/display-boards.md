@@ -83,7 +83,7 @@ variant (`C6_WIFI`).
   from the `waveshare_esp32s3_touch_lcd_43` board definition, which wakes the
   panel through the CH422G at boot and hands it over as `board.DISPLAY` (at
   14 MHz PCLK), as on the 7″ board. The GT911 answers at `0x5D`.
-- **Resolution:** 800×480 @ 16 MHz PCLK
+- **Resolution:** 800×480 @ 14 MHz PCLK (not 16: Wi-Fi collapses beside the panel at 16)
 - **Display:** ST7262 RGB DotClock; same GPIO map family as the 7″ board
 - **Touch:** GT911 @ `0x5D` (RST/INT via CH422G); **diagonal axis remap** in
   `touch_read_func` (landscape values reflected over the diagonal — not plain
@@ -118,7 +118,7 @@ variant (`C6_WIFI`).
   14 MHz PCLK). The config paints a PSRAM `displayio.Bitmap` that display
   composites, so LVGL renders PARTIAL through `blit_rect`. GT911 answered at
   `0x14` there.
-- **Resolution:** 800×480 @ 16 MHz PCLK (same timings/pins as 4.3″ sibling)
+- **Resolution:** 800×480 @ 14 MHz PCLK (same pins as the 4.3″ sibling)
 - **Display:** ST7262 RGB DotClock
 - **Touch:** GT911 @ `0x5D`; **identity** coords (no diagonal remap — unlike 4.3″)
 - **Expander:** CH422G (EXIO2 = backlight / DISP)

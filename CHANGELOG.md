@@ -12,6 +12,7 @@
 - usb-host-hid: new `usb.host.hid_codes` with `Keycode`, `ConsumerControlCode` and `Mouse`'s button names, at `adafruit_hid`'s values, so nothing needs `adafruit_hid` installed
 - usb-host-hid: `Device(..., boot=False)` reads the report descriptor, so media keys, 12 and 16-bit mouse movement and report IDs decode; `interface=` picks a particular HID interface
 
+- The S3 LCD-4.3 board config runs the panel at a 14 MHz pixel clock, not 16, as the LCD-7's does. At 16 MHz the panel's scanout starved Wi-Fi: a 300 KB download ran at a median of 39 KB/s and sometimes stalled for seconds or timed out. The refresh drops from about 39 Hz to 34 Hz (#281)
 - audiodev pump: `BusioDriver(volume=85)` holds. When the pump took the codec live, the transport wrote its own volume over the driver's, so a driver built for 85% played at 100% (the ES8311's REG32 read 0xBF, not 0xB0). The driver's volume now becomes the transport's, and a driver built with no `volume=` takes the one its transport is holding
 - es8311: `enable_output(False)` also powers the DAC down (REG12), so the DEV-KIT's jack no longer pops when a stream starts. A DAC left powered with no MCLK sat at a third output level, and the clock starting was a 30-40 mV step; powered down, it joins the clocked level without one. The first start after a reset that interrupted playback still pops once
 - bledev declares no dependency on aioble; releases also ask the library index to rebuild (#261)
