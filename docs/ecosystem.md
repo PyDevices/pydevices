@@ -19,12 +19,12 @@ Standard hardware driver engine and companion reference code.
 
 - [`pydevices`](https://github.com/PyDevices/pydevices) — Unified pure-Python hardware abstraction layer and core device contract for MicroPython, CircuitPython, CPython, direct WebAssembly, Pyodide, and Android.
 - [`audiodsp`](https://github.com/PyDevices/audiodsp) — CircuitPython's audio system (audiocore, synthio, audiomixer, effects, audiomp3) ported to MicroPython and CPython, extending CircuitPython along the way: dynamics, routing, convolution, and offline rendering. On PyPI as pydevices-audiodsp; the instrument and effect libraries built on it ship from audiocomponents.
-- [`audiocomponents`](https://github.com/PyDevices/audiocomponents) — The instrument and effect libraries for audiodsp: audioinstruments (55 modelled classics, from the TR-808 to the DX7) and audioeffects (45 effect classes and racks), pure Python on MicroPython and CPython. Ships as pydevices-audioinstruments and pydevices-audioeffects, each a standalone distribution and a MIP package.
+- [`audiocomponents`](https://github.com/PyDevices/audiocomponents) — The instrument and effect libraries for audiodsp: audioinstruments (55 modelled classics, from the TR-808 to the DX7) and audioeffects (45 effect classes and racks), pure Python on MicroPython and CPython. Ships as pydevices-audioinstruments and pydevices-audioeffects, each a standalone distribution on TestPyPI and a MIP package.
 - [`pydevices-examples`](https://github.com/PyDevices/pydevices-examples) — Comprehensive example code, direct MicroPython WebAssembly demos, board configurations, and multi-interpreter showcase benchmarks.
 
 ### Tier 2: Python Framebuffers & GUI Toolkits
 
-Zero external native dependencies — runs on any Python 3 host.
+Pure Python on any Python 3 host; pygraphics adds native wheels for Linux x86_64, Windows, Android and Pyodide.
 
 - [`pygraphics`](https://github.com/PyDevices/pygraphics) — Native C and pure-Python 2D graphics library with drawing primitives, bitmap font rendering, paletted surface blitting, and area-dirtying pipelines.
 - [`pdwidgets`](https://github.com/PyDevices/pydevices/tree/main/pdwidgets) — Lightweight object-oriented UI widget framework including buttons, sliders, progress bars, labels, and event routing for PyDevices screens.
@@ -35,9 +35,9 @@ Zero external native dependencies — runs on any Python 3 host.
 Single-source LVGL C header binding generator and native interpreter modules.
 
 - [`lvgl-bindings`](https://github.com/PyDevices/lvgl-bindings) — Automated binding generator parsing LVGL C headers into native CPython extensions, MicroPython usermods, and CircuitPython modules.
-- [`lvgl-micropython`](https://github.com/PyDevices/lvgl-micropython) — Native MicroPython C module integrating LVGL v9 graphics engine with displayif bus drivers across ESP32, RP2040, and i.MX RT targets.
+- [`lvgl-micropython`](https://github.com/PyDevices/lvgl-micropython) — Native MicroPython C module integrating LVGL v9 graphics engine with displayif bus drivers on ESP32 targets.
 - [`lvgl-python`](https://github.com/PyDevices/lvgl-python) — Pre-built CPython extension wheels and Pyodide WASM packages bringing LVGL v9 to Linux, Windows, Android, and web browsers.
-- [`lvgl-circuitpython`](https://github.com/PyDevices/lvgl-circuitpython) — CircuitPython native C module providing LVGL v9 bindings and displayif integration for Adafruit Feather and SAMD51 / RP2040 boards.
+- [`lvgl-circuitpython`](https://github.com/PyDevices/lvgl-circuitpython) — CircuitPython native C module providing LVGL v9 bindings and displayif integration for the Adafruit Feather RP2040 and ESP32 boards.
 
 ### Tier 4: App Hosts & Mobile
 
@@ -50,7 +50,7 @@ Deploy PyDevices apps directly to desktop browsers or mobile APKs.
 
 MIP package indexing, multi-usermod builds, and serial/FTP IDE extensions.
 
-- [`mpftp`](https://github.com/PyDevices/mpftp) — Connect MicroPython and CircuitPython boards from VS Code, Cursor, or the CLI, over USB or Wi-Fi: dual-pane file transfer, in-editor REPL, firmware builds and flashing, mip/circup, plus RPC, MCP, and an optional browser PWA.
+- [`mpftp`](https://github.com/PyDevices/mpftp) — Connect MicroPython and CircuitPython boards from VS Code, Cursor, or the CLI, over USB or Wi-Fi: dual-pane file transfer, in-editor REPL, firmware builds and flashing, mip/circup, plus RPC and an optional browser PWA.
 - [`mip`](https://github.com/PyDevices/mip) — Single source of truth (SoT) for precompiled MicroPython .mpy bytecode packages and pure-Python library distributions across the PyDevices ecosystem.
 - [`micropython-pydevices`](https://github.com/PyDevices/micropython-pydevices) — The PyDevices patch queue for MicroPython, kept like a distribution keeps one: an ordered, provenance-tracked patch series over the pinned upstream (MicroPython v1.30.0-preview-160), with presets, boards and variants that build PyDevices modules into firmware with upstream's own make.
 - [`workbench`](https://github.com/PyDevices/workbench) — A ViperIDE fork with a built-in WebAssembly MicroPython simulator: edit, run, and debug PyDevices code against a simulated board entirely in the browser, no hardware required.
