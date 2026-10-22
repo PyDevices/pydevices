@@ -1,3 +1,6 @@
+## v0.7.7 (2026-10-22)
+
+
 ## v0.7.7rc1 (2026-10-21)
 
 - Experimental: `backends`, a small registry that `AutoDisplay` and `audiodev.auto` now look their backend up in. `backends.register("display", name, "module:Class", probe=...)` adds one and `backends.require(kind, name)` asks for it from a `board_config.py`. The search order is the `PYDEVICES_DISPLAY` / `PYDEVICES_AUDIO` environment variable, then what the config required, then the built-in host backends in the order they were tried before; a backend you register is never picked unless it was required or named. `AutoDisplay` passes extra keyword arguments to the backend that wins. What `auto` picks on each host is unchanged. See [docs/displaydev.md](docs/displaydev.md#experimental-your-own-backend)
