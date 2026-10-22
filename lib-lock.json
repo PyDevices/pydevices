@@ -32,7 +32,7 @@
   "pinned": {
     "pygraphics": {
       "repository": "PyDevices/pygraphics",
-      "ref": "v0.1.0",
+      "ref": "v0.1.1",
       "description": "Pure-Python pygraphics for MicroPython/CircuitPython/CPython (FrameBuffer, Draw, fonts); import as pygraphics"
     },
     "audioinstruments": {
