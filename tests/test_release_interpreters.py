@@ -141,6 +141,7 @@ class TheSourcesRecord(Scratch):
         self.mpp = make_repo(self.dir / "mpp", {
             "UPSTREAM": "c" * 40 + "\n",
             "modules.lock": f"# modules\npydevices https://example.com/pydevices.git {'1' * 40}\n"
+                            f"omnipython-lib https://example.com/pydevices.git {'3' * 40}\n"
                             f"displayif https://example.com/displayif.git {'2' * 40}\n",
             "deps.lock": "esp-idf https://example.com/idf.git v5.5.4\n"
                          "circuitpython https://example.com/cp.git 11.0.0-alpha.1\n",

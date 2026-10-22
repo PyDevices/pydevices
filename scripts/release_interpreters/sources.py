@@ -126,7 +126,9 @@ def record(mpp_dir, lvgl_dir, pydevices_dir, pydevices_ref, path=LOCK):
     for name, (_, commit) in read_lock(mpp_dir / "modules.lock").items():
         modules[name] = commit
     deps = {name: version for name, (_, version) in read_lock(mpp_dir / "deps.lock").items()}
-    # The release's own pydevices goes in, not the commit modules.lock names.
+    # The release's own pydevices goes in as the library, not the commit
+    # modules.lock names for it ("omnipython-lib"; "pydevices" in older locks).
+    modules.pop("omnipython-lib", None)
     modules.pop("pydevices", None)
     pydevices = {"commit": pydevices_commit}
     if pydevices_ref:
