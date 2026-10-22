@@ -1,3 +1,7 @@
+## v0.0.15 (2026-10-22)
+
+- The release candidate, promoted to a final: palettes now lives in the pydevices repository, in its `palettes/` folder, and releases from there with tags named `palettes-vX.Y.Z`. The package, its import name and its version numbers are unchanged.
+
 ## v0.0.15rc1 (2026-10-20)
 
 - palettes now lives in the pydevices repository, in its `palettes/` folder, and releases from there with tags named `palettes-vX.Y.Z`. The package, its import name and its version numbers are unchanged. Its docs, issues and source links point at pydevices.
