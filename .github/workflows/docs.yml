@@ -36,6 +36,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
+      # autodoc imports the SDL backends, which load libSDL2 when imported.
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0
       - name: Install docs requirements
         run: pip install -r docs/requirements.txt
       - name: Build docs
