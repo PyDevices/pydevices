@@ -7,7 +7,8 @@ Button`, so only the widgets you use are loaded.
 
 Every widget takes its parent first and accepts `x`, `y`, `w`, `h`, `align`,
 `align_to`, `fg`, `bg`, `visible`, `value` and `padding` as keywords, plus the
-arguments of its own, listed in the [API reference](reference/index). A `Label`
+arguments of its own, documented in its docstring in
+[`lib/pdwidgets`](https://github.com/PyDevices/pydevices/tree/main/pdwidgets/lib/pdwidgets). A `Label`
 takes its text as `value=`, and a `Button` takes it as `label=`; neither takes
 `text=`.
 

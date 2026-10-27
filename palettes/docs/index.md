@@ -56,7 +56,9 @@ print("Drawn 32 color wheel bands and 10 Material Design amber shades!")
 [Install it](get-started/install.md), then run
 [your first program](get-started/first-program.md). The
 [guides](guides/choose-a-palette.md) take one task each, the
-[reference](reference/index) lists every name, and
+docstrings in
+[`lib/palettes`](https://github.com/PyDevices/pydevices/tree/main/palettes/lib/palettes)
+document every name, and
 [How it works](how-it-works/index.md) explains the design.
 
 ```{toctree}

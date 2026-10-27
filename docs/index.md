@@ -33,7 +33,6 @@ boards, a desktop, a browser and an Android phone.
 
 ## Reference
 
-- [API reference](reference/index.rst)
 - [Other modules](modules.md)
 - [Board peripherals contract](boards/board-contract.md)
 - [Board configs](boards/board-configs.md)

@@ -8,7 +8,7 @@ one: [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 Two chips are left to micropython-lib's drivers, so a board requires those
 packages instead: `sdcard` (SPI SD cards) and `bmi270` (the CoreS3's IMU).
-`storage/sdcard_nrf.py` is upstream's `sdcard` with a fix for the nRF52, whose
+[`storage/sdcard_nrf.py`](storage/sdcard_nrf.py) is upstream's `sdcard` with a fix for the nRF52, whose
 SPI sends only from RAM; it has its own name so it can't shadow upstream's.
 
 | Path | Role |

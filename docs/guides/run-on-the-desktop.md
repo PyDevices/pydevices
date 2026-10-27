@@ -24,7 +24,7 @@ bundle while core PyDevices libraries continue to come from PyDevices packages.
 
 `board_config.py` ownership for packaged desktop installs lives here
 (`pydevices-desktop`), analogous to the MIP desktop bundle in
-`board_configs/desktop`.
+[`board_configs/desktop`](https://github.com/PyDevices/pydevices/tree/main/board_configs/desktop).
 
 ## Install (TestPyPI)
 
