@@ -72,7 +72,7 @@ python scripts/pdwidgets_widget_deps.py
 
 ## Regenerate the icons
 
-Runtime icons are importable Python modules under `lib/pdwidgets/icons/`, with
+Runtime icons are importable Python modules under [`lib/pdwidgets/icons/`](lib/pdwidgets/icons/), with
 no binary files. To regenerate them:
 
 ```bash
