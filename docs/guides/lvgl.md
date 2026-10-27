@@ -67,7 +67,7 @@ lives in this repository's `lib/` and ships with `pydevices` (the mip package,
 the wheel, and the frozen module in a micropython-pydevices build), beside the
 `board_config` idiom, `appdev`, `events`, `keys` and `multimer` it needs. The
 sister projects carry only `lvgl` and `fs_driver`
-([loading fonts at runtime](https://github.com/PyDevices/lvgl-bindings/blob/main/docs/fonts.md)).
+([loading fonts at runtime](https://github.com/PyDevices/lvgl-bindings/blob/main/docs/reference/fonts.md)).
 
 With `display_driver`, LVGL input is wired automatically through its own
 `app` (an `appdev.App`) and virtual touch / encoder / keypad devices.
@@ -153,4 +153,4 @@ interpreter, use the harnesses documented in
 - [multimer](timers.md)
 - [appdev](the-app-loop.md)
 - [lvgl-bindings](https://github.com/PyDevices/lvgl-bindings) — the generator,
-  and [loading fonts at runtime](https://github.com/PyDevices/lvgl-bindings/blob/main/docs/fonts.md)
+  and [loading fonts at runtime](https://github.com/PyDevices/lvgl-bindings/blob/main/docs/reference/fonts.md)
