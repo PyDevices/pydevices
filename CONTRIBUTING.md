@@ -248,7 +248,7 @@ driver package.
 Every release also asks the library index to rebuild. A `vX.Y.Z` release, a
 pre-release included, and a `palettes-vX.Y.Z` or `pdwidgets-vX.Y.Z` release
 each send [PyDevices/lib](https://github.com/PyDevices/lib) a request naming
-the tag. It records the tag, builds every package with `tools/libbuild.py`
+the tag. It records the tag, builds every package with [`tools/libbuild.py`](tools/libbuild.py)
 from the releases it has recorded, and serves the result from GitHub Pages at
 `https://pydevices.github.io/lib` (the address moves to `lib.omnipython.org`).
 Unlike the mip index at `PyDevices.github.io/mip`, which only takes finals,
