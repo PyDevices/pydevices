@@ -30,7 +30,7 @@ cd sayso
 PYTHONPATH=lib python -c "import sayso"
 ```
 
-On a board, copy [`lib/sayso`](lib/sayso/) to `/lib/sayso`, or freeze it with
+On a board, copy `lib/sayso` to `/lib/sayso`, or freeze it with
 [`manifest.py`](manifest.py).
 
 ## Setup
@@ -195,7 +195,7 @@ chosen automatically in `sayso.transport` from `requests` or a CircuitPython
 
 ### Playback Controls
 
-[`scripts/sayso_playback.py`](scripts/sayso_playback.py) is an interactive terminal demo. It prints
+`scripts/sayso_playback.py` is an interactive terminal demo. It prints
 a key map, then loops on single keystrokes to call playback methods such as
 `play()`, `pause()`, `next_track()`, `seek()`, `volume()`, and `queue()`, plus
 parameterless read methods such as `me()`, `saved_tracks()`, and
@@ -213,7 +213,7 @@ Many API paths use descriptive method names rather than URL paths. For example,
 
 ### Write Examples
 
-Copy [`examples/write_examples.json.example`](examples/write_examples.json.example) to `examples/write_examples.json`.
+Copy `examples/write_examples.json.example` to `examples/write_examples.json`.
 Write examples are disabled by default. Enable them there:
 
 ```json
@@ -284,11 +284,11 @@ folder.
 PYTHONPATH=lib python -m unittest discover -s tests -v
 ```
 
-- [`tests/test_objects.py`](tests/test_objects.py) — offline unit tests for lazy hydration, `HydrationError`,
+- `tests/test_objects.py` — offline unit tests for lazy hydration, `HydrationError`,
   page-backed properties, and `Page` behavior (no credentials or network).
-- [`tests/test_client.py`](tests/test_client.py) — offline tests for 401 retry after token refresh.
-- [`tests/test_transport.py`](tests/test_transport.py) — offline transport response/error and bodyless POST tests.
-- [`tests/test_live.py`](tests/test_live.py) — live integration tests against the Spotify Web API
+- `tests/test_client.py` — offline tests for 401 retry after token refresh.
+- `tests/test_transport.py` — offline transport response/error and bodyless POST tests.
+- `tests/test_live.py` — live integration tests against the Spotify Web API
   (`me`, playlists, saved paging, `artist.albums`, recently played). Skipped
   when `sayso.local.json` is missing.
 
