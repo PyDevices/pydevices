@@ -17,7 +17,7 @@ its claims against the real ``pdwidgets`` package:
   class -- ``display = pd.Display(...)`` then ``display.focus_manager.focus``
   walks the chain and checks every step really exists.
 
-That last rule exists because ``docs/input-and-events.md`` shipped
+That last rule exists because ``docs/guides/respond-to-input.md`` shipped
 ``display.focus_manager.set_focus(button)`` for a manager whose method is
 ``focus()``, and this suite was green the whole time (PyDevices/pdwidgets#25).
 """
@@ -32,7 +32,7 @@ import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC_FILES = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
+DOC_FILES = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", *sorted((ROOT / "docs").rglob("*.md"))]
 
 # ```python fences are sometimes indented (tabs, list items); allow a
 # common leading-whitespace prefix on both fence lines and dedent the body.
