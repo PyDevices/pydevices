@@ -138,10 +138,11 @@ build() {
             ws=$(cd "$WS_DIR" && pwd)
             cp_dir="$HERE/release_interpreters/circuitpython"
             [[ -f "$ws/lvgl-circuitpython/manifest.py" ]] || { echo "error: $ws/lvgl-circuitpython is not a checkout" >&2; return 1; }
-            # pdwidgets and palettes are frozen from the library, by build_mp.py.
+            # pydevices, pdwidgets and palettes are frozen from the library, by build_mp.py.
+            # pydevices must be named: pdwidgets imports its events module.
             JOBS="$jobs" python3 build_mp.py \
                 --interpreter circuitpython --port unix \
-                --modules "audiodsp,displayif,pygraphics,pdwidgets,palettes,$ws/lvgl-circuitpython,$cp_dir/unix-extras"
+                --modules "audiodsp,displayif,pygraphics,pydevices,pdwidgets,palettes,$ws/lvgl-circuitpython,$cp_dir/unix-extras"
             install -m 755 builds/circuitpython/unix/coverage/micropython "$out/circuitpython"
             ;;
         *)
