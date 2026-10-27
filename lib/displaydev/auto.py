@@ -14,7 +14,7 @@ Returns the display driver directly. Desktop drivers expose ``get_events`` for
 
 The host backends are rows of the :mod:`backends` registry (experimental), so a
 backend of your own can join them. See "Experimental: your own backend" in
-docs/displaydev.md.
+docs/guides/displays.md.
 """
 
 import sys
@@ -194,7 +194,7 @@ def AutoDisplay(
             registered backend can take its own options (``tv=...``).
 
     The search order (experimental) is the ``PYDEVICES_DISPLAY`` environment
-    variable, then the backends a board config ``require``d, then the ones in
+    variable, then the backends a board config asked for with ``require``, then the ones in
     the box. See :mod:`backends`.
 
     Returns:

@@ -6,8 +6,8 @@ On the board, opt in from ``main.py`` (nothing starts it for you)::
     bledev.repl.start(password="correct horse")   # or webrepl_cfg.PASS
 
 The board then advertises the Nordic UART service as ``name`` while the normal
-REPL carries on. A client connects, sends an empty line to get
-``Password: ``, sends the password and a newline, and gets the prompt. From a
+REPL carries on. A client connects, sends an empty line to get a
+``Password:`` prompt, sends the password and a newline, and gets the prompt. From a
 laptop or another board::
 
     import bledev.repl

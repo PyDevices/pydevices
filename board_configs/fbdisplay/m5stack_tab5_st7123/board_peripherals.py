@@ -43,7 +43,7 @@ _DIN = 28
 _RATE = 16000
 # Panel I2C: the same bus as board_config.i2c (port 0). Hooks hand drivers
 # that bus object, never these pins; the pins are only for opening port 0
-# when board_config isn't loaded. See docs/board-peripherals.md.
+# when board_config isn't loaded. See docs/boards/board-contract.md.
 _I2C_PORT = 0
 _I2C_SCL = 32
 _I2C_SDA = 31
@@ -286,7 +286,7 @@ def wlan():
 
 
 def ble():
-    # A bledev adapter (docs/bledev.md). It also answers every bluetooth.BLE
+    # A bledev adapter (docs/guides/bluetooth-le.md). It also answers every bluetooth.BLE
     # method, so code written for the raw radio keeps working. Without bledev
     # (or aioble) installed, the raw radio, as before.
     try:

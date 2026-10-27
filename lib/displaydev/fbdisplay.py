@@ -40,10 +40,8 @@ class FBDisplay(DisplayDriver):
 
     Attributes:
         color_depth (int): The color depth of the display
-        share_framebuffer (bool): True — GUIs may bind panel FBs via
-            :meth:`framebuffers` for direct paint — unless ``display`` was
-            given, which then owns the scanout buffer.
-        needs_refresh (bool): Computed, not fixed — see below.
+
+    ``share_framebuffer`` and ``needs_refresh`` are properties, below.
     """
 
     @property

@@ -46,7 +46,7 @@ _BMI270_ADDR = 0x69
 _RATE = 16000
 # Internal I2C: the same bus as board_config.i2c (port 0). Hooks hand
 # drivers that bus object; the pins only open port 0 when board_config
-# isn't loaded. See docs/board-peripherals.md.
+# isn't loaded. See docs/boards/board-contract.md.
 _I2C_PORT = 0
 _I2C_SDA = 12
 _I2C_SCL = 11
@@ -287,7 +287,7 @@ def wlan():
 
 
 def ble():
-    # A bledev adapter (docs/bledev.md). It also answers every bluetooth.BLE
+    # A bledev adapter (docs/guides/bluetooth-le.md). It also answers every bluetooth.BLE
     # method, so code written for the raw radio keeps working. Without bledev
     # (or aioble) installed, the raw radio, as before.
     try:

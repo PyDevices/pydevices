@@ -10,7 +10,7 @@
 # micropython-pydevices and lvgl-circuitpython commits that
 # scripts/release_interpreters/sources.lock pins, and the manifest lists every
 # source commit that went in. Move the pins before a final with
-# scripts/release_interpreters/sources.py bump (docs/publishing.md).
+# scripts/release_interpreters/sources.py bump (CONTRIBUTING.md).
 #
 # By hand: Actions > Release interpreters > Run workflow builds every
 # interpreter from the branch or tag you name and keeps them as a run artifact,

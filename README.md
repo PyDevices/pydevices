@@ -1,115 +1,47 @@
+<img src="docs/images/hello.png" width="160" alt="A red rectangle above a green one and a blue one, on black">
+
 # pydevices
 
-The core display engine, hardware driver suite, and board configuration standard for [PyDevices](https://github.com/PyDevices).
-
-`pydevices` is the canonical source and publisher for cross-interpreter hardware drivers, board configurations, and pure-Python core packages:
-`displaydev`, `audiodev`, `appdev`, `multimer`, `events`, and `keys`.
-
-> **Alpha quality.** The organization is being prepared for its first external
-> users, so names and APIs may still evolve.
-
-**Status:** Alpha. Questions or problems? Open a
-[GitHub issue](https://github.com/PyDevices/pydevices/issues).
-
----
-
-## Key Concepts
-
-### The PyDevices Board Contract
-PyDevices hardware drivers and board configurations adhere to a standardized contract across target boards:
-- **Eager UI Hardware (`board_config.py`)**: Initializes display, touch, and primary UI inputs immediately upon import, exporting standard handles like `display_drv` and capability flags.
-- **Lazy Extra Peripherals (`board_peripherals.py` / `boarddev`)**: Defers initialization of secondary hardware (sensors, external flash, power monitoring) until explicitly requested by the application via `boarddev`.
-- **Decoupled Application Lifecycle**: Board configuration exports neutral capability interfaces; event coordination and application flow remain strictly owned by the application.
-
-### Cross-Interpreter Compatibility
-Write your display and hardware logic once and run it on three interpreters (MicroPython, CircuitPython and CPython), across six kinds of host:
-1. **MicroPython** — Microcontroller firmware with MIP package support.
-2. **CircuitPython** — Microcontroller firmware with stock driver compatibility.
-3. **CPython (Desktop)** — Native desktop development and testing (`pydevices-desktop`).
-4. **Direct MicroPython WebAssembly (Web)** — First-party browser deployment through `_wasm_bridge`.
-5. **PyScript / Pyodide (Web)** — Retained browser alternative through `PSDisplay`.
-6. **Android (APK)** — CPython only; mobile package deployment via Buildozer (`android-template`).
-
----
-
-## Layout
-
-| Path | Contents |
-|------|----------|
-| [`bin/`](bin/) | Scripts, plus fetched interpreter binaries ([`./bin/fetch_interpreters.sh`](bin/fetch_interpreters.sh)) |
-| [`board_configs/`](board_configs/) | MicroPython boards (top level); CircuitPython under [`board_configs/cp/`](board_configs/cp/) |
-| [`drivers/`](drivers/) | Display, touch, bus, joystick, IO expander, input helpers |
-| [`lib/displaydev/`](lib/displaydev/) | Display backends (`BusDisplay`, `SDLDisplay`, …); `auto.py` is convenience only |
-| [`lib/`](lib/) | `audiodev/`, `displaydev/`, `appdev/`, `events.py`, `keys.py`, `multimer/`, `wifi.py`, `wifi_manager.py` |
-| `usb-core/`, `usb-host-*/`, `usb-device-*/`, `usb-hid/` | USB packages: `usb.core` and the host classes, and the board as a USB sound card, webcam, drive or keyboard ([docs/usb.md](docs/usb.md)) |
-| [`midiports/`](midiports/) | MIDI ports for `adafruit_midi` over USB, a UART, and Windows and Linux MIDI ([README](midiports/README.md)) |
-| [`palettes/`](palettes/) | Color palettes: an HSV wheel, RGB cubes, Material Design swatches and Win16 names (`pydevices-palettes`, [docs](https://palettes.readthedocs.io)) |
-| [`pdwidgets/`](pdwidgets/) | A pure-Python widget toolkit: buttons, sliders, labels, themes and screens (`pydevices-pdwidgets`, [docs](https://pdwidgets.readthedocs.io)) |
-| [`appkit/`](appkit/) | Several apps in one program: a launcher, a home screen, and each app's memory back when it closes ([README](appkit/README.md)) |
-| [`sayso/`](sayso/) | A lightweight Spotify Web API client, and a touch-screen Spotify remote app built on it ([README](sayso/README.md)) |
-| [`utils/`](utils/) | Desktop-bundled helpers (`mip`, `mdns`, `frame_recorder`, `micropython`, `pngio`, `usdl2`, `uwin32`) |
-| [`tests/`](tests/) | Stdlib unittest for `displaydev`, `multimer`, `events`, `keys`, `audiodev`, `boarddev`, `mip` |
-| [`docs/`](docs/) | Hardware and Board Contract documentation ([index](docs/README.md)) |
-
-## Documentation
-
-The full specification, driver matrix, and board contract details are markdown
-in [`docs/`](docs/README.md), read on github.com.
-[pydevices.github.io/pydevices](https://pydevices.github.io/pydevices/) is the
-landing page.
-
-- [Board Contract Specification](docs/board-peripherals.md)
-- [Device Matrix](docs/device-matrix.md) — product board → `board_config` → peripheral roles
-- [Display Boards](docs/display-boards.md) — panel, touch, and bring-up notes per board
-- [Cross-Platform Architecture](docs/architecture.md)
-- [Direct MicroPython WebAssembly](docs/wasm.md)
-- [USB, both ways round](docs/usb.md) — the `usb-*` packages, host and device
-- [Newcomer's guide](docs/newcomers.md) — installation, board contract, architecture, and repository map
-
-What's planned next is in [ROADMAP.md](ROADMAP.md).
-
-## Installation
+pydevices is the part of OmniPython that talks to hardware: displays, touch,
+audio, USB, Bluetooth LE, Wi-Fi and timers, with one board config per board
+and the same program on MicroPython-compatible boards, CircuitPython-compatible
+boards, a desktop, a browser and an Android phone.
 
 ```bash
-# CPython desktop — the complete desktop stack in one command
-pip install -i https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ pydevices-desktop
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ pydevices-desktop
 ```
 
 ```python
-# A MicroPython board — install its board_config directly
 import mip
-mip.install(
-    "github:PyDevices/pydevices/board_configs/fbdisplay/esp32-p4-wifi6-touch-lcd-4b",
-    index="https://PyDevices.github.io/mip",
-)
+mip.install("github:PyDevices/pydevices/board_configs/fbdisplay/esp32-p4-wifi6-touch-lcd-4b",
+            index="https://PyDevices.github.io/mip")
 ```
 
-**[docs/install-workflows.md](docs/install-workflows.md)** has the rest: SDL2
-system prerequisites, the MicroPython desktop workspace and its `MICROPYPATH` /
-`PYTHONPATH` setup, `mpremote` for boards without network access, Linux KMS,
-headless CI, and verification steps for each channel.
+The first is for a desktop. The second installs one board's config on that
+board, and pydevices with it; [Install](docs/get-started/install.md) has every
+board and channel.
 
-## Quickstart
+```python
+from board_config import display_drv
 
-With `pydevices-desktop` installed (above), draw a filled rectangle to a
-desktop window:
+w, h = display_drv.width, display_drv.height
+print("display:", w, "x", h)
 
-```bash
-python -c "from board_config import display_drv; display_drv.fill_rect(50, 50, 100, 100, 0xF800); display_drv.show()"
+display_drv.fill(0x0000)
+display_drv.fill_rect(16, 16, w - 32, h // 2 - 24, 0xF800)
+display_drv.fill_rect(16, h // 2 + 8, w // 2 - 24, h // 2 - 24, 0x07E0)
+display_drv.fill_rect(w // 2 + 8, h // 2 + 8, w // 2 - 24, h // 2 - 24, 0x001F)
+display_drv.show()
 ```
 
-## Companion Showcases & Demos
-
-For ready-to-run application examples, GUI gallery demos, and tutorial code using `pydevices`, see the [pydevices-examples](https://github.com/PyDevices/pydevices-examples) companion repository.
-
-## Tests
-
-```bash
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m unittest discover -s tests -v
+```text
+display: 320 x 480
 ```
-See [`tests/README.md`](tests/README.md).
 
-## License
+On a desktop that opens a window at the desktop config's 320 × 480 and draws
+the picture at the top of this page. On a board it draws the same layout at
+the size of its screen.
 
-MIT — see [LICENSE](LICENSE).
+[Docs](https://github.com/PyDevices/pydevices/blob/main/docs/index.md) · [Examples](https://pydevices.github.io/pydevices-examples/pyscript/) · [Roadmap](ROADMAP.md)
+
+OmniPython is made by [PyDevices](https://pydevices.com).

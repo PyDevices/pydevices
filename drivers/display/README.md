@@ -8,4 +8,4 @@ display_drivers
 OLED and community displayio drivers are vendored by hand from the Adafruit and
 Community bundles.
 
-Backend and bus details: [displaydev.md](../../docs/displaydev.md) and [displaydev-internals.md](../../docs/displaydev-internals.md).
+Backend and bus details: [displaydev.md](../../docs/guides/displays.md) and [displaydev-internals.md](../../docs/how-it-works/displaydev-internals.md).

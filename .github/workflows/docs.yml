@@ -1,0 +1,45 @@
+# The pydevices library's docs site, built the way Read the Docs builds it
+# from .readthedocs.yaml. -W turns a warning into a failure, as
+# fail_on_warning does there. palettes and pdwidgets build their own sites in
+# their own workflows.
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'lib/**'
+      - 'utils/**'
+      - 'CHANGELOG.md'
+      - '.readthedocs.yaml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'lib/**'
+      - 'utils/**'
+      - 'CHANGELOG.md'
+      - '.readthedocs.yaml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      # autodoc imports the SDL backends, which load libSDL2 when imported.
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0
+      - name: Install docs requirements
+        run: pip install -r docs/requirements.txt
+      - name: Build docs
+        run: sphinx-build -W --keep-going -b html docs _site

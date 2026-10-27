@@ -8,7 +8,7 @@ in headless Chromium through Playwright, on all three runtimes: PyScript's
 Pyodide, PyScript's MicroPython, and the direct MicroPython WebAssembly build.
 ``mock_bluetooth.js`` stands in for the radio, so this checks the Python to
 JavaScript plumbing, not a link; the same page runs against a board with
-``nus_gate_server.py`` (see ``docs/bledev-internals.md``).
+``nus_gate_server.py`` (see ``docs/how-it-works/bledev-internals.md``).
 
 Two planted faults must fail: one flipped bit each way, and a page told a
 larger MTU than the link has, whose writes the mock cuts short without an

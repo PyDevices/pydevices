@@ -18,7 +18,7 @@ where the host can interrupt (a board, a signal, a pending call), otherwise
 at the next idle point (``sleep_ms``, ``pump``, the REPL waiting for a key, an
 await). They never run on another thread and never inside a C call. Importing
 this package does nothing to the host; the wake source is chosen when the
-first timer is armed. See ``docs/multimer.md``.
+first timer is armed. See ``docs/guides/timers.md``.
 """
 
 import sys

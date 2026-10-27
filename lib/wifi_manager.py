@@ -49,7 +49,7 @@ pydevices already has it.  Otherwise, on MicroPython::
 
 CircuitPython: copy this file to ``/lib``.
 
-``docs/wifi-manager.md`` shows it in three kinds of app: one that needs the
+``docs/guides/wifi.md`` shows it in three kinds of app: one that needs the
 network, one that works without it, and one that turns Wi-Fi on only for
 maintenance.
 

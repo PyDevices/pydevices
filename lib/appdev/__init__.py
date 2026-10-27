@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""appdev — application coordinator and event loop for *Python.
+"""appdev — application coordinator and event loop for every Python.
 
 Quick start::
 

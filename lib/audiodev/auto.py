@@ -70,7 +70,7 @@ def select_backend():
     """Return the name of the first usable output backend.
 
     Experimental search order: ``PYDEVICES_AUDIO`` if set, then the backends a
-    board config ``require``d (see :mod:`backends`), then the ones in the box
+    board config asked for with ``require`` (see :mod:`backends`), then the ones in the box
     in the documented probe order: wasm, Web Audio, Windows, SDL2, pygame.
     """
     for name, _spec, _builtin in backends.candidates("audio", backends.env("PYDEVICES_AUDIO")):

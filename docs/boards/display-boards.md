@@ -1,0 +1,313 @@
+# Display boards — bring-up notes
+
+Panel resolution, touch controller, interface module, and per-board quirks for
+the commercially available boards with a PyDevices `board_config`. If you have
+one of these boards, this is what you need to know to bring the display up.
+
+Coverage spans the RGB DotClock, MIPI DSI (`mipidsi`), and busdisplay
+(`spibus` / `i80bus`) paths, each verified against LVGL with `lv_test_timer`.
+
+Paths are under
+[`pydevices`](https://github.com/PyDevices/pydevices)
+`board_configs/fbdisplay/<name>/` unless a `busdisplay/…` path is given.
+Device roles (eager / lazy):
+[`device-matrix.md`](device-matrix.md)
+
+Native drivers live in **displayif** (`displayif.DotClockFramebuffer` or
+`mipidsi`), which is part of
+[micropython-pydevices](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/displayif).
+Soft-reset / scanout lessons:
+[displayif `docs/soft-reset-and-bring-up.md`](https://github.com/PyDevices/micropython-pydevices/blob/main/modules/displayif/docs/soft-reset-and-bring-up.md).
+
+Typical MicroPython flash for the ESP32-S3 RGB boards below:
+`ESP32_GENERIC_S3` + **`SPIRAM_OCT`** (8 MB octal PSRAM). P4 uses its own board
+variant (`C6_WIFI`).
+
+---
+
+## Summary table
+
+| Product / nickname | `board_config` dir | Resolution | Panel / bus | Touch | Expander / IO |
+|---|---|---|---|---|---|
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `esp32-p4-wifi6-touch-lcd-4b` | 720×720 | ST7703 **MIPI DSI** (`mipidsi`) | GT911 | — |
+| Waveshare ESP32-P4-WIFI6-DEV-KIT + KeDei 5" DSI | `esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | 800×480 | ICN6211 bridge, **MIPI DSI** (`mipidsi`, `non_burst`, `continuous_clock`) | FocalTech (`ft6x36`) | — |
+| Adafruit Qualia S3 + TL040HDS20 | `qualia_tl040hds20` (+ CP under `cp/fbdisplay/qualia_tl040hds20`) | 720×720 | RGB-666→565 **DotClock** | FT6x36 @ `0x48` | PCA9554 @ `0x3f` |
+| Waveshare ESP32-S3-Touch-LCD-4.3 | `esp32-s3-touch-lcd-4_3` (+ CP under `cp/fbdisplay/esp32-s3-touch-lcd-4_3`) | 800×480 | ST7262 RGB **DotClock** | GT911 @ `0x5D` | CH422G |
+| LILYGO T-RGB 2.1″ round | `t-rgb_480` | 480×480 | ST7701 RGB **DotClock** | CST820 (`cst8xx`) | XL9535 |
+| Waveshare ESP32-S3-Touch-LCD-7 (sku 27078) | `esp32-s3-touch-lcd-7` (+ CP under `cp/fbdisplay/esp32-s3-touch-lcd-7`) | 800×480 | ST7262 RGB **DotClock** | GT911 @ `0x5D` | CH422G |
+| LILYGO T-Embed | `busdisplay/spi/t-embed` | 170×320 | ST7789 **SPI** (`spibus`) | — (rotary) | GPIO46 power |
+| LILYGO T-Watch S3 | `busdisplay/spi/t-watch-s3` (+ CP under `cp/busdisplay/spi/t-watch-s3`) | 240×240 | ST7789 **SPI** (`spibus` / FourWire) | FT6336 (`ft6x36`) | AXP2101 rails |
+| LILYGO T-HMI | `busdisplay/i80/t-hmi` | 240×320 | ST7789 **I80** (`i80bus`) | XPT2046 SPI | GPIO14/10 power |
+| Waveshare RP2040-Touch-LCD-1.28 | `busdisplay/spi/rp2040-touch-lcd-1.28` (+ CP under `cp/busdisplay/spi/rp2040-touch-lcd-1.28`) | 240×240 round | GC9A01A **SPI** (`spibus` / FourWire) | CST816 (`cst8xx` / `cst816`) | — |
+| Adafruit Metro M7 + 2.8″ TFT Touch Shield (1947) | `busdisplay/spi/metro_m7_tft_touch_shield_1947` | 240×320 | ILI9341 **SPI** (`spibus` SoftSPI or SPI0) | FT6206 @ `0x38` | Onboard AirLift (NINA) |
+| ST NUCLEO-H743ZI2 + Adafruit 2.8″ TFT Touch Shield (1947) | `busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947` | 240×320 | ILI9341 **SPI** (`spibus` SPI1 / SoftSPI) | FT6206 @ `0x38` | — |
+
+---
+
+## Per-board detail
+
+### Waveshare ESP32-P4-WIFI6-Touch-LCD-4B
+
+- **board_config title:** `Waveshare ESP32-P4-WIFI6-Touch-LCD-4B - MicroPython`
+- **Dir:** `esp32-p4-wifi6-touch-lcd-4b` (CP sibling under `cp/fbdisplay/esp32-p4-wifi6-touch-lcd-4b`)
+- **Resolution:** 720×720
+- **Display:** `mipidsi.Bus` + `mipidsi.Display`, ST7703 init sequence, 2-lane DSI,
+  pixel clock 46 MHz
+- **Touch:** GT911, 5 points
+- **SoC / flash notes:** ESP32-P4, 32 MB flash, large SPIRAM heap; external C6
+  Wi-Fi
+- **Role:** Soft-reset / timer lifecycle reference for displayif
+
+### Adafruit Qualia S3 RGB666 + TL040HDS20
+
+- **board_config title:** `Qualia S3 RGB-666 with TL040HDS20 4.0" 720x720 Square Display`
+- **Dirs:** `qualia_tl040hds20` (MicroPython / `displayif.DotClockFramebuffer`);
+  `cp/fbdisplay/qualia_tl040hds20` (CircuitPython `dotclockframebuffer` +
+  `FramebufferDisplay(auto_refresh=True)` + `displayio.Bitmap`)
+- **Resolution:** 720×720 @ 16 MHz PCLK
+- **Display:** Parallel RGB DotClock; Qualia needs **BGR** 5/6/5 data-pin order
+  and PCA9554 bring-up matching CP `adafruit_qualia_s3_rgb666`
+- **Touch:** FT6x36 @ `0x48` (`get_positions` on MP)
+- **Expander:** PCA9554 @ `0x3f` (not `0x38`)
+- **SoC:** ESP32-S3 + octal PSRAM; Adafruit VID
+- **Interesting:** First MP DotClock bring-up. Bounce buffer required (horizontal
+  slide without it). MP must use **double panel FBs** + `auto_refresh=False`
+  because LVGL paints the panel FB; CP uses a separate Bitmap so
+  `auto_refresh=True` is correct there. See displayif soft-reset notes.
+
+### Waveshare ESP32-S3-Touch-LCD-4.3
+
+- **board_config title:** `Waveshare ESP32-S3-Touch-LCD-4.3 — 800x480 RGB565 (ST7262) + GT911`
+- **Dir:** `esp32-s3-touch-lcd-4_3`
+- **CircuitPython:** `cp/fbdisplay/esp32-s3-touch-lcd-4_3`, for firmware built
+  from the `waveshare_esp32s3_touch_lcd_43` board definition, which wakes the
+  panel through the CH422G at boot and hands it over as `board.DISPLAY` (at
+  14 MHz PCLK), as on the 7″ board. The GT911 answers at `0x5D`.
+- **Resolution:** 800×480 @ 14 MHz PCLK (not 16: Wi-Fi collapses beside the panel at 16)
+- **Display:** ST7262 RGB DotClock; same GPIO map family as the 7″ board
+- **Touch:** GT911 @ `0x5D` (RST/INT via CH422G); **diagonal axis remap** in
+  `touch_read_func` (landscape values reflected over the diagonal — not plain
+  `SWAP_XY`)
+- **Expander:** CH422G (BL / LCD RST / TP RST on EXIO)
+- **USB:** Often dual USB (native + UART); prefer labeled UART for stable REPL
+
+### LILYGO T-RGB 480 (2.1″ round)
+
+- **board_config title:** `480x480 ST7701 parallel RGB - MicroPython (ESP32-S3)` /
+  LILYGO T-RGB 2.1″ full circle
+- **Dir:** `t-rgb_480`
+- **Resolution:** 480×480 @ 12 MHz PCLK (round panel)
+- **Display:** ST7701; SPI init via `st7701.run_init`, then DotClock RGB scanout
+- **Touch:** CST820 via `cst8xx` (RST on XL9535 IO1, IRQ=GPIO1); poll
+  continuously (edge-only IRQ)
+- **Expander:** XL9535 (power / LCD CS / SPI / RST)
+- **Flash / USB:** Native USB-Serial/JTAG; ROM download often needs
+  **BOOT+RESET**, then **RESET** after flash for a clean CDC port. Flash as
+  `ESP32_GENERIC_S3` + `SPIRAM_OCT`.
+- **Interesting:** Single-FB + `auto_refresh=True` made `fill_rect` look correct
+  without `show()` but broke under LVGL animation; restored double-FB +
+  `show()` (verified with `lv_test_timer`).
+
+### Waveshare ESP32-S3-Touch-LCD-7 (sku 27078)
+
+- **board_config title:** `Waveshare ESP32-S3-Touch-LCD-7 — 800x480 RGB565 (ST7262) + GT911`
+- **Dir:** `esp32-s3-touch-lcd-7`
+- **CircuitPython:** `cp/fbdisplay/esp32-s3-touch-lcd-7`, for firmware built
+  from the `waveshare_esp32s3_touch_lcd_7` board definition, which wakes the
+  panel through the CH422G at boot and hands it over as `board.DISPLAY` (at
+  14 MHz PCLK). The config paints a PSRAM `displayio.Bitmap` that display
+  composites, so LVGL renders PARTIAL through `blit_rect`. GT911 answered at
+  `0x14` there.
+- **Resolution:** 800×480 @ 14 MHz PCLK (same pins as the 4.3″ sibling)
+- **Display:** ST7262 RGB DotClock
+- **Touch:** GT911 @ `0x5D`; **identity** coords (no diagonal remap — unlike 4.3″)
+- **Expander:** CH422G (EXIO2 = backlight / DISP)
+- **USB:** Two ports — use **UART (CH343)** for flash/REPL; native USB may not
+  enumerate CDC until firmware is up.
+- **Interesting:** Symptom that forced restoring double-FB: `lv_test_timer` drew
+  UI then went mostly black with one short edge (live bounce-source paint).
+
+### LILYGO T-Embed (SPI ST7789)
+
+- **board_config title:** `LILYGO T-Embed ST7789 170x320 SPI + rotary`
+- **Dir:** [`board_configs/busdisplay/spi/t-embed`](https://github.com/PyDevices/pydevices/tree/main/board_configs/busdisplay/spi/t-embed) (native displayif `spibus`)
+- **Resolution:** 170×320, `colstart=35`, `rowstart=0`, `invert=True`, `bgr=True`
+- **Orientation:** `rotation=180`, `mirrored=True` → MADCTL **MX|MY|BGR
+  (`0xC8`)**. Encoder at the physical bottom → origin upper-left. Matches
+  russhughes rot2 / TFT_eSPI `setRotation(2)` for 170×320 (plain rot0 `0x08`
+  put the origin wrong on this panel).
+- **Bus:** `SPIBus(id=2, sck=12, mosi=11, miso=-1, dc=13, cs=10, reset=9)` @
+  40 MHz — always pass explicit pins (`SPI(2)` defaults hit Octal PSRAM pads)
+- **Power / BL:** GPIO46 `PIN_POWER_ON` (must be high), backlight GPIO15
+- **Input:** `machine.Encoder` A=2, B=1, button=0 (`phases=2`); no touch panel
+- **Flash / USB:** Native USB-Serial/JTAG; **BOOT+RESET** → ROM, flash
+  `ESP32_GENERIC_S3` + `SPIRAM_OCT`, plain **RESET** for CDC.
+- **Setup:** mip the board package.
+  Do **not** leave a Python `/lib/spibus.py` — it shadows native `spibus`.
+- **displayif notes:** `SPI.init` on each `send` must re-pass sck/mosi/miso or
+  ESP32-S3 drops the GPIO matrix; command byte via buffer protocol (not
+  `MP_OBJ_TO_PTR` on the bytearray); soft-reset re-init must not leave CS/DC
+  stuck.
+- **Interesting:** Solid fills looked fine, but `BusDisplay.fill_rect` using
+  ST7789 `RAMCONT` (`0x3C`) with CS dropping between strips produced dots /
+  garbage. Fixed in [`lib/displaydev/busdisplay.py`](https://github.com/PyDevices/pydevices/blob/main/lib/displaydev/busdisplay.py): per-strip window +
+  `RAMWR` (`0x2C`) only. Verified with an L geometry under MADCTL `0xC8`.
+
+### LILYGO T-HMI (I80 ST7789)
+
+- **board_config title:** `LILYGO T-HMI 240x320 ST7789 I80 + XPT2046`
+- **Dir:** [`board_configs/busdisplay/i80/t-hmi`](https://github.com/PyDevices/pydevices/tree/main/board_configs/busdisplay/i80/t-hmi) (native displayif `i80bus`)
+- **Resolution:** 240×320, `colstart=0`, `invert=False`, `bgr=True`
+- **Orientation:** `rotation=0`, `mirrored=True` → MADCTL **BGR (`0x08`)**
+  (TFT_eSPI Setup207 / ST7789 rot0). `mirrored=False` added MX (`0x48`) and
+  looked left/right mirrored.
+- **Bus:** 8-bit I80 — `dc=7`, `cs=6`, `wr=8`,
+  `data=[48, 47, 39, 40, 41, 42, 45, 46]` (parallel LCD, not SPI)
+- **Power / BL:** GPIO14 `PWR_ON`, GPIO10 `PWR_EN` (reed-switch / battery path
+  — both must be high); backlight GPIO38
+- **Touch:** XPT2046 on dedicated SPI1 (LilyGO `pins.h`): SCK=1, MOSI=3,
+  MISO=4, CS=2, IRQ=9 (active-low, pull-up). Baud 2 MHz, MODE0. Driver
+  framing matches LilyGO `transfer16` ([`drivers/touch/xpt2046.py`](https://github.com/PyDevices/pydevices/blob/main/drivers/touch/xpt2046.py)). Press =
+  IRQ low or `|z| ≥ 25`. Cal defaults from LilyGO `touch.ino`
+  (`xmin=1788, xmax=285, ymin=1877, ymax=311`); pass
+  `width=height_disp, height=width_disp` into `calibrate(orientation=0)` so
+  the map size ends up 240×320. `touch_read_func` returns **`None` when up**
+  (always returning coords looked like a permanent press). Short release
+  holdoff (3 polls) for resistive dropouts. UI vs panel needed
+  `touch_rotation_table` all **`REVERSE_Y`** so `BOTTOM_MID` taps hit the
+  visible button.
+- **Flash / USB:** same `ESP32_GENERIC_S3` + `SPIRAM_OCT` family as T-Embed;
+  native USB.
+- **Setup:** mip the board package (notes: firmware-native
+  `i80bus` — do not install an optional Python bus fallback).
+- **Interesting:** Resistive touch is usable for `lv_test_timer` but remains
+  flaky (missed taps) even with IRQ/Z press detect — expect firm presses.
+  Thin noisy vertical lines after geometry tests were often **stale GRAM**
+  (clear with `display_drv.fill(0)`), not an active draw bug. I80
+  `max_transfer_bytes` vs full-frame size is a displayif hardening note if
+  oneshot full-frame transfers misbehave.
+
+### Waveshare RP2040-Touch-LCD-1.28 (round GC9A01A)
+
+- **board_config titles:** `Waveshare RP2040-Touch-LCD-1.28 GC9A01 240x240`
+  (MicroPython); same board under CircuitPython
+- **Dirs:** [`board_configs/busdisplay/spi/rp2040-touch-lcd-1.28`](https://github.com/PyDevices/pydevices/tree/main/board_configs/busdisplay/spi/rp2040-touch-lcd-1.28) (MP);
+  [`board_configs/cp/busdisplay/spi/rp2040-touch-lcd-1.28`](https://github.com/PyDevices/pydevices/tree/main/board_configs/cp/busdisplay/spi/rp2040-touch-lcd-1.28) (CP)
+- **Resolution:** 240×240 round GC9A01A, `bgr=True`,
+  `reverse_bytes_in_word=True`, `invert=True`
+- **Bus (MP):** `SPIBus(id=1, sck=10, mosi=11, dc=8, cs=9)` @ **10 MHz**
+  (60 MHz was flaky on cold boot). Reset GPIO13 (active-low), backlight
+  GPIO25.
+- **Bus (CP):** `busio.SPI(clock=LCD_CLK, MOSI=LCD_DIN)` + `FourWire` on
+  `LCD_DC` / `LCD_CS` / `LCD_RST` @ 10 MHz. Official CP board build
+  (`waveshare_rp2040_touch_lcd_1_28`) exposes `LCD_*` / `IMU_*` aliases —
+  **no** `board.SPI()` / `board.I2C()`.
+- **Panel init:** Waveshare full GC9A01A sequence in [`drivers/display/gc9a01.py`](https://github.com/PyDevices/pydevices/blob/main/drivers/display/gc9a01.py)
+  with **MADCTL `0x98`** and **COLMOD `0x05`**. Short Adafruit-style init +
+  BusDisplay’s post-init COLMOD **`0x55`** → backlight on, **no pixels**.
+  Reinforce `0x36`/`0x3A` after construct.
+- **Backlight:** sticky **GPIO** (not PWM). PWM/BL dies across soft-reset and
+  looks like a blank panel.
+- **Touch:** CST816 family @ `0x15` on I2C1 **SDA=6 / SCL=7** (CP:
+  `IMU_SDA`/`IMU_SCL`); RST=GP22, IRQ=GP21 (polled). MP: `cst8xx.CST8XX`;
+  CP: [`drivers/touch/circuitpython/cst816.py`](https://github.com/PyDevices/pydevices/blob/main/drivers/touch/circuitpython/cst816.py).
+- **Flash / USB:** RP2040 ROM UF2 bootloader (`RPI-RP2`). MicroPython `RPI_PICO` → CDC `VID_2E8A`/`PID_0005`;
+  CircuitPython board UF2 → `PID_1057` + **CIRCUITPY**. Adafruit TinyUF2
+  does **not** ship RP2040 builds (ROM UF2 only).
+- **displayif notes:** native `spibus` `SPI.init` must **not** re-pass
+  sck/mosi/miso on **rp2** (`extra keyword arguments given`); pin kwargs are
+  ESP-only. Same guard in Python [`drivers/bus/spibus.py`](https://github.com/PyDevices/pydevices/blob/main/drivers/bus/spibus.py).
+- **Demos:** LVGL/`lv_test_timer` is too RAM-heavy on this board. Prefer
+  [`lib/examples/simon.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/simon.py) (MP graphics + appdev) or
+  [`lib/examples/circuitpython/simon_waveshare_rp2040_touch_lcd_1_28.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/circuitpython/simon_waveshare_rp2040_touch_lcd_1_28.py)
+  (standalone CP). Soft-reset / USB attach after heavy SPI init can wedge
+  CDC — prefer cold boot / power cycle for recovery; keep `boot.py`
+  USB-settle + try/except if auto-launching Simon.
+- **Setup:** mip the matching board package. MP notes: prefer
+  firmware-native displayif `spibus` when present; otherwise Python
+  `spibus.py` with the rp2 pin-kwargs fix.
+
+### Adafruit Metro M7 + 2.8″ TFT Touch Shield (cap, product 1947)
+
+- **board_config title:** `Metro M7 + Adafruit 2.8" TFT Touch Shield (cap) product 1947`
+- **Dir:** [`board_configs/busdisplay/spi/metro_m7_tft_touch_shield_1947`](https://github.com/PyDevices/pydevices/tree/main/board_configs/busdisplay/spi/metro_m7_tft_touch_shield_1947) (MP)
+- **Resolution:** 240×320 ILI9341, `bgr=True`, `reverse_bytes_in_word=True`,
+  `rotation=0`
+- **Shield SPI jumpers (one toggle in board_config):** `USE_SOFTSPI`
+  - **`True` (default bring-up):** solder **11/SO/SI** (Arduino D11–D13),
+    **cut ICSP** → `SPIBus(soft=True, sck="D13", mosi="D11", miso="D12",
+    dc="D9", cs="D10")` @ 2 MHz. Metro **cannot** remap `machine.SPI(0)` onto
+    D11–D13 (`extra keyword arguments given`).
+  - **`False`:** solder **ICSP**, cut 11/SO/SI → `SPIBus(id=0, dc="D9",
+    cs="D10")` @ 24 MHz (LPSPI1 / ICSP = AirLift SPI bus).
+- **Pins:** CS=`D10`, DC=`D9`; hold `ESP_CS` and SD `D4` high when unused.
+  Named pins (`"D9"`) work; numeric GPIO ids often fail on mimxrt.
+- **Touch:** FT6206 @ `0x38` on `I2C(0)`; `touch_rotation_table = (6, 3, 0, 5)`.
+  no event traffic controller is created by the board config; OCRAM heap is
+  ~**64 KiB**, so appdev / LVGL / full `.py` stacks do not fit.
+- **AirLift (onboard NINA):** MicroPython `network.WLAN` = `nina` over
+  **SPI(0)** @ 8 MHz (`ESP_CS` / `ESP_BUSY` / `ESP_RESET` / `ESP_GPIO0`).
+  Join + DNS work; **TCP sockets failed** with `fd=-1` / `OSError: 0` on
+  nina-fw **1.7.4** (ssl/mip modules present but unusable). On
+  **CircuitPython 10.2.1** the same AirLift works via frozen
+  `adafruit_esp32spi` + `adafruit_requests` (HTTP/HTTPS OK). SoftSPI display
+  on D11–D13 coexists with AirLift; HW display SPI0 **shares** the AirLift bus.
+- **Flash / USB:** TinyUF2 **`METROM7BOOT`**. Custom MP build:
+  displayif + graphics (+ optional LVGL), `bundle-networking`,
+  `MICROPY_HW_FLASH_VFS_OFFSET=0x180000` (moving VFS **wipes** `/flash` —
+  redeploy board_config / secrets). CDC after MP: `VID_F055`/`PID_9802`;
+  after CP board UF2: Adafruit `VID_239A`/`PID_80E2` + **CIRCUITPY**.
+- **displayif notes:** native `spibus` accepts pin **int / name str / Pin** and
+  **`soft=True`** (SoftSPI; skip `init()` on each send). Firmware must include
+  that SoftSPI path (`SPIBus loaded (SoftSPI)`).
+- **CircuitPython caveats (same shield wiring):** `displaydev` **MemoryError**
+  on ~35 KiB free heap. `bitbangio.SPI.write` → `OSError: 5`; GPIO SoftSPI
+  paint works but is very slow. Prefer MP + native SoftSPI for PyDevices;
+  CP is fine for AirLift networking.
+- **Demos:** stripes / `ili9341` over SoftSPI; Simon needs a slim path (no
+  appdev). LVGL unlikely without frozen/slim app.
+- **Setup:** mip `metro_m7_tft_touch_shield_1947` after WiFi is up
+  (or copy the files over serial if NINA sockets are still broken).
+
+### ST NUCLEO-H743ZI2 + Adafruit 2.8″ TFT Touch Shield (cap, product 1947)
+
+- **board_config title:** `NUCLEO-H743ZI2 + Adafruit 2.8" TFT Touch Shield (cap) product 1947`
+- **Dir:** [`board_configs/busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947`](https://github.com/PyDevices/pydevices/tree/main/board_configs/busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947) (MP)
+- **Resolution:** 240×320 ILI9341, `bgr=True`, `reverse_bytes_in_word=True`,
+  `rotation=0`
+- **SPI:** Prefer **`USE_SOFTSPI = False`** → `SPIBus(id=1, dc="D9", cs="D10")`
+  @ 24 MHz. `machine.SPI(1)` is already on Arduino **D13/D11/D12** (PA5/PB5/PA6),
+  so the shield’s **11/SO/SI** jumpers work with HW SPI (unlike Metro). SoftSPI
+  on the same pins works but is too slow for Simon / LVGL. Native `spibus`
+  rejects explicit `sck`/`mosi`/`miso` kwargs on HW SPI — omit them.
+- **Pin caveat:** stock MicroPython mapped `D13`→PA7 (ETH CRS_DV); bring-up
+  firmware remaps **`D13`→PA5**. `Pin("A5")` is Arduino **analog** A5 (PF10),
+  not SPI SCK.
+- **Pins:** CS=`D10` (PD14), DC=`D9` (PD15); hold SD `D4` high when unused.
+- **Touch:** FT6206 @ `0x38` on `I2C(1)` (D14/D15); `touch_rotation_table =
+  (6, 3, 0, 5)`. Heap ~**450 KiB** free at idle; Simon / LVGL fit with appdev
+  + multimer + `display_driver` (~370 KiB free while running).
+- **Firmware:** custom `NUCLEO_H743ZI2` with **displayif** (stm32 port: spibus
+  + notimpl stubs), **graphics**, **lvgl** (`lvgl-micropython`). Flash via
+  ST-Link MSD (`NOD_H743ZI2` / `firmware.bin`).
+- **Demos verified:** RGB stripes; [`simon.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/simon.py) (graphics + appdev); headless
+  [`lvgl-bindings/tools/test_lvgl_smoke.py`](https://github.com/PyDevices/lvgl-bindings/blob/main/tools/test_lvgl_smoke.py); `lvgl_test.py` (tap-count button on real
+  panel via `display_driver`). **`main.py`** boots `lvgl_test.py`.
+- **Setup:** copy over serial the board_config + `displaydev/{__init__,busdisplay}.py` +
+  `appdev` + `multimer` + `display_driver.py` + `ili9341`/`ft6x36` + examples
+  (no WiFi on this fixture). Package deps: appdev + multimer.
+
+---
+
+## DotClock knobs (cross-cutting)
+
+Do not conflate these (full write-up in displayif `docs/soft-reset-and-bring-up.md`):
+
+| Knob | Role |
+|------|------|
+| **Bounce buffer** | DRAM staging for PSRAM DPI — always on for large panels |
+| **Double panel FBs** | Tear-free present when LVGL blits the panel FB |
+| **`auto_refresh=False` (MP)** | `FBDisplay.show()` → `refresh()` promote; CP Qualia’s `True` needs a separate Bitmap |
+
+Smoke: after `fill_rect`, call `display_drv.show()`. LVGL via `display_driver`
+already sets `refresh_cb=display_drv.show`.

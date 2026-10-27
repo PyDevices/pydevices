@@ -125,7 +125,7 @@ _ANSWER = {
 
 #: How much a writing client may send before the board says "more": the free
 #: space in each WRITE_PACING. CircuitPython offers one 512-byte sector at a
-#: time; a bigger window means fewer round trips (see docs/bledev-internals.md).
+#: time; a bigger window means fewer round trips (see docs/how-it-works/bledev-internals.md).
 WINDOW = 4096
 
 #: The longest path the board accepts, in bytes (CircuitPython's is about 1 KB).
