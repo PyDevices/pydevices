@@ -109,9 +109,9 @@ net = Tether()
 net.active(True)        # the phone gives the board an address by DHCP
 ```
 
-Sockets, `requests` and `mip` then work over it: about 7 Mbit/s on an
-ESP32-P4, directly or through a high-speed hub, and about 4 Mbit/s on an
-ESP32-S3, whose host port is full speed. It speaks RNDIS, which Samsung and
+Sockets, `requests` and `mip` then work over it, on an ESP32-P4 (directly or
+through a high-speed hub) or on an ESP32-S3, whose host port is full speed.
+It speaks RNDIS, which Samsung and
 many other Android phones use; CDC-ECM, CDC-NCM and iPhone tethering are not
 implemented.
 

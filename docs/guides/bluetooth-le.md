@@ -219,12 +219,12 @@ can serve several links at once; each gets only its own central's bytes.
 
 On a board, `nus.connect(ble, name=..., min_conn_interval_us=7500,
 max_conn_interval_us=15000)` asks for a short connection interval, which
-nearly doubles a round trip's throughput (the numbers are in
+raises a round trip's throughput by about half (the numbers are in
 [the measurements](#measured-on-two-esp32-s3s)).
 
 From a laptop, `nus.connect(ble, name=..., priority="throughput")` asks
-Windows for its short-interval parameters. Board to laptop, it made little
-difference (see [the measurements](#measured-on-two-esp32-s3s)).
+Windows for its short-interval parameters. It speeds up an echo by about a
+fifth and a file transfer by about half (see [the measurements](#measured-on-two-esp32-s3s)).
 
 ## A REPL over Bluetooth
 
@@ -297,9 +297,9 @@ SHA-256 after every transfer).
 alone. It's MicroPython only, and like the REPL it owns the radio while it
 runs.
 
-How fast: 20 KB from the laptop to the T-Embed in about 0.8 s and back in
-0.3 s, against 16 s and 11 s through the raw REPL. The numbers are in
-[the internals](../how-it-works/bledev-internals.md#file-transfer).
+How fast: 20 KB from a laptop to an ESP32-S3 in about 2 s and back in about
+1.5 s, or about 1.2 s and 0.5 s when the laptop connects with
+`priority="throughput"`.
 
 ## Pairing and bonding
 
@@ -638,45 +638,39 @@ python -m unittest tests.test_bledev
 
 ## Measured on two ESP32-S3s
 
-Board to board over nus (16 KB each way, verified byte for byte), with Wi-Fi off:
+Measured with MicroPython 1.30 preview on two ESP32-S3s about a metre apart,
+with Wi-Fi off. "7.5 ms" means a connection interval of 7.5 to 15 ms asked
+for in `connect()`. The harnesses are in `tests/bledev_board/`.
 
-| Direction | Default interval | 7.5-15 ms interval |
+Board to board over nus (16 KB each way, verified byte for byte):
+
+| Direction | Default interval | 7.5 ms interval |
 |---|---|---|
-| Central to peripheral (writes) | 80-87 KB/s | 69-79 KB/s |
-| Peripheral to central (notifications) | 31-41 KB/s | 37-39 KB/s |
-| Echo round trip, each way | 24-30 KB/s | 44 KB/s |
+| Central to peripheral (writes) | 44-70 KB/s | 57-70 KB/s |
+| Peripheral to central (notifications) | 28-38 KB/s | 34-35 KB/s |
+| Echo round trip, each way | 19-27 KB/s | 31-35 KB/s |
 
-A laptop (Windows, bleak) to an S3 over the same gate: 100-134 KB/s up,
-47-49 KB/s down and 30-34 KB/s echoed each way. Asking Windows for its
-throughput parameters changed nothing measurable.
-
-With the board also on Wi-Fi, BLE slows: idle-connected Wi-Fi roughly halves
-the upstream writes (36-62 KB/s instead of 77-84) and trims the rest by a
-fifth, and a Wi-Fi stream running at the same time takes upstream to 22-39
-KB/s. The runs are in [bledev-internals.md](../how-it-works/bledev-internals.md#wi-fi-and-ble-on-one-s3).
+A laptop (Windows, bleak) to an S3: 59-68 KB/s up as the board receives it,
+40-48 KB/s down, and 32-38 KB/s echoed each way (40-47 KB/s with
+`priority="throughput"`).
 
 A single GATT read or write takes two connection intervals: a median of 100 ms
-at the default interval, and 30 ms at 7.5-15 ms, with nothing over 100 ms in
-two minutes. Turning the radio on costs about 64 KB of the S3's internal RAM;
-aioble and bledev together cost about 50 KB of Python heap. The details, and
-how these were measured, are in [bledev-internals.md](../how-it-works/bledev-internals.md#measurements).
+at the default interval, and 31 ms at 7.5 ms, with nothing over 200 ms in a
+minute. Turning the radio on costs about 62 KB of the S3's internal RAM.
 
 **MIDI.** How long a note takes to cross the link, one way, as half a
 note-on's round trip through an echo (400 single notes at random moments,
-then 100 four-note chords, which came out the same):
+then 100 four-note chords, which came out the same, with none lost):
 
 | Link | Median | p90 | p99 | Max |
 |---|---|---|---|---|
-| S3 to S3, default interval | 44.3 ms | 44.3 | 49.8 | 69.3 |
-| S3 to S3, 7.5 ms interval | 10.8 ms | 13.6 | 15.9 | 21.1 |
-| Laptop (bleak) to S3, Windows' defaults | 52.3 ms | 60.0 | 110.7 | 118.1 |
-| Laptop to S3, `priority="throughput"` | 13.4 ms | 16.7 | 23.1 | 24.7 |
+| S3 to S3, default interval | 45.8 ms | 66.8 | 94.8 | 97.8 |
+| S3 to S3, 7.5 ms interval | 8.8 ms | 12.8 | 14.6 | 16.6 |
+| Laptop (bleak) to S3, Windows' defaults | 52.1 ms | 59.8 | 105.0 | 113.7 |
+| Laptop to S3, `priority="throughput"` | 14.0 ms | 18.2 | 25.2 | 28.6 |
 
-Players start to feel delay at about 10 ms, so a MIDI link wants the shortest
-interval, and even then BLE alone uses up that budget. This is BLE's own
-delay; the synth's comes on top. 1,000 mixed messages (notes, controllers,
-pitch bend, a 300-byte SysEx every hundred, clock in between) crossed both
-ways between the boards and to the laptop complete, in order and intact.
+So a MIDI link wants the shortest interval. This is BLE's own delay; the
+synth's comes on top.
 
 ## Writing a backend
 

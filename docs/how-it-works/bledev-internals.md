@@ -645,6 +645,11 @@ Two ESP32-S3 boards (the Waveshare ESP32-S3-Touch-LCD-7 serving, the LilyGo
 T-Embed connecting), MicroPython 1.29, on one desk (RSSI about -50 dBm), Wi-Fi
 off, 2026-09-24.
 
+These runs are a record of MicroPython 1.29. On MicroPython 1.30 preview the
+same harnesses measured lower nus write and echo rates and slower file
+transfers; [Measured on two ESP32-S3s](../guides/bluetooth-le.md#measured-on-two-esp32-s3s)
+has those figures.
+
 **nus throughput**, 16 KB per phase, MTU 247, every byte checked:
 
 | Run | Up (writes) | Down (notifications) | Echo, each way |

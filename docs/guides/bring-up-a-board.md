@@ -152,9 +152,8 @@ mpremote romfs deploy stage
 sources, or `.mpy` files you compiled yourself).
 
 It mounts at `/rom` with `/rom/lib` on `sys.path`. Modules there run in
-place from flash, so importing them costs less RAM: on the XIAO,
-`import board_config` for the round display took 35 KB of heap from `/flash`
-and 19 KB from `/rom`. Keep `board_config.py` and your own program on the
+place from flash, so importing them costs less RAM than importing the same
+modules from `/flash`. Keep `board_config.py` and your own program on the
 writable filesystem, where you can edit them; a new image replaces the whole
 partition.
 
@@ -377,17 +376,17 @@ nothing is calling the function that uses them.
 - A `display_drv` reports `width`, `height` and `color_depth`; write examples
   against those rather than hard-coding the panel size. The Waveshare 4.3" and
   7" boards are both 800x480, which makes a wrong assumption easy to miss.
-- Memory headroom on an 8 MB-PSRAM S3, measured: ~8.3 MB free at the REPL,
-  ~6.7 MB with the 800x480 panel and LVGL up.
-- **Display first, then Wi-Fi.** PSRAM is not the scarce thing on an S3;
-  contiguous *internal* RAM is. Measured on the Waveshare 4.3" with
-  `esp32.idf_heap_info(esp32.HEAP_DATA)`: the largest internal block is 98 KB
-  at boot, the RGB panel takes about 63 KB of it in one piece, and a connected
-  Wi-Fi radio leaves 53 KB as the largest. So `import board_config` after
-  `wifi.connect_from_secrets()` raises `OSError: ESP-IDF error 257
-  (ESP_ERR_NO_MEM)`, and the same two calls the other way round both succeed.
-  A soft reset does not help, because it leaves the radio up; `machine.reset()`
-  does.
+- Memory headroom on the Waveshare ESP32-S3-Touch-LCD-4.3 (8 MB PSRAM,
+  MicroPython 1.30 preview): about 8.3 MB free at the REPL, and about 6.7 MB
+  with the 800x480 panel and LVGL up.
+- PSRAM is not the scarce thing on an S3; contiguous *internal* RAM is. On the
+  same board, `esp32.idf_heap_info(esp32.HEAP_DATA)` shows a largest internal
+  block of about 100 KB at boot. The RGB panel's bounce buffers take 32 KB of
+  it in one piece (`BOUNCE_ROWS = 10` in its `board_config.py`; 20 rows
+  take 64 KB), a connected Wi-Fi radio leaves 92 KB, and the panel and
+  Wi-Fi together leave 62 KB. If `import board_config` raises
+  `OSError: ESP-IDF error 257 (ESP_ERR_NO_MEM)`, lower `BOUNCE_ROWS` or bring
+  the display up before Wi-Fi.
 - MicroPython's `namedtuple` has **no `_replace()`**. CPython's does, so a
   pure-Python module can pass a full desktop test suite and still raise
   `AttributeError` on the first board it meets. Anything destined for a board
