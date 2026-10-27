@@ -311,7 +311,3 @@ Do not conflate these (full write-up in displayif `docs/soft-reset-and-bring-up.
 
 Smoke: after `fill_rect`, call `display_drv.show()`. LVGL via `display_driver`
 already sets `refresh_cb=display_drv.show`.
-
----
-
-
