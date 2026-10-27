@@ -31,13 +31,13 @@ For microcontrollers on **MicroPython and CircuitPython**.
 
 ### SDLDisplay
 
-SDL2 desktop backend (CPython, MicroPython Unix, CircuitPython Unix). Uses an SDL texture as GRAM. It is the default on MicroPython Unix and available on CPython via [`board_configs/sdldisplay/`](../../board_configs/sdldisplay/).
+SDL2 desktop backend (CPython, MicroPython Unix, CircuitPython Unix). Uses an SDL texture as GRAM. It is the default on MicroPython Unix and available on CPython via [`board_configs/sdldisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/sdldisplay).
 
 SDL2 bindings for **`SDLDisplay`**: `import usdl2` from [`pydevices-desktop`](run-on-the-desktop.md) (TestPyPI) or the MIP desktop board package in [pydevices](https://github.com/PyDevices/pydevices) ([`utils/usdl2.py`](https://github.com/PyDevices/pydevices/blob/main/utils/usdl2.py)). A native `usdl2` module is used when already present in the firmware or environment. See [pydevices-desktop](run-on-the-desktop.md).
 
 ### WinDisplay
 
-Native Win32 HWND backend for **CPython on Windows** (`uwin32`). Logical RGB565 GRAM, handed to `StretchDIBits` as a 16-bit `BI_BITFIELDS` DIB, so the framebuffer is presented with no colour conversion and no copy. `show()` skips a frame with nothing pending, and blits only the changed rows when the scale is a whole number. `displaydev.auto.AutoDisplay` tries it first on `win32` before pygame/SDL. Explicit config: [`board_configs/windisplay/`](../../board_configs/windisplay/).
+Native Win32 HWND backend for **CPython on Windows** (`uwin32`). Logical RGB565 GRAM, handed to `StretchDIBits` as a 16-bit `BI_BITFIELDS` DIB, so the framebuffer is presented with no colour conversion and no copy. `show()` skips a frame with nothing pending, and blits only the changed rows when the scale is a whole number. `displaydev.auto.AutoDisplay` tries it first on `win32` before pygame/SDL. Explicit config: [`board_configs/windisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/windisplay).
 
 **Sizes are real pixels, at any display scaling.** WinDisplay makes the process per-monitor DPI aware before it measures the screen or opens a window, so on a display scaled to 150 % a 640x480 panel at `scale=1` is 640x480 pixels on the glass, crisp, and the work area it fits the window into is the real one. If your program declares a DPI awareness of its own (in its manifest, or with `SetProcessDpiAwarenessContext` before the first display opens), yours stands.
 
@@ -56,7 +56,7 @@ print(d.width, d.height)   # e.g. 1920 1094 on a 1920x1200 screen at 150 %
 
 ### PGDisplay
 
-PyGame desktop backend. `displaydev.auto.AutoDisplay` (used by [`board_configs/desktop/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/desktop)) selects it after `WinDisplay` on Windows, and first on other CPython desktops; if PyGame is not installed it falls back to `SDLDisplay`. Explicit config: [`board_configs/pgdisplay/`](../../board_configs/pgdisplay/).
+PyGame desktop backend. `displaydev.auto.AutoDisplay` (used by [`board_configs/desktop/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/desktop)) selects it after `WinDisplay` on Windows, and first on other CPython desktops; if PyGame is not installed it falls back to `SDLDisplay`. Explicit config: [`board_configs/pgdisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/pgdisplay).
 
 ### FBDisplay
 
@@ -66,11 +66,11 @@ USB Video lets a board stream the framebuffer as a USB webcam (RP2040; host supp
 
 ### JNDisplay
 
-Jupyter Notebook output via an interactive `ipywidgets` image. Input (mouse, wheel, keyboard) is captured by `JNDevices` (`ipyevents`) and delivered as events. Config: [`board_configs/jndisplay/`](../../board_configs/jndisplay/).
+Jupyter Notebook output via an interactive `ipywidgets` image. Input (mouse, wheel, keyboard) is captured by `JNDevices` (`ipyevents`) and delivered as events. Config: [`board_configs/jndisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/jndisplay).
 
 ### PSDisplay
 
-PyScript browser canvas. Input (pointer/touch/pen, wheel, keyboard, gamepad) is captured by `PSDevices` and delivered as events. Config: [`board_configs/psdisplay/`](../../board_configs/psdisplay/). See [PSDisplay](#psdisplay).
+PyScript browser canvas. Input (pointer/touch/pen, wheel, keyboard, gamepad) is captured by `PSDevices` and delivered as events. Config: [`board_configs/psdisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/psdisplay). See [PSDisplay](#psdisplay).
 
 
 Display backends expose input without choosing an application coordinator.
