@@ -25,7 +25,9 @@ defaults:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not ubuntu-latest: sayso supports Python 3.8 and up, and
+    # setup-python has no 3.9 build for Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       matrix:
