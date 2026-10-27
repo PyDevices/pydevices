@@ -1,6 +1,6 @@
-# Palette Gallery
+# Palette families
 
-A visual reference and interactive explorer for all built-in color palette families in `palettes`.
+The four palette families `get_palette` builds, with what each takes and what it holds. [Choose a palette](guides/choose-a-palette.md) says which to use.
 
 | Family | Class | Key | Primary Use Case |
 |:---|:---|:---|:---|
@@ -9,48 +9,7 @@ A visual reference and interactive explorer for all built-in color palette famil
 | **Color Cube** | `CubePalette` | `"cube"` | Quantized 8, 27, 64, or 125 color spaces for dithering and Retro UIs |
 | **Windows-16** | `Palette` | `"default"` | Standard named 16-color ANSI/Windows retro palette |
 
----
-
-## 💻 Live Palette Explorer
-
-Adjust the palette parameters below and click **▶ Run** to see the colors render live in your browser:
-
-````{raw} html
-<div class="pydevices-live-demo">
-  <div class="demo-editor-pane">
-    <textarea class="code-editor">
-from palettes import get_palette
-from displaydev.auto import AutoDisplay
-
-display = AutoDisplay(width=320, height=240, canvas_id=CANVAS_ID)
-display.fill(0x0000)
-
-# Try changing name to "cube", "default", or "material_design"
-palette = get_palette("wheel", color_depth=16, length=320, saturation=1.0)
-
-# Render a full-screen vertical sweep
-for x in range(display.width):
-    display.fill_rect(x, 0, 1, display.height, palette[x])
-
-display.show()
-print(f"Rendered {len(palette)} colors from the wheel palette!")
-    </textarea>
-    <div class="demo-controls">
-      <button class="run-btn" disabled>▶ Run</button>
-      <button class="reset-btn">↺ Reset</button>
-      <span class="demo-status">Initializing Python…</span>
-    </div>
-    <pre class="demo-output"></pre>
-  </div>
-  <div class="demo-canvas-pane">
-    <canvas id="canvas_palette_gallery" width="320" height="240" tabindex="0"></canvas>
-  </div>
-</div>
-````
-
----
-
-## 1. Color Wheel (`"wheel"`)
+## Color Wheel (`"wheel"`)
 
 `WheelPalette` generates an evenly spaced rainbow ramp by stepping through HSV hues while maintaining constant saturation and value.
 
@@ -69,15 +28,14 @@ color_50 = wheel[50]
 ### Parameters
 * `length` (int): Number of steps around the hue circle (default `256`).
 * `saturation` (float): Color saturation between `0.0` (grayscale) and `1.0` (vibrant, default `1.0`).
-* `value` (float): Brightness multiplier between `0.0` and `1.0` (default `1.0`).
-* `color_depth` (int): Bit depth — `4` (palette index), `8` (RGB332), `16` (RGB565) or `24` (`0xRRGGBB`). See [Depth Constants](color-math.md#4-depth-constants).
+* `value` (float): Brightness multiplier between `0.0` and `1.0` (default `1.0`). Passing `saturation=None` and `value=None` together selects the classic three-segment wheel instead of the HSV ramp.
+* `cached` (bool): Memoize each computed color (default `True` for the wheel and the cube).
+* `color_depth` (int): Bit depth — `4` (palette index), `8` (RGB332), `16` (RGB565) or `24` (`0xRRGGBB`). See [Color formats](color-formats.md).
 * `swapped` (bool): If `True`, swap bytes in 16-bit RGB565 for SPI display hardware.
 
----
+## Material Design (`"material_design"`)
 
-## 2. Material Design (`"material_design"`)
-
-`MDPalette` provides Google's Material Design color palette with 19 distinct color families, each containing shades from `50` (lightest) to `900` (deepest), plus accent shades (`A100`–`A700`).
+`MDPalette` provides Google's Material Design color palette with 19 hue families, each containing shades from `50` (lightest) to `900` (deepest), most also with the accent shades `A100`, `A200`, `A400` and `A700`, plus `BLACK` and `WHITE`: 256 colors in all.
 
 ![Material Design Preview](images/palette_material.png)
 
@@ -93,11 +51,9 @@ accent_fg = md.BLUE_A400  # 0x2BDF -- vivid accent
 ```
 
 ### Available Color Families
-Attribute prefixes: `RED`, `PINK`, `PURPLE`, `DEEP_PURPLE`, `INDIGO`, `BLUE`, `LIGHT_BLUE`, `CYAN`, `TEAL`, `GREEN`, `LIGHT_GREEN`, `LIME`, `YELLOW`, `AMBER`, `ORANGE`, `DEEP_ORANGE`, `BROWN`, `GREY`, `BLUE_GREY` -- each with `_S50`..`_S900` shades and (where Material defines them) `_A100`..`_A700` accents; the bare family name (e.g. `md.BLUE`) is its 500 shade.
+Attribute prefixes: `RED`, `PINK`, `PURPLE`, `DEEP_PURPLE`, `INDIGO`, `BLUE`, `LIGHT_BLUE`, `CYAN`, `TEAL`, `GREEN`, `LIGHT_GREEN`, `LIME`, `YELLOW`, `AMBER`, `ORANGE`, `DEEP_ORANGE`, `BROWN`, `GREY`, `BLUE_GREY` -- each with `_S50`..`_S900` shades; every family but `BROWN`, `GREY` and `BLUE_GREY` also has `_A100`, `_A200`, `_A400` and `_A700` accents. The bare family name (for example `md.BLUE`) is its 500 shade.
 
----
-
-## 3. Color Cube (`"cube"`)
+## Color Cube (`"cube"`)
 
 `CubePalette` divides the RGB color space into equal steps along each axis ($N \times N \times N$).
 
@@ -109,18 +65,16 @@ The first column is what you pass; the second is what you get.
 | `size=` argument | Total Colors | Steps per Channel (R, G, B) | Typical Use |
 |:---|:---|:---|:---|
 | **2** | 8 | 2 steps (0, 255) | 3-bit primary colors |
-| **3** | 27 | 3 steps (0, 127, 255) | Ultra-compact retro UIs |
+| **3** | 27 | 3 steps (0, 128, 255) | Ultra-compact retro UIs |
 | **4** | 64 | 4 steps (0, 85, 170, 255) | 6-bit color quantization |
-| **5** | 125 | 5 steps (0, 64, 128, 191, 255) | High-fidelity dithering |
+| **5** | 125 | 5 steps (0, 64, 128, 192, 255) | High-fidelity dithering |
 
 ```python
 # size is the steps per channel: size=4 -> 4x4x4 = 64 colors
 cube = get_palette("cube", color_depth=16, size=4)
 ```
 
----
-
-## 4. Named Windows-16 (`"default"`)
+## Named Windows-16 (`"default"`)
 
 The standard 16-color ANSI/Windows palette accessible by name or integer index.
 

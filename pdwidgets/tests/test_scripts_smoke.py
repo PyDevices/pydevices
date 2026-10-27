@@ -27,7 +27,9 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 # Scripts that run their work at import by design and cannot be imported here.
-IMPORT_EXEMPT = set()
+# generate_readme_screenshot draws the README example on a desktop display
+# and exits the process, so it can only be run, not imported.
+IMPORT_EXEMPT = {"generate_readme_screenshot"}
 
 # Third-party packages an authoring script needs but the test environment does
 # not install. A script that dies for one of these is skipped, by name, so the

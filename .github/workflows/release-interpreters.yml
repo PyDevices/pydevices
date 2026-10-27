@@ -203,6 +203,10 @@ jobs:
           chmod +x bin/micropython bin/circuitpython
           bin/micropython -c "import sys; print(sys.version); import displaydev, appdev, lvgl, ulab, synthio, audiopump, audiosampler; print('micropython modules ok')"
           bin/circuitpython -c "import sys; print(sys.version); import pygraphics, lvgl; print(sys.implementation.name, 'modules ok')"
+          # Every frozen package imports, so one that needs a module the
+          # build left out (pdwidgets without events, #290) fails here.
+          bin/circuitpython -c "import events, pdwidgets, palettes; print('circuitpython frozen packages ok')"
+          bin/micropython -c "import events, pdwidgets, palettes; print('micropython frozen packages ok')"
           file bin/micropython.exe | tee /dev/stderr | grep -q 'PE32+'
           cd bin && node --input-type=module -e "
             import { loadMicroPython } from './micropython.mjs';
