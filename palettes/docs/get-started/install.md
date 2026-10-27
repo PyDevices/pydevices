@@ -48,6 +48,8 @@ from palettes import get_palette
 
 A firmware build can freeze palettes by including
 [`manifest.py`](https://github.com/PyDevices/pydevices/blob/main/palettes/manifest.py)
-from its own freeze manifest.
+from its own freeze manifest. With
+[micropython-pydevices](https://github.com/PyDevices/micropython-pydevices),
+that's `build_mp.py --modules palettes`.
 
 [Your first program](first-program.md) checks the install.
