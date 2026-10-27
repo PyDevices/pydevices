@@ -107,7 +107,7 @@ embedded runtimes:
 - `scripts/`
 - `tests/`
 - examples that load `sayso.local.json` or call `SpotifyClient()` with no args
-- `scripts/sayso_playback.py` (raw terminal keyboard input)
+- [`scripts/sayso_playback.py`](scripts/sayso_playback.py) (raw terminal keyboard input)
 - examples that load `examples/write_examples.json`
 
 Portable applications can still use the core client, auth, transport, and object
@@ -118,7 +118,7 @@ layers without the local config file or interactive OAuth helpers.
 | Runtime | Environment | Status |
 |---------|-------------|--------|
 | CPython | Linux / WSL / desktop | Primary development target |
-| MicroPython | Linux (UNIX port) | Validated with discovery scripts and `apps/spotify_remote` (pydisplay) |
+| MicroPython | Linux (UNIX port) | Validated with discovery scripts and [`apps/spotify_remote`](apps/spotify_remote/) (pydisplay) |
 | MicroPython | Embedded hardware | Not yet validated |
 | CircuitPython | Embedded hardware | Not yet validated |
 

@@ -55,7 +55,9 @@ print("Click Tap me on the canvas.")
 [Install it](get-started/install.md), then run
 [your first program](get-started/first-program.md). The
 [guides](guides/lay-out-widgets.md) take one task each, the
-[reference](reference/index) lists every widget and name, and
+docstrings in
+[`lib/pdwidgets`](https://github.com/PyDevices/pydevices/tree/main/pdwidgets/lib/pdwidgets)
+document every widget and name, and
 [How it works](how-it-works/index.md) explains the design.
 
 ```{toctree}

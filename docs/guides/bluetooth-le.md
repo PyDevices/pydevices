@@ -63,7 +63,7 @@ adds bleak, which the laptop backend needs.
 
 On CircuitPython, copy the files yourself: there's no `mip` there, and bledev
 isn't in a circup bundle. With the board's CIRCUITPY drive mounted, make a
-`lib/bledev/` folder on it and copy these into it from
+[`lib/bledev/`](../../lib/bledev/) folder on it and copy these into it from
 [`lib/bledev/`](https://github.com/PyDevices/pydevices/tree/main/lib/bledev), as `.py` source (MicroPython's `.mpy` files
 won't load on CircuitPython):
 
@@ -640,7 +640,7 @@ python -m unittest tests.test_bledev
 
 Measured with MicroPython 1.30 preview on two ESP32-S3s about a metre apart,
 with Wi-Fi off. "7.5 ms" means a connection interval of 7.5 to 15 ms asked
-for in `connect()`. The harnesses are in `tests/bledev_board/`.
+for in `connect()`. The harnesses are in [`tests/bledev_board/`](../../tests/bledev_board/).
 
 Board to board over nus (16 KB each way, verified byte for byte):
 

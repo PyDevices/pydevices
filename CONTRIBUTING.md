@@ -40,7 +40,7 @@ main index when someone runs its smoke test on the real board.
 ### A board
 
 A board config is a folder under `board_configs/` (MicroPython; CircuitPython
-configs live under `board_configs/cp/` and aren't packages). Its folder name
+configs live under [`board_configs/cp/`](board_configs/cp/) and aren't packages). Its folder name
 is its package name, so pick one that says what the board is
 (`esp32-s3-touch-lcd-4_3`), and that micropython-lib doesn't already use.
 
@@ -229,7 +229,7 @@ records `X.Y.Z` as its own version.
 ### Board installers
 
 Each board config and each driver is a package of the library index that
-`tools/libbuild.py` builds: a board's `manifest.py` requires its driver
+[`tools/libbuild.py`](tools/libbuild.py) builds: a board's `manifest.py` requires its driver
 packages (listed in [`drivers/drivers.toml`](drivers/drivers.toml)) and
 `pydevices`, and mip installs them as `deps` from the same index. A board with
 a `tested.json` publishes to the main index with the drivers it uses; every
