@@ -5,74 +5,53 @@ audio, USB, Bluetooth LE, Wi-Fi and timers, with one board config per board
 and the same program on MicroPython-compatible boards, CircuitPython-compatible
 boards, a desktop, a browser and an Android phone.
 
-- **[Get started](get-started/install.md)**: install it and draw on a screen.
-- **Guides**: bring up a board, then add what your program needs.
-- **Reference**: the API, the board contract and the board and driver tables.
-- **[How it works](how-it-works/index.md)**: the model behind it.
-- **[Changelog](changelog.md)**
+## Get started
 
-```{toctree}
-:hidden:
-:caption: Get started
+- [Install](get-started/install.md)
+- [Your first program](get-started/first-program.md)
 
-get-started/install
-get-started/first-program
-```
+## Guides
 
-```{toctree}
-:hidden:
-:caption: Guides
+- [Bringing up a board](guides/bring-up-a-board.md)
+- [App and board config](guides/write-an-application.md)
+- [Displays](guides/displays.md)
+- [appdev](guides/the-app-loop.md)
+- [multimer](guides/timers.md)
+- [Upgrade multimer from pydevices 0.5](guides/upgrade-multimer-from-0.5.md)
+- [Portable audio](guides/audio.md)
+- [USB, both ways round](guides/usb.md)
+- [bledev: Bluetooth Low Energy](guides/bluetooth-le.md)
+- [wifi_manager](guides/wifi.md)
+- [mdns](guides/mdns.md)
+- [Using LVGL with PyDevices](guides/lvgl.md)
+- [pydevices-desktop](guides/run-on-the-desktop.md)
+- [Direct MicroPython WebAssembly](guides/run-in-the-browser.md)
+- [PyScript and Pyodide](guides/run-in-pyscript.md)
+- [Android](guides/run-on-android.md)
+- [Jupyter Notebook](guides/run-in-jupyter.md)
+- [Troubleshooting](guides/troubleshooting.md)
 
-guides/bring-up-a-board
-guides/write-an-application
-guides/displays
-guides/the-app-loop
-guides/timers
-guides/upgrade-multimer-from-0.5
-guides/audio
-guides/usb
-guides/bluetooth-le
-guides/wifi
-guides/mdns
-guides/lvgl
-guides/run-on-the-desktop
-guides/run-in-the-browser
-guides/run-in-pyscript
-guides/run-on-android
-guides/run-in-jupyter
-guides/troubleshooting
-```
+## Reference
 
-```{toctree}
-:hidden:
-:caption: Reference
+- [API reference](reference/index.rst)
+- [Other modules](modules.md)
+- [Board peripherals contract](boards/board-contract.md)
+- [Board configs](boards/board-configs.md)
+- [Device matrix](boards/device-matrix.md)
+- [Display boards — bring-up notes](boards/display-boards.md)
+- [Display drivers](boards/display-drivers.md)
+- [Touch drivers](boards/touch-drivers.md)
+- [Wokwi hardware reference](boards/wokwi.md)
 
-reference/index
-modules
-boards/board-contract
-boards/board-configs
-boards/device-matrix
-boards/display-boards
-boards/display-drivers
-boards/touch-drivers
-boards/wokwi
-```
+## How it works
 
-```{toctree}
-:hidden:
-:caption: How it works
+- [How pydevices fits together](how-it-works/index.md)
+- [Architecture](how-it-works/architecture.md)
+- [The PyDevices ecosystem](how-it-works/ecosystem.md)
+- [Display backend internals](how-it-works/displaydev-internals.md)
+- [multimer internals: the dispatcher and the wake sources](how-it-works/multimer-internals.md)
+- [bledev internals: writing a backend](how-it-works/bledev-internals.md)
 
-how-it-works/index
-how-it-works/architecture
-how-it-works/ecosystem
-how-it-works/displaydev-internals
-how-it-works/multimer-internals
-how-it-works/bledev-internals
-```
+## Changelog
 
-```{toctree}
-:hidden:
-:caption: Changelog
-
-changelog
-```
+- [Changelog](changelog.md)

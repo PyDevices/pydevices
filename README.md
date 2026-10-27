@@ -42,6 +42,6 @@ On a desktop that opens a window at the desktop config's 320 × 480 and draws
 the picture at the top of this page. On a board it draws the same layout at
 the size of its screen.
 
-[Docs](https://pydevices.readthedocs.io/projects/pydevices/) · [Examples](https://pydevices.github.io/pydevices-examples/pyscript/) · [Roadmap](ROADMAP.md)
+[Docs](https://github.com/PyDevices/pydevices/blob/main/docs/index.md) · [Examples](https://pydevices.github.io/pydevices-examples/pyscript/) · [Roadmap](ROADMAP.md)
 
 OmniPython is made by [PyDevices](https://pydevices.com).

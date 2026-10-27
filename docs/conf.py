@@ -18,3 +18,7 @@ globals().update(configure(
     api_skip=["windisplay"],
     version_file="../VERSION",
 ))
+
+# index.md is plain Markdown so the docs read on GitHub too; the site
+# navigation lives in contents.md.
+master_doc = "contents"
