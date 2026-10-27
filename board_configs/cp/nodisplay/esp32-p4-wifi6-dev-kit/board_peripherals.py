@@ -106,8 +106,15 @@ def audio_out(*args, **kwargs):
     accepted and ignored: I2SOut plays whatever format each sample carries."""
     import audiobusio
 
-    audio_power(True)
-    return audiobusio.I2SOut(board.IO12, board.IO10, board.IO9, main_clock=board.IO13)
+    # I2S first, so the codec's DAC never sits powered with no clock: that
+    # state pops when the clock arrives.
+    out = audiobusio.I2SOut(board.IO12, board.IO10, board.IO9, main_clock=board.IO13)
+    try:
+        audio_power(True)
+    except Exception:
+        out.deinit()
+        raise
+    return out
 
 
 def audio_in(sample_rate=16000):
