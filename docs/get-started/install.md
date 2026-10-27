@@ -1,6 +1,6 @@
-# Installing PyDevices
+# Install
 
-This guide covers PyDevices products. For general `mip`, `micropython -m mip`,
+This page covers installing pydevices. For general `mip`, `micropython -m mip`,
 and `mpremote mip` usage, see the [PyDevices MIP index](https://github.com/PyDevices/mip).
 
 ## System prerequisites (desktop)
@@ -64,7 +64,7 @@ python -m pip install \
 
 ## MicroPython hardware board
 
-Bringing up a board for the first time? [board-bringup.md](../guides/bring-up-a-board.md)
+Bringing up a board for the first time? [Bring up a board](../guides/bring-up-a-board.md)
 is the guide: what the firmware already has so you do not install it twice,
 how to let the board fetch its own files over Wi-Fi instead of feeding them
 down a serial line, and the handful of traps that look like broken hardware.
@@ -167,9 +167,8 @@ set MICROPYPATH=.;.frozen;lib;utils;%USERPROFILE%\.micropython\lib
 set PYTHONPATH=.;lib;utils
 ```
 
-This mirrors the default search order on hosted interpreters and on hardware MCUs —
-where `.frozen`, the user's `~/.micropython/lib`, and the system
-`/usr/lib/micropython` are searched by default — while appending `.`, `lib/`,
-and `utils/` so a workspace runs from any directory. It is also why installing
+This keeps the unix port's default search order — `.frozen`, then
+`~/.micropython/lib`, then `/usr/lib/micropython` — and adds `.`, `lib/` and
+`utils/` so a workspace runs from any directory. It is also why installing
 the CPython [`micropython.py`](https://github.com/PyDevices/pydevices/blob/main/utils/micropython.py) compatibility module is harmless on MicroPython:
 `.frozen` resolves first.

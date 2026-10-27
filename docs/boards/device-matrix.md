@@ -9,8 +9,8 @@ For panel, touch controller, and bring-up quirks on these boards, see
 
 Paths below are relative to `board_configs/` and are **MicroPython** trees (the
 ones with `board_peripherals`). CircuitPython twins under `cp/` are eager-UI
-only (`display_drv` / `app` / `touch` / `keypad` / `encoder` / `joystick`) —
-they have no lazy `PERIPHERALS`; use native `board` for the rest.
+(`display_drv` / `app` / `touch` / `keypad` / `encoder` / `joystick`); use native
+`board` for the rest. A few add an optional `board_peripherals.py`.
 
 `display_drv` / `app` / `display_bus` are always part of the board surface
 when present, and are omitted from the Eager column for brevity.
@@ -23,14 +23,14 @@ Boards whose display is the reason to buy them.
 
 | Product | `board_config` path | Eager UI | Lazy `PERIPHERALS` |
 |---|---|---|---|
-| Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `fbdisplay/esp32-p4-wifi6-touch-lcd-4b` | `touch` | `audio_out`, `audio_in`, `audio_in_power`, `sdcard`, `camera`, `radio`, `wlan`, `ble`, `usb_device` |
-| Waveshare ESP32-P4-WIFI6-DEV-KIT + KeDei 5" DSI | `fbdisplay/esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | `touch` | `wlan`, `ble` |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `fbdisplay/esp32-p4-wifi6-touch-lcd-4b` | `touch` | `audio_out`, `pcm_out`, `pcm_in`, `audio_power`, `audio_in_power`, `sdcard`, `camera`, `radio`, `wlan`, `ble`, `usb_device`, `boot_button` |
+| Waveshare ESP32-P4-WIFI6-DEV-KIT + KeDei 5" DSI | `fbdisplay/esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | `touch` | `audio_out`, `pcm_out`, `pcm_in`, `audio_power`, `i2c`, `sdcard`, `camera`, `ethernet`, `radio`, `wlan`, `ble`, `boot_button`, `usb_device` (from the `nodisplay/esp32-p4-wifi6-dev-kit` package) |
 | Adafruit Qualia S3 + TL040HDS20 | `fbdisplay/qualia_tl040hds20` | `touch`, `keypad`, `io_expander` | `wlan`, `ble` |
 | Waveshare ESP32-S3-Touch-LCD-4.3 | `fbdisplay/esp32-s3-touch-lcd-4_3` | `touch`, `io_expander` | `sdcard`, `can`, `rs485`, `usb_device`, `wlan`, `ble` |
 | Waveshare ESP32-S3-Touch-LCD-7 | `fbdisplay/esp32-s3-touch-lcd-7` | `touch`, `io_expander` | `sdcard`, `can`, `rs485`, `usb_device`, `wlan`, `ble` |
 | LILYGO T-RGB 2.1″ | `fbdisplay/t-rgb_480` | `touch` | `sdcard`, `battery`, `wlan`, `ble` |
-| LILYGO T-Embed | `busdisplay/spi/t-embed` | `encoder` | `pixels`, `audio_out`, `audio_in`, `audio_in_power`, `sdcard`, `battery`, `i2c`, `wlan`, `ble` |
-| LILYGO T-Watch S3 | `busdisplay/spi/t-watch-s3` | `touch`, `keypad` | `audio_out`, `pcm_out`, `audio_power`, `accelerometer`, `rtc`, `haptic`, `ir`, `battery`, `boot_button`, `wlan`, `ble` |
+| LILYGO T-Embed | `busdisplay/spi/t-embed` | `encoder` | `pixels`, `audio_out`, `pcm_out`, `pcm_in`, `audio_power`, `audio_in_power`, `sdcard`, `battery`, `i2c`, `wlan`, `ble` |
+| LILYGO T-Watch S3 | `busdisplay/spi/t-watch-s3` | `touch`, `keypad` | `audio_out`, `pcm_out`, `pcm_in`, `audio_power`, `accelerometer`, `rtc`, `haptic`, `ir`, `lora`, `sleep`, `battery`, `boot_button`, `wlan`, `ble` |
 | LILYGO T-HMI | `busdisplay/i80/t-hmi` | `touch` | `sdcard`, `i2c`, `wlan`, `ble` |
 | Waveshare RP2040-Touch-LCD-1.28 | `busdisplay/spi/rp2040-touch-lcd-1.28` | `touch` | `accelerometer`, `gyroscope`, `battery` |
 | Adafruit Metro M7 + TFT shield 1947 | `busdisplay/spi/metro_m7_tft_touch_shield_1947` | `touch` | `pixels`, `led`, `sdcard`, `radio`, `wlan`, `i2c` |
@@ -49,7 +49,7 @@ contract surface, not a completeness guarantee.
 
 | Product | `board_config` path (MP) | Eager UI | Lazy `PERIPHERALS` | Notes |
 |---|---|---|---|---|
-| Adafruit FunHouse | `busdisplay/spi/funhouse` | `touch`, `keypad` | `temperature`, `humidity`, `pressure`, `pixels`, `audio_out`, `wlan` | no BLE on ESP32-S2 |
+| Adafruit FunHouse | `busdisplay/spi/funhouse` | `touch`, `keypad` | `temperature`, `humidity`, `pressure`, `light`, `motion`, `pixels`, `audio_out`, `wlan` | no BLE on ESP32-S2 |
 | Adafruit PyGamer | `busdisplay/spi/pygamer` | `joystick`, `keypad` | `pixels`, `accelerometer`, `sdcard`, `battery`, `audio_out`, `i2c` |  |
 | Adafruit Feather RP2040 + RGB matrix wing | `fbdisplay/feather_rp2040_rgb_matrix_64x32` | — | `i2c` | matrix is `display_drv` |
 | Adafruit Feather RP2040 DVI | `fbdisplay/adafruit_feather_rp2040_dvi_320x240` | — | — | MP stub raises `NotImplementedError` (SRAM); CP POC under `cp/fbdisplay/adafruit_feather_rp2040_dvi_320x240` |
@@ -60,9 +60,9 @@ contract surface, not a completeness guarantee.
 | Adafruit PyPortal Titano | `busdisplay/spi/pyportal_titano` | `touch` | `sdcard`, `radio`, `audio_out`, `i2c`, `wlan` |  |
 | Adafruit HalloWing M4 | `busdisplay/spi/hallowing_m4` | — | `pixels`, `accelerometer`, `audio_out`, `i2c` |  |
 | ODROID-GO | `busdisplay/spi/odroid_go` | `joystick`, `keypad` | `battery`, `sdcard`, `audio_out`, `wlan` |  |
-| M5Stack CoreS3 | `busdisplay/spi/m5stack-cores3` | `touch` | `audio_in`, `audio_out`, `sdcard`, `camera`, `accelerometer`, `gyroscope`, `i2c`, `wlan`, `ble` | AW88298/ES7210/BMI270 wired; camera stub |
-| M5Stack Tab5 (ILI9881C) | `fbdisplay/m5stack_tab5_ili9881c` | `touch` | `audio_in`, `audio_out`, `sdcard`, `camera`, `i2c`, `wlan`, `ble` | ES8388/ES7210 wired; camera stub |
-| M5Stack Tab5 (ST7123) | `fbdisplay/m5stack_tab5_st7123` | `touch` | `audio_in`, `audio_out`, `sdcard`, `camera`, `i2c`, `wlan`, `ble` | same |
+| M5Stack CoreS3 | `busdisplay/spi/m5stack-cores3` | `touch` | `audio_out`, `pcm_out`, `pcm_in`, `audio_power`, `sdcard`, `camera`, `accelerometer`, `gyroscope`, `i2c`, `wlan`, `ble` | AW88298/ES7210/BMI270 wired; camera stub |
+| M5Stack Tab5 (ILI9881C) | `fbdisplay/m5stack_tab5_ili9881c` | `touch` | `audio_out`, `pcm_out`, `pcm_in`, `audio_power`, `sdcard`, `camera`, `i2c`, `wlan`, `ble` | ES8388/ES7210 wired; camera stub |
+| M5Stack Tab5 (ST7123) | `fbdisplay/m5stack_tab5_st7123` | `touch` | `audio_out`, `pcm_out`, `pcm_in`, `audio_power`, `sdcard`, `camera`, `i2c`, `wlan`, `ble` | same |
 | LILYGO T-Display-S3 | `busdisplay/i80/t-display-s3` | — | `battery`, `wlan`, `ble` |  |
 | LILYGO T-Display-S3 Pro | `busdisplay/spi/t-display-s3-pro` | `touch` | `sdcard`, `battery`, `wlan`, `ble` |  |
 | LILYGO T-QT Pro | `busdisplay/spi/t-qt-pro` | — | `battery`, `wlan`, `ble` |  |
@@ -102,7 +102,6 @@ and `pydevices`; its `manifest.py` lists them.
   factories are filled — the set is the contract surface, not a completeness
   guarantee.
 - `bt` (Classic) is omitted unless a product is known to expose BR/EDR.
-- Light / ALS sensors have no contract role yet — omit from `PERIPHERALS`.
 - Metro M7 and Nucleo-H743ZI2 rows are the host board plus the Adafruit TFT
   touch shield 1947; the shield carries the display and touch.
 - Generic OLED breakouts and EyeSPI stacks are not enumerated here unless

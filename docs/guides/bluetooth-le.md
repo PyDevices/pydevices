@@ -55,9 +55,8 @@ mip.install("bledev", index="https://PyDevices.github.io/mip")
 
 `mip` takes every file of a package from the one index you give it, so a
 package from the PyDevices index can't pull aioble from MicroPython's. Do the
-aioble line once per board. Firmware that freezes aioble (OmniPython's, in time)
-needs neither step for it. Our firmware has `bluetooth` but doesn't freeze
-aioble yet.
+aioble line once per board. Firmware that freezes aioble needs neither step
+for it.
 
 On a laptop, bledev is inside the `pydevices` wheel. `pip install "pydevices[ble]"`
 adds bleak, which the laptop backend needs.
@@ -362,7 +361,7 @@ same: forget the device, then pair.
 
 A board's name, and the services it serves, follow from what you start: the
 name you pass is both the advertised name and the one a paired computer lists
-(the GAP name, which was MicroPython's "MPY ESP32" before), and the
+(the GAP name, which would otherwise be MicroPython's "MPY ESP32"), and the
 same `console` and `files` give the same table every time, whatever the lock,
 because hosts cache a paired device's table. Serving something else on the same
 board (HID, say) changes it under the same address, and MicroPython doesn't tell
@@ -562,9 +561,8 @@ things differ, because `_bleio` works differently from aioble underneath:
   to subscribed centrals even without `send_update`.
 - CircuitPython 10.3's `PacketBuffer` can stall or fault the board when a
   notification stream outruns the radio. bledev steps around the stall; the
-  fault needs a CircuitPython fix, drafted for upstream with a patch. On the
-  official build, 2 of 11 fast 16 KB streams restarted the board in safe mode;
-  on the patched build, none did.
+  fault needs a CircuitPython fix. On the official build, 2 of 11 fast 16 KB
+  streams restarted the board in safe mode; on a patched build, none did.
 - A central there waits 2 s on every read and every write with a response
   (subscribing is one), so connecting and setting up takes several seconds.
 

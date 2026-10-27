@@ -16,8 +16,8 @@ Typically:
 - Raw input hardware where useful (`touch`, `keypad`, `encoder`, `joystick`)
 - Optional setup (backlight pins, buses). On **MicroPython**, lazy extras move
   to `board_peripherals` under the [board peripherals contract](board-contract.md). On
-  **CircuitPython**, there is no `board_peripherals` — use the native `board`
-  module for non-UI peripherals.
+  **CircuitPython**, `board_peripherals.py` is optional — the native `board`
+  module covers most non-UI peripherals.
 
 Configs live in
 [`PyDevices/pydevices`](https://github.com/PyDevices/pydevices)
@@ -28,12 +28,12 @@ uses and `pydevices`, so one `mip.install` of the board brings everything. The
 from the manifest.
 
 See the canonical commands and verification steps in
-[install-workflows.md](../get-started/install.md). To add a board or a driver, or to
+[Install](../get-started/install.md). To add a board or a driver, or to
 mark one tested, see [CONTRIBUTING.md](https://github.com/PyDevices/pydevices/blob/main/CONTRIBUTING.md).
 
 CircuitPython configs live under [`board_configs/cp/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/cp) with the same bus layout and
-directory names as MicroPython (no `cp_` prefix, no package / MIP, no
-`board_peripherals.py`). MicroPython configs stay at the top level of
+directory names as MicroPython (no `cp_` prefix, no package / MIP; a
+`board_peripherals.py` is optional and only a few configs have one). MicroPython configs stay at the top level of
 `board_configs/` (not under an `mp/` folder).
 
 ## Picking a config
@@ -54,13 +54,11 @@ An exact match for all four is rare; bus + display controller is usually enough 
 | `busdisplay/spi/wokwi_ili9341_ft6x36_esp32s3` | Wokwi ESP32-S3 + ILI9341 + touch |
 | `busdisplay/spi/wokwi_ili9341_esp32s3_no_touch` | Wokwi ESP32-S3 + ILI9341 |
 | `busdisplay/spi/t-display-s3-pro` | LilyGO T-Display S3 Pro |
-| `busdisplay/spi/t-display-s3` | (I80 variant under `i80/t-display-s3`) |
 | `busdisplay/spi/t-dongle-s3` | LilyGO T-Dongle S3 |
 | `busdisplay/spi/t-embed` | LilyGO T-Embed |
 | `busdisplay/spi/t-watch-s3` | LilyGO T-Watch S3 |
 | `busdisplay/spi/t-qt-pro` | LilyGO T-QT Pro |
 | `busdisplay/spi/m5stack-cores3` | M5Stack CoreS3 |
-| `busdisplay/spi/wt32sc01-plus` | (I80 under `i80/wt32sc01-plus`) |
 | `busdisplay/spi/ili9341_eyespi_qtpy_esp32s3` | Adafruit ESP32-S3 QT Py + EyeSPI ILI9341 |
 | `busdisplay/spi/ili9341_eyespi_qtpy_rp2040` | QT Py RP2040 + EyeSPI ILI9341 |
 | `busdisplay/spi/ili9341_pico_uno` | Pico + UNO-style shield |
@@ -213,7 +211,7 @@ Panel size overrides (before `import board_config`): `PYDEVICES_WIDTH`,
 `PYDEVICES_HEIGHT`, `PYDEVICES_ROTATION`, `PYDEVICES_SCALE`, and
 `PYDEVICES_MAXIMIZED=1` to open maximised with the panel the window's whole
 client area at scale 1 (WinDisplay, on Windows; see
-[displaydev.md](../guides/displays.md#windisplay)). Apps should read geometry from
+[Displays](../guides/displays.md#windisplay)). Apps should read geometry from
 `display_drv`, not module-level names on `board_config`.
 
 Set the env vars **before** `import board_config` (or any import that loads

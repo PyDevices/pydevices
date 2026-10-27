@@ -25,7 +25,7 @@ pcm = audio_out(FMT, latency="low")
 pcm = getattr(pcm, "transport", pcm)     # which one did I get?
 ```
 
-Now it writes `pcm_out(FMT, latency="low")` and gets a `PCMOutput`. Note that
+It writes `pcm_out(FMT, latency="low")` instead and gets a `PCMOutput`. Note that
 `pcm_out` also needs no audiodsp in firmware — nothing pulls a sample graph —
 which is what lets a headless Connect speaker or a USB sound card run on a
 build with no DSP package in it.
@@ -166,10 +166,6 @@ board config opts in; where the module is absent, every byte is the one the
 old path produced.
 
 What it buys is that your app keeps running while the sound keeps its clock.
-On the Waveshare ESP32-P4 panel, an LVGL pedalboard with a riff through two
-effects ran ten minutes of 11 828 slider moves and 29 patch changes at a
-12 × 128 ring, with the REPL alive beside it: `err=0 fault=0`, and zero
-starved bytes at the end.
 
 Three things to know before you rely on that on an ESP32:
 
@@ -356,19 +352,19 @@ loopback, and a discard sink. It is never auto-selected:
 
 ```python
 from audiodev import AudioFormat
-from audiodev.emulated_audio import audio_in, audio_out
+from audiodev.emulated_audio import pcm_in, pcm_out
 
 fmt = AudioFormat(24000, 1, 16)
-out = audio_out(fmt, path="/sd/prompt.wav")
+out = pcm_out(fmt, path="/sd/prompt.wav")
 out.write(pcm_bytes)
 out.close()
 
-mic = audio_in(path="/sd/prompt.wav")
+mic = pcm_in(path="/sd/prompt.wav")
 ```
 
 `WavPCMOutput` doubles as the deterministic golden-file target for testing
 the whole `AudioOut` chain — synthio/Mixer rendered through `AudioOut` over
-`emulated_audio.audio_out(path=...)`, hash-compared, no audio hardware
+`emulated_audio.pcm_out(path=...)`, hash-compared, no audio hardware
 needed. See [`tests/test_audiodev.py`](https://github.com/PyDevices/pydevices/blob/main/tests/test_audiodev.py).
 
 ## ESP32-P4 status

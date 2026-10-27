@@ -162,7 +162,7 @@ media-key array or one bit per key) and raises a `ValueError` for a device
 whose descriptor it can't, such as a keyboard that reports a bit per key; use
 boot protocol for that one.
 
-Before this release `read()` returned the report's raw bytes. It no longer
+Up to 0.7.6, `read()` returned the report's raw bytes. It no longer
 does; the CHANGELOG has the details.
 
 A USB speaker or microphone can also stand in for a board's own codec, as an

@@ -17,8 +17,8 @@ server.advertise_service(service_type="_http", protocol="_tcp", port=8080)
 ```
 
 ```
-Bedroom 65" TV 192.168.1.129 7250
-75" TCL Roku TV 192.168.1.140 7250
+Living Room TV 192.168.1.50 7250
+Bedroom TV 192.168.1.51 7250
 ```
 
 It's CircuitPython's `mdns` module, and the same code runs everywhere:
@@ -29,7 +29,7 @@ It's CircuitPython's `mdns` module, and the same code runs everywhere:
 | MicroPython | Built into firmware from [micropython-pydevices](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/mdns), on esp32, rp2 boards with Wi-Fi, unix and Windows. |
 | CPython | `mdns.py` in `pydevices-desktop`, over [python-zeroconf](https://pypi.org/project/zeroconf/), which installs with it. |
 
-On CPython, install `pydevices-desktop` ([install-workflows.md](../get-started/install.md#desktop-with-pip)).
+On CPython, install `pydevices-desktop` ([Install](../get-started/install.md#desktop-with-pip)).
 If zeroconf is missing, `import mdns` says how to install it.
 
 ## Finding services
@@ -78,15 +78,15 @@ than one network can name the one to use by its address:
 ## Changes from pydevices 0.7.4
 
 0.7.4 had a pure-Python `mdns.py` in the `pydevices` package that could find
-services but not advertise them. It's gone: on MicroPython, `mdns` now comes
+services but not advertise them. It's gone: on MicroPython, `mdns` comes
 with the firmware, and on CPython from `pydevices-desktop`. Code written for
 it needs these changes:
 
 - `find()` takes keywords: `find(service_type="_http", protocol="_tcp")`.
 - `mdns.resolve()` is gone. Look a `.local` name up with
-  `socket.getaddrinfo("p4-devkit.local", 80)`.
+  `socket.getaddrinfo("my-board.local", 80)`.
 - `RemoteService.txt` is gone, as CircuitPython has no such attribute.
-- `Server(None, interface="192.168.1.20")` is now `Server("192.168.1.20")`.
+- `Server(None, interface="192.168.1.20")` becomes `Server("192.168.1.20")`.
 - A second `Server` while one is live raises `RuntimeError`.
 
 ## What it doesn't find

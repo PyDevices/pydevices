@@ -2,7 +2,7 @@
 
 This page is for you if you're adding a backend (`bledev.bleak`,
 `bledev.webble`, `bledev.cpble`) or changing one. What an app can rely
-on is in [bledev.md](../guides/bluetooth-le.md#the-rules-every-backend-keeps); this is how a
+on is in [Bluetooth LE](../guides/bluetooth-le.md#the-rules-every-backend-keeps); this is how a
 backend delivers it.
 
 ## The layout
@@ -24,7 +24,6 @@ standalone module per backend, and an optional selector.
 | `midi.py` | BLE-MIDI as a usbif-style MIDI port, both sides, built only on the contract. |
 | `midi_codec.py` | The BLE-MIDI packet codec. Pure, no imports, shared by every host. |
 | `filetransfer.py` | CircuitPython's BLE file-transfer protocol: `FileServer` (pure, no radio), served on the board through `repl`'s server, and a client built on the contract. |
-
 | `hidreport.py` | HID report descriptors and reports to `events`. No Bluetooth in it. |
 | `hid.py` | HID over GATT, host and device, built on the contract and `hidreport`. |
 | `auto.py` | Picks a backend. Nothing imports it, and backends must not. |
@@ -146,7 +145,7 @@ The laptop found two more (2026-09-24):
 - **Notifications before a subscription.** NimBLE's server notifies whether
   or not the central wrote the CCCD, and mpble registered its queue at
   discovery, so a board central received what a laptop never would. mpble's
-  queues now ignore everything until `subscribe()` opens them. The over-the-air
+  queues ignore everything until `subscribe()` opens them. The over-the-air
   check "nothing arrives before subscribe()" failed on the old code.
 - **An MTU exchange before the connection.** Windows exchanges the MTU the
   moment it connects, and MicroPython 1.29 on the S3 delivers
@@ -164,14 +163,14 @@ central and Windows as the peripheral:
 
 - **The same early MTU, the other way round.** Windows exchanges the MTU the
   moment the board connects, before aioble has recorded the connection, so
-  the board believed 23 on a 256 link. mpble's IRQ now keeps that value too,
+  the board believed 23 on a 256 link. mpble's IRQ keeps that value too,
   and the connection's `mtu` picks it up.
 - **`exchange_mtu()` after the peer already exchanged** raised `EALREADY`.
-  NimBLE exchanges once per link, so mpble now returns the settled MTU.
+  NimBLE exchanges once per link, so mpble returns the settled MTU.
   `bledev.hid`'s host exchanges before reading the Report Map, so any
   peripheral that exchanges first (a real keyboard may) would have failed.
 
-**Code that uses the raw API.** A board config's `ble` is now an `MPBLE`,
+**Code that uses the raw API.** A board config's `ble` is an `MPBLE`,
 and `MPBLE.__getattr__` hands every name it doesn't define to the raw
 `bluetooth.BLE`, so `ble.active()` or `ble.gap_advertise()` still work.
 `irq(handler)` is the exception: it runs the handler from mpble's IRQ rather
@@ -315,19 +314,19 @@ and what the controller can't take yet is retried every 5 ms by one periodic
 fail.
 
 Two ways that retry went wrong, both found by printing a 16,890-character
-list over the link (the REPL gate now does this):
+list over the link (the REPL gate does this):
 
 - **A doubled chunk and a lost one.** The timer's callback runs between the
   main program's bytecodes, so it could land inside a `flush()` that
   `print()` had started: both sent the same chunk, then both trimmed it, and
   the next chunk never went out. Five prints out of five came back corrupt.
-  `flush()` now returns at once if it's already running.
+  `flush()` returns at once if it's already running.
 - **A panic.** The retry used to be a one-shot timer re-armed on every write.
   On the esp32, `Timer.init()` on a virtual timer whose alarm is being
   dispatched clears its handler first, so `esp_timer`'s task on the other
   core calls a NULL function (`InstrFetchProhibited` in
   `timer_process_alarm`). It took the board down twice in about 45 long
-  prints. The timer is now started once and never re-armed; 60 long prints
+  prints. The timer is started once and never re-armed; 60 long prints
   afterwards, no panic and every byte intact.
 
 Ctrl-C works because the IRQ calls `os.dupterm_notify()` whenever a write
@@ -368,7 +367,7 @@ replaces everything before it. What differs from CircuitPython, and why:
 - **File work runs on the main thread, not in the IRQ.** On the esp32 port
   the BLE IRQ runs in NimBLE's host task (`MICROPY_PY_BLUETOOTH_USE_SYNC_EVENTS`),
   whose stack is a few KB. The first build handled commands there, and a
-  recursive delete took the T-Embed down. Now the IRQ only appends the bytes
+  recursive delete took the T-Embed down. The IRQ only appends the bytes
   to an inbox and `micropython.schedule()`s the work; the REPL's 5 ms timer
   picks up anything the schedule queue refused. A disconnect in the IRQ only
   flags the reset, so the main thread never has a file closed under it.
@@ -387,9 +386,9 @@ Adafruit's own client (`adafruit_ble_file_transfer.FileTransferClient`, with
 read) wrote, read, listed, moved and deleted against `FileServer` at MTU 247,
 and wrote and read at MTU 23; its `listdir` can't run at 23 against any
 server, because it reads a 28-byte header into one 20-byte packet. That was
-a one-off check, not a test in the tree. No CircuitPython board has been
-tried with bledev's client: CircuitPython's service needs pairing, which
-bledev doesn't do yet.
+a one-off check, not a test in the tree. The client against a real
+CircuitPython board, whose service pairs, is under
+[CircuitPython (cpble)](#circuitpython-cpble).
 
 ## How HID gets there
 
@@ -404,7 +403,7 @@ on all of them), same fields (`scancode` is the HID usage, `window` is
 `None`), same rollover rule. [`tests/test_bledev_hid.py`](https://github.com/PyDevices/pydevices/blob/main/tests/test_bledev_hid.py) feeds 3,000 random
 boot reports through both decoders when usbif's checkout is beside this one,
 and they must agree. It found one difference on its first run: the ISO "# ~"
-key (usage 0x32), which SDL calls `#` and usbif leaves unmapped. Now there is
+key (usage 0x32), which SDL calls `#` and usbif leaves unmapped. There is
 one table, `keys.hid_keycode`, and both decoders use it: the key's code comes
 from the same place whether it arrived over USB or Bluetooth.
 
@@ -478,7 +477,7 @@ and all three bit on the LCD-7:
   a timer keeps queueing: drawing the passkey (77 ms on the LCD-7) inside a
   scheduled callback while the REPL server's 5 ms timer ticks did it. The
   exception went back into NimBLE as a failed key store, and pairing stopped
-  after the first key, with the host believing it had paired. bledev now
+  after the first key, with the host believing it had paired. bledev
   handles `_IRQ_GET_SECRET` and `_IRQ_SET_SECRET` ahead of aioble and writes
   the store inline when the queue is full (ESP-IDF's own NimBLE writes NVS
   from its host task too). Anything else deferred from an IRQ goes through
@@ -801,7 +800,7 @@ takes pairing: unpaired, nothing appears. winmm doesn't list it, and this
 build's Windows MIDI Services has no Bluetooth transport among its
 `Midi2.*Transport.dll`s, so a DAW that opens ports through winmm can't see
 the board. Pairing needs the board to bond (`ble.config(bond=True, ...)` with
-aioble's `security` module loaded); bledev doesn't do that for you yet.
+aioble's `security` module loaded); bledev doesn't do that for you.
 Before `midi.serve()` set the GAP name, Windows called the port `MPY ESP32`.
 
 ### File transfer
@@ -883,7 +882,7 @@ ESP-IDF's NimBLE holds back a peripheral's connect event until it has read
 the central's version and features, and posts it with the status of that
 read. The nRF52840 answered with an error while the link carried on, and
 MicroPython reports any non-zero status as a failed connection, so
-`aioble.advertise()` never returned. `bledev.mpble` now announces such a
+`aioble.advertise()` never returned. `bledev.mpble` announces such a
 connection itself. To fit in that board's heap, `nus_client.py` receives into
 one reused buffer and checks afterwards, and `Link.read()` and `readexactly()`
 copy once instead of twice.

@@ -1,7 +1,7 @@
 # appdev
 
 Cross-platform input events with PyGame/SDL2-style types. `appdev` is the
-poller and device mux (`App`, `HostEventsDevice`, …). Event type constants
+poller and device mux (`App`, `HostEvents`, …). Event type constants
 and namedtuples live in `events`; SDL key codes live in `keys`.
 
 For board wiring and application-owned coordinator setup, see **[App and board config](write-an-application.md)**.
@@ -13,7 +13,7 @@ import events
 import appdev
 
 app = appdev.App()
-keypad = appdev.KeypadDevice(read=lambda: pressed_keys)  # set of key codes
+keypad = appdev.Keypad(read=lambda: pressed_keys)  # set of key codes
 app.register(keypad)
 
 while True:
@@ -105,11 +105,11 @@ because `SystemExit` cannot be raised usefully from an interpreter exit hook.
 
 | Device | Input contract |
 |--------|----------------|
-| `HostEventsDevice` | `read()` returns ready-made events (desktop SDL/PyGame bridge). |
-| `TouchDevice` | `read()` returns `(x, y, pressed)`; maps to mouse events. Device type `appdev.POINTER` (LVGL `INDEV_TYPE.POINTER`). |
-| `KeypadDevice` | `read()` returns a `set` of pressed key codes. |
-| `EncoderDevice` | `read()` returns scroll delta / button state. |
-| `JoystickDevice` | `joystick_driver` with PyGame-style `get_axis`, `get_button`, `get_hat`, … |
+| `HostEvents` | `read()` returns ready-made events (desktop SDL/PyGame bridge). |
+| `Touch` | `read()` returns a sequence of contacts (see the [touch read contract](write-an-application.md#touch-read-contract)); maps to mouse events. Device type `appdev.POINTER` (LVGL `INDEV_TYPE.POINTER`). |
+| `Keypad` | `read()` returns a `set` of pressed key codes. |
+| `Encoder` | `read()` returns scroll delta / button state. |
+| `Joystick` | `joystick_driver` with PyGame-style `get_axis`, `get_button`, `get_hat`, … |
 
 Register devices with `app.register(dev)` or the constructor helpers
 (`appdev.App(..., touch_read=...)`, `app.add_keypad(read=...)`, etc.).
@@ -120,12 +120,12 @@ Register devices with `app.register(dev)` or the constructor helpers
 import appdev
 import events
 
-class MyDriver(appdev.JoystickDriver):
+class MyDriver:
     def get_instance_id(self):
         return 0
     # implement get_numaxes, get_axis, get_numbuttons, get_button, …
 
-joy = appdev.JoystickDevice(
+joy = appdev.Joystick(
     joystick_driver=MyDriver(),
     emulate_digital=[(0, 1)],  # optional: analog axes → hat motion
 )
@@ -143,9 +143,9 @@ app.on(
 
 ## Quit handling
 
-When constructed with `display=`, the app handles quit implicitly: on
-`events.QUIT` it runs `before_quit` (if set), then `display.quit()`, then
-stops the shared timer. Set `app.before_quit` for application-specific
+When it has a display, the app handles quit implicitly: on
+`events.QUIT` it runs `before_quit` (if set), then each `on_quit` callback,
+then stops its timers and calls `display.quit()`. Set `app.before_quit` for application-specific
 teardown before the display is released. LVGL uses its own coordinator.
 
 ```python
@@ -189,10 +189,8 @@ import events
 import appdev
 
 events.register_event(types={"MINE": None}, classes={"Mine": "type a b"})
-appdev.register_device("MYPAD", [events.KEYDOWN, events.KEYUP])
 ```
 
-Use `appdev.capabilities()` to inspect the dialect and built-in device list.
 Query `appdev.App.current()` to discover
 the active app instance.
 
@@ -200,7 +198,7 @@ the active app instance.
 
 **No events arrive** — call `app.poll()` frequently in your main loop.
 
-**Touch coordinates wrong** — set `TouchDevice.rotation_table` for your panel rotation.
+**Touch coordinates wrong** — pass `touch_rotation_table` (or `rotation_table=` to `add_touch`) for your panel rotation.
 
 **Joystick hats from analog sticks** — pass `emulate_digital=[(axis_x, axis_y), …]`.
 

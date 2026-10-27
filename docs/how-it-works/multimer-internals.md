@@ -2,7 +2,7 @@
 
 How `multimer` delivers a callback on each host, for anyone changing it or
 deciding what a library may do from a callback. The user guide is
-[multimer.md](../guides/timers.md).
+[multimer](../guides/timers.md).
 
 ## Shape
 
@@ -54,9 +54,9 @@ fails to start is skipped, and `info()["source_error"]` says why.
 
 A callback delivered at a bytecode boundary runs in the middle of whatever
 the main thread was doing in Python. That is the contract `machine.Timer`
-has always had on a board, and it is why the audio pump's Python side went
-wrong three times on 2026-09 nights: a tick landed between two statements
-that assumed they ran together. Two things make it safe now:
+has always had on a board, and it is why a Python-side audio pump went
+wrong: a tick landed between two statements that assumed they ran together.
+Two things make it safe:
 
 - **`hold()`**: a critical section says so, and the dispatcher masks delivery
   until the block ends.

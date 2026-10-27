@@ -41,7 +41,7 @@ Native Win32 HWND backend for **CPython on Windows** (`uwin32`). Logical RGB565 
 
 **Sizes are real pixels, at any display scaling.** WinDisplay makes the process per-monitor DPI aware before it measures the screen or opens a window, so on a display scaled to 150 % a 640x480 panel at `scale=1` is 640x480 pixels on the glass, crisp, and the work area it fits the window into is the real one. If your program declares a DPI awareness of its own (in its manifest, or with `SetProcessDpiAwarenessContext` before the first display opens), yours stands.
 
-**Open it maximised** and the panel is the window: `WinDisplay(maximized=True)` opens maximised into the work area (the screen less the taskbar), with the panel exactly the window's client area at `scale=1`, no margin and no autoscale, the way an installed web app fills its window. `width`, `height`, `scale`, `x` and `y` are ignored; `rotation` still says which way up the panel is. Read the size from `display.width` / `display.height` once it is open, or call `displaydev.windisplay.maximized_size()` to learn it before opening anything. With the desktop board config, set `PYDEVICES_MAXIMIZED=1` (other desktop backends ignore it for now). A maximised display keeps the size it opened at, so pass `rotation=` up front rather than rotating it later.
+**Open it maximised** and the panel is the window: `WinDisplay(maximized=True)` opens maximised into the work area (the screen less the taskbar), with the panel exactly the window's client area at `scale=1`, no margin and no autoscale, the way an installed web app fills its window. `width`, `height`, `scale`, `x` and `y` are ignored; `rotation` still says which way up the panel is. Read the size from `display.width` / `display.height` once it is open, or call `displaydev.windisplay.maximized_size()` to learn it before opening anything. With the desktop board config, set `PYDEVICES_MAXIMIZED=1` (other desktop backends ignore it). A maximised display keeps the size it opened at, so pass `rotation=` up front rather than rotating it later.
 
 ```python
 import os
@@ -75,7 +75,7 @@ PyScript browser canvas. Input (pointer/touch/pen, wheel, keyboard, gamepad) is 
 
 Display backends expose input without choosing an application coordinator.
 Applications using the optional [`appdev`](the-app-loop.md) app can drain the
-backend's [`events`](the-app-loop.md) records through a **`HostEventsDevice`**. The
+backend's [`events`](the-app-loop.md) records through a **`HostEvents`**. The
 input source depends on what each platform exposes:
 
 | Backends | Input source | Wired via |
@@ -108,12 +108,12 @@ Use `poll_event()` only for optional manual single-event checks — not as the
 
 Desktop hosts (`SDLDisplay`, `PGDisplay`, `WinDisplay`) set
 `display_drv.quit_chord` to **CTRL+Q** (`keys.K_q` + `keys.KMOD_CTRL`).
-`HostEventsDevice` matches that chord with `keys.chord_matches` and emits
+`HostEvents` matches that chord with `keys.chord_matches` and emits
 `events.QUIT`. Window-close still emits `events.QUIT` from SDL/PyGame.
 MCU drivers leave `quit_chord` as `None`.
 
 Pointer coordinates use `display_drv.touch_scale` (see `capabilities()` per
-backend); `HostEventsDevice` divides mouse events by that scale.
+backend); `HostEvents` divides mouse events by that scale.
 
 This captures mouse motion/buttons, the wheel, the keyboard, the window-close
 (`QUIT`) event, and **joysticks/gamepads** (`JOYAXISMOTION`, `JOYBALLMOTION`,
@@ -149,7 +149,7 @@ Each captures:
 - **Gamepad** (PyScript only) — `JOYAXISMOTION` / `JOYBUTTONDOWN` /
   `JOYBUTTONUP`, polled from the Gamepad API on each `read()`.
 - **Quit** — `PSDisplay` / `JNDisplay` set `quit_chord` to browser/TV Back
-  (`keys.K_AC_BACK`). `HostEventsDevice` turns that KEYDOWN into `events.QUIT`
+  (`keys.K_AC_BACK`). `HostEvents` turns that KEYDOWN into `events.QUIT`
   (same as closing an SDL window). Reassign if the host intercepts Back:
 
 ```python
@@ -258,7 +258,7 @@ Known issues: Unix SDL rotation clears the screen; scrolling while rotated has e
 
 ## Experimental: your own backend
 
-`AutoDisplay` (what the desktop board config calls) looks its backend up in a small registry, [`backends`](https://github.com/PyDevices/pydevices/blob/main/lib/backends.py). You can register one of your own. This is new, and its names and calling convention may still change.
+`AutoDisplay` (what the desktop board config calls) looks its backend up in a small registry, [`backends`](https://github.com/PyDevices/pydevices/blob/main/lib/backends.py). You can register one of your own. This is experimental: its names and calling convention may change.
 
 ```python
 # in your backend's package
@@ -277,7 +277,7 @@ display_drv = AutoDisplay(1280, 720, tv=TV)      # extra keywords go to the winn
 
 1. the backend named by the `PYDEVICES_DISPLAY` environment variable, if it is set, and nothing else. The built-in names are `wasm`, `pyscript`, `jupyter`, `android`, `win`, `pygame` and `sdl`;
 2. the backends your config `require`d, in the order it asked, skipping any whose probe says no;
-3. the built-in backends for this host, as before.
+3. the built-in backends for this host.
 
 A backend that isn't built in is never picked unless a config required it or you named it, so a backend that streams to a TV never chooses itself. A backend from outside the box is called as `Class(width=..., height=..., **extra)`, with whatever extra keywords you gave `AutoDisplay`; it can raise `backends.Decline` to hand the choice to the next one.
 

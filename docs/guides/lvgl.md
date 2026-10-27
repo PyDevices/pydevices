@@ -120,35 +120,15 @@ this per event already; if you ever read wheel deltas directly instead of
 through `display_driver`, don't assume either field is the trustworthy one
 without checking on your own target.
 
-## Sync versus async timers
+## One timer on every host
 
-`display_driver` includes the LVGL `event_loop`, which requires `multimer`.
-Inspect **`app.timer_async`** — derived from `board_config.timer_async`, or
-from the display driver's `requires_async_timer` — to see which backend was
-selected:
-
-| `app.timer_async` | Applies to |
-|---|---|
-| `False` (the desktop default) | MCUs, MicroPython Unix, CPython Linux — uses `multimer.auto.Timer` |
-| `True` | PyScript, Jupyter, or desktop with `PYDEVICES_TIMER_ASYNC=1` — uses `multimer.AsyncTimer` |
-
-`display_driver` passes it straight through as
-`event_loop(asynchronous=app.timer_async)`. When it is true, `display_driver`
-drives both ticks and `display.show()` from its asynchronous LVGL refresh loop.
-
-The desktop `board_config` reads **`PYDEVICES_TIMER_ASYNC`** for the PG/SDL
-branch (the default comes from `AutoDisplay` and is normally `False`); PyScript
-and Jupyter always use `timer_async=True`. To force async on desktop, export
-`PYDEVICES_TIMER_ASYNC=1` in the shell that launches the process, or set it
-before `board_config` loads:
-
-```python
-from boarddev import env_set
-env_set("PYDEVICES_TIMER_ASYNC", "1")
-import display_driver
-```
-
-`env_set` works on every interpreter; `os.environ` exists only on CPython.
+`display_driver` includes the LVGL `event_loop`, which runs on `multimer`: one
+`multimer.Timer` runs `lv.timer_handler()` and re-arms itself to what LVGL
+returns, so an idle screen wakes when LVGL wants it. There is no separate
+async mode to choose. The same code runs on MCUs, desktop, PyScript and
+Jupyter, and `multimer` picks how callbacks are delivered
+([timers](timers.md)). `event_loop` still accepts an `asynchronous` argument,
+but only for API parity; it is ignored.
 
 The frame rate is the display's: `PYDEVICES_REFRESH_MS` changes it for LVGL and
 non-LVGL apps alike, and `PYDEVICES_FPS_PRINT` prints it
@@ -157,15 +137,13 @@ non-LVGL apps alike, and `PYDEVICES_FPS_PRINT` prints it
 ## Verifying an integration
 
 [`lv_test_timer.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/lv_test_timer.py)
-is a single smoke test that follows `app.timer_async`. Its UI reports the
+is a single smoke test. Its UI reports the
 autodetected interpreter, OS, display driver class, screen, timer backend, and
 LVGL version, plus a seconds counter, spinning arc, frame rate, and tap button.
-It never sets `PYDEVICES_TIMER_ASYNC` itself — set it in the parent shell if you
-want a specific desktop mode.
 
 `python examples/lv_test_timer.py kit` runs a timed LVGL timer and input check,
 prints a `KIT_RESULT=` JSON line, then quits. To drive that across every desktop
-interpreter in both modes, use the harnesses documented in
+interpreter, use the harnesses documented in
 [pydevices-examples/tools/README.md](https://github.com/PyDevices/pydevices-examples/blob/main/tools/README.md).
 
 ## See also

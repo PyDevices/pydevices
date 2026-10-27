@@ -148,8 +148,8 @@ has joined before. Once a board has joined, you can delete `secrets.py`.
 It scans first and tries the known networks it saw, strongest first, then the
 known networks it didn't see, because a scan misses a weak network about
 half the time. Then it goes round once more. Each attempt waits up to
-`timeout` seconds (20 by default), but a wrong password or a missing network
-ends it after about six.
+`timeout` seconds (20 by default), but a missing network ends it after about
+six seconds and a wrong password after about fourteen.
 
 `wifi.connect_from_secrets()` uses the same remembered networks when the one
 in `secrets.py` can't be joined.

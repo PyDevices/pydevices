@@ -119,7 +119,7 @@ while the REPL waits for a key, on 3.11's readline and 3.13's new REPL, on
 Unix and Windows. `MULTIMER_INPUTHOOK=0` turns it off.
 
 On a host without a wake source, `sleep_ms` and `pump()` are the program's
-part of the bargain, as they were with the old `polling` provider: a script
+part of the bargain: a script
 that computes without yielding delivers nothing until it yields.
 
 ## Introspection where there is no prompt

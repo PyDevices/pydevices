@@ -54,8 +54,8 @@ flowchart TB
 |---|---|
 | `board_config.py` | Primary Board Contract: initializes eager UI hardware (`display_drv`, touch, buttons) and exports neutral capability flags. |
 | `board_peripherals.py` / `boarddev` | Board Contract extension: provides lazy, on-demand access to extra hardware (sensors, battery monitors, external storage). |
-| `displaydev` | Cross-platform display interfaces (`BusDisplay`, `FBDisplay`, `SDLDisplay`, `PyScriptDisplay`). |
-| `audiodev` | Cross-platform audio output/input interfaces (`I2SAudio`, `SDLAudio`). |
+| `displaydev` | Cross-platform display interfaces (`BusDisplay`, `FBDisplay`, `SDLDisplay`, `PSDisplay`). |
+| `audiodev` | Cross-platform audio output/input interfaces (`I2SPCMOutput`, `SDLPCMOutput`, …). |
 | `events` / `keys` | Neutral event definitions, key codes, modifier keys, and touch gestures. |
 | `multimer` | One `machine.Timer`-shaped `Timer` on every host, with the clock, `sleep_ms`, `schedule`, `hold` and `report`. |
 | `appdev` | Optional event traffic controller and input queue for applications using native PyDevices dispatch. |

@@ -29,7 +29,7 @@ bundle while core PyDevices libraries continue to come from PyDevices packages.
 ## Install (TestPyPI)
 
 Install and verification flows are centralized here:
-[install-workflows.md](../get-started/install.md)
+[Install](../get-started/install.md)
 
 Use the sections:
 - "pydevices-desktop via pip"
@@ -38,5 +38,5 @@ Use the sections:
 
 `board_config` constructs `display_drv` and exports neutral host/input callables
 via `displaydev.auto.AutoDisplay`; it does not create an event app. Lazy roles such as `audio_out` /
-`audio_in` still come from `board_peripherals` and allocate on first access.
+`pcm_in` still come from `board_peripherals` and allocate on first access.
 Terminal-only apps can `import board_peripherals` without opening a window.

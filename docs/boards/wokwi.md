@@ -1,13 +1,13 @@
 # Wokwi hardware reference
 
-Technical reference for the in-repo Wokwi project. Simulator assets live in
+Technical reference for the Wokwi project in pydevices-examples. Simulator assets live in
 [pydevices-examples/.site/wokwi](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi).
 
 ## Project layout
 
 | Path | Role |
 |------|------|
-| [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi) | `main.py`, `diagram.json` — core packages + `testris` |
+| [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi) | `main.py`, `diagram.json` — core packages + `testris` (this folder is in the pydevices-examples repo) |
 
 ---
 
@@ -15,7 +15,7 @@ Technical reference for the in-repo Wokwi project. Simulator assets live in
 
 | Item | Detail |
 |------|--------|
-| MCU | ESP32-S3 DevKitC-1 (`board-esp32-s3-devkitc-1`), 16 MB flash |
+| MCU | ESP32-S3 DevKitC-1 (`board-esp32-s3-devkitc-1`), 8 MB flash |
 | Display | ILI9341 240×320 via SPI (`board-ili9341-cap-touch`) |
 | Touch | FT6206 I2C (simulated on the cap-touch board) |
 
@@ -50,9 +50,10 @@ Wokwi’s cap-touch board simulates an **FT6206** I2C controller. The PyDevices 
 
 ## Board `env` attribute (optional)
 
-Committed `diagram.json` does **not** pin a MicroPython `env` string. Browser sims use built-in firmware.
-
-If you need a specific MicroPython build, copy the current `env` value from the [ESP32-S3 MicroPython template](https://wokwi.com/projects/new/micropython-esp32-s3) into the DevKit `attrs` — do not commit a release-specific string in the repo.
+Committed `diagram.json` pins a MicroPython build in the DevKit's `attrs`
+(`env`). To use a different one, copy the `env` value from the
+[ESP32-S3 MicroPython template](https://wokwi.com/projects/new/micropython-esp32-s3)
+into the DevKit `attrs`.
 
 ---
 
@@ -76,12 +77,10 @@ mip.install(
     target=".",
 )
 mip.install("pygraphics", index=MICROPYTHON_LIB, target=".")
-mip.install(PYDEVICES + "/src/examples/testris.py", target=".")
+mip.install(PYDEVICES_EXAMPLES + "/lib/examples/testris.py", target=".")
 
 import testris
 ```
-
-**Full install on Wokwi:** uncomment the `utils` and `examples` `mip.install` lines in `main.py` (when present).
 
 **No-touch variant:**
 
@@ -101,6 +100,6 @@ Use a display-only `diagram.json` (no touch I2C wires) with that config.
 |-------|-------|
 | Blank LCD, no traceback | Usually missing `LED`/`RST`→3V3 on `board-ili9341-cap-touch`, or SPI on GPIO 35/36/37 @ 60 MHz — use the pin table above |
 | `TouchKeypad` IndexError on last row | Wokwi simulator quirk; may not reproduce on hardware |
-| Old hosted wokwi.com project IDs | May be stale; use in-repo [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi) |
+| Old hosted wokwi.com project IDs | May be stale; use the [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi) |
 
 See also the application [troubleshooting guide](../guides/troubleshooting.md).

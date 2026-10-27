@@ -55,7 +55,7 @@ variant (`C6_WIFI`).
   pixel clock 46 MHz
 - **Touch:** GT911, 5 points
 - **SoC / flash notes:** ESP32-P4, 32 MB flash, large SPIRAM heap; external C6
-  Wi-Fi (see inventory #1)
+  Wi-Fi
 - **Role:** Soft-reset / timer lifecycle reference for displayif
 
 ### Adafruit Qualia S3 RGB666 + TL040HDS20
@@ -69,7 +69,7 @@ variant (`C6_WIFI`).
   and PCA9554 bring-up matching CP `adafruit_qualia_s3_rgb666`
 - **Touch:** FT6x36 @ `0x48` (`get_positions` on MP)
 - **Expander:** PCA9554 @ `0x3f` (not `0x38`)
-- **SoC:** ESP32-S3 + octal PSRAM; Adafruit VID (inventory #8)
+- **SoC:** ESP32-S3 + octal PSRAM; Adafruit VID
 - **Interesting:** First MP DotClock bring-up. Bounce buffer required (horizontal
   slide without it). MP must use **double panel FBs** + `auto_refresh=False`
   because LVGL paints the panel FB; CP uses a separate Bitmap so
@@ -123,8 +123,7 @@ variant (`C6_WIFI`).
 - **Touch:** GT911 @ `0x5D`; **identity** coords (no diagonal remap — unlike 4.3″)
 - **Expander:** CH422G (EXIO2 = backlight / DISP)
 - **USB:** Two ports — use **UART (CH343)** for flash/REPL; native USB may not
-  enumerate CDC until firmware is up. Session example: CH343 serial
-  `578E020986`.
+  enumerate CDC until firmware is up.
 - **Interesting:** Symptom that forced restoring double-FB: `lv_test_timer` drew
   UI then went mostly black with one short edge (live bounce-source paint).
 
@@ -142,9 +141,8 @@ variant (`C6_WIFI`).
 - **Power / BL:** GPIO46 `PIN_POWER_ON` (must be high), backlight GPIO15
 - **Input:** `machine.Encoder` A=2, B=1, button=0 (`phases=2`); no touch panel
 - **Flash / USB:** Native USB-Serial/JTAG; **BOOT+RESET** → ROM, flash
-  `ESP32_GENERIC_S3` + `SPIRAM_OCT`, plain **RESET** for CDC. Example unit
-  serial `3485186BFCAC0000` (Windows `COM55` in one WSL session).
-- **Setup:** `/setup t-embed lv_test_timer` (or mip the `package.json` deps).
+  `ESP32_GENERIC_S3` + `SPIRAM_OCT`, plain **RESET** for CDC.
+- **Setup:** mip the board package.
   Do **not** leave a Python `/lib/spibus.py` — it shadows native `spibus`.
 - **displayif notes:** `SPI.init` on each `send` must re-pass sck/mosi/miso or
   ESP32-S3 drops the GPIO matrix; command byte via buffer protocol (not
@@ -179,9 +177,8 @@ variant (`C6_WIFI`).
   `touch_rotation_table` all **`REVERSE_Y`** so `BOTTOM_MID` taps hit the
   visible button.
 - **Flash / USB:** same `ESP32_GENERIC_S3` + `SPIRAM_OCT` family as T-Embed;
-  native USB. Example unit serial `ECDA3B9956DC0000` (Windows `COM57` in one
-  WSL session).
-- **Setup:** mip / `/setup` the `package.json` (notes: firmware-native
+  native USB.
+- **Setup:** mip the board package (notes: firmware-native
   `i80bus` — do not install an optional Python bus fallback).
 - **Interesting:** Resistive touch is usable for `lv_test_timer` but remains
   flaky (missed taps) even with IRQ/Z press detect — expect firm presses.
@@ -214,8 +211,7 @@ variant (`C6_WIFI`).
 - **Touch:** CST816 family @ `0x15` on I2C1 **SDA=6 / SCL=7** (CP:
   `IMU_SDA`/`IMU_SCL`); RST=GP22, IRQ=GP21 (polled). MP: `cst8xx.CST8XX`;
   CP: [`drivers/touch/circuitpython/cst816.py`](https://github.com/PyDevices/pydevices/blob/main/drivers/touch/circuitpython/cst816.py).
-- **Flash / USB:** RP2040 ROM UF2 bootloader (`RPI-RP2`). Example unit serial
-  `E462A052C73E4A29`. MicroPython `RPI_PICO` → CDC `VID_2E8A`/`PID_0005`;
+- **Flash / USB:** RP2040 ROM UF2 bootloader (`RPI-RP2`). MicroPython `RPI_PICO` → CDC `VID_2E8A`/`PID_0005`;
   CircuitPython board UF2 → `PID_1057` + **CIRCUITPY**. Adafruit TinyUF2
   does **not** ship RP2040 builds (ROM UF2 only).
 - **displayif notes:** native `spibus` `SPI.init` must **not** re-pass
@@ -227,15 +223,14 @@ variant (`C6_WIFI`).
   (standalone CP). Soft-reset / USB attach after heavy SPI init can wedge
   CDC — prefer cold boot / power cycle for recovery; keep `boot.py`
   USB-settle + try/except if auto-launching Simon.
-- **Setup:** mip / `/setup` the matching `package.json`. MP notes: prefer
+- **Setup:** mip the matching board package. MP notes: prefer
   firmware-native displayif `spibus` when present; otherwise Python
   `spibus.py` with the rp2 pin-kwargs fix.
 
 ### Adafruit Metro M7 + 2.8″ TFT Touch Shield (cap, product 1947)
 
 - **board_config title:** `Metro M7 + Adafruit 2.8" TFT Touch Shield (cap) product 1947`
-- **Dir:** [`board_configs/busdisplay/spi/metro_m7_tft_touch_shield_1947`](https://github.com/PyDevices/pydevices/tree/main/board_configs/busdisplay/spi/metro_m7_tft_touch_shield_1947) (MP;
-  package `v0.2`)
+- **Dir:** [`board_configs/busdisplay/spi/metro_m7_tft_touch_shield_1947`](https://github.com/PyDevices/pydevices/tree/main/board_configs/busdisplay/spi/metro_m7_tft_touch_shield_1947) (MP)
 - **Resolution:** 240×320 ILI9341, `bgr=True`, `reverse_bytes_in_word=True`,
   `rotation=0`
 - **Shield SPI jumpers (one toggle in board_config):** `USE_SOFTSPI`
@@ -260,9 +255,8 @@ variant (`C6_WIFI`).
 - **Flash / USB:** TinyUF2 **`METROM7BOOT`**. Custom MP build:
   displayif + graphics (+ optional LVGL), `bundle-networking`,
   `MICROPY_HW_FLASH_VFS_OFFSET=0x180000` (moving VFS **wipes** `/flash` —
-  redeploy board_config / secrets). Example CDC after MP: `VID_F055`/`PID_9802`
-  (e.g. `COM12`); after CP board UF2: Adafruit `VID_239A`/`PID_80E2` +
-  **CIRCUITPY** (e.g. `COM60`).
+  redeploy board_config / secrets). CDC after MP: `VID_F055`/`PID_9802`;
+  after CP board UF2: Adafruit `VID_239A`/`PID_80E2` + **CIRCUITPY**.
 - **displayif notes:** native `spibus` accepts pin **int / name str / Pin** and
   **`soft=True`** (SoftSPI; skip `init()` on each send). Firmware must include
   that SoftSPI path (`SPIBus loaded (SoftSPI)`).
@@ -272,14 +266,13 @@ variant (`C6_WIFI`).
   CP is fine for AirLift networking.
 - **Demos:** stripes / `ili9341` over SoftSPI; Simon needs a slim path (no
   appdev). LVGL unlikely without frozen/slim app.
-- **Setup:** mip / `/setup` `metro_m7_tft_touch_shield_1947` after WiFi is up
-  (or `mpftp put` over serial if NINA sockets are still broken).
+- **Setup:** mip `metro_m7_tft_touch_shield_1947` after WiFi is up
+  (or copy the files over serial if NINA sockets are still broken).
 
 ### ST NUCLEO-H743ZI2 + Adafruit 2.8″ TFT Touch Shield (cap, product 1947)
 
 - **board_config title:** `NUCLEO-H743ZI2 + Adafruit 2.8" TFT Touch Shield (cap) product 1947`
-- **Dir:** [`board_configs/busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947`](https://github.com/PyDevices/pydevices/tree/main/board_configs/busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947) (MP;
-  package `v0.3`)
+- **Dir:** [`board_configs/busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947`](https://github.com/PyDevices/pydevices/tree/main/board_configs/busdisplay/spi/nucleo_h743zi2_tft_touch_shield_1947) (MP)
 - **Resolution:** 240×320 ILI9341, `bgr=True`, `reverse_bytes_in_word=True`,
   `rotation=0`
 - **SPI:** Prefer **`USE_SOFTSPI = False`** → `SPIBus(id=1, dc="D9", cs="D10")`
@@ -300,7 +293,7 @@ variant (`C6_WIFI`).
 - **Demos verified:** RGB stripes; [`simon.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/simon.py) (graphics + appdev); headless
   [`lvgl-bindings/tools/test_lvgl_smoke.py`](https://github.com/PyDevices/lvgl-bindings/blob/main/tools/test_lvgl_smoke.py); `lvgl_test.py` (tap-count button on real
   panel via `display_driver`). **`main.py`** boots `lvgl_test.py`.
-- **Setup:** `mpftp put` board_config + `displaydev/{__init__,busdisplay}.py` +
+- **Setup:** copy over serial the board_config + `displaydev/{__init__,busdisplay}.py` +
   `appdev` + `multimer` + `display_driver.py` + `ili9341`/`ft6x36` + examples
   (no WiFi on this fixture). Package deps: appdev + multimer.
 
@@ -321,4 +314,4 @@ already sets `refresh_cb=display_drv.show`.
 
 ---
 
-Add a row when a new display board is verified against LVGL.
+

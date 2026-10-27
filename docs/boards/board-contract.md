@@ -153,8 +153,8 @@ DAC or amplifier on a QT Py, say. They ship a `board_peripherals.py` and **no
 else in the way.
 
 Every other category is named for a display technology (`busdisplay`,
-`fbdisplay`, `pixeldisplay`, …), so a board with no display had nowhere to
-live before this.
+`fbdisplay`, `pixeldisplay`, …), so `nodisplay` is where a board with no
+display lives.
 
 ## Module layout (shape to prove)
 
@@ -223,7 +223,7 @@ the neutral callable used by an application coordinator.
    `(x, y[, id[, …]])`. Never a bare `(x, y)` from this method (ambiguous with
    a single 2-tuple point). Single-touch chips return `()` or a one-element
    sequence.
-2. **Adapters:** `appdev.TouchDevice` rotates all points, emits primary-finger
+2. **Adapters:** `appdev.Touch` rotates all points, emits primary-finger
    `MOUSE*`, exposes `touch_dev.points`. LVGL `display_driver` feeds gesture
    recognizers when those APIs exist. Non-LVGL apps keep using primary `MOUSE*`.
 3. **Board wrappers:** do not collapse multi-touch to `points[0]` in
@@ -250,7 +250,7 @@ if app is not None and app.touch_dev is not None:
 
 # Lazy extras — PERIPHERALS only (do not hasattr these)
 if "sdcard" in board.PERIPHERALS:
-    card = board.sdcard  # constructs now
+    card = board.sdcard  # constructs on this access
 if "wlan" in board.PERIPHERALS:
     wlan = board.wlan
     wlan.active(True)
@@ -261,13 +261,14 @@ if "wlan" in board.PERIPHERALS:
 Board configs and drivers live in
 [`PyDevices/pydevices`](https://github.com/PyDevices/pydevices).
 MicroPython campaign + product boards use the split layout
-(`board_config.py` + `board_peripherals.py`). CircuitPython twins under `cp/` stay
-single-file (eager UI only).
+(`board_config.py` + `board_peripherals.py`). CircuitPython twins under `cp/` are
+single-file (eager UI only), except the few that add an optional
+`board_peripherals.py`.
 
-| In pydevices now | Still to do |
+| In pydevices | Still to do |
 |-----------------------------|-------------|
 | MP split layout for matrix product boards | Fill remaining lazy factories (`NotImplementedError`) |
-| CP eager UI parity (`touch` / `keypad` / `encoder` / `joystick`) | Optional MP Feather DVI config; CP non-UI stays on `board` |
+| CP eager UI parity (`touch` / `keypad` / `encoder` / `joystick`) | CP non-UI stays on `board` |
 | Sequence-preserving `touch_read` | |
 
 See also [device-matrix.md](device-matrix.md) and the other notes in this `docs/` directory.

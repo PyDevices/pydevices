@@ -11,7 +11,7 @@ Harness- and example-specific issues are covered in
 The packages are not on `sys.path`.
 
 - **Source checkout:** set `PYTHONPATH` / `MICROPYPATH` to `.:lib:utils` before
-  running — see [install-workflows.md](../get-started/install.md).
+  running — see [Install](../get-started/install.md).
 - **Device:** install via MIP into `/lib`.
 
 ### `ModuleNotFoundError: No module named 'board_config'`
@@ -23,11 +23,6 @@ There is no `board_config.py` for your hardware. Install a
 import mip
 mip.install("github:PyDevices/pydevices/board_configs/sdldisplay")  # desktop SDL2
 ```
-
-### `ImportError: multimer is required for auto_refresh`
-
-The display was created with `auto_refresh=True` but `multimer` is not
-installed. Install [multimer](timers.md) or pass `auto_refresh=False`.
 
 ## Install failures
 
@@ -58,21 +53,22 @@ CircuitPython has no MicroPython-compatible `framebuf`. Install the shim from
 ### Blank window on desktop (CPython)
 
 1. Confirm the SDL2 system libraries are installed — see
-   [install-workflows.md](../get-started/install.md).
+   [Install](../get-started/install.md).
 2. Try **`PGDisplay`** (PyGame) instead of SDL2.
 3. Run a minimal draw script; a window should appear immediately.
 
 ### Wrong colors or garbled pixels on an MCU
 
 1. Verify the correct [board config](../boards/board-configs.md) for your wiring.
-2. Check `requires_byteswap` / `BusDisplay.disable_auto_byteswap()` — see
-   [display-drivers.md](../boards/display-drivers.md).
+2. Check `requires_byteswap` / `BusDisplay.disable_auto_byteswap()`
+   (defined in [`displaydev`](https://github.com/PyDevices/pydevices/blob/main/lib/displaydev/__init__.py)).
 3. Confirm the SPI / I80 pins match your schematic.
 
 ### Touch coordinates wrong or inverted
 
-The touch driver's rotation must match the display's. Set `display.rotation` and
-ensure the touch device has a matching `rotation` attribute. See
+The touch driver's rotation must match the display's. Set `display.rotation`;
+it passes the value on to the app's touch device, so check that your
+`touch_rotation_table` suits the panel. See
 [touch-drivers.md](../boards/touch-drivers.md).
 
 ## WSLg: square artifact and drag lag on touchscreens

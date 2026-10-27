@@ -115,12 +115,6 @@ path / stdio setup, then runs **`main.py`** if present, otherwise parks for the
 attach REPL. `android.py` stages a script as `main.py` (`import <stem>`) plus
 `run/<stem>.py`.
 
-Each launch hot-syncs `boot.py`, `stdio_sidecar.py`, and `mp_*.py` from a sibling
-`android-template` checkout when one is present, and drops stale
-bytecode that would otherwise shadow the update. Changing the boot-entrypoint Java patch
-requires an APK rebuild — hot-sync alone cannot retarget an older package that
-still launches `main.py` first.
-
 ### Attach and `-i`
 
 | Situation | What you see |
@@ -209,7 +203,7 @@ Phone defaults stay portrait 720×1280.
 |---|---|
 | D-pad | `K_UP` / `K_DOWN` / `K_LEFT` / `K_RIGHT` |
 | Center / Enter | `K_RETURN` |
-| Back | `K_AC_BACK` → `QUIT` via `HostEventsDevice` |
+| Back | `K_AC_BACK` → `QUIT` via `HostEvents` |
 
 Back quits because `AndroidSDLDisplay.quit_chord` is `(keys.K_AC_BACK, 0)`.
 

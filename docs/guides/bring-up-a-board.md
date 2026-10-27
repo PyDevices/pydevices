@@ -5,14 +5,12 @@ here was done rather than recalled — it comes out of a full bring-up of a
 Waveshare ESP32-S3-Touch-LCD-4.3 — and where something is untested it says so.
 
 For installing PyDevices anywhere else, including desktop, see
-[install-workflows.md](../get-started/install.md). This page is the board.
+[Install](../get-started/install.md). This page is the board.
 
 **Read §1 and §2 before you install anything.** Between them they are most of
 the time a first bring-up costs: half of what you might install is already in
 the firmware, and installing over serial when the board has Wi-Fi turns minutes
-into an afternoon. Over Wi-Fi the whole of §2 is about a minute even at a
-marginal signal: measured on an ESP32-P4 at RSSI −85 dBm, connect 9.8 s,
-`mip.install("pydevices")` 49.3 s, the board package 8.5 s.
+into an afternoon.
 
 ---
 
@@ -60,7 +58,7 @@ text so you can see which module is really absent; a frozen module that
 reports `MISS` with somebody else's name in the message is present and fine.
 Install `pydevices` (which carries `events`, `appdev` and `display_driver`),
 then re-probe. Firmware built before display_driver moved to pydevices
-(2026-10) froze it from lvgl-micropython, where it showed the same trap with
+froze it from lvgl-micropython, where it showed the same trap with
 `appdev`.
 
 ## 2. Installing, over Wi-Fi
@@ -70,8 +68,8 @@ Serial file transfer is slow. On a Wi-Fi board, put `secrets.py` on it, and
 fetch everything itself.
 
 ```bash
-mpremote connect COM49 fs cp wifi.py :/lib/wifi.py      # only if pydevices isn't frozen in
-mpremote connect COM49 fs cp secrets.py :/lib/secrets.py
+mpremote connect <port> fs cp wifi.py :/lib/wifi.py      # only if pydevices isn't frozen in
+mpremote connect <port> fs cp secrets.py :/lib/secrets.py
 ```
 
 `wifi.py` is `pydevices/lib/wifi.py` — the same file the `pydevices` package
@@ -112,7 +110,7 @@ dependency.
 **Take both halves from the same place.** The pair above mixes the *released*
 `pydevices` (the index) with the board config from `main` (`github:`). That
 is fine when the two agree, and wrong the moment `main`'s board configs pass
-something the release's library does not know: on 2026-09-22 the release was
+something the release's library does not know: once, the release was
 one step behind the audio pump, so a board built exactly this way came up with
 a working panel and touch and **no audio** — `pcm_out()` raised
 `TypeError: unexpected keyword argument 'wire'`
@@ -218,8 +216,7 @@ everything in §2 has to run again.
 Worth knowing before you reflash rather than after: if the board is on Wi-Fi,
 keep `wifi.py` and `secrets.py` somewhere you can push back in two `mpremote`
 commands, because they are the two files that let the board fetch the rest for
-itself. Keep `secrets.py` outside any repository, for example in
-`~/.pydevices/secrets/` with only you able to read it.
+itself. Keep `secrets.py` outside any repository, somewhere only you can read.
 
 ## 5. Iterating without installing
 
@@ -228,7 +225,7 @@ staged tree can be exercised with no transfer step. Invaluable while a
 `board_config` or an example is still changing:
 
 ```bash
-mpremote connect COM49 mount /path/to/staged run /path/to/staged/example.py
+mpremote connect <port> mount /path/to/staged run /path/to/staged/example.py
 ```
 
 **Trap.** Connecting to the board interrupts whatever it is running. There is

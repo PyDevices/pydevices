@@ -45,9 +45,9 @@ hardware. The widget must be focused to receive key events, and the notebook
 front end may consume some keys. Quit uses `JNDisplay.quit_chord`
 (**Back** / `keys.K_AC_BACK`); reassign it if the front end intercepts it.
 
-**Limitation:** mouse clicks are emulated as touch
-(`MOUSEBUTTONDOWN` / `MOUSEMOTION` / `MOUSEBUTTONUP`). Keyboard and encoder
-emulation are not implemented — for those, use CPython desktop or PyScript.
+**Limitation:** a mouse click arrives as `MOUSEBUTTONDOWN` / `MOUSEMOTION` /
+`MOUSEBUTTONUP`, which the app treats as touch. There is no encoder
+emulation — for that, use CPython desktop or PyScript.
 
 See [Displays → how displays expose input](displays.md).
 

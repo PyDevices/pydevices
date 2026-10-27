@@ -7,7 +7,7 @@ chose its implementation pattern.
 
 For a shorter “which driver do I pick?” guide, see [Displays](../guides/displays.md). For
 chip wiring and board configs, see [Board configs](../boards/board-configs.md)
-and [display-drivers.md](../boards/display-drivers.md).
+and [Display drivers](../boards/display-drivers.md).
 
 ## The DisplayDriver API contract
 
@@ -186,8 +186,9 @@ slow at 320×480.
 
 ### LUT size and MCUs
 
-**PSDisplay** allocates **65536 × 4 ≈ 256 KB** for `_rgba_lut` — appropriate
-in PyScript, **not** on typical MCUs (e.g. RP2040 has 264 KB SRAM total).
+**PSDisplay** and **WorkerDisplay** keep no lookup table: the RGB565 buffer is
+expanded to RGBA in JavaScript, so no 256 KB table (65536 × 4 bytes) has to
+sit in Python memory.
 
 For **PixelDisplay** (8×4, 12×6, …), a **`color_rgb` loop** over tens or hundreds
 of pixels is negligible. A full 565→888 LUT (~192 KB for 3-byte entries) would
@@ -224,19 +225,18 @@ These follow the 565 API without a separate “present” stage in the same sens
 
 ## Consolidation direction
 
-Goals discussed for displaydev maintenance:
+Goals for displaydev maintenance:
 
 1. **One API** — all `DisplayDriver` instances report `color_depth=16` and accept
    565 colors and blit buffers.
 2. **Shared conversion helpers** in `displaydev/__init__.py` — `color_rgb`
-   (exists), plus swappable **loop** vs **LUT** blit writers for benchmarking.
+   (exists), plus swappable **loop** vs **LUT** blit writers for benchmarking, where a LUT
+   is worth its RAM.
 3. **Keep backend-specific fast paths** where they matter:
    - SDL: zero-copy 565 blit
-   - PS: LUT for RGBA canvas
+   - PS: one JavaScript call expands to RGBA
    - PG: consider `frombuffer`+`blit` for 565 surfaces
    - PixelDisplay: loop expand (tiny grids)
-4. **Lazy LUT** — build only on CPython / desktop unless explicitly enabled, so
-   MCUs never allocate 256 KB silently.
 
 Internal buffer format may remain 565 (SDL), RGB (JN), RGBA (PS), or RGB888
 (strip) as long as the **public** contract stays 565.

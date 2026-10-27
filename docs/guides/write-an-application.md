@@ -14,7 +14,7 @@ application decides which coordinator, if any, to instantiate.
 | `touch_rotation_table` | optional | Four rotation masks for touch coordinates |
 | `keypad_read` | optional | Keypad reader |
 | `encoder_read` / `encoder_button_read` | optional | Encoder readers |
-| `joystick_driver` / `emulate` | optional | Joystick input and optional emulation mapping |
+| `joystick_driver` / `joystick_emulate_digital` | optional | Joystick input and optional digital emulation mapping |
 
 Board configs do not import `appdev` and do not export `app`.
 
@@ -58,7 +58,9 @@ tick/task handling and input-device adapters, and does not import `appdev`.
 
 ```python
 appdev.App(
-    display=None,
+    board_config=None,
+    *,
+    displays=None,
     host_read=None,
     touch_read=None,
     touch_rotation_table=None,
@@ -164,7 +166,7 @@ returning a sequence, even for one contact.
 A GUI layer that presents frames itself can pause appdev-driven refresh:
 
 ```python
-with app.display_refresh_paused():
+with app.refresh_paused():
     run_game()
 ```
 
