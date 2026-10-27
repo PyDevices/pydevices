@@ -2,7 +2,7 @@
 
 pdwidgets is one pure-Python package. The pip package is called
 `pydevices-pdwidgets`; you import `pdwidgets`. It draws through a display from
-[pydevices](https://pydevices.readthedocs.io/projects/pydevices/), colors from
+[pydevices](https://github.com/PyDevices/pydevices/blob/main/docs/index.md), colors from
 [palettes](https://palettes.readthedocs.io) and shapes from
 [pygraphics](https://pygraphics.readthedocs.io), and pip installs all three
 for you.
@@ -27,7 +27,7 @@ sudo apt install libsdl2-2.0-0
 ```
 
 On macOS use `brew install sdl2`. On a machine with no screen, such as CI, set
-`SDL_VIDEODRIVER=dummy` and the program draws to memory. The [pydevices docs](https://pydevices.readthedocs.io/projects/pydevices/)
+`SDL_VIDEODRIVER=dummy` and the program draws to memory. The [pydevices docs](https://github.com/PyDevices/pydevices/blob/main/docs/index.md)
 cover the other desktop setups under Install.
 
 ## On a MicroPython-compatible board
@@ -43,7 +43,7 @@ for package in ("pydevices", "pygraphics", "palettes", "pdwidgets"):
 mip doesn't follow dependencies between these packages, so each is installed by
 name. Your board also needs its board config, which says how its display and
 touch are wired; installing it brings pydevices with it. The
-[pydevices docs](https://pydevices.readthedocs.io/projects/pydevices/) list
+[pydevices docs](https://github.com/PyDevices/pydevices/blob/main/docs/index.md) list
 every board config.
 
 The same lines work on the unix port of MicroPython. Pass `target="some/folder"`
