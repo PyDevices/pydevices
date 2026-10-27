@@ -28,7 +28,7 @@ guides/write-an-application
 guides/displays
 guides/the-app-loop
 guides/timers
-guides/move-to-the-new-multimer
+guides/upgrade-multimer-from-0.5
 guides/audio
 guides/usb
 guides/bluetooth-le

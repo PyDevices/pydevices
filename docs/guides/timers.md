@@ -154,6 +154,6 @@ display's `frame_clock`. Neither needs `app.run()`.
 ## Next
 
 - [Timer internals and the wake sources](../how-it-works/multimer-internals.md)
-- [Migrating code from the old API](move-to-the-new-multimer.md)
+- [Upgrading from pydevices 0.5](upgrade-multimer-from-0.5.md)
 - [App and board config](write-an-application.md)
 - [Displays](displays.md)

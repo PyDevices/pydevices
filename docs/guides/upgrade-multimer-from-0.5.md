@@ -1,7 +1,8 @@
-# Move to the new multimer
+# Upgrade multimer from pydevices 0.5
 
-What changes for a program, a library, and a board config when you move
-from the old multimer API to the current one. How the new one works is in
+pydevices 0.6.0 redesigned multimer. This page is what changes for a
+program, a library and a board config written for 0.5 or earlier. How
+multimer works is in
 [multimer internals](../how-it-works/multimer-internals.md).
 
 ## Timers
