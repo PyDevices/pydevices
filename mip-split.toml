@@ -81,7 +81,7 @@ host-only = [
 
 [bledev]
 # BLE is its own MIP package rather than part of `pydevices`, so a board
-# without a radio doesn't carry it (docs/bledev.md):
+# without a radio doesn't carry it (docs/guides/bluetooth-le.md):
 #     mip.install("bledev", index="https://PyDevices.github.io/mip")
 # bledev needs micropython-lib's aioble, and declares no dependency on it:
 # mip takes every file of a package from the one index it was given, so an

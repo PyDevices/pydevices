@@ -1,0 +1,297 @@
+# Displays
+
+The `displaydev` product package in pydevices provides several
+display driver classes. All expose a drawing surface compatible with
+MicroPython's `framebuf` API; pydevices-examples demonstrates them.
+
+See [Architecture](../how-it-works/architecture.md) for how drivers connect to `board_config.py`.
+
+## Pick a driver
+
+| Your target | Driver class | Board config example |
+|-------------|--------------|----------------------|
+| MicroPython MCU (SPI/I80) | `BusDisplay` | `board_configs/busdisplay/spi/...` |
+| CPython / MicroPython Unix desktop | `SDLDisplay` | [`board_configs/sdldisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/sdldisplay) |
+| Windows CPython (native Win32) | `WinDisplay` | [`board_configs/windisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/windisplay) |
+| Windows / Chromebook (PyGame easier) | `PGDisplay` | [`board_configs/pgdisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/pgdisplay) |
+| CircuitPython RGB / USB video | `FBDisplay` | varies |
+| Jupyter notebook | `JNDisplay` | [`board_configs/jndisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/jndisplay) |
+| PyScript browser | `PSDisplay` | [`board_configs/psdisplay/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/psdisplay) |
+
+Install the matching [board config](../boards/board-configs.md) — it constructs the driver for you.
+
+## Display classes
+
+### BusDisplay
+
+For microcontrollers on **MicroPython and CircuitPython**.
+
+- MicroPython: uses `spibus` / `i80bus` or community C bus drivers ([lvgl_micropython](https://github.com/kdschlosser/lvgl_micropython)).
+- CircuitPython: uses Adafruit FourWire / ParallelBus — see [board configs](../boards/board-configs.md).
+
+### SDLDisplay
+
+SDL2 desktop backend (CPython, MicroPython Unix, CircuitPython Unix). Uses an SDL texture as GRAM. It is the default on MicroPython Unix and available on CPython via `board_configs/sdldisplay/`.
+
+SDL2 bindings for **`SDLDisplay`**: `import usdl2` from [`pydevices-desktop`](run-on-the-desktop.md) (TestPyPI) or the MIP desktop board package in [pydevices](https://github.com/PyDevices/pydevices) ([`utils/usdl2.py`](https://github.com/PyDevices/pydevices/blob/main/utils/usdl2.py)). A native `usdl2` module is used when already present in the firmware or environment. See [pydevices-desktop](run-on-the-desktop.md).
+
+### WinDisplay
+
+Native Win32 HWND backend for **CPython on Windows** (`uwin32`). Logical RGB565 GRAM, handed to `StretchDIBits` as a 16-bit `BI_BITFIELDS` DIB, so the framebuffer is presented with no colour conversion and no copy. `show()` skips a frame with nothing pending, and blits only the changed rows when the scale is a whole number. `displaydev.auto.AutoDisplay` tries it first on `win32` before pygame/SDL. Explicit config: `board_configs/windisplay/`.
+
+**Sizes are real pixels, at any display scaling.** WinDisplay makes the process per-monitor DPI aware before it measures the screen or opens a window, so on a display scaled to 150 % a 640x480 panel at `scale=1` is 640x480 pixels on the glass, crisp, and the work area it fits the window into is the real one. If your program declares a DPI awareness of its own (in its manifest, or with `SetProcessDpiAwarenessContext` before the first display opens), yours stands.
+
+**Open it maximised** and the panel is the window: `WinDisplay(maximized=True)` opens maximised into the work area (the screen less the taskbar), with the panel exactly the window's client area at `scale=1`, no margin and no autoscale, the way an installed web app fills its window. `width`, `height`, `scale`, `x` and `y` are ignored; `rotation` still says which way up the panel is. Read the size from `display.width` / `display.height` once it is open, or call `displaydev.windisplay.maximized_size()` to learn it before opening anything. With the desktop board config, set `PYDEVICES_MAXIMIZED=1` (other desktop backends ignore it for now). A maximised display keeps the size it opened at, so pass `rotation=` up front rather than rotating it later.
+
+```python
+import os
+os.environ["PYDEVICES_MAXIMIZED"] = "1"
+import board_config
+
+d = board_config.display_drv
+print(d.width, d.height)   # e.g. 1920 1094 on a 1920x1200 screen at 150 %
+```
+
+**Width and height must be even.** DIB scanlines are DWORD-aligned, which RGB565 rows only satisfy at an even width, and rotation swaps the two. Odd dimensions raise `ValueError` at construction.
+
+### PGDisplay
+
+PyGame desktop backend. `displaydev.auto.AutoDisplay` (used by [`board_configs/desktop/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/desktop)) selects it after `WinDisplay` on Windows, and first on other CPython desktops; if PyGame is not installed it falls back to `SDLDisplay`. Explicit config: `board_configs/pgdisplay/`.
+
+### FBDisplay
+
+Works with CircuitPython `framebufferio.FramebufferDisplay` — dotclock (RGB), USB Video, RGB Matrix.
+
+USB Video lets a board stream the framebuffer as a USB webcam (RP2040; host support varies).
+
+### JNDisplay
+
+Jupyter Notebook output via an interactive `ipywidgets` image. Input (mouse, wheel, keyboard) is captured by `JNDevices` (`ipyevents`) and delivered as events. Config: `board_configs/jndisplay/`.
+
+### PSDisplay
+
+PyScript browser canvas. Input (pointer/touch/pen, wheel, keyboard, gamepad) is captured by `PSDevices` and delivered as events. Config: `board_configs/psdisplay/`. See [PSDisplay](#psdisplay).
+
+
+Display backends expose input without choosing an application coordinator.
+Applications using the optional [`appdev`](the-app-loop.md) app can drain the
+backend's [`events`](the-app-loop.md) records through a **`HostEventsDevice`**. The
+input source depends on what each platform exposes:
+
+| Backends | Input source | Wired via |
+|----------|--------------|-----------|
+| `SDLDisplay`, `PGDisplay`, `WinDisplay` | System-wide OS queue drain (module `get_events`, also on `display_drv.get_events`) | `appdev.App(..., host_read=display_drv.get_events)` |
+| `JNDisplay`, `PSDisplay` | Per-surface `PSDevices` / `JNDevices`, exposed as `display_drv.get_events` | `appdev.App(..., host_read=display_drv.get_events)` |
+
+With appdev, handlers see the same `events` objects, so application code does
+not need to know which backend is active. LVGL instead connects these neutral
+backend capabilities through its own `display_driver` coordinator.
+
+### Desktop (SDL2, PyGame)
+
+SDL2 and PyGame provide a real OS event queue. The driver module drains it and
+converts each event to an `events` object:
+
+```python
+from displaydev.sdldisplay import SDLDisplay
+import appdev
+
+display_drv = SDLDisplay(...)
+app = appdev.App(
+    displays=[display_drv],
+    host_read=display_drv.get_events,
+)
+```
+
+Use `poll_event()` only for optional manual single-event checks — not as the
+`host_read=` callback (it returns one event, not a list).
+
+Desktop hosts (`SDLDisplay`, `PGDisplay`, `WinDisplay`) set
+`display_drv.quit_chord` to **CTRL+Q** (`keys.K_q` + `keys.KMOD_CTRL`).
+`HostEventsDevice` matches that chord with `keys.chord_matches` and emits
+`events.QUIT`. Window-close still emits `events.QUIT` from SDL/PyGame.
+MCU drivers leave `quit_chord` as `None`.
+
+Pointer coordinates use `display_drv.touch_scale` (see `capabilities()` per
+backend); `HostEventsDevice` divides mouse events by that scale.
+
+This captures mouse motion/buttons, the wheel, the keyboard, the window-close
+(`QUIT`) event, and **joysticks/gamepads** (`JOYAXISMOTION`, `JOYBALLMOTION`,
+`JOYHATMOTION`, `JOYBUTTONDOWN`, `JOYBUTTONUP`). Connect controllers before
+launching — hot-plugging after startup is not handled.
+
+### Browser / notebook (PyScript, Jupyter)
+
+`PSDevices` (PyScript) and `JNDevices` (Jupyter) capture all available input on
+the canvas/widget and turn it into the same `events` objects. The
+display owns that drain as `get_events`:
+
+```python
+from displaydev.psdisplay import PSDisplay
+import appdev
+
+display_drv = PSDisplay("display_canvas", width, height)
+app = appdev.App(
+    displays=[display_drv],
+    host_read=display_drv.get_events,
+)
+```
+
+Each captures:
+
+- **Pointer** — `MOUSEMOTION` on every move and `MOUSEBUTTONDOWN` /
+  `MOUSEBUTTONUP` for any button. On PyScript this uses Pointer Events, so mouse,
+  touch, and pen all work (with the `touch` flag set for non-mouse pointers).
+- **Wheel** — `MOUSEWHEEL` (also consumed by encoder devices).
+- **Keyboard** — `KEYDOWN` / `KEYUP` with SDL-style key codes, names, and
+  modifier masks (incl. left/right modifier variants) via `keys` and
+  displaydev DOM helpers.
+- **Gamepad** (PyScript only) — `JOYAXISMOTION` / `JOYBUTTONDOWN` /
+  `JOYBUTTONUP`, polled from the Gamepad API on each `read()`.
+- **Quit** — `PSDisplay` / `JNDisplay` set `quit_chord` to browser/TV Back
+  (`keys.K_AC_BACK`). `HostEventsDevice` turns that KEYDOWN into `events.QUIT`
+  (same as closing an SDL window). Reassign if the host intercepts Back:
+
+```python
+import keys
+
+display_drv.quit_chord = (keys.K_c, keys.KMOD_CTRL)  # e.g. CTRL+C on Jupyter
+```
+
+> **Caveat:** key events require the canvas/widget to be focused (click it
+> first), and the notebook/browser front end may consume some keys (arrows,
+> space, `Ctrl`/`Cmd` shortcuts) before they reach the helper. This makes
+> keyboard input on these backends less reliable than on the desktop SDL/PyGame
+> backends.
+>
+> Rotation on these backends only reshapes the surface (e.g. 320×480 ↔ 480×320);
+> it does not physically rotate, so pointer coordinates need no rotation
+> remapping.
+
+## Canvases
+
+Anything you can draw on implements the framebuf API:
+
+- The display itself
+- `framebuf` bytearrays
+- `pygraphics.BMP565` bitmap files
+- `displaybuf.DisplayBuffer` (see [pydevices-examples utils](https://github.com/PyDevices/pydevices-examples/blob/main/lib/utils/README.md))
+
+## Timing
+
+pydevices-examples does not include a task scheduler. Options:
+
+- **`asyncio`** — works on CPython, MicroPython, and PyScript (required there)
+- **[multimer](timers.md)** — one `Timer` on every host; it rides the page's loop on PyScript
+
+## Frame rate
+
+To see how fast an app draws, switch on the display's meter and read it:
+
+```python
+display_drv.measure_fps(True)        # or PYDEVICES_FPS=1 in the environment
+...
+display_drv.fps()
+# {"fps": 29.8, "avg_fps": 29.5, "frames": 1180, "seconds": 40.0,
+#  "present_ms": 4.2, "present_ms_max": 12.0, "busy": 0.13,
+#  "flushes": 0, "pixels": 0}
+display_drv.fps_reset()              # start a fresh measurement
+display_drv.fps_print(5)             # one line every 5 s; 0 stops it
+```
+
+`PYDEVICES_FPS=1` measures any example without editing it, and
+`PYDEVICES_FPS_PRINT=5` also prints a line every five seconds, for tailing a
+log:
+
+```text
+fps 29.8 avg 29.5 frames 1180 present 4.2 ms (max 12.0) busy 13%
+```
+
+`fps` is the last whole second and `avg_fps` everything since it was switched
+on or reset. `present_ms` is the time spent inside the present call per frame,
+and `busy` is the share of wall time spent there: a slow frame rate with a high
+`busy` means the display is the bottleneck, a low one means the app is.
+
+A frame is one `show()`. On a panel LVGL draws into directly, LVGL presents
+with `flush_rect()` once per dirty area, so `display_driver` calls
+`frame_done()` when a frame's last area is out; those `flush_rect()` calls are
+counted as `flushes` and `pixels`, not frames.
+
+It is off by default and costs nothing then: `show` and `flush_rect` are the
+class's own methods until you switch it on, and again after
+`measure_fps(False)`.
+
+### Refresh rate
+
+To run any app at another frame rate without touching its code or its board
+config, set `PYDEVICES_REFRESH_MS`:
+
+```bash
+PYDEVICES_REFRESH_MS=16 PYDEVICES_FPS_PRINT=5 micropython lv_test_timer.py   # about 60 fps
+PYDEVICES_REFRESH_MS=50 PYDEVICES_FPS_PRINT=5 micropython lv_test_timer.py   # about 20 fps
+```
+
+It replaces the display's `refresh_period_ms` (33 ms, or 16 in the browser)
+when the driver starts. Everything that paces frames reads that one attribute:
+`appdev.App`'s refresh timer, the display's frame clock, and
+`display_driver`'s LVGL refresh timer, so LVGL and non-LVGL apps both follow
+it. A board config can set it with `boarddev.env_set("PYDEVICES_REFRESH_MS",
+16)` before it builds the display, on hosts where there is no environment.
+
+Unset, zero or not a number leaves the display's own period. An app that
+passes `appdev.App(..., refresh_period=N)` has chosen its rate in code and keeps
+it; `refresh_period=0` still means the app presents frames itself.
+
+## Vertical scrolling
+
+Many drivers expose **ILI9341-style** vertical scroll: a top fixed band (TFA), a scrollable middle (VSA), and a bottom fixed band (BFA). You define regions with `set_vscroll(tfa, bfa)` or `vscrdef`, then move content with the `vscroll` property (wrapper around `vscsad`).
+
+The [**pydevices_demo**](https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=pydevices_demo&deps=pydevices-pygraphics) example demonstrates this model, covers drawing at `vscroll = 0` during redraw, and shows auto-scroll with `multimer`.
+
+Related examples: [`scroll_touch_test.py`](https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=scroll_touch_test&deps=pydevices-palettes,pydevices-pygraphics) (touch Up/Down), [`appdev_encoder_test.py`](https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=appdev_encoder_test) (encoder).
+
+## Rotation
+
+BusDisplay uses CircuitPython-style rotation degrees (`0`, `90`, `180`, `270`).
+
+Known issues: Unix SDL rotation clears the screen; scrolling while rotated has edge cases on desktop and MCU — track work on [GitHub Issues](https://github.com/PyDevices/pydevices-examples/issues).
+
+## Experimental: your own backend
+
+`AutoDisplay` (what the desktop board config calls) looks its backend up in a small registry, [`backends`](https://github.com/PyDevices/pydevices/blob/main/lib/backends.py). You can register one of your own. This is new, and its names and calling convention may still change.
+
+```python
+# in your backend's package
+import backends
+backends.register("display", "hls", "hls_display:HlsDisplay", probe=have_ffmpeg)
+
+# board_config.py
+import backends
+backends.require("display", "hls", module="hls_display")
+display_drv = AutoDisplay(1280, 720, tv=TV)      # extra keywords go to the winner
+```
+
+`register` takes a name, a `"module:Class"` string (nothing is imported until the backend is tried), and an optional `probe()` that returns false when this machine can't run it. `require` imports the module you name, which registers the backend, and raises an `ImportError` that names the module if it isn't installed.
+
+`AutoDisplay` tries, in order:
+
+1. the backend named by the `PYDEVICES_DISPLAY` environment variable, if it is set, and nothing else. The built-in names are `wasm`, `pyscript`, `jupyter`, `android`, `win`, `pygame` and `sdl`;
+2. the backends your config `require`d, in the order it asked, skipping any whose probe says no;
+3. the built-in backends for this host, as before.
+
+A backend that isn't built in is never picked unless a config required it or you named it, so a backend that streams to a TV never chooses itself. A backend from outside the box is called as `Class(width=..., height=..., **extra)`, with whatever extra keywords you gave `AutoDisplay`; it can raise `backends.Decline` to hand the choice to the next one.
+
+On MicroPython there is no scanning for installed backends: `require` is the only way in. A frozen module imports like any other, so what you freeze decides what is present and `require` decides what is used.
+
+The Roku, HLS and Miracast displays in pydevices-examples register themselves as `roku`, `hls` and `cast`, and their `board_config.py` files `require` them, so under one of those configs `AutoDisplay` finds the display; `PYDEVICES_DISPLAY=hls` names one for a single run. Their options go through `AutoDisplay` as keywords (`tv=` for `roku` and `hls`, `sink=` and `kind=` for `cast`); see the [casting guide](https://github.com/PyDevices/pydevices-examples/blob/main/docs/casting.md#let-autodisplay-pick-a-cast-display).
+
+## Next
+
+- [Display backend internals](../how-it-works/displaydev-internals.md) — GRAM/present model, 565 API, color conversion per backend
+- [Events](the-app-loop.md)
+- [Drawing and fonts](https://github.com/PyDevices/pygraphics/blob/main/docs/guides/draw-shapes.md)
+- [Display drivers (chips)](../boards/display-drivers.md)
+
+## API reference
+
+[displaydev source and product docs](https://github.com/PyDevices/pydevices/tree/main/lib/displaydev).

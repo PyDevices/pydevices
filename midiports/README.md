@@ -35,7 +35,7 @@ To use another transport, change the line that opens the ports:
 | Web MIDI, in a Web Worker, relayed by the page | `webmidi.relay_ports(port)` |
 
 Import each from `midiports`. BLE MIDI ports come from
-[`bledev`](../docs/bledev.md), which moves onto this package's ports next.
+[`bledev`](../docs/guides/bluetooth-le.md), which moves onto this package's ports next.
 
 ## Install
 

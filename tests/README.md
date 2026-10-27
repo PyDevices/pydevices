@@ -41,5 +41,5 @@ Do not run audiodev tests while another process is playing audio — see
 | [`test_mip_portable.py`](test_mip_portable.py) | portable [`utils/mip.py`](../utils/mip.py) |
 | `test_audiodev*.py`, `test_*_audio.py`, [`test_auto.py`](test_auto.py) | audiodev (see audio README) |
 | [`test_portability.py`](test_portability.py) / [`test_contract_proof.py`](test_contract_proof.py) | portable-module constraints |
-| [`test_bledev.py`](test_bledev.py) | runs [`bledev_contract.py`](bledev_contract.py) on CPython and unix MicroPython, and proves five planted faults fail it (see [docs/bledev-internals.md](../docs/bledev-internals.md#the-checks)) |
+| [`test_bledev.py`](test_bledev.py) | runs [`bledev_contract.py`](bledev_contract.py) on CPython and unix MicroPython, and proves five planted faults fail it (see [docs/how-it-works/bledev-internals.md](../docs/how-it-works/bledev-internals.md#the-checks)) |
 | [`test_ssd1306.py`](test_ssd1306.py) / [`test_oled_drivers.py`](test_oled_drivers.py) | the one-bit and grayscale OLED drivers on recording fake buses: `test_oled_drivers.py` runs [`oled_contract.py`](oled_contract.py) (SH1106, SH1107, SSD1305, SSD1322, SSD1325, SSD1327, checked against each datasheet's command set) on CPython and unix MicroPython, and proves five planted faults fail it |

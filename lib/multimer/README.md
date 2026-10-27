@@ -47,11 +47,11 @@ touches nothing until the first timer is armed.
 
 **Everything else — the wake sources per host, `hold()`, `schedule()`,
 `keepalive`, `repl()` for hosts with no prompt, and the introspection — is in
-[docs/multimer.md](https://github.com/PyDevices/pydevices/blob/main/docs/multimer.md).**
+[docs/guides/timers.md](https://github.com/PyDevices/pydevices/blob/main/docs/guides/timers.md).**
 
 ## Links
 
-- [Documentation — multimer](https://github.com/PyDevices/pydevices/blob/main/docs/multimer.md)
+- [Documentation — multimer](https://github.com/PyDevices/pydevices/blob/main/docs/guides/timers.md)
 - [Source](https://github.com/PyDevices/pydevices/tree/main/lib/multimer)
 - [Issues](https://github.com/PyDevices/pydevices/issues)
 - Related: `pydevices-pygraphics`, `pydevices-desktop`

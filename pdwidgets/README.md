@@ -10,7 +10,7 @@ event/rendering flow, and contributor boundary.
 ### Where pdwidgets fits
 
 PyDevices offers several GUI approaches; `pdwidgets` is the pure-Python one. See
-[pydevices — choosing a GUI layer](https://github.com/PyDevices/pydevices/blob/main/docs/architecture.md#choosing-a-gui-layer).
+[pydevices — choosing a GUI layer](https://github.com/PyDevices/pydevices/blob/main/docs/how-it-works/architecture.md#choosing-a-gui-layer).
 
 ---
 

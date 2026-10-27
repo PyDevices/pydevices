@@ -513,7 +513,7 @@ def wlan():
 
 
 def ble():
-    # A bledev adapter (docs/bledev.md). It also answers every bluetooth.BLE
+    # A bledev adapter (docs/guides/bluetooth-le.md). It also answers every bluetooth.BLE
     # method, so code written for the raw radio keeps working.
     try:
         import bledev.mpble

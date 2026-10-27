@@ -34,7 +34,7 @@ configs construct one by wrapping a concrete transport or
 Audio, Windows `uwin32`, `usdl2`, then pygame-ce. It raises an actionable
 transport error if none are available. It is a lookup in the same
 [`backends`](../backends.py) registry as `AutoDisplay`, which you can add to
-(experimental): see [Portable audio](../../docs/audio.md#experimental-your-own-transport). `pgdisplay`/`psdisplay` may still
+(experimental): see [Portable audio](../../docs/guides/audio.md#experimental-your-own-transport). `pgdisplay`/`psdisplay` may still
 import concrete transports directly.
 
 This package does not import `displaydev`, `multimer`, or `appdev`

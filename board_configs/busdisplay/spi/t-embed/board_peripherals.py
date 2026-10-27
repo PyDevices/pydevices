@@ -76,7 +76,7 @@ _SD_MOSI = 41
 _SD_MISO = 38
 _BAT_VOLT = 4
 # Panel/Qwiic I2C on port 0. Hooks hand drivers the one bus object
-# _i2c_bus() returns, never these pins. See docs/board-peripherals.md.
+# _i2c_bus() returns, never these pins. See docs/boards/board-contract.md.
 _I2C_PORT = 0
 _IIC_SDA = 18
 _IIC_SCL = 8
@@ -443,7 +443,7 @@ def wlan():
 
 
 def ble():
-    # A bledev adapter (docs/bledev.md). It also answers every bluetooth.BLE
+    # A bledev adapter (docs/guides/bluetooth-le.md). It also answers every bluetooth.BLE
     # method, so code written for the raw radio keeps working. Without bledev
     # (or aioble) installed, the raw radio, as before.
     try:

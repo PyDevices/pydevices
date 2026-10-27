@@ -781,15 +781,14 @@ class DisplayDriver:
         If self.requires_byteswap and the guest application is capable of byte swapping color data
         check to see if byte swapping can be disabled.  If so, disable it.
 
-        Usage:
-            ```
+        Usage::
+
             # If byte swapping is required and the display driver is capable of having byte swapping disabled,
             # disable it and set a flag so we can swap the color bytes as they are created.
             if display_drv.requires_byteswap:
                 needs_swap = display_drv.disable_auto_byteswap(True)
             else:
                 needs_swap = False
-            ```
 
         Args:
             value (bool): Whether to disable byte swapping.

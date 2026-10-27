@@ -5,7 +5,7 @@ memory back when it closes. A launcher and the apps it runs make an **app
 set**: a watch with a face, a step counter and a TV remote, or a panel with
 a camera, a music player and a home screen.
 
-appkit builds on [appdev](https://github.com/PyDevices/pydevices/blob/main/docs/appdev.md)
+appkit builds on [appdev](https://github.com/PyDevices/pydevices/blob/main/docs/guides/the-app-loop.md)
 and runs wherever appdev does: CPython, MicroPython and CircuitPython, on a
 desktop or a board. You don't need it to write an app. A script that builds
 an `App` and runs works exactly as before. appkit is for when you want

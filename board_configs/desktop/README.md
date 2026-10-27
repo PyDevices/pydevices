@@ -5,7 +5,7 @@ Universal non-MCU board config for desktop-like hosts.
 ## Install
 
 Use the canonical install/verify guide:
-[../../docs/install-workflows.md](../../docs/install-workflows.md)
+[../../docs/install-workflows.md](../../docs/get-started/install.md)
 
 For this package, follow the "Desktop board_config via MIP" section.
 
@@ -32,7 +32,7 @@ micropython -m mip install --no-mpy -t lib \
 ```
 
 Same with `micropython.exe` on Windows. See
-[install-workflows.md](../../docs/install-workflows.md) for the full notes
+[install-workflows.md](../../docs/get-started/install.md) for the full notes
 and REPL equivalent.
 
 Run CircuitPython from that same working directory so it imports from `./lib`.

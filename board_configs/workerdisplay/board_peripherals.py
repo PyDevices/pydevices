@@ -1,6 +1,6 @@
 """Audio roles for the Web Worker display board package.
 
-Audio roles follow the shared contract (docs/audio.md): one name, one return
+Audio roles follow the shared contract (docs/guides/audio.md): one name, one return
 type. ``pcm_out``/``pcm_in`` hand back a raw ``PCMOutput``/``PCMInput``;
 ``audio_out`` hands back an ``AudioOut`` sample player. There is no
 ``audio_in`` -- capture has no player layer.

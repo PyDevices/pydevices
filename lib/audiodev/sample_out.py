@@ -1,6 +1,6 @@
 """CircuitPython-shaped sample playback, off the interpreter thread where it can.
 
-This is the *public* ``audio_out`` contract (see ``docs/audio.md``): a board's
+This is the *public* ``audio_out`` contract (see ``docs/guides/audio.md``): a board's
 ``audio_out`` role returns an :class:`AudioOut` wrapping a backend transport
 (sdl2/win/wasm/i2s/emulated), and app code plays anything satisfying
 CircuitPython's audiosample pull protocol -- a ``synthio.Synthesizer``, an
@@ -619,7 +619,7 @@ class AudioOut:
     def service(self):
         """Call from the app tick. Required for continuous playback -- no
         different from the ``service()`` every other audiodev backend
-        already requires; see docs/audio.md."""
+        already requires; see docs/guides/audio.md."""
         self._pump()
 
     def _pump(self):

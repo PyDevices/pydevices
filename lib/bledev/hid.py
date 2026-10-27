@@ -30,7 +30,7 @@ as it drives USB::
     per = hid.Peripheral(ble)                # keyboard, mouse, consumer
     await per.serve()                        # waits for a host
     kb = Keyboard(per.devices)
-    KeyboardLayoutUS(kb).write("Hello\n")
+    KeyboardLayoutUS(kb).write("Hello\\n")
     Mouse(per.devices).move(x=40)
 
 Install ``adafruit_hid`` with ``mip.install("github:PyDevices/pydevices/bledev_hid")``.

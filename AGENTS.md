@@ -3,10 +3,10 @@
 Canonical PyDevices product/source repository. Owns **board configs**,
 **hardware drivers**, portable libraries (`displaydev`, `audiodev`,
 `appdev`, `multimer`, `events`, `keys`, `bledev`), and pip/MIP publishing.
-Docs are markdown under `docs/`, published only via GitHub Pages
-([docs/](docs/README.md); the Pages site is the landing page only)
-— not Read the Docs. Build locally with `./scripts/build_pages.sh` (needs
-`pandoc`).
+Docs are MyST Markdown under `docs/`, built by Sphinx for Read the Docs
+([docs/index.md](docs/index.md), `.readthedocs.yaml`). Build locally with
+`pip install -r docs/requirements.txt` and
+`sphinx-build -W --keep-going -b html docs _site`.
 
 ## Do
 
@@ -27,9 +27,11 @@ Docs are markdown under `docs/`, published only via GitHub Pages
   `board_peripherals.py` (`PERIPHERALS`, lazy factories) + `load_peripherals(globals())`
   using the product-owned `boarddev`. Pin wiring for lazy extras lives in
   `board_peripherals` factories.
-- **CircuitPython** (`board_configs/cp/`): **no** `board_peripherals.py`, **no**
-  `PERIPHERALS` / `load_peripherals`, and **no** `from board_config import …`.
-  CircuitPython already has the native `board` module for pins/buses. CP
+- **CircuitPython** (`board_configs/cp/`): `board_peripherals.py` is
+  optional, only for roles that need setup `board` doesn't do (a codec, a
+  power chip); **no** `from board_config import …` inside it.
+  CircuitPython already has the native `board` module for pins/buses
+  ([the contract](docs/boards/board-contract.md)). CP
   `board_config.py` provides `display_drv`, eager input hardware, and neutral
   read aliases (`touch_read`, `keypad_read`, `encoder_read`, and so on). Board
   configs never instantiate `appdev` or an `appdev.App`. Non-UI

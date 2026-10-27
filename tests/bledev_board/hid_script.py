@@ -10,7 +10,7 @@ peripheral :func:`perform`\\ s ``STEPS`` through Adafruit's ``adafruit_hid``
 :mod:`bledev.hid_gamepad`, over the peripheral's ``devices``; the central
 collects its events and compares them with :func:`expected`.
 
-:func:`expected` is written from the rules in ``docs/bledev.md``, not from
+:func:`expected` is written from the rules in ``docs/guides/bluetooth-le.md``, not from
 ``bledev.hidreport``: it builds each event by hand (the usbif chord order,
 axis ``2 * (v + 127) / 254 - 1``, hat positions clockwise from north), so a
 decoder bug can't produce its own answer. :func:`typed_text` reads the key

@@ -16,7 +16,7 @@ checks can fail: a plant breaks the fake the way a real backend could, and a
 contract that still passes under it isn't checking anything.
 
 A new backend can reuse these checks: most take two adapters and don't care
-which backend they are (see ``docs/bledev.md``).
+which backend they are (see ``docs/guides/bluetooth-le.md``).
 """
 
 import sys

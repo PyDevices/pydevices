@@ -25,7 +25,7 @@ with each kind of peripheral described honestly by its role.
   only the first 246 bytes, so a device with a longer map (an Xbox controller's
   is 283) is cut off; the fix is a long GATT read in the firmware.
 - A measurement of how much BLE slows Wi-Fi on the ESP32-S3, to sit beside the
-  measured other direction in [docs/bledev-internals.md](docs/bledev-internals.md).
+  measured other direction in [docs/how-it-works/bledev-internals.md](docs/how-it-works/bledev-internals.md).
 - BLE MIDI through Windows MIDI Services' new Bluetooth transport: once it
   ships, a board running `bledev.midi.serve()` should open in any Windows MIDI
   app without pairing, and the BLE docs say so.

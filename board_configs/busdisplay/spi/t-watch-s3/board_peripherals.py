@@ -76,7 +76,7 @@ from audiodev import AudioCapability, AudioFactory, AudioFormat, I2SWire, adapt_
 from audiodev.i2s_audio import I2SPCMInput, I2SPCMOutput
 
 # Main I2C, shared with board_config (port 0). Hooks hand drivers the one bus
-# object _i2c_bus() returns, never these pins. See docs/board-peripherals.md.
+# object _i2c_bus() returns, never these pins. See docs/boards/board-contract.md.
 _I2C_PORT = 0
 _I2C_SDA = 10
 _I2C_SCL = 11
@@ -588,7 +588,7 @@ def wlan():
 
 
 def ble():
-    # A bledev adapter (docs/bledev.md). It also answers every bluetooth.BLE
+    # A bledev adapter (docs/guides/bluetooth-le.md). It also answers every bluetooth.BLE
     # method, so code written for the raw radio keeps working. Without bledev
     # (or aioble) installed, the raw radio, as before.
     try:

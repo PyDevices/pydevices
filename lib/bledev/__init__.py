@@ -3,7 +3,7 @@
 You write a BLE program once against this module, and it runs on a board
 (:mod:`bledev.mpble`), on a laptop (``bledev.bleak``), in a browser
 (``bledev.webble``), or against the in-process loopback in tests
-(:mod:`bledev.fake`). The guide is ``docs/bledev.md``.
+(:mod:`bledev.fake`). The guide is ``docs/guides/bluetooth-le.md``.
 
 The shape is aioble's, and it is async throughout. The pieces:
 

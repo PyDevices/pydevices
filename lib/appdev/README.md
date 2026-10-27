@@ -26,7 +26,7 @@ def on_frame(timer=None):
 ```
 
 No `app.run()` is needed: the app keeps itself alive past the end of the
-script body. See [Application lifecycle](../../docs/appdev.md#application-lifecycle).
+script body. See [Application lifecycle](../../docs/guides/the-app-loop.md#application-lifecycle).
 
 ---
 

@@ -37,7 +37,7 @@ class BoardPeripheralsSelectTests(unittest.TestCase):
 
     def test_selection_is_cached(self):
         # pygame_audio and web_audio are no longer offered by select_backend()
-        # at all (neither can back an AudioOut -- see docs/audio.md), so the
+        # at all (neither can back an AudioOut -- see docs/guides/audio.md), so the
         # only thing left for _select_backend() to do is cache the first
         # answer; this is what used to also gate the pygame-on-Windows
         # DirectSound workaround, which moved to pgdisplay's own board.

@@ -8,7 +8,7 @@
 #   ./tools/test_testpypi_standalone.sh
 #   ./tools/test_testpypi_standalone.sh --desktop   # also SDL + pygame stacks
 #
-# See docs/publishing.md
+# See CONTRIBUTING.md
 
 set -euo pipefail
 

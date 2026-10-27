@@ -22,7 +22,7 @@ also installs `events`, `keys`, `appdev`, `multimer`, `audiodev`, and
 `boarddev`. MIP ships the same set as one `pydevices` package.
 
 Why both indexes: PyDevices wheels are on TestPyPI while some of their
-dependencies are on PyPI only — [details](https://github.com/PyDevices/pydevices/blob/main/docs/troubleshooting.md#pip-cannot-resolve-a-pydevices-distribution).
+dependencies are on PyPI only — [details](https://github.com/PyDevices/pydevices/blob/main/docs/guides/troubleshooting.md#pip-cannot-resolve-a-pydevices-distribution).
 
 For desktop SDL, also install [`pydevices-desktop`](https://test.pypi.org/project/pydevices-desktop/) with the same two-index pattern (bundles `usdl2` and the desktop `board_config`). For PyGame, install `pygame-ce` from PyPI (`import pygame`).
 
@@ -49,13 +49,13 @@ display_drv.show()
 Optional host auto-selection lives in `displaydev.auto` (never imported from the
 package root); `AutoDisplay` picks `PSDisplay` on PyScript, `JNDisplay` on
 Jupyter, and `WinDisplay`→`PGDisplay`→`SDLDisplay` on desktop. Explicit boards
-import a backend directly. The choice is a lookup in the [`backends`](../backends.py) registry, which you can add to (experimental): see [Displays](../../docs/displaydev.md#experimental-your-own-backend).
+import a backend directly. The choice is a lookup in the [`backends`](../backends.py) registry, which you can add to (experimental): see [Displays](../../docs/guides/displays.md#experimental-your-own-backend).
 
 Install a board package for MCU pins, or the desktop bundle from pydevices —
-see [install workflows](https://github.com/PyDevices/pydevices/blob/main/docs/install-workflows.md).
+see [install workflows](https://github.com/PyDevices/pydevices/blob/main/docs/get-started/install.md).
 
 **Backends, the input contract, rotation, scrolling, and the internals are in
-[docs/displaydev.md](https://github.com/PyDevices/pydevices/blob/main/docs/displaydev.md).**
+[docs/guides/displays.md](https://github.com/PyDevices/pydevices/blob/main/docs/guides/displays.md).**
 
 ## What you get
 
@@ -69,7 +69,7 @@ Host backends use `events` and `keys` for event records and key codes, and
 
 ## Links
 
-- [Documentation — Displays](https://github.com/PyDevices/pydevices/blob/main/docs/displaydev.md)
+- [Documentation — Displays](https://github.com/PyDevices/pydevices/blob/main/docs/guides/displays.md)
 - [Source](https://github.com/PyDevices/pydevices/tree/main/lib/displaydev)
 - [Issues](https://github.com/PyDevices/pydevices/issues)
 - Related: `pydevices-pygraphics`, `pydevices-desktop`
