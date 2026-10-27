@@ -131,8 +131,34 @@ def generate_win16_image(out_path, width=360, height=90):
     print(f"Saved {out_path}")
 
 
+def generate_hero_image(out_path, width=360):
+    """The README picture: what its example prints, as colour.
+
+    Top band: the 360-step wheel. Middle row: the sixteen Windows names.
+    Bottom row: Amber 50 to 900 from Material Design.
+    """
+    wheel = get_palette(name="wheel", length=width, color_depth=16)
+    win16 = get_palette(name="default", color_depth=16)
+    md = get_palette(name="material_design", color_depth=16)
+    amber = [getattr(md, "AMBER_S%d" % s) for s in (50, 100, 200, 300, 400, 500, 600, 700, 800, 900)]
+    bands = [
+        (60, [wheel[x] for x in range(width)]),
+        (30, [win16[x * 16 // width] for x in range(width)]),
+        (30, [amber[x * len(amber) // width] for x in range(width)]),
+    ]
+    buf = bytearray()
+    for band_h, row_colors in bands:
+        row = bytearray()
+        for c in row_colors:
+            row.extend(rgb565_to_rgb888(c))
+        buf.extend(bytes(row) * band_h)
+    save_rgb_png(out_path, buf, width, sum(h for h, _ in bands))
+    print(f"Saved {out_path}")
+
+
 def main():
     img_dir = Path(__file__).resolve().parent.parent / "docs" / "images"
+    generate_hero_image(img_dir / "palettes.png")
     generate_wheel_image(img_dir / "palette_wheel.png")
     generate_cube_image(img_dir / "palette_cube.png")
     generate_material_image(img_dir / "palette_material.png")
