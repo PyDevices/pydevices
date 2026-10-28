@@ -40,6 +40,9 @@ lossy telemetry; commands and events; and a self-description that says
 what the document holds, never how to lay it out.
 
 [`examples/hmilink_simpletest.py`](examples/hmilink_simpletest.py) runs a device and two panels in one program.
+[`hmilink_device_simpletest.py`](examples/hmilink_device_simpletest.py) and
+[`hmilink_panel_simpletest.py`](examples/hmilink_panel_simpletest.py) are the
+same over Wi-Fi, one on each board, and the device serves a browser a slider.
 
 Transports are swappable and neither side knows which carries it:
 
