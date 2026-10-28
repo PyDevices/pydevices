@@ -37,6 +37,8 @@ To use another transport, change the line that opens the ports:
 Import each from `midiports`. BLE MIDI ports come from
 [`bledev`](../docs/guides/bluetooth-le.md), which moves onto this package's ports next.
 
+[`examples/midiports_simpletest.py`](examples/midiports_simpletest.py) plays a scale; on Windows you hear it from the built-in synth.
+
 ## Install
 
 On a board, with `mip`:
