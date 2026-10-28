@@ -61,7 +61,8 @@ class TestGeometry(unittest.TestCase):
         self.assertEqual(d.rotation, 0)
 
     def test_rotation_swaps_width_and_height(self):
-        d, _ = make_fbdisplay(8, 4)
+        # FBDisplay can't rotate, so the base class's rotation is tested here.
+        d = make_scroll(8, 4)
         with quiet():
             d.rotation = 90
         self.assertEqual((d.width, d.height), (4, 8))
@@ -70,7 +71,8 @@ class TestGeometry(unittest.TestCase):
         self.assertEqual((d.width, d.height), (8, 4))
 
     def test_rotation_setter_scales_small_values_to_degrees(self):
-        d, _ = make_fbdisplay(8, 4)
+        # FBDisplay can't rotate, so the base class's rotation is tested here.
+        d = make_scroll(8, 4)
         with quiet():
             d.rotation = 1  # interpreted as index 1 -> 90 degrees
         self.assertEqual(d.rotation, 90)
