@@ -54,7 +54,6 @@ def on_stop(timer):
 fast = Timer(-1, mode=Timer.PERIODIC, period=FAST_MS, callback=on_fast)
 slow = multimer.every(SLOW_MS, on_slow)
 
-
 # A one-shot timer that stops both of them.
 multimer.after(STOP_MS, on_stop)
 
