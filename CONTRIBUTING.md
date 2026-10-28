@@ -141,6 +141,31 @@ board and the drivers it uses publish to the main index.
 desktop config, `--local path/to/micropython --path <install folder>` runs it
 on a desktop interpreter.
 
+## Rules the libraries keep
+
+These hold the design together. Some are checked by a test or by `libbuild.py check`; the rest are only caught in review.
+
+**Board configs**
+
+- A MicroPython board is `board_config.py` (the hardware the UI needs, built at boot) plus `board_peripherals.py` (`PERIPHERALS`, lazy factories, and `load_peripherals(globals())` from `boarddev`). Pin wiring for the lazy extras lives in those factories.
+- A CircuitPython config under `board_configs/cp/` has no `manifest.py`, and no `board_peripherals.py` unless a role needs setup the native `board` module doesn't do (a codec, a power chip). That file never does `from board_config import ...`. `board_config.py` provides `display_drv`, the eager input hardware and the neutral read aliases (`touch_read`, `keypad_read`, `encoder_read`). Non-UI peripherals stay on `board` and CircuitPython's libraries. See [the contract](docs/boards/board-contract.md).
+- A board config never creates an `appdev.App` or any traffic controller.
+- Don't copy a micropython-lib driver into `drivers/`; `require()` upstream's package. Use `machine.SDCard` for SDMMC and SDIO, upstream's `sdcard` for SPI chip-select paths (`sdcard_nrf` on the nRF52).
+- Don't `module()` anything under `lib/` in a manifest: `require("pydevices")` installs all of it.
+
+**Package names and what ships**
+
+- MIP names and Python imports are unprefixed (`displaydev`, `audiodev`, `appdev`, `events`, `keys`, `multimer`). TestPyPI distribution names are always `pydevices-*`.
+- `displaydev` needs `events` and `keys`; `appdev` needs `events`, `keys` and `multimer`.
+- Every top-level component in `lib/` ships inside the `pydevices` MIP package. Only a directory marked `own-package` in [`mip-split.toml`](mip-split.toml) also publishes on its own; `bledev` is the one that does (install aioble from micropython-lib first). Every library component in `utils/` is bundled into `pydevices-desktop`, which depends on `pydevices`.
+- Don't rename the GitHub repository: MIP URLs and the docs pin its name.
+
+**Imports**
+
+- `displaydev/__init__.py` and the display backends never import `displaydev.auto`, and `AutoDisplay` is reachable only as `displaydev.auto.AutoDisplay`. A test enforces it.
+- `bledev/__init__.py` and the BLE backends never import `bledev.auto`.
+- The `multimer._src_*` wake sources are private to the dispatcher, which picks one when the first timer is armed. Nothing else imports them, and `import multimer` touches no host mechanism. There is one public `Timer` ([how it works](docs/how-it-works/multimer-internals.md)).
+
 ## Releases
 
 The release procedure itself is the same for every PyDevices repository and
