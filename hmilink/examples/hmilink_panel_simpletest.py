@@ -20,9 +20,11 @@ It runs on a laptop too, without the Wi-Fi step.
 
 Run it:
     mpremote run hmilink_panel_simpletest.py
+On CircuitPython, copy it to the board as code.py.
 
-Tested on: an ESP32-S3 board on MicroPython 1.30 preview and CPython 3.14
-on Windows, each with another board as the device.
+Tested on: ESP32-S3 boards on MicroPython 1.30 preview and CircuitPython
+11.0 alpha, each with the other running hmilink_device_simpletest.py,
+and CPython 3.14 on Windows.
 """
 
 import time
