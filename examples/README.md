@@ -28,6 +28,6 @@ Each one says in its docstring what it needs and where it has been run.
 
 The ones that come in pairs, such as a central and a peripheral, are two
 ends of one link: run each on its own board, or put a phone or a laptop at
-the other end. appkit, hmilink and midiports keep theirs in their own `examples/` folders.
+the other end. appkit, hmilink, midiports, palettes and pdwidgets keep theirs in their own `examples/` folders.
 The full apps are in
 [pydevices-examples](https://github.com/PyDevices/pydevices-examples).
