@@ -6,6 +6,8 @@ It bridges neutral hardware definitions (`board_config`), timer backends (`multi
 
 ---
 
+For a complete program to start from, see [appdev_simpletest.py](https://github.com/PyDevices/pydevices/blob/main/examples/appdev_simpletest.py).
+
 ## Quick Start
 
 ```python

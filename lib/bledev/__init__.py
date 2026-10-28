@@ -735,9 +735,21 @@ class Scanner:
         await self.cancel()
 
     async def cancel(self):
-        if not self._done:
-            self._finish()
+        # A second cancel while the first is still stopping the scan (the
+        # duration timer's, then the ``async with``'s) waits for it, so the
+        # caller can't close the loop on a radio that is still scanning.
+        stopping = getattr(self, "_stopping", None)
+        if stopping is not None:
+            await stopping.wait()
+            return
+        if self._done:
+            return
+        self._stopping = asyncio.Event()
+        self._finish()
+        try:
             await self._stop()
+        finally:
+            self._stopping.set()
 
     def __aiter__(self):
         return self

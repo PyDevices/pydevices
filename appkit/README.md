@@ -162,6 +162,9 @@ setup builds a `Launcher` itself. Its `Shell` subclass gives apps a smaller
 area by overriding `make_root()`, and its own Home button by overriding
 `make_home_button()`.
 
+[`examples/appkit_simpletest`](examples/appkit_simpletest) is an app set of
+two apps, a counter and a greeter, laid out this way.
+
 ## Plain scripts
 
 A script that builds its own `App` when it's imported, like a game, can sit
