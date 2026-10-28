@@ -11,9 +11,11 @@ change, so you can watch a second panel or a browser move the volume.
 The device can be another board or a laptop running
 hmilink_device_simpletest.py, or anything else that speaks hmilink.
 
-Needs: a board with Wi-Fi, and a secrets.py holding WIFI_SSID and
-WIFI_PASSWORD, with hmilink installed:
+Needs: a board with Wi-Fi and hmilink. On MicroPython, a secrets.py
+holding WIFI_SSID and WIFI_PASSWORD; on CircuitPython, settings.toml.
+Install hmilink with:
     mpremote mip install github:PyDevices/pydevices/hmilink
+On CircuitPython, copy its hmilink folder into the board's lib folder.
 It runs on a laptop too, without the Wi-Fi step.
 
 Run it:
@@ -49,6 +51,9 @@ def show(op):
 
 
 # Join Wi-Fi, if this is a board.
+# CircuitPython joins at boot from settings.toml, and makes its sockets
+# from a pool on the radio.
+pool = None
 try:
     import wifi
 except ImportError:
@@ -56,9 +61,15 @@ except ImportError:
 else:
     if not wifi.radio.connected:
         wifi.connect_from_secrets()
+    try:
+        import socketpool
+
+        pool = socketpool.SocketPool(wifi.radio)
+    except ImportError:
+        pass
 
 # Connect, and wait for the device's copy of its settings.
-panel = hmilink.Panel(tcp.connect(DEVICE, PORT))
+panel = hmilink.Panel(tcp.connect(DEVICE, PORT, pool=pool))
 while not panel.ready:
     poll_for(0.1)
 print("Connected:", panel.doc)

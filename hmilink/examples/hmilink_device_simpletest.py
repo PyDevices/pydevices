@@ -12,9 +12,11 @@ The panel can be another board or a laptop running
 hmilink_panel_simpletest.py, or a phone's browser: open
 http://<the device's address>:9000/ for a slider.
 
-Needs: a board with Wi-Fi, and a secrets.py holding WIFI_SSID and
-WIFI_PASSWORD, with hmilink installed:
+Needs: a board with Wi-Fi and hmilink. On MicroPython, a secrets.py
+holding WIFI_SSID and WIFI_PASSWORD; on CircuitPython, settings.toml.
+Install hmilink with:
     mpremote mip install github:PyDevices/pydevices/hmilink
+On CircuitPython, copy its hmilink folder into the board's lib folder.
 It runs on a laptop too, without the Wi-Fi step.
 
 Run it:
@@ -62,6 +64,9 @@ class Amp(hmilink.Model):
 
 
 # Join Wi-Fi, if this is a board, and say where panels should connect.
+# CircuitPython joins at boot from settings.toml, and makes its sockets
+# from a pool on the radio.
+pool = None
 try:
     import wifi
 except ImportError:
@@ -69,11 +74,17 @@ except ImportError:
 else:
     if not wifi.radio.connected:
         wifi.connect_from_secrets()
+    try:
+        import socketpool
+
+        pool = socketpool.SocketPool(wifi.radio)
+    except ImportError:
+        pass
     print("Serving on", wifi.radio.ipv4_address, "port", PORT)
 
 # Serve the model, and the page to any browser that asks.
 device = hmilink.Device(Amp())
-device.add(tcp.serve(PORT, page=PAGE))
+device.add(tcp.serve(PORT, page=PAGE, pool=pool))
 
 # Poll often: each poll takes in new panels and passes changes along.
 while True:
