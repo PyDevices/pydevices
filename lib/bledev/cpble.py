@@ -48,6 +48,10 @@ turns each wait into a short poll of those objects (every
   expose it, so ``connection.device.address`` is ``"central"``.
 * **The GATT server allows ten characteristics per service and two
   descriptors per characteristic**, on the ESP32 port.
+* **A service stays served until the board reloads.** Run a peripheral again
+  from the REPL and its new objects take over the copy already served, as
+  long as the characteristics match. Change them and ``register_services()``
+  raises: press Ctrl-D first.
 
 The ``_bleio`` objects are there when you need them: ``ble.raw`` is
 ``_bleio.adapter`` and ``connection.native`` a ``_bleio.Connection``.
@@ -228,6 +232,30 @@ class _Call:
 
 _shared = None
 
+# The services in _bleio's GATT table, which keeps them until the board
+# reloads: service UUID -> _Served. They outlive any one CPBLE, because a
+# script run again from the REPL makes a new one over the same adapter.
+_served = {}
+_served_adapter = None
+
+
+class _Served:
+    """A service in the GATT table, and the characteristics bound to it now."""
+
+    def __init__(self, layout, native, nchars):
+        self.layout = layout
+        self.native = native
+        self.nchars = nchars
+        self.bound = ()
+
+
+def _layout(service):
+    """What has to match for a new Service to reuse a served copy."""
+    return tuple(
+        (c.uuid, c.flags, c.encrypted, tuple((d.uuid, bytes(d.value)) for d in c.descriptors))
+        for c in service.characteristics
+    )
+
 
 def get(adapter=None):
     """The shared :class:`CPBLE` for this board's radio, made on first use."""
@@ -264,7 +292,6 @@ class CPBLE(BLE):
         self.queue_limit = queue_limit
         self.stream_buffer = stream_buffer
         self._services = ()
-        self._native_services = []
         # _bleio.Connection -> _CPConnection. _bleio hands out one object per
         # link, so identity is enough.
         self._connections = {}
@@ -362,56 +389,95 @@ class CPBLE(BLE):
     # -- peripheral
 
     def register_services(self, *services):
-        for service in self._services:
-            for characteristic in service.characteristics:
-                if characteristic._impl is not None:
-                    characteristic._impl._release()
-                characteristic._impl = None
-        for native in self._native_services:
-            try:
-                native.deinit()
-            except Exception:
-                pass
-        self._native_services = []
-        open_ = _bleio.Attribute.OPEN
+        """Serve ``services``.
+
+        ``_bleio`` can't take a service out of the GATT table until the board
+        reloads, so each service is added once and kept. Register a service
+        whose UUID is already served (a script run again from the REPL) and
+        its characteristics take over the served copy: reads, writes and
+        notifications go to them, and the earlier objects get nothing. That
+        needs the same characteristics, in the same order, with the same
+        flags and descriptors. If they differ, this raises :class:`BLEError`:
+        reload the board (Ctrl-D) to serve the new layout. A service served
+        before and left out here stays in the table, unbound, until then.
+        """
+        global _served, _served_adapter
+        if _served_adapter is not self.raw:
+            _served, _served_adapter = {}, self.raw
+        # Check everything before changing anything.
+        seen = []
         for service in services:
+            if service.uuid in seen:
+                raise ValueError("service {} is listed twice".format(service.uuid))
+            seen.append(service.uuid)
             if len(service.characteristics) > 10:
                 raise UnsupportedError("CircuitPython serves at most 10 characteristics per service")
-            nservice = _bleio.Service(_cuuid(service.uuid))
-            self._native_services.append(nservice)
             for c in service.characteristics:
                 if c.authenticated:
                     raise UnsupportedError("CircuitPython can't require a passkey (authenticated=True)")
-                perm = _bleio.Attribute.ENCRYPT_NO_MITM if c.encrypted else open_
                 if len(c.descriptors) > 2:
                     raise UnsupportedError("CircuitPython allows two descriptors per characteristic")
-                # Every value gets the largest buffer: max_len is kept here,
-                # in Python, as the other backends keep it (a longer write
-                # keeps its first max_len bytes). _bleio would refuse the
-                # write instead, and a notification can't exceed the value's
-                # buffer.
-                nchar = _bleio.Characteristic.add_to_service(
-                    nservice,
-                    _cuuid(c.uuid),
-                    properties=_to_cprops(c.flags),
-                    read_perm=perm if c.flags & FLAG_READ or c.flags & (FLAG_NOTIFY | FLAG_INDICATE) else open_,
-                    write_perm=perm if c.flags & (FLAG_WRITE | FLAG_WRITE_NO_RESPONSE) else _bleio.Attribute.NO_ACCESS,
-                    max_length=_MAX_VALUE,
-                    fixed_length=False,
-                    initial_value=c._initial or b"",
+            served = _served.get(service.uuid)
+            if served is not None and served.layout != _layout(service):
+                raise BLEError(
+                    "service {} is already served with other characteristics, and CircuitPython "
+                    "can't remove it until the board reloads: press Ctrl-D and run again".format(service.uuid)
                 )
-                for d in c.descriptors:
-                    _bleio.Descriptor.add_to_characteristic(
-                        nchar,
-                        _cuuid(d.uuid),
-                        read_perm=perm,
-                        write_perm=_bleio.Attribute.NO_ACCESS,
-                        max_length=max(1, len(d.value)),
-                        fixed_length=True,
-                        initial_value=d.value or b"\x00",
-                    )
+        # Unbind whatever is bound to a served copy, from this CPBLE or an
+        # earlier one, so no old object keeps a buffer or gets the traffic.
+        for served in _served.values():
+            for c in served.bound:
+                if c._impl is not None:
+                    c._impl._release()
+                c._impl = None
+            served.bound = ()
+        for service in services:
+            served = _served.get(service.uuid)
+            if served is None:
+                served = self._add_service(service)
+                _served[service.uuid] = served
+            else:
+                for c, nchar in zip(service.characteristics, served.nchars):
+                    nchar.value = c._initial or b""
+            for c, nchar in zip(service.characteristics, served.nchars):
                 c._impl = _CPServerCharacteristic(self, c, nchar)
+            served.bound = tuple(service.characteristics)
         self._services = tuple(services)
+
+    def _add_service(self, service):
+        """Add ``service`` to _bleio's GATT table."""
+        open_ = _bleio.Attribute.OPEN
+        nservice = _bleio.Service(_cuuid(service.uuid))
+        nchars = []
+        for c in service.characteristics:
+            perm = _bleio.Attribute.ENCRYPT_NO_MITM if c.encrypted else open_
+            # Every value gets the largest buffer: max_len is kept here,
+            # in Python, as the other backends keep it (a longer write
+            # keeps its first max_len bytes). _bleio would refuse the
+            # write instead, and a notification can't exceed the value's
+            # buffer.
+            nchar = _bleio.Characteristic.add_to_service(
+                nservice,
+                _cuuid(c.uuid),
+                properties=_to_cprops(c.flags),
+                read_perm=perm if c.flags & FLAG_READ or c.flags & (FLAG_NOTIFY | FLAG_INDICATE) else open_,
+                write_perm=perm if c.flags & (FLAG_WRITE | FLAG_WRITE_NO_RESPONSE) else _bleio.Attribute.NO_ACCESS,
+                max_length=_MAX_VALUE,
+                fixed_length=False,
+                initial_value=c._initial or b"",
+            )
+            for d in c.descriptors:
+                _bleio.Descriptor.add_to_characteristic(
+                    nchar,
+                    _cuuid(d.uuid),
+                    read_perm=perm,
+                    write_perm=_bleio.Attribute.NO_ACCESS,
+                    max_length=max(1, len(d.value)),
+                    fixed_length=True,
+                    initial_value=d.value or b"\x00",
+                )
+            nchars.append(nchar)
+        return _Served(_layout(service), nservice, nchars)
 
     async def advertise(
         self,
