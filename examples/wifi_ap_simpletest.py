@@ -71,6 +71,7 @@ try:
     request = bytearray(1024)
     for _ in range(VISITS):
         client, peer = server.accept()
+        client.settimeout(5)  # wait for the request; CircuitPython's may not
         print("Visited by", peer[0] if isinstance(peer, tuple) else peer)
         receive(client, request)  # the request; any page gets the same answer
         client.send(b"HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n")
