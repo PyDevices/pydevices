@@ -23,8 +23,7 @@ Nothing blocks: a listener's ``accept()`` and a link's ``recv()`` return
 won't take yet, to go out on the next ``flush()`` or ``poll()``.
 
 Runs on MicroPython and CPython with ``socket``. On CircuitPython pass
-``pool=socketpool.SocketPool(wifi.radio)`` (untested: the desktop build has
-no sockets).
+``pool=socketpool.SocketPool(wifi.radio)``.
 """
 
 import binascii
@@ -79,6 +78,8 @@ class Link:
         except (OSError, AttributeError):
             pass
         self.sock = sock
+        # CircuitPython's sockets read only into a buffer: recv_into, no recv.
+        self._buf = None if hasattr(sock, "recv") else bytearray(_RECV)
         self.page = page
         self.closed = False
         self.hmi_id = 0
@@ -133,7 +134,10 @@ class Link:
 
     def _fill(self):
         try:
-            data = self.sock.recv(_RECV)
+            if self._buf is None:
+                data = self.sock.recv(_RECV)
+            else:
+                data = bytes(memoryview(self._buf)[: self.sock.recv_into(self._buf)])
         except OSError as e:
             if _again(e):
                 return False

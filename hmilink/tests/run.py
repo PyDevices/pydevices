@@ -343,6 +343,58 @@ def test_tcp():
     device.close()
 
 
+class NoRecv:
+    """A socket as CircuitPython's socketpool makes them: recv_into, no recv."""
+
+    def __init__(self, s):
+        self.s = s
+
+    def __getattr__(self, name):
+        if name == "recv":
+            raise AttributeError(name)
+        return getattr(self.s, name)
+
+    def recv_into(self, buf):
+        data = self.s.recv(len(buf))
+        buf[: len(data)] = data
+        return len(data)
+
+    def accept(self):
+        client, addr = self.s.accept()
+        return NoRecv(client), addr
+
+
+class Pool:
+    """A stand-in for socketpool.SocketPool(wifi.radio)."""
+
+    def __init__(self):
+        import socket
+
+        self.mod = socket
+        self.SOL_SOCKET = socket.SOL_SOCKET
+        self.SO_REUSEADDR = socket.SO_REUSEADDR
+
+    def socket(self):
+        return NoRecv(self.mod.socket())
+
+    def getaddrinfo(self, host, port):
+        return self.mod.getaddrinfo(host, port)
+
+
+def test_tcp_pool():
+    """tcp over sockets that read only with recv_into, as CircuitPython's do."""
+    pool = Pool()
+    pick_port()
+    device = hmilink.Device(Knobs())
+    device.add(tcp.serve(PORT, bind="127.0.0.1", pool=pool))
+    p1 = hmilink.Panel(tcp.connect("127.0.0.1", PORT, pool=pool))
+    p2 = hmilink.Panel(tcp.connect("127.0.0.1", PORT, pool=pool))
+    exercise(device, p1, p2)
+    p1.close()
+    p2.close()
+    device.close()
+
+
 def test_pty():
     """The stream transport over real ttys: two pty pairs, raw mode, non-blocking reads."""
     import fcntl
@@ -396,6 +448,8 @@ def test_all():
     if tcp is not None and getattr(tcp, "_socket", None) is not None:
         test_tcp()
         print("tcp ok (lines, WebSocket, page)")
+        test_tcp_pool()
+        print("tcp ok over recv_into sockets (CircuitPython's)")
     else:
         print("tcp skipped: no socket module")
     print("hmilink ok on", sys.implementation.name, binascii.hexlify(b"\x01").decode())

@@ -63,7 +63,19 @@ def _stub():
         BROADCAST, READ, WRITE_NO_RESPONSE, WRITE, NOTIFY, INDICATE = 1, 2, 4, 8, 16, 32
 
         def __init__(self):
-            self.value = b""
+            self._value = b""
+            self.packets = None
+
+        @property
+        def value(self):
+            return self._value
+
+        @value.setter
+        def value(self, data):
+            # As _bleio does: setting a local value notifies every subscriber.
+            self._value = bytes(data)
+            if self.packets is not None and self.packets.subscribed:
+                self.packets.sent.append(self._value)
 
         @classmethod
         def add_to_service(cls, service, uuid, *, properties, read_perm, write_perm, max_length, fixed_length, initial_value):
@@ -89,7 +101,11 @@ def _stub():
 
         @property
         def outgoing_packet_length(self):
-            return PAYLOAD if self.subscribed else -1
+            # As _bleio does: it raises, rather than returning -1, until the
+            # central subscribes.
+            if not self.subscribed:
+                raise ValueError("No connection: length cannot be determined")
+            return PAYLOAD
 
         def _try(self):
             if self.pending and self.pool:
@@ -258,6 +274,29 @@ class CPBLEChecks(unittest.TestCase):
 
         self.assertEqual(run(main()), [])
 
+    def test_a_written_value_goes_out_once(self):
+        async def main():
+            ble, connection, rx, tx, stream = await _serve()
+            # Write, then notify: the portable way, and what every backend
+            # must send exactly once.
+            for value in (b"one", b"two"):
+                tx.write(value)
+                tx.notify(connection)
+            return tx._impl._packets.sent
+
+        self.assertEqual(run(main()), [b"one", b"two"])
+
+    def test_a_value_written_before_subscribing_still_goes_out(self):
+        async def main():
+            ble, connection, rx, tx, stream = await _serve()
+            tx._impl._packets.subscribed = False
+            tx.write(b"early")
+            tx._impl._packets.subscribed = True
+            tx.notify(connection)
+            return tx._impl._packets.sent
+
+        self.assertEqual(run(main()), [b"early"])
+
     def test_captured_writes_in_order_and_cut_to_max_len(self):
         async def main():
             ble, connection, rx, tx, stream = await _serve()
@@ -352,7 +391,9 @@ class Planted(unittest.TestCase):
         original = cpble._CPServerCharacteristic._send
 
         def plain(self, connection, data, what):
-            if self._packets.outgoing_packet_length < 0:
+            try:
+                self._packets.outgoing_packet_length
+            except ValueError:
                 return
             self._packets.write(data)
 

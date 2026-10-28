@@ -874,6 +874,7 @@ class _CPServerCharacteristic:
         self._queue = []
         self._overrun = 0
         self._scratch = None
+        self._value_sent = False  # write() notified the subscribers already
         self._sent_at = 0
         flags = characteristic.flags
         writable = flags & (FLAG_WRITE | FLAG_WRITE_NO_RESPONSE)
@@ -916,8 +917,21 @@ class _CPServerCharacteristic:
         return value
 
     def write(self, data, send_update):
-        # Setting the value notifies subscribers whatever send_update says.
+        # Setting the value notifies subscribers whatever send_update says,
+        # so a notify() of this value that follows has nothing left to send.
         self.native.value = data
+        self._value_sent = self._subscribed()
+
+    def _subscribed(self):
+        if self._packets is None:
+            return False
+        try:
+            self._packets.outgoing_packet_length
+        except ValueError:
+            # _bleio raises this until the central subscribes ("No connection:
+            # length cannot be determined").
+            return False
+        return True
 
     def _check_size(self, connection, data):
         if len(data) > connection.mtu - 3:
@@ -931,6 +945,9 @@ class _CPServerCharacteristic:
         if not connection.is_connected():
             raise DisconnectedError("{}: disconnected".format(what))
         if data is None:
+            if self._value_sent:
+                self._value_sent = False
+                return  # write() already sent it
             data = bytes(self.native.value)
         self._check_size(connection, data)
         # CircuitPython 10.3's PacketBuffer.write() keeps a packet it couldn't
@@ -941,7 +958,7 @@ class _CPServerCharacteristic:
         # _bleio copies a header only into an empty packet, and an empty
         # write never waits, but it does retry what's left. 0 back means the
         # previous packet is still there: busy, and it was just retried.
-        if self._packets.outgoing_packet_length < 0:
+        if not self._subscribed():
             return  # the central hasn't subscribed: as on every backend, it gets nothing
         with _Call(what):
             n = self._packets.write(b"", header=data)
