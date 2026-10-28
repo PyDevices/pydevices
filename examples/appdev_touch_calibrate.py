@@ -6,7 +6,9 @@
 Asks you to touch a box in each corner of the screen. From where the touch
 screen says those four touches landed, it works out how the touch screen's
 axes line up with the display, and prints the touch_rotation_table to put in
-board_config.py: one entry for each of the display's four rotations. The
+board_config.py: one entry for each of the display's four rotations. It
+reads the corners with the table set to zeros, so what it finds doesn't
+depend on the table you have now, and it tells you whether yours matches. The
 display never has to rotate, so it works on displays that can't.
 
 Then touch anywhere: it draws a dot where you touch, placed with the table
@@ -153,7 +155,12 @@ def finish():
     found.append(mask)
     table = table_from(mask)
     line = "touch_rotation_table = %s" % (table,)
-    print("Put this in board_config.py:\n    " + line)
+    # Compare with the table board_config.py has now.
+    current = tuple(getattr(board_config, "touch_rotation_table", None) or TURNS)
+    if current == table:
+        print("board_config.py already has the right table:\n    " + line)
+    else:
+        print("board_config.py has %s. Change it to:\n    %s" % (current, line))
     print("Now touch anywhere to draw.")
     display_drv.fill(BG_COLOR)
     text16(display_drv, line, (display_drv.width - len(line) * 8) // 2, 8, FG_COLOR)
