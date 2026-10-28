@@ -8,6 +8,8 @@ Each one says in its docstring what it needs and where it has been run.
 | [appdev_simpletest.py](appdev_simpletest.py) | A timer, a tap and a key driving a box on the screen |
 | [audiodev_simpletest.py](audiodev_simpletest.py) | Four notes from synthio through the board's speaker |
 | [bledev_simpletest.py](bledev_simpletest.py) | The Bluetooth LE devices advertising nearby, on a board or a laptop |
+| [bledev_hid_host_simpletest.py](bledev_hid_host_simpletest.py) | Reading the keys a Bluetooth keyboard sends |
+| [bledev_hid_keyboard_simpletest.py](bledev_hid_keyboard_simpletest.py) | Being a Bluetooth keyboard, with Adafruit's adafruit_hid |
 | [boarddev_simpletest.py](boarddev_simpletest.py) | What hardware a board offers, and a setting made before it starts |
 | [displaydev_simpletest.py](displaydev_simpletest.py) | Boxes and a label drawn straight on the display |
 | [events_simpletest.py](events_simpletest.py) | Input events, told apart by type, and one of your own |
