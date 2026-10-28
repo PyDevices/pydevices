@@ -118,32 +118,11 @@ touch = GT911(
 )
 
 
-_W = tft_timings["width"]
-_H = tft_timings["height"]
-
-
-def _map_touch_points():
-    """GT911 reports landscape values with axes reflected over the diagonal.
-
-    Corner calibration (touch coordinates): TL/BR/center OK; TR↔BL.
-    A plain SWAP_XY is not enough on a non-square panel — rescale
-    after the swap so coords stay in 0..width / 0..height.
-    """
-    points = touch.read_points()
-    if not points:
-        return ()
-    out = []
-    for p in points:
-        x, y = p[0], p[1]
-        # MicroPython: no starred expressions in tuple displays.
-        mapped = (y * _W // _H, x * _H // _W) + tuple(p[2:])
-        out.append(mapped)
-    return tuple(out)
-
-
+# The GT911 already reports display coordinates: touches in each corner
+# land in that corner, so it needs no swap.
 touch_rotation_table = (0, 0, 0, 0)
 
-touch_read = _map_touch_points
+touch_read = touch.read_points
 
 from board_peripherals import PERIPHERALS, load_peripherals
 

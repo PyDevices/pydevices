@@ -1,185 +1,183 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""Find the touch_rotation_table for a board's touch screen.
+"""Find the touch_rotation_table for a board's touch screen, then draw.
 
-Turns the display through its four rotations and asks you to touch a box
-in each corner in turn. From where your touches land it works out how the
-touch screen's axes line up with the display at each rotation, and prints
-the touch_rotation_table to put in board_config.py.
+Asks you to touch a box in each corner of the screen. From where the touch
+screen says those four touches landed, it works out how the touch screen's
+axes line up with the display, and prints the touch_rotation_table to put in
+board_config.py: one entry for each of the display's four rotations. The
+display never has to rotate, so it works on displays that can't.
 
-Needs: a board_config with a display_drv and a touch screen, which a
-PyDevices board package provides, and pygraphics. With demo set to True
-it leaves the touch driver's table alone and only walks through the steps.
+Then touch anywhere: it draws a dot where you touch, placed with the table
+it found, so you can see the table is right.
+
+Needs: a board_config with a display_drv and a touch_read, which a PyDevices
+board package provides, and pygraphics. The table can swap and flip the
+touch screen's axes but not stretch them, so touch_read should report the
+touch screen's own numbers.
 
 Run it:
     mpremote run appdev_touch_calibrate.py
 
-Tested on: CPython 3.12 on Linux, in an SDL window, as far as the first
-corner's box.
+Tested on: a Waveshare ESP32-S3-Touch-LCD-4.3 on MicroPython 1.30 preview,
+whose display doesn't rotate.
 """
 
-from board_config import display_drv
 import board_config
-import appdev
-
-app = appdev.App(board_config)
-import appdev
+from board_config import display_drv
 from pygraphics import round_rect, text16
 
-# Change this to match your setup.
-demo = False
+import appdev
 
+# Read the touch screen as it is, with no rotation applied.
+app = appdev.App(board_config, touch_rotation_table=(0, 0, 0, 0))
+
+# Change these to match your setup.
 FG_COLOR = -1  # white
 BG_COLOR = 0  # black
+DOT = 4  # the size of the dots you draw once it's done
 
-text = "Touch here"
-text_width = len(text) * 8
-
+# What each bit of a touch_rotation_table entry does, in this order: swap x
+# and y, then count x from the right, then count y from the bottom.
 SWAP_XY = 0b001
 REVERSE_X = 0b010
 REVERSE_Y = 0b100
 
-_ZONE_MASKS = {
-    (0, 1, 2, 3): 0b0,
-    (1, 0, 3, 2): REVERSE_X,
-    (2, 3, 0, 1): REVERSE_Y,
-    (3, 2, 1, 0): REVERSE_X | REVERSE_Y,
-    (0, 2, 1, 3): SWAP_XY,
-    (2, 0, 3, 1): SWAP_XY | REVERSE_X,
-    (1, 3, 0, 2): SWAP_XY | REVERSE_Y,
-    (3, 1, 2, 0): SWAP_XY | REVERSE_X | REVERSE_Y,
-}
+# How each of the four rotations turns the display's coordinates, written
+# the same way. It's the table a touch screen lined up with the display
+# needs.
+TURNS = (0b000, 0b101, 0b110, 0b011)
+
+LABEL = "Touch here"
+CORNERS = ((0, 0), (1, 0), (0, 1), (1, 1))  # top left, top right, bottom left, bottom right
 
 
-def set_rotation_table(table):
-    if display_drv.touch_device is not None:
-        if display_drv.touch_device.type == appdev.POINTER:
-            display_drv.touch_device.rotation_table = table
+def to_matrix(mask):
+    """A table entry as the 2x2 matrix that turns (x, y) into the display's."""
+    matrix = [[0, 1], [1, 0]] if mask & SWAP_XY else [[1, 0], [0, 1]]
+    if mask & REVERSE_X:
+        matrix[0] = [-v for v in matrix[0]]
+    if mask & REVERSE_Y:
+        matrix[1] = [-v for v in matrix[1]]
+    return matrix
 
 
-def _draw_target(x, y, half_width, half_height):
-    round_rect(
-        display_drv,
-        x * half_width + 10,
-        y * half_height + 10,
-        half_width - 20,
-        half_height - 20,
-        10,
-        FG_COLOR,
-        True,
-    )
-    text16(
-        display_drv,
-        text,
-        x * half_width + ((half_width - text_width) // 2),
-        y * half_height + ((half_height - 8) // 2),
-        BG_COLOR,
-    )
+def to_mask(matrix):
+    """The table entry for a matrix made by to_matrix."""
+    mask = SWAP_XY if matrix[0][0] == 0 else 0
+    if sum(matrix[0]) < 0:
+        mask |= REVERSE_X
+    if sum(matrix[1]) < 0:
+        mask |= REVERSE_Y
+    return mask
 
 
-def _clear_target(x, y, half_width, half_height):
-    display_drv.fill_rect(
-        x * half_width,
-        y * half_height,
-        half_width - 1,
-        half_height - 1,
-        BG_COLOR,
-    )
+def multiply(a, b):
+    return [[a[i][0] * b[0][j] + a[i][1] * b[1][j] for j in range(2)] for i in range(2)]
 
 
-def _report(touch_rotation_table):
-    if not demo:
-        set_rotation_table(touch_rotation_table)
-        print("Set the `touch_rotation_table` in board_config.py to the following:")
-    else:
-        print("Demo complete.")
-    out_text = f"touch_rotation_table = {tuple(touch_rotation_table)}"
-    print("    ", out_text, "\n")
-    text16(
-        display_drv,
-        out_text,
-        (display_drv.width - len(out_text) * 8) // 2,
-        (display_drv.height - 8) // 2,
-        FG_COLOR,
-    )
+def mask_from(touches):
+    """The table entry that puts these four corner touches where they belong."""
+    top_left, top_right, bottom_left, bottom_right = touches
+    # Which way the touch screen's numbers move going across the display, and
+    # going down it.
+    across = [top_right[i] - top_left[i] + bottom_right[i] - bottom_left[i] for i in (0, 1)]
+    down = [bottom_left[i] - top_left[i] + bottom_right[i] - top_right[i] for i in (0, 1)]
+    swap = abs(across[1]) > abs(across[0])
+    if swap != (abs(down[0]) > abs(down[1])):
+        return None  # across and down moved the same way: the touches were off
+    mask = SWAP_XY if swap else 0
+    if (across[1] if swap else across[0]) < 0:
+        mask |= REVERSE_X
+    if (down[0] if swap else down[1]) < 0:
+        mask |= REVERSE_Y
+    return mask
 
 
-# Callback-driven state machine (one path for sync and async).
-_st = {
-    "rotation": 0,
-    "x": 0,
-    "y": 0,
-    "touched_zones": [],
-    "touch_rotation_table": [],
-    "half_width": 0,
-    "half_height": 0,
-    "done": False,
-}
+def table_from(mask):
+    """The whole table, from the entry for the display's current rotation."""
+    turn = to_matrix(TURNS[getattr(display_drv, "rotation", 0) // 90 % 4])
+    # Undo the current rotation's turn (a turn's inverse is its transpose),
+    # then add each rotation's own.
+    unturned = [[turn[j][i] for j in range(2)] for i in range(2)]
+    upright = multiply(unturned, to_matrix(mask))
+    return tuple(to_mask(multiply(to_matrix(t), upright)) for t in TURNS)
 
 
-def _show_current_target():
-    _draw_target(_st["x"], _st["y"], _st["half_width"], _st["half_height"])
+def place(point, mask):
+    """Where a touch lands on the display with this table entry."""
+    x, y = point
+    if mask & SWAP_XY:
+        x, y = y, x
+    if mask & REVERSE_X:
+        x = display_drv.width - x - 1
+    if mask & REVERSE_Y:
+        y = display_drv.height - y - 1
+    return x, y
 
 
-def _advance_or_finish():
-    _st["x"] += 1
-    if _st["x"] > 1:
-        _st["x"] = 0
-        _st["y"] += 1
-    if _st["y"] > 1:
-        # finished one rotation
-        mask = _ZONE_MASKS.get(tuple(_st["touched_zones"]))
-        if mask is None:
-            print("Invalid touch sequence. Starting over...\n")
-            _start_over()
-            return
-        _st["touch_rotation_table"].append(mask)
-        print(f"rotation={_st['rotation']} {mask=} ({mask:#05b})\n")
-        _st["rotation"] += 90
-        if _st["rotation"] >= 360:
-            _report(_st["touch_rotation_table"])
-            _st["done"] = True
-            return
-        _st["touched_zones"] = []
-        _st["x"] = 0
-        _st["y"] = 0
-        display_drv.rotation = _st["rotation"]
-        _st["half_width"] = display_drv.width // 2
-        _st["half_height"] = display_drv.height // 2
-        display_drv.fill_rect(0, 0, display_drv.width - 1, display_drv.height - 1, BG_COLOR)
-    _show_current_target()
+def draw_target(corner, color):
+    """Draw the box in one corner, or clear it with the background color."""
+    half_width, half_height = display_drv.width // 2, display_drv.height // 2
+    x, y = corner[0] * half_width, corner[1] * half_height
+    round_rect(display_drv, x + 10, y + 10, half_width - 20, half_height - 20, 10, color, True)
+    if color != BG_COLOR:
+        text16(
+            display_drv,
+            LABEL,
+            x + (half_width - len(LABEL) * 8) // 2,
+            y + (half_height - 16) // 2,
+            BG_COLOR,
+        )
+    display_drv.show()
 
 
-def _start_over():
-    _st["rotation"] = 0
-    _st["x"] = 0
-    _st["y"] = 0
-    _st["touched_zones"] = []
-    _st["touch_rotation_table"] = []
-    display_drv.rotation = 0
-    _st["half_width"] = display_drv.width // 2
-    _st["half_height"] = display_drv.height // 2
-    display_drv.fill_rect(0, 0, display_drv.width - 1, display_drv.height - 1, BG_COLOR)
-    print("Touch the rectangle in each corner for 4 rotations.\n")
-    _show_current_target()
+touches = []
+found = []  # the table entry for the current rotation, once it's known
 
 
-def _on_click(e):
-    if _st["done"] or e.button != 1:
+def start():
+    touches.clear()
+    display_drv.fill(BG_COLOR)
+    print("Touch the box in each corner.")
+    draw_target(CORNERS[0], FG_COLOR)
+
+
+def finish():
+    mask = mask_from(touches)
+    if mask is None:
+        print("Those touches didn't make a rectangle. Starting over.\n")
+        start()
         return
-    touched_point = e.pos
-    zone = (touched_point[1] // _st["half_height"]) * 2 + (
-        touched_point[0] // _st["half_width"]
-    )
-    _st["touched_zones"].append(zone)
-    print(f"{touched_point=} in {zone=}")
-    _clear_target(_st["x"], _st["y"], _st["half_width"], _st["half_height"])
-    _advance_or_finish()
+    found.append(mask)
+    table = table_from(mask)
+    line = "touch_rotation_table = %s" % (table,)
+    print("Put this in board_config.py:\n    " + line)
+    print("Now touch anywhere to draw.")
+    display_drv.fill(BG_COLOR)
+    text16(display_drv, line, (display_drv.width - len(line) * 8) // 2, 8, FG_COLOR)
+    display_drv.show()
 
 
-if not demo:
-    set_rotation_table((0, 0, 0, 0))
+# Record a touch in each corner; once all four are in, draw dots instead.
+def on_touch(event):
+    if found:
+        x, y = place(event.pos, found[0])
+        display_drv.fill_rect(x - DOT // 2, y - DOT // 2, DOT, DOT, FG_COLOR)
+        display_drv.show()
+        return
+    if event.type != app.events.MOUSEBUTTONDOWN:
+        return
+    touches.append(event.pos)
+    print("Corner %d: the touch screen says %s" % (len(touches), event.pos))
+    draw_target(CORNERS[len(touches) - 1], BG_COLOR)
+    if len(touches) < len(CORNERS):
+        draw_target(CORNERS[len(touches)], FG_COLOR)
+    else:
+        finish()
 
-_start_over()
-app.on(app.events.MOUSEBUTTONDOWN, _on_click)
+
+app.on(app.events.MOUSEBUTTONDOWN, on_touch)
+app.on(app.events.MOUSEMOTION, on_touch)
+start()
