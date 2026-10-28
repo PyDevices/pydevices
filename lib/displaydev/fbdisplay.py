@@ -168,6 +168,17 @@ class FBDisplay(DisplayDriver):
         mv = memoryview(raw)
         return mv, None, len(mv) * (2 if self._buffer_u16 else 1), stride
 
+    @property
+    def rotation(self) -> int:
+        """Always 0: a framebuffer shows its pixels the way the panel scans them."""
+        return 0
+
+    @rotation.setter
+    def rotation(self, value) -> None:
+        # A framebuffer can't be turned, so any rotation leaves it as it is,
+        # with the width and height its buffer really has.
+        return
+
     ############### Required API Methods ################
 
     def init(self) -> None:

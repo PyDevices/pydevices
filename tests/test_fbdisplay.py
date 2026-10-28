@@ -173,3 +173,16 @@ class TestFBDisplayBitmapKwargs(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFBDisplayRotation(unittest.TestCase):
+    def test_rotation_stays_zero_with_the_buffers_size(self):
+        d, _ = make_fbdisplay(8, 4)
+        d.rotation = 90
+        self.assertEqual((d.rotation, d.width, d.height), (0, 8, 4))
+
+    def test_fill_after_rotating_covers_the_buffer(self):
+        d, fb = make_fbdisplay(4, 2)
+        d.rotation += 90
+        d.fill_rect(0, 0, d.width, d.height, 0xFFFF)
+        self.assertEqual(bytes(fb.data), b"\xff\xff" * 8)
