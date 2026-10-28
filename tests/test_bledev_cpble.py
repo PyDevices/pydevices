@@ -55,6 +55,8 @@ def _stub():
         def __init__(self, uuid):
             self.uuid = uuid
             self.characteristics = []
+            # As _bleio's: in the GATT table until the board reloads.
+            m.adapter.gatt.append(self)
 
         def deinit(self):
             pass
@@ -172,6 +174,7 @@ def _stub():
 
         def __init__(self):
             self.connections = ()
+            self.gatt = []
 
         def start_advertising(self, data, *, scan_response=None, connectable=True, interval=0.1):
             self.advertised = (bytes(data), scan_response)
@@ -320,6 +323,82 @@ class CPBLEChecks(unittest.TestCase):
         run(main())
 
 
+COUNTER = "8e7f0001-6a3c-4b1e-9d2a-5c0e1f2a3b4c"
+
+
+def _counter_run(extra=False):
+    """One run of a counter peripheral, as a script run from the REPL makes
+    it: a new CPBLE and new Service objects, over the board's one adapter."""
+    ble = cpble.CPBLE()
+    service = bledev.Service(COUNTER)
+    count = bledev.Characteristic(service, "8e7f0002-6a3c-4b1e-9d2a-5c0e1f2a3b4c",
+                                  read=True, notify=True, initial=bytes(4))
+    message = bledev.Characteristic(service, "8e7f0003-6a3c-4b1e-9d2a-5c0e1f2a3b4c",
+                                    write=True, capture=True, max_len=64)
+    if extra:
+        bledev.Characteristic(service, "8e7f0004-6a3c-4b1e-9d2a-5c0e1f2a3b4c", read=True)
+    ble.register_services(service)
+    return ble, count, message
+
+
+def _copies(uuid):
+    return [s for s in _bleio.adapter.gatt if cpble._uuid(s.uuid) == bledev.UUID(uuid)]
+
+
+class RunTwice(unittest.TestCase):
+    """_bleio keeps a service until the board reloads. A peripheral run twice
+    from the REPL must serve one copy, and the second run's objects must get
+    its traffic."""
+
+    def setUp(self):
+        _bleio.adapter = _bleio.Adapter()
+
+    def test_a_second_run_takes_over_the_served_copy(self):
+        async def main():
+            ble1, count1, message1 = _counter_run()
+            native = count1._impl.native
+            count1.write(b"\x07\x00\x00\x00")
+            ble2, count2, message2 = _counter_run()
+            self.assertEqual(len(_copies(COUNTER)), 1, "the service was added twice")
+            # The same native characteristic (so the same handle), reset to
+            # the second run's initial value.
+            self.assertIs(count2._impl.native, native)
+            self.assertEqual(count2.read(), bytes(4))
+            # Nothing of the first run is bound any more.
+            self.assertIsNone(count1._impl)
+            self.assertIsNone(message1._impl)
+            # A notification from the second run reaches the central.
+            connection = await ble2.advertise(name="counter", services=[bledev.UUID(COUNTER)])
+            count2.write(b"\x01\x00\x00\x00")
+            count2.notify(connection)
+            count2.notify(connection, b"\x02\x00\x00\x00")
+            self.assertEqual(count2._impl._packets.sent, [b"\x01\x00\x00\x00", b"\x02\x00\x00\x00"])
+            # A central's write reaches the second run's message.
+            message2._impl.native.stream.feed(b"hello")
+            _, data = await message2.written(timeout_ms=100)
+            self.assertEqual(data, b"hello")
+            with self.assertRaises(bledev.BLEError):
+                await message1.written(timeout_ms=100)
+
+        run(main())
+
+    def test_other_characteristics_ask_for_a_reload(self):
+        ble1, count1, message1 = _counter_run()
+        with self.assertRaises(bledev.BLEError) as caught:
+            _counter_run(extra=True)
+        self.assertIn("Ctrl-D", str(caught.exception))
+        self.assertEqual(len(_copies(COUNTER)), 1)
+        # The refused run changed nothing: the first run still serves.
+        self.assertIsNotNone(count1._impl)
+        self.assertIsNotNone(message1._impl)
+
+    def test_a_reload_serves_afresh(self):
+        _counter_run()
+        _bleio.adapter = _bleio.Adapter()  # what Ctrl-D leaves: an empty table
+        ble, count, message = _counter_run(extra=True)
+        self.assertEqual(len(_copies(COUNTER)), 1)
+
+
 def _circuitpython():
     """A CircuitPython unix binary and a directory holding Adafruit's asyncio
     and adafruit_ticks, or ``(None, why)``. ``PYDEVICES_CIRCUITPYTHON`` and
@@ -405,6 +484,27 @@ class Planted(unittest.TestCase):
             self.assertFalse(result.wasSuccessful(), "the planted plain write went unnoticed")
         finally:
             cpble._CPServerCharacteristic._send = original
+
+
+class PlantedCopy(unittest.TestCase):
+    """cpble forgetting what it served, so each run adds another copy: the
+    run-twice check must fail."""
+
+    def test_a_forgetful_register_fails_the_check(self):
+        original = cpble.CPBLE.register_services
+
+        def forgetful(self, *services):
+            cpble._served = {}
+            return original(self, *services)
+
+        cpble.CPBLE.register_services = forgetful
+        try:
+            checks = RunTwice("test_a_second_run_takes_over_the_served_copy")
+            result = unittest.TestResult()
+            checks.run(result)
+            self.assertFalse(result.wasSuccessful(), "a second copy of the service went unnoticed")
+        finally:
+            cpble.CPBLE.register_services = original
 
 
 if __name__ == "__main__":
