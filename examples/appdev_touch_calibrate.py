@@ -15,15 +15,12 @@ Then touch anywhere: it draws a dot where you touch, placed with the table
 it found, so you can see the table is right.
 
 Needs: a board_config with a display_drv and a touch_read, which a PyDevices
-board package provides, and pygraphics. The table can swap and flip the
-touch screen's axes but not stretch them, so touch_read should report the
-touch screen's own numbers.
+board package provides, and pygraphics.
 
 Run it:
     mpremote run appdev_touch_calibrate.py
 
-Tested on: a Waveshare ESP32-S3-Touch-LCD-4.3 on MicroPython 1.30 preview,
-whose display doesn't rotate.
+Tested on: not yet.
 """
 
 import board_config
