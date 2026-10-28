@@ -289,6 +289,26 @@ async def passive_scan_misses_a_long_name(air):
 
 
 @check
+async def scan_exit_waits_for_the_stop(air):
+    # A scan whose duration ran out is still stopping the radio when the
+    # ``async with`` exits; leaving then lets the caller close the loop on it.
+    class SlowStop(bledev.Scanner):
+        stopped = False
+
+        async def _stop(self):
+            await asyncio.sleep(0.02)
+            self.stopped = True
+
+    scanner = SlowStop(None, 10)
+    async with scanner:
+        timer = asyncio.create_task(scanner.cancel())
+        async for _result in scanner:
+            pass
+    expect(scanner.stopped, "async with returned before the stop finished")
+    await timer
+
+
+@check
 async def timeouts_raise(air):
     board = FakeBLE(air=air)
     laptop = FakeBLE(air=air, peripheral=False)
