@@ -20,7 +20,7 @@ owns one RGB565 `bytearray`; the browser scans it each animation frame, so
 there is no explicit present or double-buffer protocol.
 
 [`bin/wasm.py`](https://github.com/PyDevices/pydevices/blob/main/bin/wasm.py) (and [`bin/pyscript.py`](https://github.com/PyDevices/pydevices/blob/main/bin/pyscript.py)) require `PyDevices.github.io`,
-`pydevices-examples`, and `mip` checked out as siblings of this repository —
+`gallery`, and `mip` checked out as siblings of this repository —
 the host serves gallery content and MIP packages straight out of those
 directories.
 

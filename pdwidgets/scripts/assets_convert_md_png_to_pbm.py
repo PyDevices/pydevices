@@ -10,7 +10,7 @@ Source path shape::
 For the curated runtime set under ``lib/pdwidgets/icons/``, use
 ``assets_generate_pdwidgets_icons.py`` instead.
 
-Run from pdwidgets/ (needs ``pydevices-examples`` beside the pydevices repository for
+Run from pdwidgets/ (needs ``gallery`` beside the pydevices repository for
 ``png``, and ``pygraphics`` there for the framebuffer)::
 
     .venv/bin/python scripts/assets_convert_md_png_to_pbm.py
@@ -30,14 +30,14 @@ def resolve_pydevices_examples_root() -> Path:
     candidates = []
     if env_root:
         candidates.append(Path(env_root))
-    candidates.append(REPO_ROOT.parent.parent / "pydevices-examples")
+    candidates.append(REPO_ROOT.parent.parent / "gallery")
     for root in candidates:
         if (root / "lib" / "utils").is_dir():
             return root.resolve()
     tried = ", ".join(str(p) for p in candidates)
     raise SystemExit(
-        "pydevices-examples checkout not found (needed for png utilities). "
-        f"Set PYDEVICES_EXAMPLES_ROOT or clone sibling pydevices-examples. Tried: {tried}"
+        "gallery checkout not found (needed for png utilities). "
+        f"Set PYDEVICES_EXAMPLES_ROOT or clone sibling gallery. Tried: {tried}"
     )
 
 

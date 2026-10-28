@@ -1,7 +1,7 @@
-"""PNG decoder smoke tool (pydevices-examples utils/png + DisplayBuffer).
+"""PNG decoder smoke tool (gallery utils/png + DisplayBuffer).
 
 Lives in pdwidgets because it walks a material-design-icons ``png/`` tree used
-for icon authoring here. Requires a sibling **pydevices-examples** checkout (board_config,
+for icon authoring here. Requires a sibling **gallery** checkout (board_config,
 ``png``, display stack), ``pypng``, and the icons ``png/`` tree (or
 ``PDWIDGETS_PNG_DIR`` / ``PYDEVICES_PNG_DIR`` / ``MATERIAL_DESIGN_ICONS_PNG``).
 
@@ -25,14 +25,14 @@ def _resolve_pydevices_examples_root() -> Path:
     candidates = []
     if env_root:
         candidates.append(Path(env_root))
-    candidates.append(_ROOT.parent / "pydevices-examples")
+    candidates.append(_ROOT.parent / "gallery")
     for root in candidates:
         if (root / "lib" / "utils").is_dir():
             return root.resolve()
     tried = ", ".join(str(p) for p in candidates)
     raise SystemExit(
-        "pydevices-examples checkout not found (needed for board_config / png). "
-        f"Set PYDEVICES_EXAMPLES_ROOT or clone sibling pydevices-examples. Tried: {tried}"
+        "gallery checkout not found (needed for board_config / png). "
+        f"Set PYDEVICES_EXAMPLES_ROOT or clone sibling gallery. Tried: {tried}"
     )
 
 

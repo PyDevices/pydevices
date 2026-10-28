@@ -56,7 +56,7 @@ class TestPyScriptCli(unittest.TestCase):
         # Pyodide maps palettes to pydevices-palettes,pydevices-pygraphics wheels
         self.assertEqual(
             url,
-            "http://127.0.0.1:8000/pydevices-examples/pyscript/pyodide.html?modules=hello&deps=pydevices-palettes%2Cpydevices-pygraphics",
+            "http://127.0.0.1:8000/gallery/pyscript/pyodide.html?modules=hello&deps=pydevices-palettes%2Cpydevices-pygraphics",
         )
 
     def test_playwright_options_are_not_part_of_launcher(self):

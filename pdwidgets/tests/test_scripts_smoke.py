@@ -40,7 +40,7 @@ OPTIONAL_DEPS = {"PIL"}
 # Sibling checkouts an authoring script reads at import. CI clones only
 # pydevices, pygraphics and palettes, so a script that exits naming one of
 # these is skipped; any other SystemExit still fails.
-OPTIONAL_CHECKOUTS = ("pydevices-examples checkout not found",)
+OPTIONAL_CHECKOUTS = ("gallery checkout not found",)
 
 
 class TestRepoPaths(unittest.TestCase):

@@ -24,7 +24,7 @@ class TestWasmCli(unittest.TestCase):
     def test_direct_route(self):
         self.assertEqual(
             wasm_cli.build_wasm_url("paint", base_url="http://localhost:8000"),
-            "http://localhost:8000/pydevices-examples/gallery/micropython.html?modules=paint",
+            "http://localhost:8000/gallery/gallery/micropython.html?modules=paint",
         )
 
     def test_pyodide_route_and_wheel_mapping(self):
@@ -35,7 +35,7 @@ class TestWasmCli(unittest.TestCase):
                 modules=["hello"],
                 deps=["palettes"],
             ),
-            "https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=hello&deps=pydevices-palettes%2Cpydevices-pygraphics",
+            "https://pydevices.github.io/gallery/pyscript/pyodide.html?modules=hello&deps=pydevices-palettes%2Cpydevices-pygraphics",
         )
 
     def test_direct_builtins_are_not_reinstalled(self):
@@ -77,7 +77,7 @@ class TestWasmCli(unittest.TestCase):
             cwd = Path(cwd_dir)
             local_script = cwd / "hello_cwd.py"
             local_script.write_text("print('local')\n")
-            shadow = workspace / "pydevices-examples" / "lib" / "examples" / "hello_cwd.py"
+            shadow = workspace / "gallery" / "lib" / "examples" / "hello_cwd.py"
             shadow.parent.mkdir(parents=True)
             shadow.write_text("print('shadowed')\n")
 
@@ -96,7 +96,7 @@ class TestWasmCli(unittest.TestCase):
                 files=["local_app"],
                 base_url="http://localhost:8000",
             ),
-            "http://localhost:8000/pydevices-examples/gallery/micropython.html?modules=local_app&files=local_app",
+            "http://localhost:8000/gallery/gallery/micropython.html?modules=local_app&files=local_app",
         )
 
 

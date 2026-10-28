@@ -71,7 +71,7 @@ import pdwidgets as pd
 ```
 
 micropip installs `pydevices`, `pydevices-pygraphics` and `pydevices-palettes`
-from the wheel's metadata. The [browser examples](https://pydevices.github.io/pydevices-examples/pyscript/)
+from the wheel's metadata. The [browser examples](https://pydevices.github.io/gallery/pyscript/)
 run widget apps this way.
 
 ## Frozen into firmware

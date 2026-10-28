@@ -33,7 +33,7 @@ Read [the board contract](../boards/board-contract.md) before adding a board and
 - Use [pdwidgets](https://github.com/PyDevices/pydevices/tree/main/pdwidgets) for a pure-Python widget toolkit.
 - Use [LVGL](../guides/lvgl.md) when the firmware or the pydevices-lvgl wheel provides the lvgl module.
 
-The hardware configuration remains the same whichever layer you choose. Ready-to-run programs live in [pydevices-examples](https://github.com/PyDevices/pydevices-examples), not this product repository.
+The hardware configuration remains the same whichever layer you choose. Ready-to-run programs live in [gallery](https://github.com/PyDevices/gallery), not this product repository.
 
 ## Where to go from here
 

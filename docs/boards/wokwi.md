@@ -1,13 +1,13 @@
 # Wokwi hardware reference
 
-Technical reference for the Wokwi project in pydevices-examples. Simulator assets live in
-[pydevices-examples/.site/wokwi](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi).
+Technical reference for the Wokwi project in gallery. Simulator assets live in
+[gallery/.site/wokwi](https://github.com/PyDevices/gallery/tree/main/.site/wokwi).
 
 ## Project layout
 
 | Path | Role |
 |------|------|
-| [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi) | `main.py`, `diagram.json` — core packages + `testris` (this folder is in the pydevices-examples repo) |
+| [`wokwi/`](https://github.com/PyDevices/gallery/tree/main/.site/wokwi) | `main.py`, `diagram.json` — core packages + `testris` (this folder is in the gallery repo) |
 
 ---
 
@@ -59,14 +59,14 @@ into the DevKit `attrs`.
 
 ## MIP install pattern
 
-mip.install pattern in [`wokwi/main.py`](https://github.com/PyDevices/pydevices-examples/blob/main/.site/wokwi/main.py):
+mip.install pattern in [`wokwi/main.py`](https://github.com/PyDevices/gallery/blob/main/.site/wokwi/main.py):
 
 ```python
 import mip
 
 MICROPYTHON_LIB = "https://PyDevices.github.io/mip"
 PYDEVICES = "github:PyDevices/pydevices"
-PYDEVICES_EXAMPLES = "github:PyDevices/pydevices-examples"
+PYDEVICES_EXAMPLES = "github:PyDevices/gallery"
 
 # Board package pulls ili9341/ft6x36/spibus from this repo and displaydev from
 # the MIP index (displaydev → events + keys). Install optional appdev in the
@@ -100,6 +100,6 @@ Use a display-only `diagram.json` (no touch I2C wires) with that config.
 |-------|-------|
 | Blank LCD, no traceback | Usually missing `LED`/`RST`→3V3 on `board-ili9341-cap-touch`, or SPI on GPIO 35/36/37 @ 60 MHz — use the pin table above |
 | `TouchKeypad` IndexError on last row | Wokwi simulator quirk; may not reproduce on hardware |
-| Old hosted wokwi.com project IDs | May be stale; use the [`wokwi/`](https://github.com/PyDevices/pydevices-examples/tree/main/.site/wokwi) |
+| Old hosted wokwi.com project IDs | May be stale; use the [`wokwi/`](https://github.com/PyDevices/gallery/tree/main/.site/wokwi) |
 
 See also the application [troubleshooting guide](../guides/troubleshooting.md).

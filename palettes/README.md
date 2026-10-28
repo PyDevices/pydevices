@@ -41,6 +41,6 @@ Amber 500 is 0xFFC107
 The picture at the top of this page is those three palettes drawn as bands: the
 wheel, the sixteen Windows names and the Amber ramp.
 
-[Docs](https://palettes.readthedocs.io) · [Examples](https://pydevices.github.io/pydevices-examples/pyscript/) · [Roadmap](ROADMAP.md)
+[Docs](https://palettes.readthedocs.io) · [Examples](https://pydevices.github.io/gallery/pyscript/) · [Roadmap](ROADMAP.md)
 
 OmniPython is made by [PyDevices](https://pydevices.com).

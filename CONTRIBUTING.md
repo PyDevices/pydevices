@@ -245,7 +245,7 @@ from `interpreters.json`). Attaching again replaces that line.
 
 MIP publishes `pydevices` as a
 single package rather than per-component (see
-[pydevices-examples' package names table](https://github.com/PyDevices/pydevices-examples#package-names)).
+[gallery's package names table](https://github.com/PyDevices/gallery#package-names)).
 
 All internal TestPyPI requirements use exact `==X.Y.Z` pins. MIP meta-package
 requirements intentionally resolve `latest`, while each generated manifest

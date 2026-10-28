@@ -21,7 +21,7 @@ from playwright.sync_api import sync_playwright
 URL = (
     sys.argv[1]
     if len(sys.argv) > 1
-    else "http://127.0.0.1:8000/pydevices-examples/pyscript/harness.html?modules=bouncing_balls"
+    else "http://127.0.0.1:8000/gallery/pyscript/harness.html?modules=bouncing_balls"
 )
 WAIT_SEC = float(sys.argv[2]) if len(sys.argv) > 2 else 6.0
 TEMP_DIR = os.environ.get("TEMP") or os.environ.get("TMPDIR") or os.environ.get("TMP") or "/tmp"

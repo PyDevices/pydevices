@@ -2,7 +2,7 @@
 
 The `displaydev` product package in pydevices provides several
 display driver classes. All expose a drawing surface compatible with
-MicroPython's `framebuf` API; pydevices-examples demonstrates them.
+MicroPython's `framebuf` API; gallery demonstrates them.
 
 See [Architecture](../how-it-works/architecture.md) for how drivers connect to `board_config.py`.
 
@@ -175,11 +175,11 @@ Anything you can draw on implements the framebuf API:
 - The display itself
 - `framebuf` bytearrays
 - `pygraphics.BMP565` bitmap files
-- `displaybuf.DisplayBuffer` (see [pydevices-examples utils](https://github.com/PyDevices/pydevices-examples/blob/main/lib/utils/README.md))
+- `displaybuf.DisplayBuffer` (see [gallery utils](https://github.com/PyDevices/pydevices-examples/blob/main/lib/utils/README.md))
 
 ## Timing
 
-pydevices-examples does not include a task scheduler. Options:
+gallery does not include a task scheduler. Options:
 
 - **`asyncio`** — works on CPython, MicroPython, and PyScript (required there)
 - **[multimer](timers.md)** — one `Timer` on every host; it rides the page's loop on PyScript
@@ -246,9 +246,9 @@ it; `refresh_period=0` still means the app presents frames itself.
 
 Many drivers expose **ILI9341-style** vertical scroll: a top fixed band (TFA), a scrollable middle (VSA), and a bottom fixed band (BFA). You define regions with `set_vscroll(tfa, bfa)` or `vscrdef`, then move content with the `vscroll` property (wrapper around `vscsad`).
 
-The [**pydevices_demo**](https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=pydevices_demo&deps=pydevices-pygraphics) example demonstrates this model, covers drawing at `vscroll = 0` during redraw, and shows auto-scroll with `multimer`.
+The [**pydevices_demo**](https://pydevices.github.io/gallery/pyscript/pyodide.html?modules=pydevices_demo&deps=pydevices-pygraphics) example demonstrates this model, covers drawing at `vscroll = 0` during redraw, and shows auto-scroll with `multimer`.
 
-Related examples: [`scroll_touch_test.py`](https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=scroll_touch_test&deps=pydevices-palettes,pydevices-pygraphics) (touch Up/Down), [`appdev_encoder_test.py`](https://pydevices.github.io/pydevices-examples/pyscript/pyodide.html?modules=appdev_encoder_test) (encoder).
+Related examples: [`scroll_touch_test.py`](https://pydevices.github.io/gallery/pyscript/pyodide.html?modules=scroll_touch_test&deps=pydevices-palettes,pydevices-pygraphics) (touch Up/Down), [`appdev_encoder_test.py`](https://pydevices.github.io/gallery/pyscript/pyodide.html?modules=appdev_encoder_test) (encoder).
 
 ## Rotation
 
@@ -283,7 +283,7 @@ A backend that isn't built in is never picked unless a config required it or you
 
 On MicroPython there is no scanning for installed backends: `require` is the only way in. A frozen module imports like any other, so what you freeze decides what is present and `require` decides what is used.
 
-The Roku, HLS and Miracast displays in pydevices-examples register themselves as `roku`, `hls` and `cast`, and their `board_config.py` files `require` them, so under one of those configs `AutoDisplay` finds the display; `PYDEVICES_DISPLAY=hls` names one for a single run. Their options go through `AutoDisplay` as keywords (`tv=` for `roku` and `hls`, `sink=` and `kind=` for `cast`); see the [casting guide](https://github.com/PyDevices/pydevices-examples/blob/main/docs/casting.md#let-autodisplay-pick-a-cast-display).
+The Roku, HLS and Miracast displays in gallery register themselves as `roku`, `hls` and `cast`, and their `board_config.py` files `require` them, so under one of those configs `AutoDisplay` finds the display; `PYDEVICES_DISPLAY=hls` names one for a single run. Their options go through `AutoDisplay` as keywords (`tv=` for `roku` and `hls`, `sink=` and `kind=` for `cast`); see the [casting guide](https://github.com/PyDevices/gallery/blob/main/docs/how-it-works/casting.md#let-autodisplay-pick-a-cast-display).
 
 ## Next
 
