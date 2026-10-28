@@ -10,14 +10,16 @@ The server can be another board running bledev_nus_server_simpletest.py,
 which answers in capitals, or anything else that serves the Nordic UART
 Service, such as a BLE serial adapter.
 
-Needs: a board with Bluetooth LE, and MicroPython with aioble and bledev
-installed. On a laptop, pip install "pydevices[ble]".
+Needs: a board with Bluetooth LE and bledev: CircuitPython, or MicroPython
+with aioble too. On a laptop, pip install "pydevices[ble]".
 
 Run it:
     mpremote run bledev_nus_client_simpletest.py
+On CircuitPython, copy it to the board as code.py.
 
-Tested on: an ESP32-S3 board on MicroPython 1.30 preview and CPython 3.14
-on Windows, each with another board running bledev_nus_server_simpletest.py.
+Tested on: ESP32-S3 boards on MicroPython 1.30 preview and CircuitPython
+11.0 alpha, each with the other running bledev_nus_server_simpletest.py,
+and CPython 3.14 on Windows.
 """
 
 import asyncio

@@ -13,14 +13,16 @@ bledev_central_simpletest.py, or a phone running a BLE app such as nRF
 Connect: look for the service, subscribe to the count, and write some text
 to the message.
 
-Needs: a board with Bluetooth LE, and MicroPython with aioble and bledev
-installed.
+Needs: a board with Bluetooth LE and bledev: CircuitPython, or MicroPython
+with aioble too.
 
 Run it:
     mpremote run bledev_peripheral_simpletest.py
+On CircuitPython, copy it to the board as code.py.
 
-Tested on: an ESP32-S3 board on MicroPython 1.30 preview, read by another
-running bledev_central_simpletest.py.
+Tested on: ESP32-S3 boards on MicroPython 1.30 preview and CircuitPython
+11.0 alpha, each with the other running bledev_central_simpletest.py,
+and read by CPython 3.14 on Windows.
 """
 
 import asyncio

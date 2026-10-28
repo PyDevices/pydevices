@@ -10,15 +10,16 @@ The instrument can be another board running
 bledev_midi_instrument_simpletest.py, or any BLE-MIDI synth or sound
 module: set NAME to the name it advertises.
 
-Needs: a board with Bluetooth LE, and MicroPython with aioble and bledev
-installed. On a laptop, pip install "pydevices[ble]".
+Needs: a board with Bluetooth LE and bledev: CircuitPython, or MicroPython
+with aioble too. On a laptop, pip install "pydevices[ble]".
 
 Run it:
     mpremote run bledev_midi_controller_simpletest.py
+On CircuitPython, copy it to the board as code.py.
 
-Tested on: an ESP32-S3 board on MicroPython 1.30 preview and CPython 3.14
-on Windows, each playing another board running
-bledev_midi_instrument_simpletest.py.
+Tested on: ESP32-S3 boards on MicroPython 1.30 preview and CircuitPython
+11.0 alpha, each with the other running bledev_midi_instrument_simpletest.py,
+and CPython 3.14 on Windows.
 """
 
 import asyncio

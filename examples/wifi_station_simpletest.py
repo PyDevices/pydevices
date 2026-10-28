@@ -16,9 +16,10 @@ installed.
 
 Run it:
     mpremote run wifi_station_simpletest.py
+On CircuitPython, copy it to the board as code.py.
 
-Tested on: an ESP32-S3 board on MicroPython 1.30 preview, joining another
-running wifi_ap_simpletest.py.
+Tested on: ESP32-S3 boards on MicroPython 1.30 preview and CircuitPython
+11.0 alpha, each with the other running wifi_ap_simpletest.py.
 """
 
 import wifi
