@@ -6,6 +6,8 @@ wasm) and CircuitPython.
 
 Canonical source: [pydevices/lib/multimer](https://github.com/PyDevices/pydevices/tree/main/lib/multimer).
 
+For a complete program to start from, see [multimer_simpletest.py](https://github.com/PyDevices/pydevices/blob/main/examples/multimer_simpletest.py).
+
 ## Install
 
 ### CPython (TestPyPI)

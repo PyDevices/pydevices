@@ -49,6 +49,8 @@ Family invariants (template for later displaydev / multimer):
 3. Optional behavior is real methods with defaults (`service`, `queued_size`, `is_active`, `clear`), not `getattr` discovery.
 4. Platform defects stay documented with “do not simplify” tests, inside the owning subclass.
 
+For a complete program to start from, see [audiodev_simpletest.py](https://github.com/PyDevices/pydevices/blob/main/examples/audiodev_simpletest.py).
+
 ## Buffering options
 
 Because a board forwards its keyword arguments to whichever backend it picks,

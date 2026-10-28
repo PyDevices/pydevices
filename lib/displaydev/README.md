@@ -4,6 +4,8 @@ Cross-platform display drivers for MicroPython, CircuitPython, and CPython — `
 
 Canonical source: [pydevices/lib/displaydev](https://github.com/PyDevices/pydevices/tree/main/lib/displaydev).
 
+For a complete program to start from, see [displaydev_simpletest.py](https://github.com/PyDevices/pydevices/blob/main/examples/displaydev_simpletest.py).
+
 ## Install
 
 ### CPython (TestPyPI)
