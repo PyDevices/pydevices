@@ -83,13 +83,13 @@ def free_port(host: str, start: int, attempts: int = 50) -> int:
     )
 
 
-REQUIRED_SIBLINGS = ("PyDevices.github.io", "pydevices-examples", "mip")
+REQUIRED_SIBLINGS = ("PyDevices.github.io", "gallery", "mip")
 
 
 def require_workspace_siblings(workspace: Path) -> None:
     """Fail early and clearly if the sibling checkouts this host serves are missing.
 
-    ``start_server`` resolves ``PyDevices.github.io``, ``pydevices-examples``,
+    ``start_server`` resolves ``PyDevices.github.io``, ``gallery``,
     and ``mip`` as siblings of this repository checkout. Nothing enforces that
     layout on its own, so a missing sibling otherwise surfaces as a confusing
     404 deep inside the browser instead of a clear error up front.
@@ -113,7 +113,7 @@ def start_server(
 ) -> threading.Thread:
     """Serve portal, gallery/PyScript, and MIP paths from the sibling workspace."""
     portal = workspace / "PyDevices.github.io"
-    examples = workspace / "pydevices-examples"
+    examples = workspace / "gallery"
     mip = workspace / "mip"
     staged = {name: path.resolve() for name, path in (staged_files or {}).items()}
 
@@ -136,14 +136,14 @@ def start_server(
 
         def translate_path(self, path: str) -> str:
             clean = unquote(urlparse(path).path)
-            stage_prefix = "/pydevices-examples/gallery/staged/"
+            stage_prefix = "/gallery/gallery/staged/"
             if clean.startswith(stage_prefix):
                 name = clean.removeprefix(stage_prefix)
                 source = staged.get(name.removesuffix(".py"))
                 if source is not None and name == f"{source.stem}.py":
                     return str(source)
             for prefix, root in (
-                ("/pydevices-examples/", examples),
+                ("/gallery/", examples),
                 ("/mip/", mip),
             ):
                 if clean.startswith(prefix):

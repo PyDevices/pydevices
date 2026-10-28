@@ -227,5 +227,5 @@ construct an app.
 
 Copy the closest match, edit pin assignments and driver imports, and test with
 `import pydevices_demo`. See the
-[**pydevices_demo.py**](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/pydevices_demo.py)
+[**pydevices_demo.py**](https://github.com/PyDevices/gallery/blob/main/lib/examples/pydevices_demo.py)
 for a walkthrough of the recommended smoke test.

@@ -16,7 +16,7 @@ Optional probes of every explicit provider are enabled with
 
 Run the full desktop matrix from the sibling examples repository::
 
-    cd ../pydevices-examples
+    cd ../gallery
     python tools/run_test_timers.py
 
 Each probe is isolated so one failure does not stop the rest. Imports that

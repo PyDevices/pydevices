@@ -38,7 +38,7 @@ exclude = [
 ]
 lint.select = ["E", "F", "I", "W", "B", "SIM", "PLC0415"]
 # SIM105 disabled: contextlib.suppress is not available on MicroPython (matches
-# the pydevices-examples ruff config), so try/except/pass is the portable pattern.
+# the gallery ruff config), so try/except/pass is the portable pattern.
 lint.ignore = ["E501", "F401", "F403", "F405", "ISC003", "PLC0415", "SIM105"]
 
 [tool.ruff.lint.per-file-ignores]
@@ -46,6 +46,6 @@ lint.ignore = ["E501", "F401", "F403", "F405", "ISC003", "PLC0415", "SIM105"]
 
 [tool.ruff.lint.isort]
 # Keep import sections stable in CI, which checkouts deps as sibling trees
-# (pygraphics/, pydevices-examples/, palettes/) that would otherwise become first-party.
+# (pygraphics/, gallery/, palettes/) that would otherwise become first-party.
 known-third-party = ["appdev", "pygraphics", "multimer", "palettes", "micropython", "png"]
 force-sort-within-sections = true

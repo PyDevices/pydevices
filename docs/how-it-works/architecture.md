@@ -2,7 +2,7 @@
 
 `pydevices` is the core product layer, owning portable hardware interfaces, driver abstractions, board wiring contracts, and releases.
 
-Applications build directly on the **PyDevices Board Contract** and core packages (`displaydev`, `audiodev`, `appdev`, `multimer`). Downstream showcases like `pydevices-examples` consume this layer as companion sample code.
+Applications build directly on the **PyDevices Board Contract** and core packages (`displaydev`, `audiodev`, `appdev`, `multimer`). Downstream showcases like `gallery` consume this layer as companion sample code.
 
 ## Component diagram
 
@@ -24,7 +24,7 @@ flowchart TB
     LR[display_driver - LVGL Coordinator]
   end
   subgraph showcase [Companion Showcase]
-    EX[pydevices-examples Gallery & Demos]
+    EX[gallery Gallery & Demos]
   end
 
   DR --> BC
@@ -96,4 +96,4 @@ hardware is configured.
 - [Board Config Inventory](../boards/board-configs.md) — supported MCU & desktop boards
 - [Display Drivers](../guides/displays.md) — display interfaces and backends
 - [multimer](../guides/timers.md) — portable timers and async support
-- [Companion Demos](https://pydevices.github.io/pydevices-examples/) — sample applications
+- [Companion Demos](https://pydevices.github.io/gallery/) — sample applications

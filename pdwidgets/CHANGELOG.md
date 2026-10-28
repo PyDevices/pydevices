@@ -8,7 +8,7 @@
 
 ## v0.0.24 (2026-09-24)
 
-- Smoke test: skip scripts that need a sibling pydevices-examples checkout
+- Smoke test: skip scripts that need a sibling gallery checkout
 - Docs: current releases are on TestPyPI; PyPI holds an older release parked to reserve the name (#28)
 - docs: add pdwidgets newcomer guide (#27)
 - README: a CircuitPython freeze can carry pdwidgets; no aggregator named

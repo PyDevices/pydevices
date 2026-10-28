@@ -7,7 +7,7 @@ board_peripherals directly.
 ``audio_out()`` is CircuitPython's own ``audiobusio.I2SOut`` on the BFF's pins
 (BCLK A3, LRCLK A2, DATA A1). The BFF's MAX98357A amplifier takes its clock
 from BCLK, so any sample rate plays; it averages left and right in hardware.
-Heard working: pydevices-examples' audio_arpeggio.py, with an audiodsp
+Heard working: gallery's audio_arpeggio.py, with an audiodsp
 Biquad in the graph.
 """
 

@@ -213,7 +213,7 @@ See [App and board config](write-an-application.md), [Architecture](../how-it-wo
 
 - [multimer](timers.md) — timers and async main loops
 - [Displays](displays.md) — how backends feed the app
-- [Example applications](https://github.com/PyDevices/pydevices-examples/tree/main/lib/examples)
+- [Example applications](https://github.com/PyDevices/gallery/tree/main/lib/examples)
 
 ## API reference
 

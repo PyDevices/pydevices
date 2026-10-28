@@ -159,7 +159,7 @@ Verify with the real interpreters rather than by inspection — CPython accepts
 everything above:
 
 ```bash
-cd pydevices-examples/lib
+cd gallery/lib
 for rt in micropython micropython.exe circuitpython; do $rt examples/audio_out_test.py; done
 ```
 

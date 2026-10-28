@@ -1,6 +1,6 @@
 # Display backend internals
 
-This document explains how pydevices-examples **display drivers** relate to each other: the
+This document explains how gallery **display drivers** relate to each other: the
 shared **565 API contract**, the **two-stage draw/present** model used by desktop
 and browser simulators, **color conversion** strategies, and why each backend
 chose its implementation pattern.
@@ -83,7 +83,7 @@ Five simulators — **SDLDisplay**, **PGDisplay**, **WinDisplay**, **PSDisplay**
 
 Scroll emulation **requires** this split: you cannot draw directly on the window
 and still implement `vscroll` / `set_vscroll` correctly. See
-[pydevices_demo](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/pydevices_demo.py) for the redraw-at-`vscroll=0`
+[pydevices_demo](https://github.com/PyDevices/gallery/blob/main/lib/examples/pydevices_demo.py) for the redraw-at-`vscroll=0`
 rule.
 
 **PixelDisplay** is different: there is no ILI9341 scroll model. Drawing updates
@@ -244,6 +244,6 @@ Internal buffer format may remain 565 (SDL), RGB (JN), RGBA (PS), or RGB888
 ## Related reading
 
 - [Displays](../guides/displays.md) — pick a driver, input, scroll overview
-- [`pydevices_demo.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/pydevices_demo.py) — scroll bands and redraw rules
+- [`pydevices_demo.py`](https://github.com/PyDevices/gallery/blob/main/lib/examples/pydevices_demo.py) — scroll bands and redraw rules
 - [Architecture](architecture.md) — how `board_config` wires drivers
 - [`tests/test_color.py`](https://github.com/PyDevices/pydevices/blob/main/tests/test_color.py) — `color_rgb` / `color565` contract tests

@@ -62,4 +62,4 @@ because a lambda looks the name up when it runs, not when it's made.
 The buttons sit at fixed pixel positions on a 320-pixel-wide panel. To fit
 other sizes, place them with a [Grid](lay-out-widgets.md) or percentage widths.
 For a calculator with raised, shaded keys, see the `calc_widgets` example in
-[pydevices-examples](https://pydevices.github.io/pydevices-examples/pyscript/).
+[gallery](https://pydevices.github.io/gallery/pyscript/).

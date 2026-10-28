@@ -80,10 +80,10 @@ def _find_script(workspace: Path, target: str) -> Path | None:
         Path.cwd() / f"{target}.py",
         Path.cwd() / target / f"{target}.py",
         Path.cwd() / target / "__init__.py",
-        workspace / "pydevices-examples" / "lib" / "examples" / f"{target}.py",
-        workspace / "pydevices-examples" / "lib" / "examples" / target / f"{target}.py",
-        workspace / "pydevices-examples" / "lib" / "examples" / target / "__init__.py",
-        workspace / "pydevices-examples" / "lib" / "utils" / f"{target}.py",
+        workspace / "gallery" / "lib" / "examples" / f"{target}.py",
+        workspace / "gallery" / "lib" / "examples" / target / f"{target}.py",
+        workspace / "gallery" / "lib" / "examples" / target / "__init__.py",
+        workspace / "gallery" / "lib" / "utils" / f"{target}.py",
     )
     return next((path for path in candidates if path.is_file()), None)
 

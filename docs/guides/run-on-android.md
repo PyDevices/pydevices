@@ -40,13 +40,13 @@ To run an example on your phone, you need USB debugging on, and `adb` and
 `python3` on your computer. `android.py` is a single file with no
 dependencies, so download it rather than cloning this repo. The examples come
 from a clone of
-[pydevices-examples](https://github.com/PyDevices/pydevices-examples). No venv
+[gallery](https://github.com/PyDevices/gallery). No venv
 is needed.
 
 ```bash
 curl -LO https://raw.githubusercontent.com/PyDevices/pydevices/main/bin/android.py
-git clone https://github.com/PyDevices/pydevices-examples
-cd pydevices-examples/lib
+git clone https://github.com/PyDevices/gallery
+cd gallery/lib
 python3 ../../android.py --install-apk   # once: downloads and installs the Runner
 python3 ../../android.py examples/piano.py
 ```

@@ -26,10 +26,10 @@ class MipPortableTests(unittest.TestCase):
         )
 
     def test_rewrite_github_default_branch_head(self):
-        url = mip._rewrite_url("github:PyDevices/pydevices-examples/packages/x.json")
+        url = mip._rewrite_url("github:PyDevices/gallery/packages/x.json")
         self.assertEqual(
             url,
-            "https://raw.githubusercontent.com/PyDevices/pydevices-examples/HEAD/packages/x.json",
+            "https://raw.githubusercontent.com/PyDevices/gallery/HEAD/packages/x.json",
         )
 
     def test_install_local_package_json(self):
@@ -121,7 +121,7 @@ class MipPortableTests(unittest.TestCase):
             dest = Path(tmp) / "utils"
             with mock.patch.object(mip, "_http_get", side_effect=fake_get):
                 mip.install(
-                    "github:PyDevices/pydevices-examples/packages/micropython-nano-gui.json",
+                    "github:PyDevices/gallery/packages/micropython-nano-gui.json",
                     target=str(dest),
                     mpy=False,
                 )

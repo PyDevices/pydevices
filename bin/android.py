@@ -640,7 +640,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, default=STDIO_PORT_DEFAULT, help=f"stdio sidecar port (default: {STDIO_PORT_DEFAULT})")
     parser.add_argument("--kit", action="store_true", help="run the entry in example_test_kit mode (run_argv=kit; stages quit_inject.py)")
     parser.add_argument("--modules", help="comma-separated example modules or packages to stage beside the entry (looked up beside the entry, then in lib/examples)")
-    parser.add_argument("--manifests", help="comma-separated pydevices-examples packages/*.json manifests to stage")
+    parser.add_argument("--manifests", help="comma-separated gallery packages/*.json manifests to stage")
     parser.add_argument("--deps", help="comma-separated pure-Python packages to stage for an app that needs more than the APK bakes in (from this computer's Python if installed, else the PyDevices MIP index)")
     parser.add_argument("--index", default=None, help=f"MIP index --deps fetches from (default: $PYDEVICES_MIP_INDEX or {MIP_INDEX_DEFAULT})")
 
@@ -651,16 +651,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def _examples_roots() -> List[pathlib.Path]:
-    """Candidate pydevices-examples checkouts, most explicit first."""
+    """Candidate gallery checkouts, most explicit first."""
     env = os.environ.get("PYDEVICES_EXAMPLES_ROOT")
     roots = [pathlib.Path(env)] if env else []
     here = pathlib.Path(__file__).resolve()
-    roots.append(here.parent.parent.parent / "pydevices-examples")
+    roots.append(here.parent.parent.parent / "gallery")
     return roots
 
 
 def _find_in_examples(*parts: str) -> Optional[pathlib.Path]:
-    """First existing pydevices-examples file at the given relative path."""
+    """First existing gallery file at the given relative path."""
     for root in _examples_roots():
         candidate = root.joinpath(*parts)
         if candidate.is_file():
@@ -669,7 +669,7 @@ def _find_in_examples(*parts: str) -> Optional[pathlib.Path]:
 
 
 def _find_quit_inject() -> Optional[pathlib.Path]:
-    """Locate pydevices-examples/tools/quit_inject.py in a sibling checkout."""
+    """Locate tools/quit_inject.py in a sibling checkout (set PYDEVICES_EXAMPLES_ROOT to the archived pydevices-examples to find it)."""
     return _find_in_examples("tools", "quit_inject.py")
 
 
@@ -686,7 +686,7 @@ def _module_dirs(args) -> List[pathlib.Path]:
     The entry's own directory and its parent come first, so a multi-file
     example such as ``examples/drum_machine/drum_machine.py`` finds a sibling
     package like ``examples/drum_seq/`` from any checkout. The sibling
-    pydevices-examples checkout's ``lib/examples`` is the fallback.
+    gallery checkout's ``lib/examples`` is the fallback.
     """
     dirs = []
     script = getattr(args, "script", None)
@@ -971,7 +971,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         # example_test_kit mode: the entry reads run_argv == "kit" and switches to
         # a timed, self-quitting run. lv_test_timer's kit path imports quit_inject,
-        # so stage it beside the entry from a sibling pydevices-examples checkout.
+        # so stage it beside the entry from a sibling gallery checkout.
         if args.kit:
             adb.write_app_file(package_id, "run_argv", "kit")
             quit_inject = _find_quit_inject()

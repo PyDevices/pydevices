@@ -177,4 +177,4 @@ def browser_url(
         files=files,
         command=command,
     )
-    return f"{base_url.rstrip('/')}/pydevices-examples/{section}/{shell}{suffix}"
+    return f"{base_url.rstrip('/')}/gallery/{section}/{shell}{suffix}"

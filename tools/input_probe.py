@@ -422,7 +422,7 @@ def main(argv=None):
     if "--selftest" in argv:
         return run_selftest()
     if "--lvgl" in argv:
-        print("--lvgl moved to pydevices-examples/tools/lvgl_input_probe.py")
+        print("--lvgl moved to tools/lvgl_input_probe.py in the archived pydevices-examples repo")
         return 2
     run_interactive()
     return 0

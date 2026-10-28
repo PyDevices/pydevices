@@ -136,7 +136,7 @@ non-LVGL apps alike, and `PYDEVICES_FPS_PRINT` prints it
 
 ## Verifying an integration
 
-[`lv_test_timer.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/lv_test_timer.py)
+[`lv_test_timer.py`](https://github.com/PyDevices/gallery/blob/main/lib/examples/lv_test_timer.py)
 is a single smoke test. Its UI reports the
 autodetected interpreter, OS, display driver class, screen, timer backend, and
 LVGL version, plus a seconds counter, spinning arc, frame rate, and tap button.

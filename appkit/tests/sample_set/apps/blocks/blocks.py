@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""A plain script, shaped like pydevices-examples' testris: it builds its own
+"""A plain script, shaped like gallery's testris: it builds its own
 App when imported and plays on a timer after its body ends, then quits."""
 
 import os

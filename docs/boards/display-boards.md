@@ -218,8 +218,8 @@ variant (`C6_WIFI`).
   sck/mosi/miso on **rp2** (`extra keyword arguments given`); pin kwargs are
   ESP-only. Same guard in Python [`drivers/bus/spibus.py`](https://github.com/PyDevices/pydevices/blob/main/drivers/bus/spibus.py).
 - **Demos:** LVGL/`lv_test_timer` is too RAM-heavy on this board. Prefer
-  [`lib/examples/simon.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/simon.py) (MP graphics + appdev) or
-  [`lib/examples/circuitpython/simon_waveshare_rp2040_touch_lcd_1_28.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/circuitpython/simon_waveshare_rp2040_touch_lcd_1_28.py)
+  [`lib/examples/simon.py`](https://github.com/PyDevices/gallery/blob/main/lib/examples/simon.py) (MP graphics + appdev) or
+  [`lib/examples/circuitpython/simon_waveshare_rp2040_touch_lcd_1_28.py`](https://github.com/PyDevices/gallery/blob/main/lib/examples/circuitpython/simon_waveshare_rp2040_touch_lcd_1_28.py)
   (standalone CP). Soft-reset / USB attach after heavy SPI init can wedge
   CDC — prefer cold boot / power cycle for recovery; keep `boot.py`
   USB-settle + try/except if auto-launching Simon.
@@ -290,7 +290,7 @@ variant (`C6_WIFI`).
 - **Firmware:** custom `NUCLEO_H743ZI2` with **displayif** (stm32 port: spibus
   + notimpl stubs), **graphics**, **lvgl** (`lvgl-micropython`). Flash via
   ST-Link MSD (`NOD_H743ZI2` / `firmware.bin`).
-- **Demos verified:** RGB stripes; [`simon.py`](https://github.com/PyDevices/pydevices-examples/blob/main/lib/examples/simon.py) (graphics + appdev); headless
+- **Demos verified:** RGB stripes; [`simon.py`](https://github.com/PyDevices/gallery/blob/main/lib/examples/simon.py) (graphics + appdev); headless
   [`lvgl-bindings/tools/test_lvgl_smoke.py`](https://github.com/PyDevices/lvgl-bindings/blob/main/tools/test_lvgl_smoke.py); `lvgl_test.py` (tap-count button on real
   panel via `display_driver`). **`main.py`** boots `lvgl_test.py`.
 - **Setup:** copy over serial the board_config + `displaydev/{__init__,busdisplay}.py` +
