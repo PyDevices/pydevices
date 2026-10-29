@@ -238,6 +238,15 @@ def jpeg_of(width, height):
     return jpegio.JpegEncoder(quality=90).encode(pixels, width, height)
 
 
+try:
+    import PIL  # noqa: F401  (jpegio on CPython decodes with Pillow)
+
+    HAVE_PILLOW = True
+except ImportError:
+    HAVE_PILLOW = False
+
+
+@unittest.skipUnless(HAVE_PILLOW, "jpegio on CPython needs Pillow")
 class TheScreen(unittest.TestCase):
     def test_a_small_picture_is_centred(self):
         display = Display(320, 240)
@@ -253,7 +262,6 @@ class TheScreen(unittest.TestCase):
         screen = medialink.Screen(display)
         self.assertEqual(screen.show(jpeg_of(640, 480)), (320, 240))
         self.assertEqual(screen.show(jpeg_of(1280, 400)), (320, 100))
-
 
     def test_a_picture_it_cannot_read_is_counted_not_raised(self):
         display = Display(320, 240)
