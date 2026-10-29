@@ -1,13 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+"""Load the settings the write examples share.
+
+Reads ``write_examples.json`` from this folder and checks that write examples are turned on. The write examples import it; it isn't run on its own.
+
+Needs: CPython, and ``examples/write_examples.json``, copied from ``examples/write_examples.json.example``.
+"""
+
 import os
 
 from sayso import SpotifyConfigError, config_value
 
 
+# Where the settings file lives: beside this file.
 EXAMPLES_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_WRITE_EXAMPLES_PATH = os.path.join(EXAMPLES_DIR, "write_examples.json")
 
 
 def load_write_examples_config(path=None):
+    """Return the settings from write_examples.json as a dict."""
     config_path = path or DEFAULT_WRITE_EXAMPLES_PATH
 
     try:
@@ -30,12 +42,14 @@ def load_write_examples_config(path=None):
 
 
 def write_examples_enabled(config=None, path=None):
+    """Say whether write examples are turned on."""
     if config is None:
         config = load_write_examples_config(path)
     return bool(config.get("allow_write_examples"))
 
 
 def require_write_examples(config=None, path=None):
+    """Stop with an error unless write examples are turned on."""
     if config is None:
         config = load_write_examples_config(path)
 
