@@ -52,6 +52,15 @@ Transports are swappable and neither side knows which carries it:
 | Wi-Fi, a browser (same port: HTTP page, WebSocket at `/ws`) | `tcp.serve(9000, page=...)` | the page |
 | In-process (the device's own screen; tests) | `local.serve()` | `local.connect(listener)` |
 | A UART or USB CDC | `stream.link(uart)` | `stream.link(uart)` |
+| Wi-Fi, OSC over UDP (a phone's OSC controller app, TouchOSC) | `osc.serve(8000)` | the app |
+
+With OSC, the controller app needs no code from you. Point it at the
+board's address and port 8000, and each control's message becomes an op on
+the path it names: a fader that sends `/synth/cutoff 0.5` sets the
+document's `/synth/cutoff`. An app with fixed addresses maps them with
+`osc.serve(8000, routes={"/1/fader1": "/synth/cutoff"})`. The board sends
+every change back, so a fader moved on another panel moves on the phone
+too. [`hmilink/osc.py`](hmilink/osc.py)'s docstring has the rest.
 
 Runs on MicroPython, CircuitPython and CPython, with no threads and no
 asyncio. [`hmilink/tests/run.py`](tests/run.py) runs on all three (CircuitPython has no
