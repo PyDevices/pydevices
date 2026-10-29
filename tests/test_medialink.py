@@ -433,6 +433,101 @@ class PressToTalk(unittest.TestCase):
         self.assertEqual(len(heard), len(speech))
 
 
+class OnePort:
+    """A board's I2S port: a speaker and a microphone on it, one at a time."""
+
+    def __init__(self):
+        self.holder = None
+
+    def take(self, who):
+        if self.holder not in (None, who):
+            raise OSError("I2S(0) is in use by the %s" % self.holder)
+        self.holder = who
+
+    def give(self, who):
+        if self.holder == who:
+            self.holder = None
+
+
+class PortMic(FakeMic):
+    def __init__(self, fmt, pcm, port):
+        super().__init__(fmt, pcm)
+        self.port = port
+
+    def open(self):
+        self.port.take("microphone")
+        super().open()
+
+    def close(self):
+        self.port.give("microphone")
+
+
+class PortSpeaker(FakeSpeaker):
+    def __init__(self, fmt, port):
+        super().__init__(fmt)
+        self.port = port
+        self.is_open = False
+
+    def try_write(self, data):
+        self.port.take("speaker")
+        self.is_open = True
+        return super().try_write(data)
+
+    def close(self):
+        self.port.give("speaker")
+        self.is_open = False
+
+
+class SharedPort(unittest.TestCase):
+    """A board whose speaker and microphone share one I2S port."""
+
+    def test_it_answers_after_it_has_listened(self):
+        fmt = Format(16000, 1)
+        speech = tone(16000 // 4)
+        network, a, b = pair()
+        port = OnePort()
+        speaker = PortSpeaker(fmt, port)
+        talker = medialink.Intercom(a, FakeMic(fmt, speech), FakeSpeaker(fmt))
+        board = medialink.Intercom(b, PortMic(fmt, speech, port), speaker, prebuffer=2)
+        serve = Serve(b)
+        a.connect("b")
+        self.assertTrue(talker.press())
+        serve.stop()
+        while talker.mic.at < len(speech):
+            talker.service()
+            board.service()
+        talker.release()
+        for _ in range(5):
+            board.service()
+        self.assertTrue(speaker.got)
+        self.assertEqual(port.holder, "speaker")
+        serve = Serve(a)
+        try:
+            self.assertTrue(board.press())
+        finally:
+            serve.stop()
+        self.assertEqual(port.holder, "microphone")
+        self.assertEqual(b.floor, medialink.TALKING)
+
+    def test_a_microphone_that_will_not_open_gives_the_floor_back(self):
+        fmt = Format(16000, 1)
+        network, a, b = pair()
+        port = OnePort()
+        port.take("someone else")
+        board = medialink.Intercom(a, PortMic(fmt, b"", port), FakeSpeaker(fmt))
+        serve = Serve(b)
+        try:
+            a.connect("b")
+            with self.assertRaises(OSError):
+                board.press()
+            self.assertFalse(board.talking)
+            self.assertEqual(a.floor, medialink.IDLE)
+            time.sleep(0.05)
+            self.assertEqual(b.floor, medialink.IDLE)
+        finally:
+            serve.stop()
+
+
 class OverUDP(unittest.TestCase):
     def test_hello_and_a_frame_on_localhost(self):
         a = medialink.Link(UDPTransport(0))
