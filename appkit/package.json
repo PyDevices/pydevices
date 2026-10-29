@@ -1,0 +1,47 @@
+{
+  "urls": [
+    [
+      "appkit/__init__.py",
+      "github:PyDevices/pydevices/appkit/lib/appkit/__init__.py"
+    ],
+    [
+      "appkit/data.py",
+      "github:PyDevices/pydevices/appkit/lib/appkit/data.py"
+    ],
+    [
+      "appkit/foreground.py",
+      "github:PyDevices/pydevices/appkit/lib/appkit/foreground.py"
+    ],
+    [
+      "appkit/home.py",
+      "github:PyDevices/pydevices/appkit/lib/appkit/home.py"
+    ],
+    [
+      "appkit/index.py",
+      "github:PyDevices/pydevices/appkit/lib/appkit/index.py"
+    ],
+    [
+      "appkit/launcher.py",
+      "github:PyDevices/pydevices/appkit/lib/appkit/launcher.py"
+    ],
+    [
+      "appkit/scope.py",
+      "github:PyDevices/pydevices/appkit/lib/appkit/scope.py"
+    ],
+    [
+      "appkit/shell.py",
+      "github:PyDevices/pydevices/appkit/lib/appkit/shell.py"
+    ],
+    [
+      "appkit/worker.py",
+      "github:PyDevices/pydevices/appkit/lib/appkit/worker.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1.0"
+}
