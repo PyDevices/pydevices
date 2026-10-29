@@ -218,6 +218,11 @@ import board
 board.DISPLAY.root_group = None  # or a displayio.Group of your own
 ```
 
+A board config that paints the screen already does this: it shows its own
+group in place of the console. `displayio.release_displays()` takes the
+console off too, but it also releases the screen the firmware set up, so
+use it only when the program doesn't draw.
+
 `intercom.stats` says what came of it:
 `latency_ms` is from the far microphone to this speaker, and `underruns`
 counts the times the speaker ran dry in the middle of a turn.
