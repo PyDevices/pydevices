@@ -6,6 +6,8 @@
 Reads ``write_examples.json`` from this folder and checks that write examples are turned on. The write examples import it; it isn't run on its own.
 
 Needs: CPython, and ``examples/write_examples.json``, copied from ``examples/write_examples.json.example``.
+
+Tested on: CPython 3.12.3 on Linux (WSL2).
 """
 
 import os
