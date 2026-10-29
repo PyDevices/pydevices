@@ -8,6 +8,9 @@
     },
     "bledev": {
       "description": "Portable async Bluetooth Low Energy for PyDevices, over aioble on boards"
+    },
+    "medialink": {
+      "description": "Live audio and video between boards and computers: a walkie-talkie, an intercom, a baby monitor"
     }
   },
   "folders": {

@@ -26,6 +26,7 @@ guides/usb
 guides/bluetooth-le
 guides/wifi
 guides/mdns
+guides/medialink
 guides/lvgl
 guides/run-on-the-desktop
 guides/run-in-the-browser
