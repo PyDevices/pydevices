@@ -12,6 +12,8 @@ Run it from the project root:
     python examples/authorization_code_pkce_url.py
 
 Next, put the redirect URL and the code verifier in ``sayso.local.json`` and run ``authorization_code_pkce_exchange.py``.
+
+Tested on: CPython 3.12.3 on Linux (WSL2).
 """
 
 from _bootstrap import bootstrap

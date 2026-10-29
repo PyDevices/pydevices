@@ -12,6 +12,8 @@ Run it from the project root:
     python examples/authorization_code_url.py
 
 Next, put the redirect URL in ``sayso.local.json`` as ``callback_url`` and run ``authorization_code_exchange.py``.
+
+Tested on: CPython 3.12.3 on Linux (WSL2).
 """
 
 from _bootstrap import bootstrap

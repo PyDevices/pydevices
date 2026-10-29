@@ -10,6 +10,8 @@ Needs: CPython and a ``sayso.local.json`` in the project root with your Spotify 
 Run it from the project root:
 
     python examples/refresh_token_queue.py
+
+Tested on: CPython 3.12.3 on Linux (WSL2).
 """
 
 from _bootstrap import bootstrap
