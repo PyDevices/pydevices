@@ -9,9 +9,11 @@ The microphone is any ``audiodev.PCMInput`` (``readinto``) and the speaker
 any ``audiodev.PCMOutput`` (``try_write``), so ``boarddev.pcm_in()`` and
 ``boarddev.pcm_out()`` work on a board and on a computer alike. Both are
 signed 16-bit at one format. A side that only talks or only listens passes
-None for the other. The microphone is open only while talking,
-and ``press()`` closes the speaker before it opens the microphone, which is
-what a board whose input and output share one I2S bus needs.
+None for the other. The microphone is open only while talking, and the
+speaker only while the peer's turn plays: it closes once the turn has played
+out, and ``press()`` closes it too before it opens the microphone. A board
+whose input and output share one I2S bus needs that, and so does a board
+whose Wi-Fi sends badly while its I2S runs.
 
 Playback waits for ``prebuffer`` frames at the start of each talk spurt
 before it writes, which is what absorbs the network's jitter. The default,
@@ -23,6 +25,7 @@ speaker as best the clocks allow.
 """
 
 from medialink import codec as _codec
+from medialink._compat import ticks_add, ticks_diff, ticks_ms
 from medialink import packet as _p
 from medialink.link import LISTENING, TALKING
 
@@ -49,6 +52,9 @@ class Intercom:
         self._spurt = False
         self._waiting = []
         self._pending = b""
+        self._playing = False
+        self._padded = False
+        self._ending = None
         self._byte_rate = fmt.rate * fmt.channels * 2
         self.stats = {
             "sent": 0, "played": 0, "underruns": 0, "spurts": 0,
@@ -77,6 +83,9 @@ class Intercom:
         self._spurt = False
         if self.speaker is not None and getattr(self.speaker, "is_open", True):
             self.speaker.close()
+        self._playing = False
+        self._padded = False
+        self._ending = None
         try:
             self.mic.open()
         except Exception:
@@ -149,6 +158,29 @@ class Intercom:
         if self._spurt == "playing" and self.link.floor != LISTENING:
             # The talker went quiet without an end mark: the floor timed out.
             self._spurt = False
+        if self._spurt:
+            self._padded = False
+            self._ending = None
+        elif self._playing:
+            self._let_go_when_played()
+
+    def _let_go_when_played(self):
+        """Close the speaker once the turn that just ended has played out."""
+        if not self._padded:
+            # A speaker may hold back its last part-filled block until more
+            # comes, so a tenth of a second of silence carries the turn out.
+            self._pending += bytes(self._byte_rate // 10 // 4 * 4)
+            self._padded = True
+            self._drain()
+        elif not self._pending:
+            now = ticks_ms()
+            if self._ending is None:
+                self._ending = ticks_add(now, self._queued_ms() + 20)
+            elif ticks_diff(now, self._ending) >= 0:
+                self.speaker.close()
+                self._playing = False
+                self._padded = False
+                self._ending = None
 
     def _flush(self):
         for pcm, age in self._waiting:
@@ -176,6 +208,7 @@ class Intercom:
         if self._pending and self.speaker is not None:
             took = self.speaker.try_write(self._pending)
             self._pending = self._pending[took:]
+            self._playing = True
 
     def _queued_ms(self):
         queued = getattr(self.speaker, "queued_size", None)
