@@ -644,6 +644,96 @@ async def repl_login_wrong_password(air):
     expect(repl._check_password(b"hunter22", b"hunter22"), "equal")
 
 
+class _StubRadio:
+    """The calls bledev.repl's server makes on bluetooth.BLE, recorded."""
+
+    def __init__(self):
+        self.paired = []
+        self.notified = []
+
+    def gap_pair(self, conn):
+        self.paired.append(conn)
+
+    def gatts_notify(self, conn, handle, data):
+        self.notified.append(bytes(data))
+
+    def said(self):
+        return b"".join(self.notified)
+
+    def gap_disconnect(self, conn):
+        pass
+
+    def gap_advertise(self, *args, **kwargs):
+        pass
+
+
+def _repl_server(password, pairing):
+    import time
+
+    from bledev import security
+
+    if not hasattr(time, "ticks_ms"):  # CPython: the server's clock calls
+        time.ticks_ms = lambda: int(time.monotonic() * 1000)
+        time.ticks_add = lambda t, d: t + d
+        time.ticks_diff = lambda a, b: a - b
+    server = repl._Server(password, "mpy-repl", 100000, 0, pairing=pairing)
+    server.ble = _StubRadio()
+    server.running = True
+    server.tx_handle = 1
+    server.adv = (b"", b"")
+    # os.dupterm is MicroPython's; what matters here is that the REPL opens.
+    server._attach = lambda: setattr(server, "authed", True)
+    server.feed_repl = lambda data: None
+    return server, security
+
+
+@check
+async def repl_pairing_asks_and_greets(air):
+    # A host that writes without response (Chrome on Android) never sees a
+    # refusal, so the board must ask for pairing itself, and show the
+    # prompt once it settles: the host's first line was dropped meanwhile.
+    server, security = _repl_server(None, "passkey")
+    try:
+        server.on_connect(7)
+        equal(server.ble.paired, [7], "the board asked the host to pair")
+        server.on_write(7, b"\r")
+        equal(server.ble.said(), b"", "nothing answers an unpaired write")
+        security._links[7] = (True, True, True, 16)
+        server.on_security(7, True, True, True, 16)
+        server.on_security(7, True, True, True, 16)
+        equal(server.ble.said(), repl.BANNER, "one prompt once paired")
+        server.on_write(7, b"\r")
+        expect(server.authed, "the next line opens the REPL")
+    finally:
+        security._links.pop(7, None)
+
+
+@check
+async def repl_bonded_host_asked_to_encrypt(air):
+    server, security = _repl_server("hunter22", "justworks")
+    try:
+        server.on_connect(3)
+        equal(server.ble.paired, [3], "a host is asked for security at once")
+        security._links[3] = (True, False, True, 16)
+        server.on_security(3, True, False, True, 16)
+        equal(server.ble.said(), repl.PROMPT, "a password board asks for it once encrypted")
+        server.ble.paired = []
+        server.on_disconnect(3)
+        server.on_connect(4)
+        server.on_connect(5)
+        equal(server.ble.paired, [4], "a second host is turned away, not asked to pair")
+    finally:
+        security._links.pop(3, None)
+
+
+@check
+async def repl_without_pairing_asks_nothing(air):
+    server, _security = _repl_server("hunter22", None)
+    server.on_connect(2)
+    equal(server.ble.paired, [], "no pairing request without pairing=")
+    equal(server.ble.said(), repl.PROMPT, "the password prompt, at once")
+
+
 # ---------------------------------------------------------------- improv
 
 
