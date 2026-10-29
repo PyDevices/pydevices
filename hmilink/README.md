@@ -40,8 +40,9 @@ lossy telemetry; commands and events; and a self-description that says
 what the document holds, never how to lay it out.
 
 Every panel ends up with the device's order. A panel that gets an op out of
-order, or whose own early edit to a list crossed another panel's, asks for
-the whole document again rather than guess (`panel.stats["resyncs"]`).
+order, or whose early edit to a list (or to an item in one, by index) crossed
+another panel's, asks for the whole document again rather than guess
+(`panel.stats["resyncs"]`).
 
 [`examples/hmilink_simpletest.py`](examples/hmilink_simpletest.py) runs a device and two panels in one program.
 [`hmilink_device_simpletest.py`](examples/hmilink_device_simpletest.py) and
