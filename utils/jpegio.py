@@ -57,7 +57,7 @@ class JpegDecoder:
             raise RuntimeError("height needs a successful open()")
         return self._size[1]
 
-    def open(self, source, /):
+    def open(self, source):
         """``source``: bytes-like, a path, or a binary stream. Returns (width, height)."""
         self._image = None
         self._size = None
