@@ -1,3 +1,7 @@
+## v0.7.8 (2026-10-29)
+
+- sayso: examples in the house style (docstrings and comments only) (#313)
+
 ## v0.7.8rc1 (2026-10-29)
 
 - pdwidgets png_test: find the gallery beside the pydevices clone (#311)
