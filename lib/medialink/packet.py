@@ -41,6 +41,7 @@ HELLO = 1
 BYE = 2
 TAKE = 3
 RELEASE = 4
+EVENT = 5
 
 # ping subs
 PING_ASK = 0

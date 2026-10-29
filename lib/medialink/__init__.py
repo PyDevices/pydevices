@@ -35,6 +35,7 @@ from medialink.intercom import Intercom
 from medialink.link import IDLE, LISTENING, TALKING, FLOOR_NAMES, Frame, Link, PeerUnreachable
 from medialink.transport import Transport, UDPTransport
 from medialink.video import JPEG, FileCamera, Screen, Video
+from medialink.voice import VoiceActivity
 
 __version__ = "0.1.0"
 
@@ -58,6 +59,7 @@ __all__ = [
     "Transport",
     "UDPTransport",
     "Video",
+    "VoiceActivity",
     "choose",
     "sleep_ms",
     "ticks_add",
