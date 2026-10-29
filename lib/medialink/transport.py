@@ -20,7 +20,8 @@ import sys
 from medialink._compat import sleep_ms, socket_pool
 
 # A send refused while the network stack is short of buffers: EAGAIN,
-# ENOMEM, ENOBUFS, and EPIPE, which CircuitPython raises for any failed send.
+# ENOMEM, ENOBUFS, and EPIPE, which CircuitPython's sendto raises for any
+# failed send (the stack's own error is ENOMEM).
 _BUSY = (11, 12, 32, 105)
 
 

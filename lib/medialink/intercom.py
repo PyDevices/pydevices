@@ -3,7 +3,9 @@
 :class:`Intercom` joins a microphone and a speaker to a link. ``press()``
 takes the floor and starts sending what the microphone hears; ``release()``
 stops and hands the floor back. While the peer talks, what it sends plays.
-Call ``service()`` from the app's loop, as often as it can run.
+Call ``service()`` from the app's loop, as often as it can run. While
+talking it waits a millisecond when the microphone has nothing yet, so the
+loop never spins.
 
 The microphone is any ``audiodev.PCMInput`` (``readinto``) and the speaker
 any ``audiodev.PCMOutput`` (``try_write``), so ``boarddev.pcm_in()`` and
@@ -37,7 +39,7 @@ listener): pass None.
 """
 
 from medialink import codec as _codec
-from medialink._compat import ticks_add, ticks_diff, ticks_ms
+from medialink._compat import sleep_ms, ticks_add, ticks_diff, ticks_ms
 from medialink import packet as _p
 from medialink.link import IDLE, LISTENING, TALKING, PeerUnreachable
 
@@ -147,7 +149,12 @@ class Intercom:
     def service(self):
         """Move one step: capture and send while talking, play while not."""
         if self._talking:
-            self._capture_step()
+            if not self._capture_step():
+                # Nothing from the microphone yet: wait a moment for it
+                # rather than spin. On CircuitPython a loop that never
+                # sleeps starves the network, and a send fails with ENOMEM
+                # (raised as EPIPE) about one time in ten.
+                sleep_ms(1)
             self.link.poll()
             if self._talking and self.link.floor != TALKING:
                 # The floor was lost under us (the peer took it back after a
@@ -211,9 +218,13 @@ class Intercom:
             self._first = False
 
     def _capture_step(self):
+        """Read the microphone, and send a frame once one is full. False
+        when the microphone had nothing."""
         view = memoryview(self._capture)
         count = self.mic.readinto(view[self._filled:])
         self._filled += count
+        if not count:
+            return False
         if self._filled >= self.frame_bytes:
             self._send(view, _p.START if self._first else 0)
             self._first = False
@@ -224,6 +235,7 @@ class Intercom:
                 self._auto = False
                 self._send(b"", _p.END)
                 self.link.release_floor()
+        return True
 
     def _send(self, pcm, flags):
         if not len(pcm) and not flags:
