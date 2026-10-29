@@ -74,6 +74,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/medialink/packet.py" = "/lib/medialink/packet.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/medialink/transport.py" = "/lib/medialink/transport.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/medialink/video.py" = "/lib/medialink/video.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/medialink/voice.py" = "/lib/medialink/voice.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/micropython.py" = "/lib/micropython.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/mip.py" = "/lib/mip.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/multimer/__init__.py" = "/lib/multimer/__init__.py"

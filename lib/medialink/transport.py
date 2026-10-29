@@ -17,7 +17,11 @@ adds acknowledgement where it matters.
 
 import sys
 
-from medialink._compat import socket_pool
+from medialink._compat import sleep_ms, socket_pool
+
+# A send refused while the network stack is short of buffers: EAGAIN,
+# ENOMEM, ENOBUFS, and EPIPE, which CircuitPython raises for any failed send.
+_BUSY = (11, 12, 32, 105)
 
 
 class Transport:
@@ -142,7 +146,18 @@ class UDPTransport(Transport):
         return found
 
     def send(self, data, address):
-        self._sock.sendto(data, self._sockaddr(address))
+        sockaddr = self._sockaddr(address)
+        # A board's network stack runs short of buffers when frames go out
+        # back to back after a pause; a millisecond or two frees them.
+        for _ in range(3):
+            try:
+                self._sock.sendto(data, sockaddr)
+                return
+            except OSError as error:
+                if error.errno not in _BUSY:
+                    raise
+            sleep_ms(1)
+        self._sock.sendto(data, sockaddr)
 
     def recv_into(self, buf):
         try:

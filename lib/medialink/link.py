@@ -12,6 +12,9 @@ A :class:`Link` sits on a transport and does three things over it:
   message the peer doesn't acknowledge is sent again ``retries`` times, and
   then :class:`PeerUnreachable` is raised. ``retries`` defaults to 0, so a
   peer that isn't there fails the first send.
+* **Events**: ``send_event(data)`` hands the peer a few bytes, acknowledged
+  like any control message, and ``events()`` hands back what arrived. A
+  doorbell's ring is one.
 * **The floor**, for half duplex: one side talks at a time.
   ``request_floor()`` asks for it and says whether it was granted;
   ``release_floor()`` gives it back. When both sides ask at once, the one
@@ -105,6 +108,7 @@ class Link:
         self._pending_take = False
         self._inbox = {_p.AUDIO: [], _p.VIDEO: []}
         self._inbox_size = {_p.AUDIO: inbox, _p.VIDEO: video_inbox}
+        self._events = []
         self._buf = bytearray(transport.mtu + 64)
         # Media goes out through one buffer, so sending a frame allocates
         # nothing: a garbage collection mid-stream is an audible gap.
@@ -188,6 +192,27 @@ class Link:
             self._control(_p.RELEASE, retries=0)
         except PeerUnreachable:
             pass
+
+    # --- events ------------------------------------------------------------
+
+    def send_event(self, data, retries=None):
+        """Hand the peer a few bytes (a ``str`` is sent as UTF-8), and wait
+        for it to acknowledge them.
+
+        Raises :class:`PeerUnreachable` when the peer doesn't answer.
+        """
+        if isinstance(data, str):
+            data = data.encode()
+        if len(data) > self.transport.mtu - _p.HEADER_SIZE:
+            raise ValueError("an event must fit one datagram")
+        self._control(_p.EVENT, retries=retries, payload=data)
+
+    def events(self):
+        """The events that have arrived since the last call, oldest first, as bytes."""
+        self.poll()
+        events = self._events
+        self._events = []
+        return events
 
     # --- media -------------------------------------------------------------
 
@@ -307,7 +332,7 @@ class Link:
             self._media(kind, sub, flags, frag, frags, seq, stamp, payload, now)
         elif kind == _p.CONTROL:
             self._floor_heard = now
-            self._on_control(sub, seq, stamp)
+            self._on_control(sub, seq, stamp, payload)
         elif kind == _p.ACK:
             if seq == self._ctl_seq:
                 # An answer carries the peer's session token too.
@@ -389,7 +414,7 @@ class Link:
         part.seen = part.buf = part.tail = None
         return frame
 
-    def _on_control(self, op, seq, peer_token):
+    def _on_control(self, op, seq, peer_token, payload=b""):
         self._session(peer_token)
         result = 1
         fresh = seq != self._ctl_seen
@@ -403,6 +428,10 @@ class Link:
         elif fresh and op == _p.RELEASE:
             if self.floor == LISTENING:
                 self.floor = IDLE
+        elif fresh and op == _p.EVENT:
+            if len(self._events) >= self._inbox_size[_p.AUDIO]:
+                self._events.pop(0)
+            self._events.append(bytes(payload))
         elif fresh and op == _p.BYE:
             if self.floor == LISTENING:
                 self.floor = IDLE
@@ -427,13 +456,13 @@ class Link:
             peer_now = struct.unpack("<I", payload)[0]
             self._offset = ticks_diff(peer_now, ticks_add(stamp, rtt // 2))
 
-    def _control(self, op, retries=None):
+    def _control(self, op, retries=None, payload=b""):
         if self.peer is None:
             raise PeerUnreachable("no peer")
         if retries is None:
             retries = self.retries
         self._ctl_seq = (self._ctl_seq + 1) & 0xFFFF
-        data = _p.pack(_p.CONTROL, op, 0, 0, 1, self._ctl_seq, self.token)
+        data = _p.pack(_p.CONTROL, op, 0, 0, 1, self._ctl_seq, self.token, payload)
         for attempt in range(retries + 1):
             if attempt:
                 self.stats["retries"] += 1
