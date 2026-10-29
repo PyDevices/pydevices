@@ -22,9 +22,9 @@ the window that opens.
 Run it:
     mpremote run medialink_videophone.py
 
-Tested on: the unix port of MicroPython and CPython 3.12 on Linux, talking
-to each other, with folders of JPEG files for cameras, a test tone for the
-microphone and a scripted button.
+Tested on: two ESP32-P4 boards on MicroPython 1.30 preview over Wi-Fi, one
+with its MIPI-CSI camera and one with a folder of JPEG files; and the unix
+port of MicroPython and CPython 3.12 on Linux.
 """
 
 import boarddev
@@ -42,7 +42,7 @@ PORT = 47800
 BUTTON_PIN = None  # a board's button GPIO, pressed when low; None for the window
 PICTURES = None  # a folder of JPEG files to send in place of a camera
 FPS = 10  # pictures a second, at most
-SIZE = "VGA"  # a camera\'s picture size: "QVGA" is 320x240, "VGA" 640x480
+SIZE = "QVGA"  # a camera's picture size: "QVGA" is 320x240, "VGA" 640x480
 QUALITY = 60  # 1 to 100; lower is smaller and quicker to send
 RATE = 16000  # sound samples a second
 

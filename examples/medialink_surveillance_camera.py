@@ -23,9 +23,9 @@ already on Wi-Fi, or a computer with python-zeroconf.
 Run it:
     mpremote run medialink_surveillance_camera.py
 
-Tested on: the unix port of MicroPython and CPython 3.12 on Linux, talking
-to each other, with a folder of JPEG files for the camera, a test tone for
-the microphone, and an SDL window on the watching side.
+Tested on: two ESP32-P4 boards on MicroPython 1.30 preview over Wi-Fi, a
+folder of JPEG files for the camera; and the unix port of MicroPython and
+CPython 3.12 on Linux, with an SDL window on the watching side.
 """
 
 import boarddev
@@ -40,7 +40,7 @@ CAMERA_ADDRESS = None  # or ("192.168.1.20", PORT) to skip the search
 PORT = 47800
 PICTURES = None  # a folder of JPEG files to send in place of a camera
 FPS = 10  # pictures a second, at most
-SIZE = "VGA"  # a camera\'s picture size: "QVGA" is 320x240, "VGA" 640x480
+SIZE = "VGA"  # a camera's picture size: "QVGA" is 320x240, "VGA" 640x480
 QUALITY = 60  # 1 to 100; lower is smaller and quicker to send
 RATE = 16000  # sound samples a second
 

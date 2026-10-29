@@ -42,6 +42,8 @@ with each kind of peripheral described honestly by its role.
   on) and a doorbell intercom (both ways, half duplex).
 - Talk both ways at once on a videophone, on boards whose speaker and
   microphone share one I2S port: that needs a duplex I2S path.
+- Decode pictures beside the sound rather than in the same loop, so a
+  videophone keeps clean sound with 640x480 pictures both ways.
 - One camera watched from several screens at once; today the last watcher
   to connect gets the pictures.
 - Show progressive JPEGs on boards, whose firmware decoder reads only

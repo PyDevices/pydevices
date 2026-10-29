@@ -159,6 +159,12 @@ firmware reads baseline JPEGs with 4:4:4, 4:2:2 or 4:2:0 colour, which is
 what cameras make; a progressive JPEG from a photo editor is skipped there,
 and shows on CPython, where Pillow decodes it.
 
+Decoding a picture holds up the loop that also carries the sound. With
+pictures both ways on two ESP32-P4 boards, 320x240 pictures (27 ms each to
+decode and draw) left the sound clean, and 640x480 ones (83 ms) made it
+late and gappy, so a videophone wants `SIZE = "QVGA"`. One-way pictures,
+as from a camera you watch, take 640x480 with clean sound.
+
 The intercom takes only sound from the link and leaves pictures for the
 screen, and pictures alone don't keep the floor: a talker whose camera is
 still sending but who has gone quiet loses it as usual. One camera sends to
