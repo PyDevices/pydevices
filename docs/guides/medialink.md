@@ -55,6 +55,29 @@ address of the side that called. So a computer whose firewall refuses
 incoming connections can still be a peer, as long as it is the one that
 calls. When you know the address, skip discovery and `connect()` to it.
 
+### Without the house network: a hotspot
+
+Where the house Wi-Fi is weak or missing, two boards can make a network of
+their own. Swap `MDNS` for `Hotspot`, with a password both sides share:
+
+```python
+finder = medialink.Hotspot("a long password")
+finder.advertise("kitchen", 47800)
+for name, address in finder.find("garage"):
+    link.connect(address)
+```
+
+On the first `find()` the side whose name sorts first starts an access point
+named after itself; `find()` there returns nothing, because the other side
+calls it. The other side joins that access point and gets back the host's
+address. `Hotspot(..., host=True)` picks the host yourself, and `ssid=`
+names the network.
+
+Joining a hotspot takes a board off the network it was on. `finder.deinit()`
+takes the access point down, leaves the hotspot and rejoins the board's own
+network, the one in `secrets.py` on MicroPython or `settings.toml` on
+CircuitPython. It works on boards with Wi-Fi, not on a computer.
+
 ## When a peer isn't there
 
 `connect()`, `request_floor()` and `Intercom.press()` wait for the other
@@ -111,7 +134,8 @@ Three layers, so a new kind of link is a short file:
   (`Intercom`, `medialink.codec`).
 - **Transport**: open, send, receive, close, and the link's packet size and
   rough bandwidth (`medialink.Transport`). UDP over IP is the one built.
-- **Discovery**: a name in, an address out (`medialink.MDNS`).
+- **Discovery**: a name in, an address out (`medialink.MDNS`,
+  `medialink.Hotspot`).
 
 A `Link` joins a transport to one peer. Media frames go best effort; a
 frame bigger than one packet, a video frame say, is cut up and put back
