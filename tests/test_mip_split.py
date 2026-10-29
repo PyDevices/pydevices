@@ -13,6 +13,7 @@ name would never reach the index, and nothing would say so until a board
 tried to install it by name (#226).
 """
 
+import json
 import pathlib
 import re
 import tomllib
@@ -56,9 +57,12 @@ class TestTopLevelPackages(unittest.TestCase):
 
     def test_every_package_directory_is_listed(self):
         listed = set(top_level_sections(load_split()))
+        # A folder lib-lock.json publishes (appkit, say) reaches the index by
+        # its own versioned path, and needs no line in mip-split.toml.
+        folders = set(json.loads((ROOT / "lib-lock.json").read_text(encoding="utf-8")).get("folders", {}))
         on_disk = {path.parent.name for path in ROOT.glob("*/manifest.py") if (path.parent / "package.json").is_file()}
         self.assertEqual(
-            sorted(on_disk - listed),
+            sorted(on_disk - listed - folders),
             [],
             "these directories have a package.json and a manifest.py but are not in mip-split.toml, "
             "so mip.install(<name>, index=...) can't find them",
