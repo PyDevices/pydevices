@@ -167,7 +167,10 @@ class HandsFree(unittest.TestCase):
         intercom._listen_step()
         self.assertEqual(mic.opened, 0)  # the chime is still to play
         intercom.service()
-        self.assertEqual(bytes(heard.got), b"\x01\x00" * 800)
+        # The chime plays out with silence after it, like a turn.
+        got = bytes(heard.got)
+        self.assertEqual(got[:1600], b"\x01\x00" * 800)
+        self.assertEqual(got[1600:], bytes(len(got) - 1600))
         intercom.service()
         self.assertEqual(mic.opened, 1)
         intercom.close()
