@@ -209,5 +209,63 @@ class BLETest(unittest.TestCase):
             finder._task.result(1)
 
 
+class StaticRadio(FakeRadio):
+    """A station on a fixed address. Without DHCP it keeps that address
+    and gateway on whatever network it joins, so the host is never found."""
+
+    HOUSE = ("192.168.1.40", "255.255.255.0", "192.168.1.1", "192.168.1.1")
+
+    def __init__(self):
+        super().__init__()
+        self.ipv4_address = self.HOUSE[0]
+        self.ipv4_static = self.HOUSE
+
+    def start_dhcp(self):
+        self.calls.append(("start_dhcp",))
+        self.ipv4_static = None
+
+    def set_ipv4_address(self, *, ipv4, netmask, gateway, ipv4_dns=None):
+        self.calls.append(("set_ipv4_address", ipv4, netmask, gateway, ipv4_dns))
+        self.ipv4_static = (ipv4, netmask, gateway, ipv4_dns)
+
+    def connect(self, ssid, password="", *, timeout=None):
+        if self.ipv4_static is None:
+            return super().connect(ssid, password, timeout=timeout)
+        self.calls.append(("connect", ssid, password))
+        self.ipv4_address, _, self.ipv4_gateway, _ = self.ipv4_static
+
+
+class StaticAddressTest(unittest.TestCase):
+    tearDown = HotspotTest.tearDown
+
+    def setUp(self):
+        HotspotTest.setUp(self)
+        self.radio = StaticRadio()
+        sys.modules["wifi"].radio = self.radio
+
+    def test_a_board_on_a_fixed_address_joins(self):
+        finder = discovery.Hotspot("secret123")
+        finder.advertise("panel", 47800)
+        self.assertEqual(finder.find("kitchen"), [("kitchen", ("192.168.4.1", 47800))])
+        self.assertLess(self.radio.calls.index(("start_dhcp",)), self.radio.calls.index(("connect", "kitchen", "secret123")))
+
+    def test_leaving_puts_the_fixed_address_back_before_rejoining(self):
+        finder = discovery.Hotspot("secret123")
+        finder.advertise("panel", 47800)
+        finder.find("kitchen")
+        finder.deinit()
+        self.assertEqual(self.radio.calls[-1], ("set_ipv4_address",) + StaticRadio.HOUSE)
+        self.assertEqual(len(self.rejoined), 1)
+
+    def test_a_join_that_never_landed_still_puts_it_back(self):
+        finder = discovery.Hotspot("secret123")
+        finder.advertise("panel", 47800)
+        self.radio.joinable = set()
+        self.assertEqual(finder.find("kitchen"), [])
+        finder.deinit()
+        self.assertEqual(self.radio.calls[-1], ("set_ipv4_address",) + StaticRadio.HOUSE)
+        self.assertEqual(len(self.rejoined), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

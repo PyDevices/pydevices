@@ -32,6 +32,8 @@ How it differs from CircuitPython
   it (an audio pump, a display loop).  ``channel=`` is accepted and ignored.
 * ``Network.authmode`` is the port's integer, not a tuple of ``AuthMode``.
 * There's no ``socketpool``: use ``socket`` or ``requests``.
+* ``radio.ipv4_static`` is extra: the fixed address ``set_ipv4_address()``
+  gave the station, to put back after ``start_dhcp()``.
 
 Reconnecting
 ------------
@@ -229,6 +231,44 @@ class Radio:
         """Use a static address instead of DHCP.  Call before connect()."""
         self._wlan.active(True)
         self._wlan.ifconfig((str(ipv4), str(netmask), str(gateway), str(ipv4_dns or gateway)))
+
+    def start_dhcp(self):
+        """Take the station's address from DHCP again, after ``set_ipv4_address()``.
+
+        Call it before joining a network the fixed address doesn't belong
+        to, such as another board's access point.  Safe to call when DHCP
+        is already on.
+        """
+        w = self._wlan
+        w.active(True)
+        try:
+            if not w.ipconfig("dhcp4"):
+                w.ipconfig(dhcp4=True)
+            return
+        except (AttributeError, TypeError, ValueError):
+            pass  # a port without ipconfig()
+        try:
+            w.ifconfig("dhcp")
+        except (OSError, ValueError):
+            pass  # already on, or a port that can't switch back
+
+    @property
+    def ipv4_static(self):
+        """``(address, netmask, gateway, dns)`` while the station is on a
+        fixed address, else None.  Not in CircuitPython.
+
+        Pass the parts back to ``set_ipv4_address()`` to return to the fixed
+        address after ``start_dhcp()``.  None also where the port can't say
+        whether DHCP is on.
+        """
+        w = self._wlan
+        try:
+            if w.ipconfig("dhcp4"):
+                return None
+        except (AttributeError, TypeError, ValueError, OSError):
+            return None
+        cfg = tuple(w.ifconfig())
+        return cfg if _valid_ipv4(cfg[0]) else None
 
     # -- scanning
 

@@ -123,7 +123,9 @@ class Hotspot:
     Joining leaves whatever network the board was on. ``deinit()`` takes
     the access point down, leaves the hotspot, and rejoins the network the
     board joins at boot (``secrets.py`` on MicroPython, ``settings.toml`` on
-    CircuitPython) if it was on one.
+    CircuitPython) if it was on one. A MicroPython board on a fixed address
+    takes one from the host while it is joined and gets its own back at
+    ``deinit()``.
 
     ``start()`` and ``join()`` are the two halves on their own, for a
     program that decides the roles itself.
@@ -146,6 +148,7 @@ class Hotspot:
         self._hosting = False
         self._joined = False
         self._was_on = None
+        self._static = None
 
     def advertise(self, name, port):
         """Remember this side's name and port; the hotspot starts at ``find()``."""
@@ -196,6 +199,11 @@ class Hotspot:
             return str(radio.ipv4_gateway)
         if self._was_on is None:
             self._was_on = radio.ipv4_address is not None
+            # A fixed address belongs to the house network; on the hotspot
+            # the board needs one from the host.
+            self._static = getattr(radio, "ipv4_static", None)
+            if self._static:
+                radio.start_dhcp()
         radio.connect(ssid, self.password, timeout=timeout or self.timeout)
         self._joined = True
         return str(radio.ipv4_gateway)
@@ -205,21 +213,27 @@ class Hotspot:
         if self._hosting:
             radio.stop_ap()
             self._hosting = False
-        if self._joined:
-            self._joined = False
+        if self._was_on is None:
+            return  # never tried to join: the station is as it was
+        self._joined = False
+        try:
+            radio.stop_station()
+        except (AttributeError, OSError):
+            pass
+        if self._was_on:
             try:
-                radio.stop_station()
+                radio.start_station()
             except (AttributeError, OSError):
                 pass
-            if self._was_on:
-                try:
-                    radio.start_station()
-                except (AttributeError, OSError):
-                    pass
-                try:
-                    _rejoin_house(self.timeout)
-                except (OSError, ImportError):
-                    pass
+        if self._static:
+            address, netmask, gateway, dns = self._static
+            radio.set_ipv4_address(ipv4=address, netmask=netmask, gateway=gateway, ipv4_dns=dns)
+            self._static = None
+        if self._was_on:
+            try:
+                _rejoin_house(self.timeout)
+            except (OSError, ImportError):
+                pass
         self._was_on = None
 
 

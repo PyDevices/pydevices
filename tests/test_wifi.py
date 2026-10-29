@@ -50,7 +50,7 @@ class FakeWLAN:
     def __init__(self, ip="0.0.0.0", linked=False, has_isconnected=True):
         self.ip = ip
         self.linked = linked
-        self.dhcp = ip == "0.0.0.0"
+        self.dhcp = True  # ifconfig((...)) turns it off, as on esp32
         self.connects = []
         self.assoc_ms = 1500
         self.lag_ms = 0
@@ -64,11 +64,22 @@ class FakeWLAN:
         return True
 
     def ifconfig(self, cfg=None):
+        if cfg == "dhcp":
+            self.dhcp = True
+            return None
         if cfg is not None:
             self.ip = cfg[0]
             self.dhcp = False
             return None
         return (self.ip, "255.255.255.0", "10.0.0.1", "10.0.0.1")
+
+    def ipconfig(self, key=None, **kwargs):
+        if key == "dhcp4":
+            return self.dhcp
+        if "dhcp4" in kwargs:
+            self.dhcp = bool(kwargs["dhcp4"])
+            return None
+        raise ValueError("unexpected key")
 
     def isconnected(self):
         return self.linked
@@ -234,6 +245,53 @@ class WifiLinkTests(unittest.TestCase):
         self.assertEqual(wlan.connects, ["bench"])
         # and then the networks wifi_manager remembered, without its setup mode
         self.assertEqual(sys.modules["wifi_manager"].calls, [{"setup": False}])
+
+
+class StaticAddressTests(unittest.TestCase):
+    """A board with a fixed address on one network can take one from DHCP
+    on another, and go back to its own afterwards."""
+
+    def setUp(self):
+        _clock[0] = 0
+
+    def tearDown(self):
+        for name in ("wifi", "network", "ntptime", "_wifi_test_secrets", "wifi_manager"):
+            sys.modules.pop(name, None)
+
+    def test_a_fixed_address_reads_back(self):
+        wlan = FakeWLAN()
+        wlan.ifconfig(("10.0.0.42", "255.255.255.0", "10.0.0.1", "10.0.0.1"))
+        wifi, _ = _load(wlan)
+        self.assertEqual(wifi.radio.ipv4_static, ("10.0.0.42", "255.255.255.0", "10.0.0.1", "10.0.0.1"))
+
+    def test_a_dhcp_board_has_no_fixed_address(self):
+        wlan = FakeWLAN(ip="10.0.0.77", linked=True)
+        wifi, _ = _load(wlan)
+        self.assertIsNone(wifi.radio.ipv4_static)
+
+    def test_start_dhcp_takes_an_address_from_the_new_network(self):
+        wlan = FakeWLAN()
+        wlan.ifconfig(("10.0.0.42", "255.255.255.0", "10.0.0.1", "10.0.0.1"))
+        wifi, _ = _load(wlan)
+        wifi.radio.start_dhcp()
+        self.assertIsNone(wifi.radio.ipv4_static)
+        wifi.radio.connect("garage", "pw")
+        self.assertEqual(wifi.radio.ipv4_address, "10.0.0.77")
+        # and it is safe to ask twice
+        wifi.radio.start_dhcp()
+
+    def test_a_port_without_ipconfig_uses_ifconfig(self):
+        wlan = FakeWLAN()
+        wlan.ifconfig(("10.0.0.42", "255.255.255.0", "10.0.0.1", "10.0.0.1"))
+        ipconfig = FakeWLAN.ipconfig
+        del FakeWLAN.ipconfig
+        try:
+            wifi, _ = _load(wlan)
+            self.assertIsNone(wifi.radio.ipv4_static)  # it can't tell
+            wifi.radio.start_dhcp()
+            self.assertTrue(wlan.dhcp)
+        finally:
+            FakeWLAN.ipconfig = ipconfig
 
 
 if __name__ == "__main__":
