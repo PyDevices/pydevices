@@ -36,6 +36,7 @@ from medialink.link import IDLE, LISTENING, TALKING, FLOOR_NAMES, Frame, Link, P
 from medialink.transport import Transport, UDPTransport
 from medialink.video import JPEG, FileCamera, Screen, Video
 from medialink.voice import VoiceActivity
+from medialink.wakeword import MicroWakeWord, WakeWord
 
 __version__ = "0.1.0"
 
@@ -52,6 +53,7 @@ __all__ = [
     "LISTENING",
     "Link",
     "MDNS",
+    "MicroWakeWord",
     "PCM16",
     "PeerUnreachable",
     "Screen",
@@ -60,6 +62,7 @@ __all__ = [
     "UDPTransport",
     "Video",
     "VoiceActivity",
+    "WakeWord",
     "choose",
     "sleep_ms",
     "ticks_add",

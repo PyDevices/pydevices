@@ -13,6 +13,9 @@ side's voice back to it.
 Each side prints a line as a turn starts and ends. medialink.VoiceActivity
 decides what counts as speech: audiodsp's speech detector where the
 firmware has it, and a level gate over the room's own noise elsewhere.
+Set WAKE_WORD to a microWakeWord model's manifest and a turn starts only
+with the word, "Hey Jarvis, are you there?", so the room's talk stays home.
+That needs firmware with tflite and audiodsp.
 
 Needs: a microphone and a speaker that boarddev.pcm_in() and pcm_out()
 reach, which a PyDevices board package or pydevices-desktop provides, and a
@@ -24,7 +27,10 @@ Run it:
     mpremote run medialink_hands_free.py
 
 Tested on: a computer with CPython 3.12 and the unix MicroPython port,
-each side on each, with recorded speech for the microphone.
+each side on each, with recorded speech for the microphone; and with
+WAKE_WORD set to hey_jarvis, a Waveshare ESP32-P4-WIFI6-Touch-LCD-4B on
+MicroPython v1.30.0-preview hearing speech from a nearby speaker, talking
+to CPython 3.12.
 """
 
 import boarddev
@@ -39,10 +45,14 @@ PEER_ADDRESS = None  # or ("192.168.1.20", 47830) to skip the search
 PORT = 47830  # this side's port
 RATE = 16000  # samples a second
 HOLD_MS = 800  # how long a turn lasts after the last word
+WAKE_WORD = None  # or "/sdcard/models/hey_jarvis.json" to start a turn by name
 
-# Open the microphone and the speaker, and decide by voice when to send.
+# Open the microphone and the speaker, and decide by voice when to send,
+# after the wake word if there is one.
 audio = AudioFormat(RATE, 1, 16)
 voice = medialink.VoiceActivity(RATE, hold_ms=HOLD_MS)
+if WAKE_WORD:
+    voice = medialink.WakeWord(WAKE_WORD, RATE, voice=voice)
 link = medialink.Link(medialink.UDPTransport(PORT), retries=2)
 intercom = medialink.Intercom(
     link, boarddev.pcm_in(audio), boarddev.pcm_out(audio, latency="low"), voice=voice
