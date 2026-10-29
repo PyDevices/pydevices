@@ -23,8 +23,8 @@ Run it:
     mpremote run medialink_video_doorbell.py
 
 Tested on: the unix port of MicroPython and CPython 3.12 on Linux, talking
-to each other, with a folder of JPEG files for the door camera, a test tone for the
-microphone and a scripted button.
+to each other, with a folder of JPEG files for the door camera, a test tone
+for the microphone and a scripted button.
 """
 
 import boarddev

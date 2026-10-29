@@ -24,8 +24,8 @@ Run it:
     mpremote run medialink_surveillance_camera.py
 
 Tested on: the unix port of MicroPython and CPython 3.12 on Linux, talking
-to each other, with a folder of JPEG files for the camera, a test tone for the
-microphone, and an SDL window on the watching side.
+to each other, with a folder of JPEG files for the camera, a test tone for
+the microphone, and an SDL window on the watching side.
 """
 
 import boarddev
