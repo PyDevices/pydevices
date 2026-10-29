@@ -27,7 +27,10 @@ Run it:
     mpremote run medialink_hands_free.py
 
 Tested on: a computer with CPython 3.12 and the unix MicroPython port,
-each side on each, with recorded speech for the microphone.
+each side on each, with recorded speech for the microphone; and with
+WAKE_WORD set to hey_jarvis and RATE at 24000, a Waveshare
+ESP32-P4-WIFI6-Touch-LCD-4B on MicroPython v1.30.0-preview hearing speech
+from a nearby speaker, talking to CPython 3.12.
 """
 
 import boarddev
