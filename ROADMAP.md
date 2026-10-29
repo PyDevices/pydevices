@@ -19,6 +19,12 @@ with each kind of peripheral described honestly by its role.
   i.MX): they lack only `configuration_descriptor()` and the private
   `_release_all()` there. Audio, video and net need the usbhost engine.
 
+## MIDI
+
+- SysEx on Windows in `midiports`: `midiInAddBuffer` and `midiOutLongMsg`, so a
+  device's Identity Reply and patch dumps work there as they do on other
+  ports. Today input drops SysEx and writing 0xF0 raises.
+
 ## BLE
 
 - `bledev.hid` reads report descriptors of any length. Today a board reads
