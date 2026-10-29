@@ -107,6 +107,43 @@ class HotspotTest(unittest.TestCase):
         self.radio.joinable = set()
         self.assertEqual(finder.find("garage"), [])
 
+    def test_a_failed_join_is_an_empty_answer_where_connectionerror_isnt_built_in(self):
+        # MicroPython has no ConnectionError built in: wifi raises its own,
+        # a subclass of OSError, and a failed join must still come back empty.
+        import builtins
+
+        saved = builtins.ConnectionError
+        del builtins.ConnectionError
+        try:
+
+            def refuse(ssid, password="", *, timeout=None):
+                raise OSError("No network with that ssid")
+
+            self.radio.connect = refuse
+            finder = discovery.Hotspot("secret123")
+            finder.advertise("kitchen", 47800)
+            self.assertEqual(finder.find("garage"), [])
+        finally:
+            builtins.ConnectionError = saved
+
+    def test_leaving_survives_a_failed_rejoin_where_connectionerror_isnt_built_in(self):
+        import builtins
+
+        def refuse(**kw):
+            raise OSError("house network gone")
+
+        sys.modules["wifi"].connect_from_secrets = refuse
+        finder = discovery.Hotspot("secret123")
+        finder.advertise("kitchen", 47800)
+        self.radio.joinable = {"garage"}
+        finder.find("garage")
+        saved = builtins.ConnectionError
+        del builtins.ConnectionError
+        try:
+            finder.deinit()
+        finally:
+            builtins.ConnectionError = saved
+
     def test_ssid_and_host_override_the_names(self):
         finder = discovery.Hotspot("secret123", ssid="walkies", host=True)
         finder.advertise("zebra", 47800)
