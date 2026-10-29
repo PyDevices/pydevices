@@ -20,7 +20,9 @@ REPL before the password is right. Like WebREPL, the link isn't encrypted, so
 someone sniffing nearby can capture the password.
 
 **Pairing** encrypts the link, and bonds so the next connection skips it.
-It's off unless you ask (``pairing=None``, the password alone):
+The board asks a host to pair as soon as it connects, and shows the prompt
+once the pairing settles. It's off unless you ask (``pairing=None``, the
+password alone):
 
 * ``pairing="passkey"``: the board shows a six-digit passkey on its display
   (or the console) and the host types it in. That authenticates the host, so
@@ -275,6 +277,7 @@ class _Server:
         self.conn = None
         self.login = None
         self.authed = False
+        self.greeted = False
         self.mtu = 23
         self.rx = bytearray()
         self.rx_pos = 0
@@ -443,6 +446,7 @@ class _Server:
         self.login = _Gate(self.password) if self.password is not None else _Open()
         self.hang_up_at = None
         self.authed = False
+        self.greeted = False
         self.rx = bytearray()
         self.rx_pos = 0
         self.tx = bytearray()
@@ -457,6 +461,8 @@ class _Server:
             self.hang_up_at = time.ticks_add(time.ticks_ms(), PAIR_WITHIN_MS)
             if self.secure(conn):
                 self.on_security(conn, *security.state(conn))
+            else:
+                self.request_security(conn)
             return
         if self.console:
             # Sent now in case the client is already listening; clients that
@@ -464,6 +470,19 @@ class _Server:
             self.notify_now(PROMPT)
 
     # -- pairing
+
+    def request_security(self, conn):
+        """Ask the host to pair (or, if it's bonded, to encrypt).
+
+        Without this, a host only pairs when the stack refuses it something,
+        and a write without response is refused silently: Android (and so
+        Chrome's Web Bluetooth) writes the NUS RX that way, so it never learned
+        it had to pair and every line it sent was dropped.
+        """
+        try:
+            self.ble.gap_pair(conn)
+        except (OSError, AttributeError):
+            pass  # a stack without it: the host pairs when a write is refused
 
     def secure(self, conn):
         """Whether ``conn``'s link is as secure as this server asks."""
@@ -493,6 +512,13 @@ class _Server:
             if self.files is not None and not self.files.authed:
                 self.files.authed = True
                 self.ble.gatts_write(self.auth_handle, b"\x01")
+            if self.console and not self.authed and not self.greeted:
+                self.greeted = True
+                # A host that wrote its first line while pairing was under
+                # way had it refused, so show the prompt now. A host that
+                # pairs before it subscribes misses this and asks with an
+                # empty line, as before.
+                self.notify_now(BANNER)
         elif self.console and not self.authed:
             self.notify_now(PROMPT)
 

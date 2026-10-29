@@ -313,7 +313,9 @@ bledev.filetransfer.start(password=False, name="rack", pairing="passkey")
 ```
 
 The first time a computer connects, the board draws a six-digit passkey on its
-screen (and prints it to the console) and the computer asks for it. After that
+screen (and prints it to the console) and the computer asks for it. The board
+asks for pairing as soon as a host connects, so a phone puts up its pairing
+dialog straight away; that's how Workbench in Chrome on Android pairs. After that
 the two are bonded: they reconnect encrypted, with no passkey, until one of
 them forgets. `password=False` means the passkey is the only lock; keep a
 password as well if you like.
