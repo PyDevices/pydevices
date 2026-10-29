@@ -12,8 +12,8 @@ It is three layers, so a new kind of link stays small:
 * **transport** (:mod:`medialink.transport`): open, send, receive, close,
   and the link's MTU and bandwidth. UDP over IP is the one built;
 * **discovery** (:mod:`medialink.discovery`): finds a peer by name and
-  hands back its address: mDNS on a shared network, or a hotspot one
-  board starts and the other joins.
+  hands back its address: mDNS on a shared network, Bluetooth LE nearby,
+  or a hotspot one board starts and the other joins.
 
 :class:`Link` ties a transport to one peer::
 
@@ -28,7 +28,7 @@ It is three layers, so a new kind of link stays small:
 
 from medialink._compat import sleep_ms, ticks_add, ticks_diff, ticks_ms
 from medialink.codec import ADPCM, PCM16, choose
-from medialink.discovery import MDNS, Hotspot
+from medialink.discovery import BLE, MDNS, Hotspot
 from medialink.intercom import Intercom
 from medialink.link import IDLE, LISTENING, TALKING, FLOOR_NAMES, Frame, Link, PeerUnreachable
 from medialink.transport import Transport, UDPTransport
@@ -37,6 +37,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "ADPCM",
+    "BLE",
     "FLOOR_NAMES",
     "Frame",
     "Hotspot",
