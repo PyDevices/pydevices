@@ -9,6 +9,9 @@ the other, which hands back ``[(name, (ip, port))]`` for
 advertises itself as a ``_medialink._udp`` service under its name; another
 finds it by that name.
 
+:class:`BLE` finds a peer nearby by Bluetooth LE: a board advertises its
+name with its IP address and port, and the media still goes over IP.
+
 :class:`Hotspot` makes the network: one board starts a Wi-Fi access point
 and the other joins it, so two boards talk directly where the house Wi-Fi is
 weak or absent.
@@ -218,3 +221,162 @@ class Hotspot:
                 except (ConnectionError, OSError, ImportError):
                     pass
         self._was_on = None
+
+
+#: The company id in a medialink advertisement: 0xFFFF, the one the
+#: Bluetooth SIG keeps for tests and for no company in particular.
+COMPANY = 0xFFFF
+_TAG = b"ML"
+
+
+def _own_address():
+    """This device's IPv4 address on its Wi-Fi, or None."""
+    try:
+        import wifi
+
+        address = wifi.radio.ipv4_address
+    except (ImportError, AttributeError):
+        address = None
+    if address is None:
+        try:
+            import socket
+
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                # Nothing is sent: connecting a UDP socket only picks the
+                # interface a packet would leave by.
+                sock.connect(("192.0.2.1", 9))
+                address = sock.getsockname()[0]
+            finally:
+                sock.close()
+        except (ImportError, AttributeError, OSError, IndexError):
+            return None
+    return str(address)
+
+
+def pack_beacon(address, port):
+    """The manufacturer data a medialink advertisement carries."""
+    parts = bytes(int(part) for part in address.split("."))
+    if len(parts) != 4:
+        raise ValueError("an IPv4 address, not %r" % (address,))
+    return _TAG + parts + bytes((port >> 8, port & 255))
+
+
+def unpack_beacon(data):
+    """``(ip, port)`` from a medialink advertisement's data, or None."""
+    data = bytes(data)
+    if len(data) < 8 or data[:2] != _TAG:
+        return None
+    return "%d.%d.%d.%d" % tuple(data[2:6]), data[6] << 8 | data[7]
+
+
+async def _pause(ms):
+    # A coroutine of our own: MicroPython's asyncio.sleep() isn't one, and
+    # asyncio.run() wants one.
+    import asyncio
+
+    await asyncio.sleep(ms / 1000)
+
+
+class BLE:
+    """Find a peer nearby by Bluetooth LE, then talk to it over IP.
+
+    ``advertise(name, port)`` sends out this side's name with its IP address
+    and port, and keeps doing so until ``deinit()``. ``find(name)`` listens
+    for ``timeout`` seconds and hands back what it heard. The advertisement
+    can't be connected to, and carries no secret: anyone nearby can read the
+    address, as anyone on the network can read an mDNS answer.
+
+    ``ble`` is a bledev adapter; by default ``bledev.auto.adapter()``. A
+    board can advertise and find. A computer can only find, since bledev's
+    computer backend is central only. ``address`` is the IP address to
+    advertise, when it isn't the board's Wi-Fi address.
+    """
+
+    def __init__(self, ble=None):
+        if ble is None:
+            from bledev.auto import adapter
+
+            ble = adapter()
+        self._ble = ble
+        self._task = None
+        self._loop = None
+
+    def advertise(self, name, port, address=None):
+        if address is None:
+            address = _own_address()
+        if address is None:
+            raise OSError("no IP address to advertise: join a network first")
+        coro = self._ble.advertise(
+            100000, name=name, manufacturer=(COMPANY, pack_beacon(address, port)), connectable=False
+        )
+        self._stop()
+        import asyncio
+
+        if sys.implementation.name == "cpython":
+            # A loop of its own on a thread keeps the advertisement going
+            # while the program does other things.
+            import threading
+
+            loop = asyncio.new_event_loop()
+            threading.Thread(target=loop.run_forever, daemon=True).start()
+            self._loop = loop
+            self._task = asyncio.run_coroutine_threadsafe(coro, loop)
+        else:
+            # On a board the radio goes on advertising by itself once
+            # started; running the loop for a moment starts it.
+            self._task = asyncio.create_task(coro)
+            asyncio.run(_pause(50))
+
+    def find(self, name=None, timeout=2):
+        """``[(name, (ip, port)), ...]`` of the peers heard; with ``name``,
+        only that peer."""
+        import asyncio
+
+        return asyncio.run(self._scan(name, int(timeout * 1000)))
+
+    async def _scan(self, wanted, duration_ms):
+        names = {}
+        found = {}
+        async with self._ble.scan(duration_ms, active=True) as scanner:
+            async for result in scanner:
+                key = result.device.address
+                if result.name():
+                    names[key] = result.name()
+                for _company, data in result.manufacturer(COMPANY):
+                    beacon = unpack_beacon(data)
+                    if beacon is not None:
+                        found[key] = beacon
+                if wanted is not None and key in found and names.get(key) == wanted:
+                    break
+        heard = []
+        for key, address in found.items():
+            name = names.get(key)
+            if name is not None and (wanted is None or name == wanted):
+                heard.append((name, address))
+        return heard
+
+    def _stop(self):
+        task = self._task
+        self._task = None
+        if task is None:
+            return
+        task.cancel()
+        if self._loop is not None:
+            # Let the cancellation run, which takes the advertisement down,
+            # before the loop stops.
+            import time
+
+            time.sleep(0.05)
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            self._loop = None
+        else:
+            import asyncio
+
+            try:
+                asyncio.run(_pause(10))
+            except Exception:
+                pass
+
+    def deinit(self):
+        self._stop()

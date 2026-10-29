@@ -55,6 +55,23 @@ address of the side that called. So a computer whose firewall refuses
 incoming connections can still be a peer, as long as it is the one that
 calls. When you know the address, skip discovery and `connect()` to it.
 
+### Nearby, by Bluetooth LE
+
+A board can also say where it is over Bluetooth LE, which finds a board in
+the same room without mDNS. Swap `MDNS` for `BLE`:
+
+```python
+finder = medialink.BLE()
+finder.advertise("kitchen", 47800)       # name, IP address and port
+for name, address in finder.find("garage"):
+    link.connect(address)
+```
+
+The sound still goes over the network; Bluetooth only carries the address.
+A computer can find a board this way but can't advertise, since bledev's
+computer backend only scans. Anyone nearby can read the advertisement, so
+it carries nothing secret: never a password.
+
 ### Without the house network: a hotspot
 
 Where the house Wi-Fi is weak or missing, two boards can make a network of
@@ -135,7 +152,7 @@ Three layers, so a new kind of link is a short file:
 - **Transport**: open, send, receive, close, and the link's packet size and
   rough bandwidth (`medialink.Transport`). UDP over IP is the one built.
 - **Discovery**: a name in, an address out (`medialink.MDNS`,
-  `medialink.Hotspot`).
+  `medialink.BLE`, `medialink.Hotspot`).
 
 A `Link` joins a transport to one peer. Media frames go best effort; a
 frame bigger than one packet, a video frame say, is cut up and put back

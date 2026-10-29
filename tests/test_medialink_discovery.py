@@ -1,8 +1,12 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""medialink.Hotspot: who hosts, who joins, and the way back to the house
-network, against a stand-in for ``wifi.radio``."""
+"""medialink's discovery beyond mDNS.
+
+Hotspot: who hosts, who joins, and the way back to the house network,
+against a stand-in for ``wifi.radio``. BLE: an advertisement heard by a
+scan, over bledev's in-process fake radio.
+"""
 
 import sys
 import types
@@ -117,6 +121,55 @@ class HotspotTest(unittest.TestCase):
         sys.modules["wifi"] = types.ModuleType("wifi")
         with self.assertRaises(OSError):
             discovery.Hotspot("secret123")
+
+
+class BLETest(unittest.TestCase):
+    def setUp(self):
+        from bledev.fake import Air, FakeBLE
+
+        self.air = Air()
+        self.board = FakeBLE(air=self.air)
+        self.other = FakeBLE(air=self.air)
+        self.computer = FakeBLE(air=self.air, peripheral=False)
+
+    def test_the_beacon_round_trips(self):
+        data = discovery.pack_beacon("192.168.1.40", 47800)
+        self.assertEqual(len(data), 8)
+        self.assertEqual(discovery.unpack_beacon(data), ("192.168.1.40", 47800))
+        self.assertIsNone(discovery.unpack_beacon(b"XX" + data[2:]))
+        self.assertIsNone(discovery.unpack_beacon(b"ML"))
+
+    def test_a_board_is_found_by_name(self):
+        board = discovery.BLE(self.board)
+        other = discovery.BLE(self.other)
+        board.advertise("kitchen", 47800, address="192.168.1.40")
+        other.advertise("garage", 47801, address="192.168.1.41")
+        try:
+            finder = discovery.BLE(self.computer)
+            self.assertEqual(finder.find("kitchen", timeout=0.5), [("kitchen", ("192.168.1.40", 47800))])
+            self.assertEqual(
+                sorted(finder.find(timeout=0.3)),
+                [("garage", ("192.168.1.41", 47801)), ("kitchen", ("192.168.1.40", 47800))],
+            )
+            self.assertEqual(finder.find("nobody", timeout=0.2), [])
+        finally:
+            board.deinit()
+            other.deinit()
+
+    def test_deinit_stops_advertising(self):
+        board = discovery.BLE(self.board)
+        board.advertise("kitchen", 47800, address="192.168.1.40")
+        board.deinit()
+        self.assertEqual(self.air.adverts, [])
+        self.assertEqual(discovery.BLE(self.computer).find(timeout=0.2), [])
+
+    def test_a_computer_cannot_advertise(self):
+        from bledev import UnsupportedError
+
+        with self.assertRaises(UnsupportedError):
+            finder = discovery.BLE(self.computer)
+            finder.advertise("desk", 47800, address="192.168.1.43")
+            finder._task.result(1)
 
 
 if __name__ == "__main__":
