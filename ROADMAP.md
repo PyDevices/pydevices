@@ -46,7 +46,6 @@ with each kind of peripheral described honestly by its role.
   to connect gets the pictures.
 - Show progressive JPEGs on boards, whose firmware decoder reads only
   baseline ones.
-- Streaming a camera to a Roku TV or to Windows Wireless Display.
 - A BLE transport, using ADPCM to fit its bandwidth, for boards with no
   Wi-Fi between them.
 
