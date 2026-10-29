@@ -202,10 +202,23 @@ The listener waits for five frames (100 ms) before it starts to play, which
 absorbs the unevenness of Wi-Fi; `Intercom(..., prebuffer=3)` cuts the wait
 where the network is steadier. Between two boards on home Wi-Fi, sound took
 about a tenth of a second from one microphone to the other speaker.
+
 On a CircuitPython board whose screen shows the console, every line you
-print scrolls and redraws that screen, and a big panel can stall the stream
-for a fifth of a second. Give the display your own screen, or print less
-while someone talks. `intercom.stats` says what came of it:
+print scrolls and redraws that screen. On an 800x480 panel that stops your
+program for over 400 ms, and the frames that arrive meanwhile don't fit
+the few the network stack keeps for you: a listener that printed "sound"
+at the start of each one-second turn heard 34 or 35 of its 50 frames.
+Frames a talker captured during the stall go out in a burst that the
+listener can't keep either. Take the console off the screen before you
+stream, and every frame arrives:
+
+```python
+import board
+
+board.DISPLAY.root_group = None  # or a displayio.Group of your own
+```
+
+`intercom.stats` says what came of it:
 `latency_ms` is from the far microphone to this speaker, and `underruns`
 counts the times the speaker ran dry in the middle of a turn.
 

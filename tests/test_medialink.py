@@ -437,6 +437,31 @@ class PressToTalk(unittest.TestCase):
         speech, heard, talker, listener = self.run_exchange(codec.ADPCM)
         self.assertEqual(len(heard), len(speech))
 
+    def test_a_talker_waits_for_its_microphone_rather_than_spin(self):
+        # A loop that never sleeps starves CircuitPython's network, and its
+        # sends fail; while the microphone has nothing, service() waits.
+        import medialink.intercom as intercom_module
+
+        fmt = Format(16000, 1)
+        network, a, b = pair()
+        mic = FakeMic(fmt, tone(320))  # one frame, then nothing
+        talker = medialink.Intercom(a, mic, None)
+        serve = Serve(b)
+        a.connect("b")
+        self.assertTrue(talker.press())
+        serve.stop()
+        waits = []
+        real = intercom_module.sleep_ms
+        intercom_module.sleep_ms = waits.append
+        try:
+            talker.service()
+            self.assertEqual((talker.stats["sent"], waits), (1, []))
+            talker.service()
+            talker.service()
+        finally:
+            intercom_module.sleep_ms = real
+        self.assertEqual((talker.stats["sent"], waits), (1, [1, 1]))
+
 
 class OnePort:
     """A board's I2S port: a speaker and a microphone on it, one at a time."""
