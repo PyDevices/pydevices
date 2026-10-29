@@ -141,7 +141,8 @@ class SoundFirst(unittest.TestCase):
         a.send_video(picture(3000))
         a.send_audio(b"\x02\x00" * 320, flags=packet.END)
         listener.service()
-        self.assertEqual(len(speaker.got), 1280)
+        # Both sound frames played (a speaker may get silence after them).
+        self.assertEqual(bytes(speaker.got[:1280]), b"\x01\x00" * 320 + b"\x02\x00" * 320)
         frame = receiver.receive()
         self.assertIsNotNone(frame)
         self.assertEqual(frame.payload, picture(3000))
