@@ -7,7 +7,7 @@ for icon authoring here. Requires a sibling **gallery** checkout (board_config,
 
 Run from the pdwidgets repo root (or with ``PYDEVICES_EXAMPLES_ROOT`` set)::
 
-    SDL_VIDEODRIVER=dummy ../pydevices-examples/.venv/bin/python tools/png_test.py
+    SDL_VIDEODRIVER=dummy ../../gallery/.venv/bin/python tools/png_test.py
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ def _resolve_pydevices_examples_root() -> Path:
     candidates = []
     if env_root:
         candidates.append(Path(env_root))
+    candidates.append(_ROOT.parents[1] / "gallery")  # beside the pydevices clone
     candidates.append(_ROOT.parent / "gallery")
     for root in candidates:
         if (root / "lib" / "utils").is_dir():
