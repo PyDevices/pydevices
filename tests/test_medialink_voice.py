@@ -155,6 +155,23 @@ class HandsFree(unittest.TestCase):
         sender.close()
         listener.close()
 
+    def test_a_chime_plays_and_holds_back_listening(self):
+        fmt = Format(16000, 1)
+        network, a, b = pair()
+        mic = FakeMic(fmt, tone(3200))
+        heard = FakeSpeaker(fmt)
+        voice = medialink.VoiceActivity(detector="level")
+        intercom = medialink.Intercom(a, mic, heard, voice=voice)
+        intercom.play(b"\x01\x00" * 800)
+        self.assertTrue(intercom._pending)
+        intercom._listen_step()
+        self.assertEqual(mic.opened, 0)  # the chime is still to play
+        intercom.service()
+        self.assertEqual(bytes(heard.got), b"\x01\x00" * 800)
+        intercom.service()
+        self.assertEqual(mic.opened, 1)
+        intercom.close()
+
 
 if __name__ == "__main__":
     unittest.main()

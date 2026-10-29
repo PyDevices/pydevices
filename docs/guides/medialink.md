@@ -22,7 +22,13 @@ intercom.release()      # let go: the other side may talk now
 [`examples/medialink_walkie_talkie.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_walkie_talkie.py)
 is the whole walkie-talkie, finding the other side by name.
 [`examples/medialink_simpletest.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_simpletest.py)
-sends one frame and shows a send to an absent peer failing.
+sends one frame and shows a send to an absent peer failing. Three more
+put the same pieces to other uses:
+[`medialink_baby_monitor.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_baby_monitor.py),
+[`medialink_doorbell.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_doorbell.py)
+and
+[`medialink_hands_free.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_hands_free.py),
+described below.
 
 ## Install
 
@@ -125,6 +131,48 @@ one can be open. `press()` closes the speaker before it opens the
 microphone, and the speaker opens again when the other side next talks. If
 the microphone still won't open, `press()` gives the floor back and raises.
 
+## Hands-free, one way, and a doorbell
+
+Give an `Intercom` a `medialink.VoiceActivity` and nobody needs a button.
+It listens to the microphone while the floor is free, takes the floor when
+someone starts to speak, and gives it back when they have been quiet for
+`hold_ms` (600 ms by default). It sends from a little before the first word
+was heard (`preroll_ms=120`), so the word isn't clipped. A button still
+works beside it: `press()` during a hands-free turn makes the turn the
+button's.
+
+```python
+voice = medialink.VoiceActivity(16000, hold_ms=800)
+intercom = medialink.Intercom(link, mic, speaker, voice=voice)
+```
+
+`VoiceActivity` uses audiodsp's speech detector where the firmware has
+`audiofeatures`, which ignores a fan or road noise that stays on. Elsewhere,
+CircuitPython among them, it uses a level gate: the room's quiet sets a
+floor, and sound 10 dB over it counts. `voice.detector` says which you got.
+The gate can't tell a voice from a door slamming.
+
+When both sides speak at once, one gets the floor and the other's words
+are lost until the turn ends, as with two buttons. While the peer talks,
+this side doesn't listen, and it waits for the speaker to finish before it
+listens again, so it doesn't send the peer's own voice back.
+[`medialink_hands_free.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_hands_free.py)
+is the whole thing.
+
+An `Intercom` with no speaker only sends, and one with no microphone only
+listens: `Intercom(link, mic, None, voice=voice)` is a baby monitor that
+sends while there is sound and nothing otherwise.
+[`medialink_baby_monitor.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_baby_monitor.py)
+shows "sound" and "quiet" on the listening side.
+
+`link.send_event("ring")` sends a short message the peer acknowledges, sent
+again until it does, and `link.events()` on the other side returns what
+arrived, each once. `intercom.play(pcm)` plays a sound of this side's own,
+such as a chime, without the microphone hearing it as speech.
+[`medialink_doorbell.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_doorbell.py)
+uses both: the door's button rings a chime in the house, the visitor speaks
+hands-free, and the house holds a button to answer.
+
 ## Sound quality and delay
 
 Sound goes as 20 ms frames of 16-bit PCM. On a slow link, `medialink.choose`
@@ -223,4 +271,5 @@ Three layers, so a new kind of link is a short file:
 
 A `Link` joins a transport to one peer. Media frames go best effort; a
 frame bigger than one packet, a video frame say, is cut up and put back
-together. Hello, goodbye and the floor are acknowledged and retried.
+together. Hello, goodbye, the floor and events are acknowledged and
+retried.

@@ -232,6 +232,16 @@ class Intercom:
         self.link.send_audio(payload, self.codec.id, flags)
         self.stats["sent"] += 1
 
+    def play(self, pcm):
+        """Play a sound of this side's own, a chime say, at the intercom's format.
+
+        It waits behind anything the peer said that is still to play, and
+        hands-free listening pauses until it has played, so the microphone
+        doesn't hear it as speech.
+        """
+        if self.speaker is not None:
+            self._pending += pcm
+
     def _play_step(self):
         # Sound only: pictures on the same link stay for whoever shows them.
         for frame in self.link.frames(_p.AUDIO):

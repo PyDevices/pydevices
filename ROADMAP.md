@@ -38,8 +38,6 @@ with each kind of peripheral described honestly by its role.
 
 ## medialink
 
-- More examples beside the walkie-talkie: a baby monitor (one way, always
-  on) and a doorbell intercom (both ways, half duplex).
 - Talk both ways at once on a videophone, on boards whose speaker and
   microphone share one I2S port: that needs a duplex I2S path.
 - Decode pictures beside the sound rather than in the same loop, so a
@@ -51,8 +49,8 @@ with each kind of peripheral described honestly by its role.
 - Streaming a camera to a Roku TV or to Windows Wireless Display.
 - A BLE transport, using ADPCM to fit its bandwidth, for boards with no
   Wi-Fi between them.
-- Talk hands-free: a wake word opens the floor, and voice activity sends only
-  while someone speaks.
+- A wake word, such as "Hey Jarvis", to open the hands-free floor, on
+  boards whose firmware runs tflite models.
 
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
