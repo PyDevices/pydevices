@@ -36,6 +36,18 @@ with each kind of peripheral described honestly by its role.
 - A TouchOSC/OSC codec at the edge, so those controllers can be panels. The
   codec layer is already separate from the transports.
 
+## medialink
+
+- More examples beside the walkie-talkie: a baby monitor (one way, always
+  on) and a doorbell intercom (both ways, half duplex).
+- Video: a surveillance camera with sound, a video doorbell, and a
+  videophone, on boards with a camera and a screen.
+- Streaming a camera to a Roku TV or to Windows Wireless Display.
+- More ways to find a peer: BLE advertising, and one board joining the
+  other's hotspot. A BLE transport, using ADPCM to fit its bandwidth.
+- Talk hands-free: a wake word opens the floor, and voice activity sends only
+  while someone speaks.
+
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
 - **`hmilink.appkit`.** An adapter that serves an appkit launcher and its

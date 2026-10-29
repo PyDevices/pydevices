@@ -23,6 +23,7 @@ boards, a desktop, a browser and an Android phone.
 - [bledev: Bluetooth Low Energy](guides/bluetooth-le.md)
 - [wifi_manager](guides/wifi.md)
 - [mdns](guides/mdns.md)
+- [medialink: audio between devices](guides/medialink.md)
 - [Using LVGL with PyDevices](guides/lvgl.md)
 - [pydevices-desktop](guides/run-on-the-desktop.md)
 - [Direct MicroPython WebAssembly](guides/run-in-the-browser.md)
