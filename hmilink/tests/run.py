@@ -24,6 +24,11 @@ try:
 except ImportError:
     tcp = None
 
+try:
+    from hmilink import osc
+except ImportError:
+    osc = None
+
 # Windows refuses some ports with 10013 and the set moves (Hyper-V and WSL
 # reserve ranges as they go; 19411 and later 8765 were refused here on
 # 2026-10-21 with nothing listening), so the checks take the first that binds.
@@ -428,6 +433,108 @@ def test_pty():
         os.close(fd)
 
 
+def test_osc_codec():
+    """OSC messages and bundles, read and written, against bytes worked out by hand."""
+    # "/a" ,f 0.5 : address padded to 4, tags ",f" padded to 4, a big-endian float.
+    msg = b"/a\x00\x00,f\x00\x00\x3f\x00\x00\x00"
+    check(osc.encode("/a", [0.5]) == msg, "encode a float")
+    check(osc.decode(msg) == [("/a", [0.5])], "decode a float")
+    data = osc.encode("/xy", [1, "hi", True, False, None])
+    check(osc.decode(data) == [("/xy", [1, "hi", True, False, None])], "round trip")
+    check(osc.decode(b"/n\x00\x00") == [("/n", [])], "no type tags")
+    bundle = b"#bundle\x00" + b"\x00" * 7 + b"\x01"
+    for part in (msg, data):
+        bundle += len(part).to_bytes(4, "big") + part
+    check([m[0] for m in osc.decode(bundle)] == ["/a", "/xy"], "a bundle")
+    for bad in (b"", b"nope\x00\x00\x00\x00", b"/a\x00\x00,f\x00\x00\x3f"):
+        try:
+            osc.decode(bad)
+        except (ValueError, IndexError):
+            continue
+        raise AssertionError("decoded %r" % bad)
+
+
+def _udp(port):
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.bind(socket.getaddrinfo("127.0.0.1", 0)[0][-1])
+    s.settimeout(1.0)
+    return s
+
+
+def _osc_recv(s):
+    try:
+        data, _ = s.recvfrom(1536)
+    except OSError:
+        return None
+    return osc.decode(data)
+
+
+def test_osc():
+    """Two apps over UDP: ops, routes, echoes, commands, telemetry and a refusal."""
+    import socket
+
+    model = Knobs()
+    device = hmilink.Device(model, telemetry_hz=0)
+    port = None
+    for p in PORTS:
+        try:
+            link = osc.serve(p, bind="127.0.0.1", routes={"/1/fader1": "/knobs/b"})
+        except OSError:
+            continue
+        port = p
+        break
+    check(port is not None, "an OSC port binds")
+    device.add(link)
+    to = socket.getaddrinfo("127.0.0.1", port)[0][-1]
+    app1 = _udp(port)
+    app2 = _udp(port)
+
+    def settle():
+        import time
+
+        for _ in range(20):
+            device.poll()
+            time.sleep(0.005)  # loopback datagrams take a moment to land
+
+    # app2 says hello so the device knows it; a message with no argument is ignored.
+    app2.sendto(osc.encode("/hello"), to)
+    settle()
+    check(model.doc["knobs"] == {"a": 0.5, "b": 0.5}, "no-argument message ignored")
+    # app1 moves a knob by its document path: the model applies it (clipped),
+    # app2 hears it, app1 doesn't hear its own echo.
+    app1.sendto(osc.encode("/knobs/a", [1.5]), to)
+    settle()
+    check(model.doc["knobs"]["a"] == 1.0, "op applied and clipped")
+    check(_osc_recv(app2) == [("/knobs/a", [1.0])], "the other app hears the op")
+    app1.settimeout(0.2)
+    check(_osc_recv(app1) is None, "the sender gets no echo")
+    # A routed address: app2's fader is the document's /knobs/b, and app1 hears it
+    # at the fader's address.
+    app2.sendto(osc.encode("/1/fader1", [0.25]), to)
+    settle()
+    check(model.doc["knobs"]["b"] == 0.25, "routed op applied")
+    app1.settimeout(1.0)
+    check(_osc_recv(app1) == [("/1/fader1", [0.25])], "echo at the app's own address")
+    # A command, then an op the model refuses: nothing moves and nothing breaks.
+    commands = []
+    model.command = lambda name, args: commands.append((name, args))
+    app1.sendto(osc.encode("/cmd/save", ["x.json"]), to)
+    app1.sendto(osc.encode("/other", [1]), to)
+    app1.sendto(b"garbage", to)
+    settle()
+    check(commands == [("save", {"args": ["x.json"]})], "a command with its arguments")
+    check(device.stats["refused"] == 1, "an op the model refuses")
+    check(link.stats["bad"] == 1, "garbage counted")
+    # Telemetry goes out as /tele/<key>.
+    device._telemetry()
+    check(_osc_recv(app2) == [("/tele/level", [0.25])], "telemetry to the apps")
+    app1.close()
+    app2.close()
+    device.close()
+
+
 def test_all():
     test_ops()
     print("ops ok")
@@ -452,6 +559,12 @@ def test_all():
         print("tcp ok over recv_into sockets (CircuitPython's)")
     else:
         print("tcp skipped: no socket module")
+    if osc is not None and getattr(osc, "_socket", None) is not None:
+        test_osc_codec()
+        test_osc()
+        print("osc ok (codec, UDP, routes, echoes)")
+    else:
+        print("osc skipped: no socket module")
     print("hmilink ok on", sys.implementation.name, binascii.hexlify(b"\x01").decode())
 
 

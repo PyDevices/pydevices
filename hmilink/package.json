@@ -3,7 +3,8 @@
     ["hmilink/__init__.py", "github:PyDevices/pydevices/hmilink/hmilink/__init__.py"],
     ["hmilink/tcp.py", "github:PyDevices/pydevices/hmilink/hmilink/tcp.py"],
     ["hmilink/local.py", "github:PyDevices/pydevices/hmilink/hmilink/local.py"],
-    ["hmilink/stream.py", "github:PyDevices/pydevices/hmilink/hmilink/stream.py"]
+    ["hmilink/stream.py", "github:PyDevices/pydevices/hmilink/hmilink/stream.py"],
+    ["hmilink/osc.py", "github:PyDevices/pydevices/hmilink/hmilink/osc.py"]
   ],
   "deps": [],
   "version": "0.0.1"
