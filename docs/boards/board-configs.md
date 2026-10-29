@@ -36,6 +36,43 @@ directory names as MicroPython (no `cp_` prefix, no package / MIP; a
 `board_peripherals.py` is optional and only a few configs have one). MicroPython configs stay at the top level of
 `board_configs/` (not under an `mp/` folder).
 
+## The CircuitPython console
+
+CircuitPython shows its console on a board's built-in screen, and every
+`print` scrolls and redraws it. On an 800x480 panel, 50 short lines took
+about four seconds with the console on the screen and a quarter of a second
+without it, and a program that streams sound or network frames loses
+whatever arrives during the stall.
+
+So a PyDevices config keeps the console off the screen. A config that paints
+the screen shows its own group in place of the console, one that drives the
+panel itself releases the firmware's display first, and any displaydev driver
+takes the console off `board.DISPLAY` when it starts, if it's still there.
+What you print still reaches the serial console and the web workflow. A
+config of your own that makes a `framebufferio.FramebufferDisplay` sets that
+display's `root_group` too, to its own group or to `None`.
+
+A program that never imports `board_config` or makes a driver, such as a
+headless app on a board with a screen, takes the console off itself:
+
+```python
+import board
+
+board.DISPLAY.root_group = None
+```
+
+`displayio.release_displays()` takes the console off as well, but it also
+releases the screen the firmware set up, so use it only when nothing will
+draw. To put the console back on the screen, for instance while you debug a
+board with no serial cable:
+
+```python
+import board
+import displayio
+
+board.DISPLAY.root_group = displayio.CIRCUITPYTHON_TERMINAL
+```
+
 ## Picking a config
 
 Match in priority order:
