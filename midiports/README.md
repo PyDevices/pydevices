@@ -37,6 +37,13 @@ To use another transport, change the line that opens the ports:
 Import each from `midiports`. BLE MIDI ports come from
 [`bledev`](../docs/guides/bluetooth-le.md), which moves onto this package's ports next.
 
+An Android phone works as the keyboard. Plug it into the board's host port,
+pick **MIDI** in its USB settings (the notification that appears when it's
+plugged in), and open a free pad or keyboard app such as MIDIPadidi: the
+phone is then a USB MIDI device, and `usb_host.ports()` opens it like any
+other. It's a high-speed device, so on an ESP32-P4 it needs no
+`full_speed=True`, even behind a hub.
+
 [`examples/midiports_simpletest.py`](examples/midiports_simpletest.py) plays a scale; on Windows you hear it from the built-in synth.
 
 ## Install
