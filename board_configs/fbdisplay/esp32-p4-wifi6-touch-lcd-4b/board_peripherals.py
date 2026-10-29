@@ -566,7 +566,13 @@ def camera(**kwargs):
         )
     kwargs.setdefault("sda", _CAM_SDA)
     kwargs.setdefault("scl", _CAM_SCL)
-    kwargs.setdefault("i2c", _CAM_I2C_PORT)
+    if "i2c" not in kwargs:
+        # Open the board's bus first, so cameraif attaches to it. If the
+        # camera opened the port on its own, the next machine.I2C on it (the
+        # microphone's codec, touch) would find no device, and the bus would
+        # stay dead until a hard reset.
+        _i2c()
+        kwargs["i2c"] = _CAM_I2C_PORT
     try:
         import camera_sensors   # also finds sensors described in Python (an IMX219)
     except ImportError:

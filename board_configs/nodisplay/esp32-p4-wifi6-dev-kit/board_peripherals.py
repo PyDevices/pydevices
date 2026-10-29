@@ -468,7 +468,12 @@ def camera(**kwargs):
         raise NotImplementedError("cameraif is not in this firmware, or this is not an ESP32-P4")
     kwargs.setdefault("sda", _I2C_SDA)
     kwargs.setdefault("scl", _I2C_SCL)
-    kwargs.setdefault("i2c", _I2C_PORT)
+    if "i2c" not in kwargs:
+        # Open the board's bus first, so cameraif attaches to it. If the
+        # camera opened the port on its own, the next machine.I2C on it (the
+        # codec) would find no device until a hard reset.
+        i2c()
+        kwargs["i2c"] = _I2C_PORT
     try:
         import camera_sensors   # also finds sensors described in Python (an IMX219)
     except ImportError:
