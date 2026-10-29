@@ -157,6 +157,8 @@ Practical impact on `sayso`:
 - **`GET /users/{id}`** — removed for Dev Mode; `client.user()` may return 403.
   Do not set `fetch_method` on `User`; nested `User` stubs (for example
   `playlist_item.added_by`) only expose fields present in the embedding response.
+- **`GET /markets`** — removed with no replacement; `client.available_markets()`
+  returns 403 for Dev Mode apps.
 - **`GET /playlists/{id}/tracks`** — removed; use `playlist.items` (backed by
   `playlist_items` / `GET /playlists/{id}/items`).
 - **Followed playlists** — `playlist_items` returns 403 when the user is not the

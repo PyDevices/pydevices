@@ -189,7 +189,7 @@ python examples\refresh_token_saved_albums.py
 python examples\refresh_token_saved_tracks.py
 ```
 
-`custom_transport.py` fetches available markets with Client Credentials. HTTP is
+`custom_transport.py` searches for artists with Client Credentials. HTTP is
 chosen automatically in `sayso.transport` from `requests` or a CircuitPython
 `adafruit_requests` session.
 
