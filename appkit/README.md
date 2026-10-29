@@ -18,12 +18,12 @@ On a board, or a desktop MicroPython, with `mip`:
 ```python
 import mip
 
-mip.install("github:PyDevices/pydevices/appkit", index="https://PyDevices.github.io/mip")
+mip.install("appkit", index="https://pydevices.github.io/lib")
 ```
 
-The index is there for appkit's one dependency, `pydevices`, which brings
-`appdev`, `events` and `multimer`. After a release, `mip.install("appkit",
-index="https://PyDevices.github.io/mip")` does the same.
+That brings `pydevices` too, which supplies `appdev`, `events` and
+`multimer`. To install from this repository's current files instead, use
+`mip.install("github:PyDevices/pydevices/appkit", index="https://pydevices.github.io/lib")`.
 
 Without `mip`, copy [`lib/appkit`](lib/appkit) to `/lib/appkit` with
 [mpftp](https://github.com/PyDevices/mpftp), `mpremote` or any tool you like,

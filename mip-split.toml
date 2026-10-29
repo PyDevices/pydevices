@@ -117,9 +117,6 @@ pypi-extras = { ble = ["bleak>=1.0"] }
 [midiports]
 top-level = true
 
-[appkit]
-top-level = true
-
 [hmilink]
 top-level = true
 

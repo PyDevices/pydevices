@@ -13,15 +13,6 @@
 # apps= must be an absolute path: this file runs from appkit's own folder.
 # index_dir= says where to write _appkit_apps.py (default: a temporary folder).
 
-metadata(
-    description="Several apps on one device: a home screen, a launcher and a scope for each app.",
-    version="0.1.0",
-    license="MIT",
-)
-
-# appkit builds on pydevices' appdev, events and multimer.
-require("pydevices")
-
 options.defaults(apps=None, index_dir=None)
 
 package("appkit", base_path="lib")
