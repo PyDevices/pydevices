@@ -22,9 +22,10 @@ Set PEER_ADDRESS on the listener to skip the search.
 Run it:
     mpremote run medialink_baby_monitor.py
 
-Tested on: a computer with CPython 3.12 as the monitor and the unix
-MicroPython port as the listener, and the other way round, with recorded
-speech for the microphone.
+Tested on: two Waveshare ESP32-S3-Touch-LCD-4.3 boards on Wi-Fi, the
+monitor on CircuitPython 11.0.0-alpha.2 and the listener on MicroPython
+v1.30.0-preview, and a computer with CPython 3.12 and the unix MicroPython
+port each way round, with recorded speech for the microphone.
 """
 
 import boarddev

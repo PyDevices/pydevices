@@ -587,6 +587,31 @@ class OverUDP(unittest.TestCase):
         finally:
             a.transport.close()
 
+    def test_a_send_refused_for_want_of_buffers_is_tried_again(self):
+        # CircuitPython raises EPIPE for any failed send; a board's network
+        # stack refuses frames for a moment when they go out back to back.
+        transport = UDPTransport(0)
+        real = transport._sock
+        refusals = [32, 11]
+        sent = []
+
+        class Busy:
+            def sendto(self, data, address):
+                if refusals:
+                    raise OSError(refusals.pop(0), "busy")
+                sent.append(data)
+
+        try:
+            transport._sock = Busy()
+            transport.send(b"frame", ("127.0.0.1", 9))
+            self.assertEqual(sent, [b"frame"])
+            refusals[:] = [113]  # EHOSTUNREACH: the network is gone, say so
+            with self.assertRaises(OSError):
+                transport.send(b"frame", ("127.0.0.1", 9))
+        finally:
+            transport._sock = real
+            transport.close()
+
 
 if __name__ == "__main__":
     unittest.main()

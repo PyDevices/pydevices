@@ -21,9 +21,11 @@ or a mouse button in the window that opens.
 Run it:
     mpremote run medialink_doorbell.py
 
-Tested on: a computer with CPython 3.12 and the unix MicroPython port,
-each side on each, with a scripted button and recorded speech for the
-microphone.
+Tested on: two Waveshare ESP32-S3-Touch-LCD-4.3 boards on Wi-Fi, the door
+on CircuitPython 11.0.0-alpha.2 and the house on MicroPython
+v1.30.0-preview, and a computer with CPython 3.12 and the unix MicroPython
+port, each side on each, with a scripted button and recorded speech for
+the microphone.
 """
 
 import math
