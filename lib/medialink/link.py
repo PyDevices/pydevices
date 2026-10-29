@@ -4,7 +4,10 @@ A :class:`Link` sits on a transport and does three things over it:
 
 * **Media.** ``send_audio()`` and ``send_video()`` push frames best-effort;
   a frame too big for one datagram is cut into fragments and put back
-  together on the other side. ``frames()`` hands back what has arrived.
+  together on the other side. A frame missing a fragment is dropped, and
+  the next whole one carries on. ``frames()`` hands back what has arrived:
+  up to ``inbox`` audio frames, and only the newest ``video_inbox`` video
+  frames, since a screen wants the latest picture, not a backlog.
 * **Control.** Hello, goodbye, and the floor are acknowledged. A control
   message the peer doesn't acknowledge is sent again ``retries`` times, and
   then :class:`PeerUnreachable` is raised. ``retries`` defaults to 0, so a
@@ -43,7 +46,7 @@ class PeerUnreachable(OSError):
 class Frame:
     """One media frame as it arrived."""
 
-    def __init__(self, kind, codec, seq, stamp, flags, payload, age):
+    def __init__(self, kind, codec, seq, stamp, flags, payload, age, arrived=None):
         self.kind = kind
         self.codec = codec
         self.seq = seq
@@ -53,15 +56,23 @@ class Frame:
         #: ms from the sender's timestamp to arrival, on this side's clock,
         #: or None until a ping has measured the offset between the clocks.
         self.age = age
+        #: This side's ticks_ms when the last of it arrived.
+        self.arrived = arrived
 
     def __repr__(self):
         return "<Frame kind=%d seq=%d %d bytes>" % (self.kind, self.seq, len(self.payload))
 
 
 class _Reassembly:
+    """One frame coming in fragments, put together in a buffer of its own,
+    so a big picture is never held twice over."""
+
     def __init__(self):
         self.seq = -1
-        self.parts = None
+        self.seen = None  # a byte a fragment, set when it has arrived
+        self.buf = None
+        self.room = 0  # the bytes in every fragment but the last
+        self.tail = None
         self.have = 0
 
 
@@ -77,6 +88,7 @@ class Link:
         dead_ms=3000,
         floor_timeout_ms=1500,
         inbox=32,
+        video_inbox=2,
     ):
         self.transport = transport
         self.retries = retries
@@ -91,8 +103,8 @@ class Link:
         self.peer_token = None
         self.floor = IDLE
         self._pending_take = False
-        self._inbox = []
-        self._inbox_size = inbox
+        self._inbox = {_p.AUDIO: [], _p.VIDEO: []}
+        self._inbox_size = {_p.AUDIO: inbox, _p.VIDEO: video_inbox}
         self._buf = bytearray(transport.mtu + 64)
         # Media goes out through one buffer, so sending a frame allocates
         # nothing: a garbage collection mid-stream is an audible gap.
@@ -186,32 +198,55 @@ class Link:
         return self._send_media(_p.VIDEO, payload, codec, flags, stamp)
 
     def _send_media(self, kind, payload, codec, flags, stamp):
-        if self.peer is None:
-            raise PeerUnreachable("no peer")
         if stamp is None:
             stamp = ticks_ms()
-        seq = self._seq[kind]
-        self._seq[kind] = (seq + 1) & 0xFFFF
-        room = self.transport.mtu - _p.HEADER_SIZE
-        frags = (len(payload) + room - 1) // room or 1
-        if frags > 255:
-            raise ValueError("frame too big for this link")
+        seq, frags = self._start(kind, len(payload))
         view = memoryview(payload)
-        out = self._out
+        room = self.room
         for frag in range(frags):
-            piece = view[frag * room:(frag + 1) * room]
-            _p.pack_into(out, kind, codec, flags, frag, frags, seq, stamp)
-            end = _p.HEADER_SIZE + len(piece)
-            out[_p.HEADER_SIZE:end] = piece
-            self._send(out[:end])
+            self._fragment(kind, codec, flags, frag, frags, seq, stamp, view[frag * room:(frag + 1) * room])
         return seq
 
-    def frames(self):
-        """Every media frame that has arrived since the last call, in order."""
+    @property
+    def room(self):
+        """The most bytes of a frame that one datagram carries."""
+        return self.transport.mtu - _p.HEADER_SIZE
+
+    def _start(self, kind, size):
+        """A sequence number and fragment count for a new frame of ``size``."""
+        if self.peer is None:
+            raise PeerUnreachable("no peer")
+        room = self.room
+        frags = (size + room - 1) // room or 1
+        if frags > 255:
+            raise ValueError("frame too big for this link")
+        seq = self._seq[kind]
+        self._seq[kind] = (seq + 1) & 0xFFFF
+        return seq, frags
+
+    def _fragment(self, kind, codec, flags, frag, frags, seq, stamp, piece):
+        out = self._out
+        _p.pack_into(out, kind, codec, flags, frag, frags, seq, stamp)
+        end = _p.HEADER_SIZE + len(piece)
+        out[_p.HEADER_SIZE:end] = piece
+        self._send(out[:end])
+
+    def frames(self, kind=None):
+        """The media frames that have arrived since the last call, in order.
+
+        ``kind`` is ``packet.AUDIO`` or ``packet.VIDEO`` for one kind only,
+        leaving the other for whoever reads it; None takes both, audio first.
+        """
         self.poll()
         inbox = self._inbox
-        self._inbox = []
-        return inbox
+        if kind is not None:
+            frames = inbox[kind]
+            inbox[kind] = []
+            return frames
+        frames = inbox[_p.AUDIO] + inbox[_p.VIDEO]
+        inbox[_p.AUDIO] = []
+        inbox[_p.VIDEO] = []
+        return frames
 
     # --- the loop ----------------------------------------------------------
 
@@ -263,37 +298,32 @@ class Link:
             self.stats["reconnects"] += 1
         self._heard = now
         self.stats["received"] += 1
-        payload = bytes(memoryview(buf)[_p.HEADER_SIZE:count])
+        payload = memoryview(buf)[_p.HEADER_SIZE:count]
         if kind == _p.AUDIO or kind == _p.VIDEO:
-            self._floor_heard = now
+            if kind == _p.AUDIO:
+                # Only the talker's sound holds the floor: a camera that
+                # keeps sending pictures after its talker has gone mustn't.
+                self._floor_heard = now
             self._media(kind, sub, flags, frag, frags, seq, stamp, payload, now)
         elif kind == _p.CONTROL:
             self._floor_heard = now
             self._on_control(sub, seq, stamp)
         elif kind == _p.ACK:
             if seq == self._ctl_seq:
-                self._acked = payload[0] if payload else 1
+                # An answer carries the peer's session token too.
+                self._session(stamp)
+                self._acked = payload[0] if len(payload) else 1
         elif kind == _p.PING:
             self._on_ping(sub, stamp, payload, now)
         return True
 
     def _media(self, kind, codec, flags, frag, frags, seq, stamp, payload, now):
         if frags > 1:
-            part = self._parts[kind]
-            if part.seq != seq:
-                if part.parts is not None:
-                    self.stats["incomplete"] += 1
-                part.seq = seq
-                part.parts = [None] * frags
-                part.have = 0
-            if frag >= len(part.parts) or part.parts[frag] is not None:
+            payload = self._reassemble(self._parts[kind], frag, frags, seq, payload)
+            if payload is None:
                 return
-            part.parts[frag] = payload
-            part.have += 1
-            if part.have < frags:
-                return
-            payload = b"".join(part.parts)
-            part.parts = None
+        else:
+            payload = bytes(payload)
         expect = self._expect[kind]
         if expect is not None:
             gap = (seq - expect) & 0xFFFF
@@ -304,18 +334,63 @@ class Link:
         age = None
         if self._offset is not None:
             age = ticks_diff(now, ticks_add(stamp, -self._offset))
-        if len(self._inbox) >= self._inbox_size:
-            self._inbox.pop(0)
+        inbox = self._inbox[kind]
+        if len(inbox) >= self._inbox_size[kind]:
+            inbox.pop(0)
             self.stats["dropped"] += 1
-        self._inbox.append(Frame(kind, codec, seq, stamp, flags, payload, age))
+        inbox.append(Frame(kind, codec, seq, stamp, flags, payload, age, now))
+
+    def _session(self, peer_token):
+        """Note the peer's session token, from a control or an answer to one."""
+        if peer_token == self.peer_token:
+            return
+        # A new session on the far side: forget what it sent before.
+        if self.floor == LISTENING or self.peer_token is not None:
+            # The peer restarted, and its new session doesn't know who held
+            # the floor: start again from idle, and a talker asks again.
+            self.floor = IDLE
+        self.peer_token = peer_token
+        self._ctl_seen = None
+
+    def _reassemble(self, part, frag, frags, seq, piece):
+        """The whole frame once its last fragment is in, else None."""
+        if part.seq != seq:
+            if part.seen is not None:
+                self.stats["incomplete"] += 1
+            part.seq = seq
+            part.seen = bytearray(frags)
+            part.buf = None
+            part.tail = None
+            part.have = 0
+        seen = part.seen
+        if seen is None or frag >= len(seen) or seen[frag]:
+            return None
+        seen[frag] = 1
+        part.have += 1
+        if frag == frags - 1:
+            part.tail = bytes(piece)
+        else:
+            if part.buf is None:
+                # Every fragment but the last is as full as this one.
+                part.room = len(piece)
+                part.buf = bytearray(part.room * frags)
+            elif len(piece) != part.room:
+                part.seen = None  # not one frame after all: drop it
+                return None
+            at = frag * part.room
+            part.buf[at:at + part.room] = piece
+        if part.have < frags:
+            return None
+        frame = part.buf
+        at = (frags - 1) * part.room
+        end = at + len(part.tail)
+        frame[at:end] = part.tail
+        frame[end:] = b""  # shrinks it where it lies
+        part.seen = part.buf = part.tail = None
+        return frame
 
     def _on_control(self, op, seq, peer_token):
-        if peer_token != self.peer_token:
-            # A new session on the far side: forget what it sent before.
-            self.peer_token = peer_token
-            self._ctl_seen = None
-            if self.floor == LISTENING:
-                self.floor = IDLE
+        self._session(peer_token)
         result = 1
         fresh = seq != self._ctl_seen
         if op == _p.TAKE:

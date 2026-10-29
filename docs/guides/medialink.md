@@ -103,12 +103,65 @@ while someone talks. `intercom.stats` says what came of it:
 `latency_ms` is from the far microphone to this speaker, and `underruns`
 counts the times the speaker ran dry in the middle of a turn.
 
+## Pictures
+
+`medialink.Video` sends JPEG pictures on the same link as the sound. Send
+one whenever the last has gone, call `service()` from your loop, and show
+what arrives with `medialink.Screen`:
+
+```python
+video = medialink.Video(link)
+screen = medialink.Screen(display_drv)   # from board_config
+
+if video.ready:
+    video.send(camera.capture_jpeg(60))
+video.service()                          # sends the next few packets
+frame = video.receive()                  # the newest picture, or None
+if frame is not None:
+    screen.show(frame.payload)
+```
+
+Three examples put it together.
+[`medialink_surveillance_camera.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_surveillance_camera.py)
+is a camera you watch and listen to from another room.
+[`medialink_video_doorbell.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_video_doorbell.py)
+shows the door inside, with sound both ways.
+[`medialink_videophone.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_videophone.py)
+sends pictures both ways. On a computer without a camera, set `PICTURES` to
+a folder of JPEG files and `medialink.FileCamera` sends them in turn.
+
+A picture is cut into packets of the link's size and put back together on
+the other side, byte for byte. If one packet is lost, that picture is
+dropped and the next one comes as usual. The receiver keeps only the newest
+pictures, so a slow screen shows the latest one rather than falling behind.
+
+`Video` paces its packets to the link's bandwidth, 2 Mbit/s for UDP unless
+you pass `Video(link, bandwidth=...)`, and a few at a time, so sound goes
+out between a picture's packets and a board's network buffers don't
+overflow. At that rate a 20 KB picture takes about 80 ms to send; a 300 KB
+photo takes over a second. Keep pictures small: a camera's lower
+resolution and a JPEG quality around 60 do more than a faster link. A
+320x180 picture is 115 KB as raw pixels and about 3 KB as JPEG at quality
+60, so JPEG is the codec, even where the encoding is done in software.
+
+`Screen` halves a picture until it fits the display, centres it, and uses
+the hardware decoder where the firmware has one. A picture it can't read
+is counted in `screen.errors` and skipped. The decoder in MicroPython
+firmware reads baseline JPEGs with 4:4:4, 4:2:2 or 4:2:0 colour, which is
+what cameras make; a progressive JPEG from a photo editor is skipped there,
+and shows on CPython, where Pillow decodes it.
+
+The intercom takes only sound from the link and leaves pictures for the
+screen, and pictures alone don't keep the floor: a talker whose camera is
+still sending but who has gone quiet loses it as usual. One camera sends to
+one watcher at a time, the last that said hello.
+
 ## How it is built
 
 Three layers, so a new kind of link is a short file:
 
-- **Media**: frames and their timestamps, the floor, the codec
-  (`Intercom`, `medialink.codec`).
+- **Media**: frames and their timestamps, the floor, the codec, pictures
+  (`Intercom`, `medialink.codec`, `Video`).
 - **Transport**: open, send, receive, close, and the link's packet size and
   rough bandwidth (`medialink.Transport`). UDP over IP is the one built.
 - **Discovery**: a name in, an address out (`medialink.MDNS`).

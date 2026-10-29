@@ -1,14 +1,16 @@
 """Audio and video between boards, and between boards and computers.
 
 medialink sends live media from one device to another over the local
-network: a walkie-talkie, an intercom, a baby monitor. It runs on
-MicroPython, CircuitPython and CPython, so a board and a computer are peers
-of the same kind.
+network: a walkie-talkie, an intercom, a camera that you watch and listen to
+from another room, a videophone. It runs on MicroPython, CircuitPython and
+CPython, so a board and a computer are peers of the same kind.
 
 It is three layers, so a new kind of link stays small:
 
-* **media** (:mod:`medialink.intercom`, :mod:`medialink.codec`): frames and
-  their timestamps, the half-duplex floor, the codec that fits the link;
+* **media** (:mod:`medialink.intercom`, :mod:`medialink.video`,
+  :mod:`medialink.codec`): frames and their timestamps, the half-duplex
+  floor, the codec that fits the link, pictures cut to the link's packet
+  size and paced so sound goes first;
 * **transport** (:mod:`medialink.transport`): open, send, receive, close,
   and the link's MTU and bandwidth. UDP over IP is the one built;
 * **discovery** (:mod:`medialink.discovery`): finds a peer by name and
@@ -31,23 +33,28 @@ from medialink.discovery import MDNS
 from medialink.intercom import Intercom
 from medialink.link import IDLE, LISTENING, TALKING, FLOOR_NAMES, Frame, Link, PeerUnreachable
 from medialink.transport import Transport, UDPTransport
+from medialink.video import JPEG, FileCamera, Screen, Video
 
 __version__ = "0.1.0"
 
 __all__ = [
     "ADPCM",
     "FLOOR_NAMES",
+    "FileCamera",
     "Frame",
     "IDLE",
     "Intercom",
+    "JPEG",
     "LISTENING",
     "Link",
     "MDNS",
     "PCM16",
     "PeerUnreachable",
+    "Screen",
     "TALKING",
     "Transport",
     "UDPTransport",
+    "Video",
     "choose",
     "sleep_ms",
     "ticks_add",
