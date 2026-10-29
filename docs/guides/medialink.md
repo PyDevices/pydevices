@@ -80,6 +80,11 @@ once, one of them gets it and the other is refused, never both. A listener
 that hears nothing for a second and a half takes the floor back, so a talker
 that drops off the network doesn't hold it.
 
+On many boards the speaker and the microphone share one I2S port, so only
+one can be open. `press()` closes the speaker before it opens the
+microphone, and the speaker opens again when the other side next talks. If
+the microphone still won't open, `press()` gives the floor back and raises.
+
 ## Sound quality and delay
 
 Sound goes as 20 ms frames of 16-bit PCM. On a slow link, `medialink.choose`

@@ -9,7 +9,8 @@ The microphone is any ``audiodev.PCMInput`` (``readinto``) and the speaker
 any ``audiodev.PCMOutput`` (``try_write``), so ``boarddev.pcm_in()`` and
 ``boarddev.pcm_out()`` work on a board and on a computer alike. Both are
 signed 16-bit at one format. The microphone is open only while talking,
-which is what a board whose input and output share one I2S bus needs.
+and ``press()`` closes the speaker before it opens the microphone, which is
+what a board whose input and output share one I2S bus needs.
 
 Playback waits for ``prebuffer`` frames at the start of each talk spurt
 before it writes, which is what absorbs the network's jitter. The default,
@@ -67,7 +68,19 @@ class Intercom:
             return True
         if not self.link.request_floor():
             return False
-        self.mic.open()
+        # Many boards' speaker and microphone share one I2S port, and the
+        # microphone can't open while the speaker holds it. The peer's turn
+        # is over, so let the speaker go; it opens again on the next write.
+        self._pending = b""
+        self._waiting = []
+        self._spurt = False
+        if self.speaker is not None and getattr(self.speaker, "is_open", True):
+            self.speaker.close()
+        try:
+            self.mic.open()
+        except Exception:
+            self.link.release_floor()
+            raise
         self._filled = 0
         self._talking = True
         self._first = True
