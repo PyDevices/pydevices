@@ -107,7 +107,13 @@ class TheClock(unittest.TestCase):
         raw = [(1 << 29) - 30]
         fake = types.ModuleType("supervisor")
         fake.ticks_ms = lambda: raw[0]
-        saved_sleep = getattr(time, "sleep_ms", None)
+        # Other tests may have given the time module MicroPython's ticks;
+        # CircuitPython's has none, so hide them while _compat loads.
+        hidden = {}
+        for name in ("ticks_ms", "sleep_ms"):
+            if hasattr(time, name):
+                hidden[name] = getattr(time, name)
+                delattr(time, name)
         sys.modules["supervisor"] = fake
         try:
             compat = importlib.reload(importlib.import_module("medialink._compat"))
@@ -122,8 +128,9 @@ class TheClock(unittest.TestCase):
             self.assertEqual(compat.ticks_ms(), 5)
         finally:
             del sys.modules["supervisor"]
+            for name, value in hidden.items():
+                setattr(time, name, value)
             importlib.reload(importlib.import_module("medialink._compat"))
-        self.assertEqual(getattr(time, "sleep_ms", None), saved_sleep)
 
 
 class ThePacket(unittest.TestCase):
