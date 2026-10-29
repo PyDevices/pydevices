@@ -40,6 +40,7 @@ CAMERA_ADDRESS = None  # or ("192.168.1.20", PORT) to skip the search
 PORT = 47800
 PICTURES = None  # a folder of JPEG files to send in place of a camera
 FPS = 10  # pictures a second, at most
+SIZE = "VGA"  # a camera\'s picture size: "QVGA" is 320x240, "VGA" 640x480
 QUALITY = 60  # 1 to 100; lower is smaller and quicker to send
 RATE = 16000  # sound samples a second
 
@@ -55,8 +56,13 @@ if CAMERA:
         camera = medialink.FileCamera(PICTURES)
     else:
         import board_peripherals
+        import cameraif
 
+        # Have the chip scale each picture down and encode it, so it is
+        # quick to send and the other side decodes it in hardware.
         camera = board_peripherals.camera()
+        camera.reconfigure(pixel_format=cameraif.PixelFormat.JPEG, frame_size=getattr(cameraif.FrameSize, SIZE))
+        camera.quality = QUALITY
     intercom = medialink.Intercom(link, boarddev.pcm_in(audio), None)
     finder.advertise(CAMERA_NAME, PORT)
     print("This is %r, waiting to be watched" % CAMERA_NAME)
@@ -99,9 +105,9 @@ try:
                 intercom.release()
             if link.alive and video.ready and multimer.ticks_diff(now, taken) >= 1000 // FPS:
                 taken = now
-                jpeg = camera.capture_jpeg(QUALITY)
-                if jpeg:
-                    video.send(jpeg, taken)
+                jpeg = camera.take()
+                if jpeg is not None:
+                    video.send(bytes(jpeg), taken)
             video.service()
         else:
             # Look for the camera while it isn't there, and show each picture.

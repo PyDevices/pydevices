@@ -279,7 +279,7 @@ class TheFileCamera(unittest.TestCase):
                 with open(os.path.join(folder, name), "wb") as file:
                     file.write(data)
             camera = medialink.FileCamera(folder)
-            self.assertEqual([camera.capture_jpeg() for _ in range(3)], [b"one", b"two", b"one"])
+            self.assertEqual([camera.take() for _ in range(3)], [b"one", b"two", b"one"])
 
     def test_an_empty_folder_says_so(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -114,7 +114,9 @@ video = medialink.Video(link)
 screen = medialink.Screen(display_drv)   # from board_config
 
 if video.ready:
-    video.send(camera.capture_jpeg(60))
+    jpeg = camera.take()                 # a JPEG, or None
+    if jpeg is not None:
+        video.send(bytes(jpeg))
 video.service()                          # sends the next few packets
 frame = video.receive()                  # the newest picture, or None
 if frame is not None:
@@ -140,12 +142,18 @@ you pass `Video(link, bandwidth=...)`, and a few at a time, so sound goes
 out between a picture's packets and a board's network buffers don't
 overflow. At that rate a 20 KB picture takes about 80 ms to send; a 300 KB
 photo takes over a second. Keep pictures small: a camera's lower
-resolution and a JPEG quality around 60 do more than a faster link. A
+resolution and a JPEG quality around 60 do more than a faster link. On an
+ESP32-P4, `camera.reconfigure(pixel_format=cameraif.PixelFormat.JPEG,
+frame_size=cameraif.FrameSize.VGA)` has the chip scale the picture to
+640x480 and encode it, about 7 KB, and `camera.take()` returns it. A
 320x180 picture is 115 KB as raw pixels and about 3 KB as JPEG at quality
 60, so JPEG is the codec, even where the encoding is done in software.
 
 `Screen` halves a picture until it fits the display, centres it, and uses
-the hardware decoder where the firmware has one. A picture it can't read
+the hardware decoder where the firmware has one. The P4's decoder works
+only at full size, so send pictures no bigger than the screen: a 1280x960
+picture halved for an 800x480 screen took about 400 ms to decode and draw
+in software, and a 640x480 one 77 ms in hardware. A picture it can't read
 is counted in `screen.errors` and skipped. The decoder in MicroPython
 firmware reads baseline JPEGs with 4:4:4, 4:2:2 or 4:2:0 colour, which is
 what cameras make; a progressive JPEG from a photo editor is skipped there,

@@ -12,9 +12,9 @@ costs one picture, never the stream.
 centred. :class:`FileCamera` stands in for a camera where there isn't one:
 it hands out the JPEG files in a folder, one a call, round and round.
 
-A camera is anything with ``capture_jpeg(quality)`` that returns the bytes
-of one JPEG, or None when no frame is ready: ``cameraif.Camera`` on an
-ESP32-P4, or :class:`FileCamera`.
+A camera is anything whose ``take()`` returns one JPEG, as bytes or a
+memoryview, or None when no frame is ready: ``cameraif.Camera`` on an
+ESP32-P4 set to JPEG, or :class:`FileCamera`.
 """
 
 from medialink import packet as _p
@@ -191,7 +191,7 @@ class Screen:
 class FileCamera:
     """A camera made of the JPEG files in ``folder``, in name order.
 
-    ``capture_jpeg()`` returns the next file's bytes each call, and starts
+    ``take()`` returns the next file's bytes each call, and starts
     over after the last. Use it to send pictures from a computer with no
     camera, or known pictures whose arrival you want to check.
     """
@@ -205,11 +205,14 @@ class FileCamera:
         self.paths = [folder.rstrip("/") + "/" + name for name in names]
         self._next = 0
 
-    def capture_jpeg(self, quality=None):
+    def take(self):
         path = self.paths[self._next]
         self._next = (self._next + 1) % len(self.paths)
         with open(path, "rb") as file:
             return file.read()
+
+    def capture_jpeg(self, quality=None):
+        return self.take()
 
     def deinit(self):
         pass

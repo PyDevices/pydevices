@@ -42,6 +42,7 @@ PORT = 47800
 BUTTON_PIN = None  # a board's button GPIO, pressed when low; None for the window
 PICTURES = None  # a folder of JPEG files to send in place of a camera
 FPS = 10  # pictures a second, at most
+SIZE = "VGA"  # a camera\'s picture size: "QVGA" is 320x240, "VGA" 640x480
 QUALITY = 60  # 1 to 100; lower is smaller and quicker to send
 RATE = 16000  # sound samples a second
 
@@ -50,8 +51,13 @@ if PICTURES:
     camera = medialink.FileCamera(PICTURES)
 else:
     import board_peripherals
+    import cameraif
 
+    # Have the chip scale each picture down and encode it, so it is
+    # quick to send and the other side decodes it in hardware.
     camera = board_peripherals.camera()
+    camera.reconfigure(pixel_format=cameraif.PixelFormat.JPEG, frame_size=getattr(cameraif.FrameSize, SIZE))
+    camera.quality = QUALITY
 screen = medialink.Screen(display_drv)
 audio = AudioFormat(RATE, 1, 16)
 mic = boarddev.pcm_in(audio)
@@ -119,9 +125,9 @@ try:
         intercom.service()
         if link.alive and video.ready and multimer.ticks_diff(now, taken) >= 1000 // FPS:
             taken = now
-            jpeg = camera.capture_jpeg(QUALITY)
-            if jpeg:
-                video.send(jpeg, taken)
+            jpeg = camera.take()
+            if jpeg is not None:
+                video.send(bytes(jpeg), taken)
         video.service()
         frame = video.receive()
         if frame is not None:
