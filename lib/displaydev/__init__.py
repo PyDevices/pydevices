@@ -549,6 +549,26 @@ def _fps_line(s):
     return line
 
 
+def _console_off_screen():
+    """Take CircuitPython's console off the board's built-in screen.
+
+    CircuitPython shows its console on ``board.DISPLAY`` and redraws it on
+    every ``print``; on an 800x480 panel each line stops the program for
+    hundreds of milliseconds. A board without ``board.DISPLAY``, one whose
+    display was released, and one that already shows a group of its own are
+    left alone.
+    """
+    try:
+        import board
+        import displayio
+
+        display = board.DISPLAY
+        if display.root_group is displayio.CIRCUITPYTHON_TERMINAL:
+            display.root_group = None
+    except Exception:  # noqa: BLE001 - no board.DISPLAY, or it was released
+        pass
+
+
 class DisplayDriver:
     """
     Base class for all display backends (BusDisplay, SDLDisplay, PGDisplay, FBDisplay, etc.).
@@ -616,6 +636,8 @@ class DisplayDriver:
             quiet: When True, suppress init / rotation chatter.
         """
         self._quiet = quiet
+        if sys.implementation.name == "circuitpython":
+            _console_off_screen()
         if not self._quiet:
             print(f"Initializing {self.__class__.__name__}...")
         gc.collect()

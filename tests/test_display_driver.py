@@ -198,3 +198,56 @@ class TestScrollMath(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestConsoleOffScreen(unittest.TestCase):
+    """On CircuitPython a new driver takes the console off ``board.DISPLAY``."""
+
+    def setUp(self):
+        import sys
+        import types
+
+        self._sys = sys
+        self._saved = {name: sys.modules.get(name) for name in ("board", "displayio")}
+        self.terminal = object()
+        self.displayio = types.ModuleType("displayio")
+        self.displayio.CIRCUITPYTHON_TERMINAL = self.terminal
+        self.board = types.ModuleType("board")
+        sys.modules["displayio"] = self.displayio
+        sys.modules["board"] = self.board
+
+    def tearDown(self):
+        for name, mod in self._saved.items():
+            if mod is None:
+                self._sys.modules.pop(name, None)
+            else:
+                self._sys.modules[name] = mod
+
+    def _display(self, root_group):
+        class _Display:
+            pass
+
+        d = _Display()
+        d.root_group = root_group
+        self.board.DISPLAY = d
+        return d
+
+    def test_terminal_is_taken_off(self):
+        import displaydev
+
+        d = self._display(self.terminal)
+        displaydev._console_off_screen()
+        self.assertIsNone(d.root_group)
+
+    def test_own_group_is_kept(self):
+        import displaydev
+
+        group = object()
+        d = self._display(group)
+        displaydev._console_off_screen()
+        self.assertIs(d.root_group, group)
+
+    def test_board_without_display(self):
+        import displaydev
+
+        displaydev._console_off_screen()  # no board.DISPLAY: nothing raised

@@ -209,19 +209,10 @@ program for over 400 ms, and the frames that arrive meanwhile don't fit
 the few the network stack keeps for you: a listener that printed "sound"
 at the start of each one-second turn heard 34 or 35 of its 50 frames.
 Frames a talker captured during the stall go out in a burst that the
-listener can't keep either. Take the console off the screen before you
-stream, and every frame arrives:
-
-```python
-import board
-
-board.DISPLAY.root_group = None  # or a displayio.Group of your own
-```
-
-A board config that paints the screen already does this: it shows its own
-group in place of the console. `displayio.release_displays()` takes the
-console off too, but it also releases the screen the firmware set up, so
-use it only when the program doesn't draw.
+listener can't keep either. With the console off the screen, every frame
+arrives. A PyDevices board config takes it off for you; a program that
+doesn't import one does it itself, as
+[Board configs](../boards/board-configs.md#the-circuitpython-console) shows.
 
 `intercom.stats` says what came of it:
 `latency_ms` is from the far microphone to this speaker, and `underruns`
