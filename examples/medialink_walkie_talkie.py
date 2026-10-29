@@ -13,6 +13,10 @@ long the sound took from one microphone to the other speaker, and how often
 the speaker ran dry waiting for the network. If the network drops, they find
 each other again when it comes back.
 
+They find each other on the network they are on. Where the Wi-Fi is weak,
+set HOTSPOT_PASSWORD on both: one board starts an access point, the other
+joins it, and both go back to their own network when the program ends.
+
 Needs: a microphone and a speaker that boarddev.pcm_in() and pcm_out()
 reach, which a PyDevices board package or pydevices-desktop provides, and a
 network: a board already on Wi-Fi, with mdns in its firmware. On a
@@ -39,6 +43,7 @@ PEER_ADDRESS = None  # or ("192.168.1.20", PORT) to skip the search
 PORT = 47800
 BUTTON_PIN = None  # a board's button GPIO, pressed when low; None for the window
 RATE = 16000  # samples a second
+HOTSPOT_PASSWORD = None  # a password to talk over a hotspot one board starts
 
 # Open the microphone and the speaker at one format: mono, 16-bit.
 audio = AudioFormat(RATE, 1, 16)
@@ -72,7 +77,7 @@ else:
 # Listen on PORT, and announce this side by name.
 link = medialink.Link(medialink.UDPTransport(PORT), retries=2)
 intercom = medialink.Intercom(link, mic, speaker)
-finder = medialink.MDNS()
+finder = medialink.Hotspot(HOTSPOT_PASSWORD) if HOTSPOT_PASSWORD else medialink.MDNS()
 finder.advertise(NAME, PORT)
 print("This is %r; looking for %r" % (NAME, PEER))
 

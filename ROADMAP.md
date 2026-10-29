@@ -43,8 +43,9 @@ with each kind of peripheral described honestly by its role.
 - Video: a surveillance camera with sound, a video doorbell, and a
   videophone, on boards with a camera and a screen.
 - Streaming a camera to a Roku TV or to Windows Wireless Display.
-- More ways to find a peer: BLE advertising, and one board joining the
-  other's hotspot. A BLE transport, using ADPCM to fit its bandwidth.
+- Finding a peer by BLE advertising, which can also hand a board the
+  hotspot's name and password. A BLE transport, using ADPCM to fit its
+  bandwidth.
 - Talk hands-free: a wake word opens the floor, and voice activity sends only
   while someone speaks.
 

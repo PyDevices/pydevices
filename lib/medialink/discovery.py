@@ -1,10 +1,19 @@
-"""Finding peers: mDNS first.
+"""Finding peers: by mDNS on a shared network, or over a hotspot.
 
-Discovery turns a name into a transport address. A peer advertises itself
-as a ``_medialink._udp`` service under its name; another finds it by that
-name and gets back an ``(ip, port)`` to hand to :meth:`Link.connect`.
+Discovery turns a name into a transport address. Each kind has the same
+two calls: ``advertise(name, port)`` for this side, and ``find(name)`` for
+the other, which hands back ``[(name, (ip, port))]`` for
+:meth:`Link.connect`.
 
-It uses the ``mdns`` module, which is CircuitPython's API wherever it runs:
+:class:`MDNS` finds a peer on the network both are already on. A peer
+advertises itself as a ``_medialink._udp`` service under its name; another
+finds it by that name.
+
+:class:`Hotspot` makes the network: one board starts a Wi-Fi access point
+and the other joins it, so two boards talk directly where the house Wi-Fi is
+weak or absent.
+
+MDNS uses the ``mdns`` module, which is CircuitPython's API wherever it runs:
 built into CircuitPython, a C module in MicroPython firmware that carries it
 (and the unix and Windows ports), and on CPython ``mdns.py`` in
 pydevices-desktop, over python-zeroconf (``pip install zeroconf``).
@@ -13,6 +22,8 @@ When you already know the address, skip discovery and connect to it.
 """
 
 import sys
+
+from medialink._compat import sleep_ms, ticks_diff, ticks_ms
 
 SERVICE_TYPE = "_medialink"
 PROTOCOL = "_udp"
@@ -60,3 +71,150 @@ class MDNS:
 
     def deinit(self):
         self._server.deinit()
+
+
+def _radio():
+    """``wifi.radio``: CircuitPython's own, or pydevices' wifi module on
+    MicroPython, which has the same API over ``network.WLAN``."""
+    try:
+        import wifi
+
+        return wifi.radio
+    except (ImportError, AttributeError) as error:
+        raise OSError("no Wi-Fi radio here: %s" % error) from None
+
+
+def _rejoin_house(timeout):
+    """Join the network the board joins at boot, from its settings."""
+    if sys.implementation.name == "circuitpython":
+        import os
+
+        import wifi
+
+        ssid = os.getenv("CIRCUITPY_WIFI_SSID")
+        if ssid:
+            wifi.radio.connect(ssid, os.getenv("CIRCUITPY_WIFI_PASSWORD") or "", timeout=timeout)
+        return
+    import wifi
+
+    wifi.connect_from_secrets(ntp=False, timeout=timeout)
+
+
+class Hotspot:
+    """Two boards on a Wi-Fi network of their own: one hosts, one joins.
+
+    Use it where you would use :class:`MDNS`, with the same calls::
+
+        finder = medialink.Hotspot("a password")
+        finder.advertise("kitchen", 47800)
+        for name, address in finder.find("garage"):
+            link.connect(address)
+
+    The two sides need only agree on the password. On the first ``find()``
+    the side whose name sorts first starts an access point named after
+    itself, and ``find()`` there returns nothing: the other side calls it.
+    The other side joins that access point and ``find()`` returns the host's
+    address, on the port it advertised itself. Pass ``ssid`` to name the
+    network yourself, and ``host`` to choose which side starts it.
+
+    Joining leaves whatever network the board was on. ``deinit()`` takes
+    the access point down, leaves the hotspot, and rejoins the network the
+    board joins at boot (``secrets.py`` on MicroPython, ``settings.toml`` on
+    CircuitPython) if it was on one.
+
+    ``start()`` and ``join()`` are the two halves on their own, for a
+    program that decides the roles itself.
+
+    It needs a board with Wi-Fi: on MicroPython pydevices' ``wifi`` module,
+    built into PyDevices firmware; on CircuitPython ``wifi``. A password
+    must be 8 to 63 characters.
+    """
+
+    def __init__(self, password, *, ssid=None, host=None, timeout=20):
+        if not 8 <= len(password) <= 63:
+            raise ValueError("a Wi-Fi password is 8 to 63 characters")
+        self.password = password
+        self.ssid = ssid
+        self.host = host
+        self.timeout = timeout
+        self.name = None
+        self.port = None
+        self._radio = _radio()
+        self._hosting = False
+        self._joined = False
+        self._was_on = None
+
+    def advertise(self, name, port):
+        """Remember this side's name and port; the hotspot starts at ``find()``."""
+        self.name = name
+        self.port = port
+
+    def find(self, name=None, timeout=None):
+        """``[(name, (ip, port))]`` of the host, or ``[]`` on the host itself
+        and while the host isn't up yet.
+
+        Joining waits up to the ``timeout`` given to the constructor, since
+        a join takes seconds; ``timeout`` here is taken for MDNS's sake and
+        ignored.
+        """
+        if self.name is None:
+            raise ValueError("advertise() this side first")
+        host = self.host
+        if host is None:
+            host = name is None or self.name < name
+        ssid = self.ssid or (self.name if host else name)
+        if host:
+            if not self._hosting:
+                self.start(ssid)
+            return []
+        try:
+            address = self.join(ssid)
+        except (ConnectionError, OSError):
+            return []
+        return [(name, (address, self.port))]
+
+    def start(self, ssid):
+        """Start an access point named ``ssid``. Returns this board's address on it."""
+        radio = self._radio
+        radio.start_ap(ssid, self.password)
+        self._hosting = True
+        deadline = ticks_ms()
+        while radio.ipv4_address_ap is None and ticks_diff(ticks_ms(), deadline) < 5000:
+            sleep_ms(50)
+        return str(radio.ipv4_address_ap)
+
+    def join(self, ssid, timeout=None):
+        """Join the access point ``ssid``. Returns the host's address on it.
+
+        Raises ConnectionError when it can't be joined in ``timeout`` seconds.
+        """
+        radio = self._radio
+        if self._joined and radio.ipv4_address is not None:
+            return str(radio.ipv4_gateway)
+        if self._was_on is None:
+            self._was_on = radio.ipv4_address is not None
+        radio.connect(ssid, self.password, timeout=timeout or self.timeout)
+        self._joined = True
+        return str(radio.ipv4_gateway)
+
+    def deinit(self):
+        radio = self._radio
+        if self._hosting:
+            radio.stop_ap()
+            self._hosting = False
+        if self._joined:
+            self._joined = False
+            try:
+                radio.stop_station()
+            except (AttributeError, OSError):
+                pass
+            if self._was_on:
+                try:
+                    radio.start_station()
+                except (AttributeError, OSError):
+                    pass
+                try:
+                    _rejoin_house(self.timeout)
+                except (ConnectionError, OSError, ImportError):
+                    pass
+        self._was_on = None
