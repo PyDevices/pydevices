@@ -12,6 +12,7 @@ directory each, installed with `mip`:
 | [`usb-host-cdc`](https://github.com/PyDevices/pydevices/tree/main/usb-host-cdc) | `usb.host.cdc` | A USB serial device |
 | [`usb-host-audio`](https://github.com/PyDevices/pydevices/tree/main/usb-host-audio) | `usb.host.audio` | Play to a USB speaker, record from a USB microphone |
 | [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/usb-host-video) | `usb.host.video` | Frames from a USB webcam |
+| [`usb-host-mtp`](https://github.com/PyDevices/pydevices/tree/main/usb-host-mtp) | `usb.host.mtp` | Photos and files off a phone or a camera, over MTP |
 | [`usb-host-net`](https://github.com/PyDevices/pydevices/tree/main/usb-host-net) | `usb.host.net` | The internet through a phone's USB tethering |
 | [`usb-device-audio`](https://github.com/PyDevices/pydevices/tree/main/usb-device-audio) | `usb.device.audio` | The board as a USB sound card |
 | [`usb-device-video`](https://github.com/PyDevices/pydevices/tree/main/usb-device-video) | `usb.device.video` | The board as a USB webcam, YUY2 or MJPEG |

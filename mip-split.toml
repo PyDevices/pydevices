@@ -146,6 +146,9 @@ top-level = true
 [usb-host-msc]
 top-level = true
 
+[usb-host-mtp]
+top-level = true
+
 [usb-host-net]
 top-level = true
 
