@@ -40,8 +40,14 @@ with each kind of peripheral described honestly by its role.
 
 - More examples beside the walkie-talkie: a baby monitor (one way, always
   on) and a doorbell intercom (both ways, half duplex).
-- Video: a surveillance camera with sound, a video doorbell, and a
-  videophone, on boards with a camera and a screen.
+- Talk both ways at once on a videophone, on boards whose speaker and
+  microphone share one I2S port: that needs a duplex I2S path.
+- Decode pictures beside the sound rather than in the same loop, so a
+  videophone keeps clean sound with 640x480 pictures both ways.
+- One camera watched from several screens at once; today the last watcher
+  to connect gets the pictures.
+- Show progressive JPEGs on boards, whose firmware decoder reads only
+  baseline ones.
 - Streaming a camera to a Roku TV or to Windows Wireless Display.
 - A BLE transport, using ADPCM to fit its bandwidth, for boards with no
   Wi-Fi between them.

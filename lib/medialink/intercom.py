@@ -8,7 +8,8 @@ Call ``service()`` from the app's loop, as often as it can run.
 The microphone is any ``audiodev.PCMInput`` (``readinto``) and the speaker
 any ``audiodev.PCMOutput`` (``try_write``), so ``boarddev.pcm_in()`` and
 ``boarddev.pcm_out()`` work on a board and on a computer alike. Both are
-signed 16-bit at one format. The microphone is open only while talking,
+signed 16-bit at one format. A side that only talks or only listens passes
+None for the other. The microphone is open only while talking,
 and ``press()`` closes the speaker before it opens the microphone, which is
 what a board whose input and output share one I2S bus needs.
 
@@ -127,9 +128,8 @@ class Intercom:
         self.stats["sent"] += 1
 
     def _play_step(self):
-        for frame in self.link.frames():
-            if frame.kind != _p.AUDIO:
-                continue
+        # Sound only: pictures on the same link stay for whoever shows them.
+        for frame in self.link.frames(_p.AUDIO):
             pcm = _codec.by_id(frame.codec).decode(frame.payload, self.channels) if frame.payload else b""
             if frame.flags & _p.START or not self._spurt:
                 self._spurt = True
@@ -173,7 +173,7 @@ class Intercom:
             self._pending = self._pending[cut - cut % 4:]
 
     def _drain(self):
-        if self._pending:
+        if self._pending and self.speaker is not None:
             took = self.speaker.try_write(self._pending)
             self._pending = self._pending[took:]
 
@@ -188,4 +188,5 @@ class Intercom:
 
     def close(self):
         self.release()
-        self.speaker.close()
+        if self.speaker is not None:
+            self.speaker.close()
