@@ -261,6 +261,18 @@ def test_order():
     pump(device, (p1, p2))
     check(p1.doc == model.doc == p2.doc, "index edits agree: %r %r" % (p1.doc, p2.doc))
 
+    # An edit inside an item while another panel removes one before it: the
+    # index names a different item on the device, so the copy is taken again.
+    model.doc["rows"] = [{"v": 0}, {"v": 1}, {"v": 2}]
+    device.reset_doc()
+    pump(device, (p1, p2))
+    p2.send("remove", "/rows/0")
+    device.poll()  # the device has the remove; p1 hasn't heard yet
+    p1.send("replace", "/rows/1/v", 10)
+    pump(device, (p1, p2))
+    check(p1.doc == model.doc == p2.doc, "an item edit crossing a remove agrees: %r %r %r"
+          % (model.doc["rows"], p1.doc["rows"], p2.doc["rows"]))
+
     # local=False: the caller changed doc itself; nothing is applied twice.
     p1.doc["list"].append("x")
     p1.send("add", "/list/-", "x", local=False)

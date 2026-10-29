@@ -432,10 +432,12 @@ class Panel:
     exactly one is counted in ``stats["out_of_order"]``, reported to
     ``on_error`` as ``{"t": "order", ...}``, and not applied: the panel asks
     for the whole document instead (``sync``), and ``on_doc`` fires when it
-    comes. The same happens when another panel's op reaches a list this
-    panel has added to or removed from early and not yet heard back about,
-    since the two may have landed in a different order on the device
-    (``stats["resyncs"]`` counts both).
+    comes. The same happens when two panels' edits to a list cross: another
+    panel's op reaches a list this panel has added to or removed from early,
+    or another panel adds to or removes from a list while this panel's edit
+    of one of its items is in flight. The index may name a different item on
+    the device than here, so once this panel's own ops are back it takes the
+    device's document rather than guess (``stats["resyncs"]`` counts both).
     """
 
     def __init__(self, link, codec=None):
@@ -454,7 +456,9 @@ class Panel:
         self.on_pong = None
         self._next_id = 1
         self._pending = {}
-        self._lists = {}  # list path -> this panel's ops on it still in flight
+        self._sent = {}  # id -> (op, path): this panel's ops not yet echoed
+        self._flight = {}  # path -> how many of them change it
+        self._lists = {}  # list path -> how many of them add to it or remove from it
         self._stale = False  # another panel's op crossed one of ours on a list
         self._syncing = False
         self._pings = {}
@@ -495,9 +499,10 @@ class Panel:
             except (KeyError, IndexError, ValueError, TypeError):
                 pass
         self._pending[path] = msg["id"]
+        self._sent[msg["id"]] = (op, path)
+        _count(self._flight, path, 1)
         if op != "replace" and _list_path(path):
-            parent = _parent(path)
-            self._lists[parent] = self._lists.get(parent, 0) + 1
+            _count(self._lists, _parent(path), 1)
         self.stats["ops_out"] += 1
         self._send(msg)
         return msg["id"]
@@ -561,7 +566,7 @@ class Panel:
                 self.seq = seq
             path = msg["path"]
             mine = self.me is not None and msg.get("from") == self.me
-            if self._lists and self._cross(path, mine):
+            if self._sent and self._cross(msg, mine):
                 return
             if mine and path in self._pending:
                 if msg.get("id") == self._pending[path]:
@@ -592,6 +597,8 @@ class Panel:
             self.seq = msg.get("seq", 0)
             self.me = msg.get("you", self.me)
             self._pending = {}
+            self._sent = {}
+            self._flight = {}
             self._lists = {}
             self._stale = False
             self._syncing = False
@@ -609,7 +616,7 @@ class Panel:
                 else:
                     undo = {"op": "remove", "path": path}
                 self._pending.pop(path, None)
-                self._settle(path)
+                self._settle(msg.get("id"))
                 try:
                     apply_op(self.doc, undo)
                 except (KeyError, IndexError, ValueError, TypeError):
@@ -627,32 +634,52 @@ class Panel:
                     self.on_pong(ticks_diff(ticks_ms(), at))
 
 
-    def _cross(self, path, mine):
-        """Keep count of this panel's list ops in flight, and mark the copy
-        stale when another panel's op reaches a list one of them is changing.
-        True when the panel has asked for the document instead."""
+    def _cross(self, msg, mine):
+        """Keep count of this panel's ops in flight, and mark the copy stale
+        when another panel's op crosses one of them on a list. True when the
+        panel has asked for the document instead."""
+        kind, path = msg["op"], msg["path"]
         if mine:
-            self._settle(path)
-            if self._stale and not self._lists:
+            self._settle(msg.get("id"))
+            if self._stale and not self._flight:
                 # Our early edits are all back; the device's order is the
                 # true one, so take its document rather than guess.
                 self.sync()
                 return True
             return False
+        if self._stale:
+            return False
+        # Ours added to or removed from a list this op reaches into.
         for parent in self._lists:
             if path == parent or path.startswith(parent + "/"):
                 self._stale = True
-                break
+                return False
+        # Its add or remove moves the items after it: is ours inside that list?
+        if kind != "replace" and _list_path(path):
+            inside = _parent(path) + "/"
+            for p in self._flight:
+                if p.startswith(inside):
+                    self._stale = True
+                    break
         return False
 
-    def _settle(self, path):
-        if _list_path(path):
-            parent = _parent(path)
-            n = self._lists.get(parent, 0) - 1
-            if n > 0:
-                self._lists[parent] = n
-            else:
-                self._lists.pop(parent, None)
+    def _settle(self, op_id):
+        """One of this panel's ops came back (or was refused)."""
+        sent = self._sent.pop(op_id, None)
+        if sent is None:
+            return
+        kind, path = sent
+        _count(self._flight, path, -1)
+        if kind != "replace" and _list_path(path):
+            _count(self._lists, _parent(path), -1)
+
+
+def _count(counts, key, n):
+    n += counts.get(key, 0)
+    if n > 0:
+        counts[key] = n
+    else:
+        counts.pop(key, None)
 
 
 def _parent(path):
