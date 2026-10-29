@@ -95,6 +95,37 @@ def tone(samples, rate=16000, freq=440, level=8000):
     )
 
 
+class TheClock(unittest.TestCase):
+    def test_circuitpython_clock_keeps_the_common_period_across_its_wrap(self):
+        # CircuitPython's supervisor.ticks_ms wraps at 2**29; medialink's
+        # ticks run on 2**30 like MicroPython's, so a peer on either reads
+        # the same differences.
+        import importlib
+        import sys
+        import types
+
+        raw = [(1 << 29) - 30]
+        fake = types.ModuleType("supervisor")
+        fake.ticks_ms = lambda: raw[0]
+        saved_sleep = getattr(time, "sleep_ms", None)
+        sys.modules["supervisor"] = fake
+        try:
+            compat = importlib.reload(importlib.import_module("medialink._compat"))
+            before = compat.ticks_ms()
+            raw[0] = 20  # 50 ms later, past the wrap
+            after = compat.ticks_ms()
+            self.assertEqual(compat.ticks_diff(after, before), 50)
+            self.assertEqual(after, 1 << 29 | 20)
+            raw[0] = (1 << 29) - 1
+            self.assertEqual(compat.ticks_ms(), (1 << 30) - 1)
+            raw[0] = 5  # the second wrap returns to the bottom of 2**30
+            self.assertEqual(compat.ticks_ms(), 5)
+        finally:
+            del sys.modules["supervisor"]
+            importlib.reload(importlib.import_module("medialink._compat"))
+        self.assertEqual(getattr(time, "sleep_ms", None), saved_sleep)
+
+
 class ThePacket(unittest.TestCase):
     def test_round_trip(self):
         data = packet.pack(packet.AUDIO, 1, packet.START, 2, 3, 0x1234, 0xDEADBEEF, b"xy")

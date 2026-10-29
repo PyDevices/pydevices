@@ -22,8 +22,9 @@ CPython also needs python-zeroconf for mdns.
 Run it:
     mpremote run medialink_walkie_talkie.py
 
-Tested on: two processes on one Linux computer, CPython 3.12 and the unix
-MicroPython port in each pairing, with a scripted button.
+Tested on: two ESP32-S3 boards on Wi-Fi, one on MicroPython and one on
+CircuitPython 11, and a computer with CPython 3.12 and the unix MicroPython
+port, each with a scripted button and a test tone for the microphone.
 """
 
 import boarddev
@@ -102,11 +103,15 @@ try:
             print("Peer", "here" if was_alive else "gone: waiting for it")
         pressed = held()
         if pressed and not intercom.talking and link.alive and not refused:
-            if intercom.press():
-                print("Talking...")
-                sent = intercom.stats["sent"]
-            else:
-                print("The other side is talking")
+            try:
+                if intercom.press():
+                    print("Talking...")
+                    sent = intercom.stats["sent"]
+                else:
+                    print("The other side is talking")
+                    refused = True
+            except medialink.PeerUnreachable:
+                print("No answer from the other side")
                 refused = True
         elif not pressed:
             refused = False

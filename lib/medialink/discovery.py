@@ -12,6 +12,8 @@ pydevices-desktop, over python-zeroconf (``pip install zeroconf``).
 When you already know the address, skip discovery and connect to it.
 """
 
+import sys
+
 SERVICE_TYPE = "_medialink"
 PROTOCOL = "_udp"
 
@@ -20,13 +22,17 @@ class MDNS:
     """Advertise this peer and find others on the local network.
 
     ``interface`` is what ``mdns.Server`` takes: on a board the Wi-Fi
-    interface (``network.WLAN(network.STA_IF)``, or ``wifi.radio`` on
-    CircuitPython), on a computer None.
+    interface (``network.WLAN(network.STA_IF)`` on MicroPython), on a
+    computer None. On CircuitPython None means ``wifi.radio``.
     """
 
     def __init__(self, interface=None):
         import mdns
 
+        if interface is None and sys.implementation.name == "circuitpython":
+            import wifi
+
+            interface = wifi.radio
         self._server = mdns.Server(interface)
 
     @property

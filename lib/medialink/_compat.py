@@ -19,7 +19,26 @@ try:
     ticks_ms = time.ticks_ms
     sleep_ms = time.sleep_ms
 except AttributeError:
-    if hasattr(time, "monotonic_ns"):
+    try:
+        from supervisor import ticks_ms as _raw_ticks
+    except ImportError:
+        _raw_ticks = None
+    if _raw_ticks is not None:
+        # CircuitPython. Its monotonic_ns() is a long integer, and making one
+        # every call costs garbage collections a stream can hear. Its
+        # supervisor.ticks_ms() is a small integer on a 2**29 period, so add
+        # the missing bit whenever it wraps. Any loop that streams reads the
+        # clock far more often than the 3 days a half period lasts.
+        _wrap = [0, 0]
+
+        def ticks_ms():
+            raw = _raw_ticks()
+            if raw < _wrap[0]:
+                _wrap[1] ^= 1 << 29
+            _wrap[0] = raw
+            return raw | _wrap[1]
+
+    elif hasattr(time, "monotonic_ns"):
 
         def ticks_ms():
             return (time.monotonic_ns() // 1000000) & _MASK

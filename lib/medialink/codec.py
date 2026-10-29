@@ -22,7 +22,8 @@ class PCM16:
 
     @staticmethod
     def encode(pcm, channels=1):
-        return bytes(pcm)
+        # PCM needs no encoding: the buffer goes out as it is, uncopied.
+        return pcm
 
     @staticmethod
     def decode(payload, channels=1):

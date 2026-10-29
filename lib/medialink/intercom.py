@@ -12,7 +12,9 @@ signed 16-bit at one format. The microphone is open only while talking,
 which is what a board whose input and output share one I2S bus needs.
 
 Playback waits for ``prebuffer`` frames at the start of each talk spurt
-before it writes, which is what absorbs the network's jitter. ``stats``
+before it writes, which is what absorbs the network's jitter. The default,
+five 20 ms frames, is what kept a turn between two boards on Wi-Fi from
+running dry; on a wired link or one computer, 2 or 3 will do. ``stats``
 counts the frames sent and played, the underruns (the speaker ran dry in
 the middle of a spurt), and the latency from the far microphone to this
 speaker as best the clocks allow.
@@ -24,7 +26,7 @@ from medialink.link import LISTENING, TALKING
 
 
 class Intercom:
-    def __init__(self, link, mic, speaker, *, frame_ms=20, codec=None, prebuffer=3):
+    def __init__(self, link, mic, speaker, *, frame_ms=20, codec=None, prebuffer=5):
         self.link = link
         self.mic = mic
         self.speaker = speaker

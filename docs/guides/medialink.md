@@ -62,6 +62,11 @@ side to answer. If it doesn't, they raise `medialink.PeerUnreachable`. By
 default that is after one try, about a third of a second; `Link(...,
 retries=N)` tries N more times first.
 
+While the link is open it keeps a board's Wi-Fi awake. With power saving
+on, the radio holds incoming packets until it next wakes, which loses some
+and makes the rest late. `UDPTransport(..., power_save=True)` leaves the
+setting alone.
+
 Each side pings the other every second. `link.alive` says whether the peer
 has been heard from in the last three seconds, and `link.rtt_ms` is the
 latest round trip. When the network drops and comes back, even at a new
@@ -82,8 +87,14 @@ picks IMA ADPCM instead, a quarter the size: 16 kHz mono is 256 kbit/s as
 PCM and 64 kbit/s as ADPCM. You can pass either as `Intercom(...,
 codec=medialink.ADPCM)`.
 
-The listener waits for three frames before it starts to play, which absorbs
-the network's unevenness. `intercom.stats` says what came of it:
+The listener waits for five frames (100 ms) before it starts to play, which
+absorbs the unevenness of Wi-Fi; `Intercom(..., prebuffer=3)` cuts the wait
+where the network is steadier. Between two boards on home Wi-Fi, sound took
+about a tenth of a second from one microphone to the other speaker.
+On a CircuitPython board whose screen shows the console, every line you
+print scrolls and redraws that screen, and a big panel can stall the stream
+for a fifth of a second. Give the display your own screen, or print less
+while someone talks. `intercom.stats` says what came of it:
 `latency_ms` is from the far microphone to this speaker, and `underruns`
 counts the times the speaker ran dry in the middle of a turn.
 

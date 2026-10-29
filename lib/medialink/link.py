@@ -94,6 +94,9 @@ class Link:
         self._inbox = []
         self._inbox_size = inbox
         self._buf = bytearray(transport.mtu + 64)
+        # Media goes out through one buffer, so sending a frame allocates
+        # nothing: a garbage collection mid-stream is an audible gap.
+        self._out = memoryview(bytearray(transport.mtu))
         self._seq = {_p.AUDIO: 0, _p.VIDEO: 0}
         self._expect = {_p.AUDIO: None, _p.VIDEO: None}
         self._parts = {_p.AUDIO: _Reassembly(), _p.VIDEO: _Reassembly()}
@@ -194,9 +197,13 @@ class Link:
         if frags > 255:
             raise ValueError("frame too big for this link")
         view = memoryview(payload)
+        out = self._out
         for frag in range(frags):
             piece = view[frag * room:(frag + 1) * room]
-            self._send(_p.pack(kind, codec, flags, frag, frags, seq, stamp, piece))
+            _p.pack_into(out, kind, codec, flags, frag, frags, seq, stamp)
+            end = _p.HEADER_SIZE + len(piece)
+            out[_p.HEADER_SIZE:end] = piece
+            self._send(out[:end])
         return seq
 
     def frames(self):

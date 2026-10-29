@@ -15,6 +15,8 @@ An address is whatever the transport understands. For UDP it is an
 adds acknowledgement where it matters.
 """
 
+import sys
+
 from medialink._compat import socket_pool
 
 
@@ -29,6 +31,8 @@ class Transport:
         pass
 
     def send(self, data, address):
+        """Send one datagram. ``data`` is a buffer the link reuses as soon
+        as this returns, so copy it if you keep it."""
         raise NotImplementedError
 
     def recv_into(self, buf):
@@ -50,6 +54,30 @@ def _address(raw):
     return "%d.%d.%d.%d" % (raw[4], raw[5], raw[6], raw[7]), raw[2] << 8 | raw[3]
 
 
+def _power_save(on):
+    """Turn a board's Wi-Fi power saving on or off; the old setting, or None
+    where there is none to change (a computer, a board off Wi-Fi)."""
+    try:
+        if sys.implementation.name == "circuitpython":
+            import wifi
+
+            old = wifi.radio.power_management
+            if isinstance(on, bool):
+                on = wifi.PowerManagement.MIN if on else wifi.PowerManagement.NONE
+            wifi.radio.power_management = on
+            return old
+        import network
+
+        wlan = network.WLAN(network.STA_IF)
+        old = wlan.config("pm")
+        if isinstance(on, bool):
+            on = wlan.PM_PERFORMANCE if on else wlan.PM_NONE
+        wlan.config(pm=on)
+        return old
+    except (ImportError, AttributeError, ValueError, OSError, TypeError):
+        return None
+
+
 class UDPTransport(Transport):
     """UDP over IP: Wi-Fi, Ethernet, or a computer's own network.
 
@@ -57,14 +85,21 @@ class UDPTransport(Transport):
     which suits a side that only ever calls out. ``interface`` is the
     network interface on CircuitPython (``wifi.radio`` when None), and is
     ignored elsewhere.
+
+    While it is open it keeps a board's Wi-Fi awake: with power saving on,
+    the radio holds incoming packets until it next wakes, which loses some
+    and delays the rest by a tenth of a second or more. ``power_save=True``
+    leaves the setting alone.
     """
 
     # 1400 crosses Wi-Fi and most home networks without IP fragmentation.
     mtu = 1400
     bandwidth = 2000000
 
-    def __init__(self, port=0, *, interface=None):
+    def __init__(self, port=0, *, interface=None, power_save=False):
         self.port = port
+        self._power_save = power_save
+        self._saved_power = None
         self._pool = socket_pool(interface)
         self._sock = None
         self._sockaddrs = {}
@@ -85,12 +120,17 @@ class UDPTransport(Transport):
             self.port = _address(sock.getsockname())[1]
         self._recvfrom_into = hasattr(sock, "recvfrom_into")
         self._sock = sock
+        if not self._power_save:
+            self._saved_power = _power_save(False)
         return self
 
     def close(self):
         if self._sock is not None:
             self._sock.close()
             self._sock = None
+            if self._saved_power is not None:
+                _power_save(self._saved_power)
+                self._saved_power = None
 
     def _sockaddr(self, address):
         found = self._sockaddrs.get(address)
