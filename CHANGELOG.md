@@ -1,3 +1,32 @@
+## v0.7.8rc1 (2026-10-29)
+
+- pdwidgets png_test: find the gallery beside the pydevices clone (#311)
+- Point at PyDevices/gallery (#309)
+- Examples: touch calibration, palettes and pdwidgets examples, from pydevices-examples (#307)
+- bledev on CircuitPython: a peripheral run twice serves one copy of its service (#306)
+- Examples: two-board pairs for Bluetooth LE, Wi-Fi and hmilink (#305)
+- Shorten AGENTS.md to tips; move the library rules into CONTRIBUTING (#304)
+- Add a simpletest for each core library; fix a bledev scan race (#302)
+- Docs: link the repo paths sayso's docs name (#301)
+- sayso CI: run on ubuntu-24.04, which still has Python 3.9 (#300)
+- Docs: link the repo paths the prose names (#297)
+- docs workflow: install libSDL2, which autodoc's imports of the SDL backends load
+- Release interpreters: freeze pydevices in the CircuitPython build, and import the frozen packages in the smoke step (#296)
+- pdwidgets docs: pydevices links open its docs on GitHub
+- Docs: the Docs link opens docs/ on GitHub, and the index reads there
+- Docs: LVGL font link follows lvgl-bindings' docs to reference/fonts.md
+- Docs: BLE, memory and USB figures re-measured on MicroPython 1.30 preview
+- pdwidgets docs: restructure to the launch template (README, Get started, Guides, Reference, How it works, CONTRIBUTING)
+- palettes docs: name the micropython-pydevices freeze option
+- palettes docs: restructure to the launch template (README, Get started, Guides, Reference, How it works, CONTRIBUTING)
+- Docs: the multimer migration page is named for the release it upgrades from
+- Docs: display boards page no longer ends on a rule
+- Docs: every page checked against the code
+- Docs: restructure to Get started, Guides, Reference, How it works and Changelog, built with Sphinx for Read the Docs
+- Roadmaps: appkit apps and the launcher may expose a model; hmilink.appkit serves them (#292)
+- README: interpreters and hosts, not six environments (#291)
+- interpreters.json: the library row is the release, not modules.lock's omnipython-lib pin
+
 ## v0.7.7 (2026-10-22)
 
 
