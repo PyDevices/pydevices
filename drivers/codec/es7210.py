@@ -129,7 +129,12 @@ class ES7210:
         self.enabled = True
 
     def _init_waveshare_p4(self, gain):
-        """24 kHz, 12.288 MHz MCLK, onboard MIC1/2 routed to GPIO11."""
+        """MCLK at 256 times the sample rate; onboard MIC1/2 in slave mode.
+
+        Any rate works as long as MCLK stays at 256 fs. MAIN_CLK turns the
+        clock doubler on for that ratio; without it the ADC runs at half the
+        rate and drops everything above a quarter of the sample rate.
+        """
         self._wr(_RESET, 0xFF)
         _sleep_ms(10)
         for reg, val in (
@@ -145,8 +150,8 @@ class ES7210:
             (0x40, 0x43),        # 3.3 V analog supply / fast VMID start
             (0x41, 0x70),        # MIC1/2 bias
             (0x42, 0x70),        # MIC3/4 bias
-            (_MAIN_CLK, 0x81),   # 12.288 MHz MCLK -> 24 kHz
-            (0x04, 0x02),
+            (_MAIN_CLK, 0xC1),   # MCLK = 256 fs: DLL on, doubler on, ADC div 1
+            (0x04, 0x01),        # LRCK divider 256 (used only as master)
             (0x05, 0x00),
             (_ANALOG, 0x20),     # OSR
             (_SDP12, 0x60),      # 16-bit I2S

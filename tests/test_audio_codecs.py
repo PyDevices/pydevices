@@ -35,6 +35,17 @@ class CodecTests(unittest.TestCase):
         codec.close()
         self.assertEqual(bus.registers[(0x40, 0x01)], b"\x1f")
 
+    def test_es7210_waveshare_p4_clocks_for_mclk_256_fs(self):
+        # Both boards on this profile drive MCLK at 256 times the sample rate.
+        # MAIN_CLK must turn the clock doubler on for that ratio: without it the
+        # ADC samples at half the rate and nothing above a quarter of the
+        # sample rate is recorded (4 kHz at 16 kHz).
+        bus = FakeI2C()
+        ES7210(bus, profile="waveshare_p4")
+        self.assertEqual(bus.registers[(0x40, 0x02)], b"\xc1")
+        self.assertEqual(bus.registers[(0x40, 0x04)], b"\x01")
+        self.assertEqual(bus.registers[(0x40, 0x05)], b"\x00")
+
     def test_es8388_volume_mute_and_power(self):
         bus = FakeI2C()
         codec = ES8388(bus)
