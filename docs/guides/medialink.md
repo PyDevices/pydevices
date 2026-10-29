@@ -159,6 +159,24 @@ listens again, so it doesn't send the peer's own voice back.
 [`medialink_hands_free.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_hands_free.py)
 is the whole thing.
 
+To send only when someone says a wake word, put a `medialink.WakeWord` where
+the `VoiceActivity` was. It runs one of ESPHome's microWakeWord models, such
+as "Hey Jarvis", and opens the floor when the word is heard. The floor stays
+open for `listen_ms` (2 s) for speech to begin, then for as long as the
+voice activity hears it; the next turn needs the word again. Talk in the
+room without the word stays home.
+
+```python
+voice = medialink.VoiceActivity(16000, hold_ms=800)
+wake = medialink.WakeWord("/sdcard/models/hey_jarvis.json", 16000, voice=voice)
+intercom = medialink.Intercom(link, mic, speaker, voice=wake)
+```
+
+The model's `.json` manifest and its `.tflite` sit side by side, from
+ESPHome's micro-wake-word-models. It needs firmware with `tflite` and
+audiodsp's `audiofeatures`, which the ESP32-S3 and ESP32-P4 MicroPython
+builds can carry; `WAKE_WORD` in the hands-free example turns it on.
+
 An `Intercom` with no speaker only sends, and one with no microphone only
 listens: `Intercom(link, mic, None, voice=voice)` is a baby monitor that
 sends while there is sound and nothing otherwise.

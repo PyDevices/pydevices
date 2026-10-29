@@ -49,8 +49,6 @@ with each kind of peripheral described honestly by its role.
 - Streaming a camera to a Roku TV or to Windows Wireless Display.
 - A BLE transport, using ADPCM to fit its bandwidth, for boards with no
   Wi-Fi between them.
-- A wake word, such as "Hey Jarvis", to open the hands-free floor, on
-  boards whose firmware runs tflite models.
 
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
