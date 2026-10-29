@@ -420,7 +420,12 @@ class PressToTalk(unittest.TestCase):
         talker.release()
         for _ in range(5):
             listener.service()
-        return speech, speaker.got, talker, listener
+        # After the turn, the listener pads its speaker with a tenth of a
+        # second of silence.
+        self.assertEqual(len(speaker.got), len(speech) + 3200)
+        heard = speaker.got[:len(speech)]
+        self.assertFalse(any(speaker.got[len(speech):]))
+        return speech, heard, talker, listener
 
     def test_pcm_arrives_exactly(self):
         speech, heard, talker, listener = self.run_exchange(codec.PCM16)
@@ -500,7 +505,6 @@ class SharedPort(unittest.TestCase):
         for _ in range(5):
             board.service()
         self.assertTrue(speaker.got)
-        self.assertEqual(port.holder, "speaker")
         serve = Serve(a)
         try:
             self.assertTrue(board.press())
@@ -508,6 +512,37 @@ class SharedPort(unittest.TestCase):
             serve.stop()
         self.assertEqual(port.holder, "microphone")
         self.assertEqual(b.floor, medialink.TALKING)
+
+    def test_the_speaker_is_let_go_once_the_turn_has_played(self):
+        # Some boards' Wi-Fi sends badly while their I2S runs, so a speaker
+        # left open after a turn keeps the board from asking for the floor.
+        fmt = Format(16000, 1)
+        speech = tone(16000 // 4)
+        network, a, b = pair()
+        port = OnePort()
+        speaker = PortSpeaker(fmt, port)
+        talker = medialink.Intercom(a, FakeMic(fmt, speech), FakeSpeaker(fmt), codec=codec.PCM16)
+        board = medialink.Intercom(b, PortMic(fmt, b"", port), speaker, prebuffer=2)
+        serve = Serve(b)
+        a.connect("b")
+        self.assertTrue(talker.press())
+        serve.stop()
+        opened_mid_turn = False
+        while talker.mic.at < len(speech):
+            talker.service()
+            board.service()
+            opened_mid_turn = opened_mid_turn or speaker.is_open
+        self.assertTrue(opened_mid_turn)
+        talker.release()
+        deadline = time.monotonic() + 1
+        while speaker.is_open and time.monotonic() < deadline:
+            board.service()
+            time.sleep(0.005)
+        # All of the turn, then the silence that carried its end out.
+        self.assertEqual(bytes(speaker.got[:len(speech)]), speech)
+        self.assertFalse(any(speaker.got[len(speech):]))
+        self.assertFalse(speaker.is_open)
+        self.assertIsNone(port.holder)
 
     def test_a_microphone_that_will_not_open_gives_the_floor_back(self):
         fmt = Format(16000, 1)

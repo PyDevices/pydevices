@@ -172,7 +172,7 @@ class Hotspot:
             return []
         try:
             address = self.join(ssid)
-        except (ConnectionError, OSError):
+        except OSError:  # wifi.ConnectionError is an OSError; MicroPython has no built-in one
             return []
         return [(name, (address, self.port))]
 
@@ -218,7 +218,7 @@ class Hotspot:
                     pass
                 try:
                     _rejoin_house(self.timeout)
-                except (ConnectionError, OSError, ImportError):
+                except (OSError, ImportError):
                     pass
         self._was_on = None
 
