@@ -1,0 +1,7 @@
+{
+  "urls": [
+    ["usb/host/mtp.py", "github:PyDevices/pydevices/usb-host-mtp/usb/host/mtp.py"]
+  ],
+  "deps": [["github:PyDevices/pydevices/usb-core", "main"]],
+  "version": "0.1.0"
+}
