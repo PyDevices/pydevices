@@ -44,6 +44,12 @@ phone is then a USB MIDI device, and `usb_host.ports()` opens it like any
 other. It's a high-speed device, so on an ESP32-P4 it needs no
 `full_speed=True`, even behind a hub.
 
+It works the other way round too: the phone can play the board. Plug the
+board's native USB port into the phone with a USB-C cable, so the phone is
+the host, and call `usb_device.ports()` on the board. Android lists the board
+as a MIDI device, and a synth app that takes USB MIDI input, such as Perfect
+Piano in its Keyboard mode, plays what the board sends.
+
 [`examples/midiports_simpletest.py`](examples/midiports_simpletest.py) plays a scale; on Windows you hear it from the built-in synth.
 
 ## Install
