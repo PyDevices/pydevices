@@ -35,7 +35,7 @@ class _Clock:
 
 
 class Panel(DisplayDriver):
-    def __init__(self, clock=None, show_us=0, flush_us=0):
+    def __init__(self, clock=None, show_us=0, flush_us=0, blit_us=0):
         self._width = 8
         self._height = 4
         self._rotation = 0
@@ -43,6 +43,8 @@ class Panel(DisplayDriver):
         self.clock = clock
         self.show_us = show_us
         self.flush_us = flush_us
+        self.blit_us = blit_us
+        self.blit_calls_flush = False
         self.shows = 0
         self.flushed = []
         super().__init__(quiet=True)
@@ -54,6 +56,10 @@ class Panel(DisplayDriver):
         return (x, y, w, h)
 
     def blit_rect(self, buf, x, y, w, h):
+        if self.clock is not None:
+            self.clock.t += self.blit_us
+        if self.blit_calls_flush:
+            self.flush_rect(x, y, w, h)
         return (x, y, w, h)
 
     def show(self, _timer=None):
@@ -195,6 +201,38 @@ class TestCounting(_FakeClockMixin, unittest.TestCase):
         self.assertAlmostEqual(1.0, s["present_ms"])  # both flushes of a frame
         self.assertAlmostEqual(1.0, s["present_ms_max"])
         self.assertEqual(6, len(d.flushed))
+
+    def test_blit_rect_counts_flushes_and_pixels(self):
+        # A PARTIAL panel presents through blit_rect, not flush_rect.
+        d = Panel(self.clock, blit_us=500)
+        d.measure_fps(True)
+        for _ in range(3):
+            self.assertEqual((0, 0, 8, 2), d.blit_rect(bytearray(32), 0, 0, 8, 2))
+            d.blit_rect(bytearray(16), 0, 2, 4, 2)
+            d.frame_done()
+            self.clock.t += 10000
+        s = d.fps()
+        self.assertEqual(3, s["frames"])
+        self.assertEqual(6, s["flushes"])
+        self.assertEqual(3 * (16 + 8), s["pixels"])
+        self.assertAlmostEqual(1.0, s["present_ms"])
+
+    def test_a_blit_that_flushes_is_counted_once(self):
+        d = Panel(self.clock, flush_us=500)
+        d.blit_calls_flush = True
+        d.measure_fps(True)
+        d.blit_rect(bytearray(32), 0, 0, 8, 2)
+        s = d.fps()
+        self.assertEqual(1, len(d.flushed))
+        self.assertEqual(1, s["flushes"])
+        self.assertEqual(16, s["pixels"])
+
+    def test_switching_off_restores_blit_rect(self):
+        d = Panel()
+        d.measure_fps(True)
+        self.assertIn("blit_rect", d.__dict__)
+        d.measure_fps(False)
+        self.assertNotIn("blit_rect", d.__dict__)
 
     def test_flushes_alone_are_not_frames(self):
         d = Panel(self.clock, flush_us=100)
