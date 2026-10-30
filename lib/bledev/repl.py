@@ -68,6 +68,8 @@ _TICK_MS = 5
 PAIR_WITHIN_MS = 30000
 BANNER = b"\r\nbledev REPL connected\r\n>>> "
 DENIED = b"\r\nAccess denied\r\n"
+#: Sent instead of the banner when every dupterm slot is taken (WebREPL has a client).
+BUSY = b"\r\nThe REPL is busy: another console (WebREPL?) holds it\r\n"
 
 #: Longest password line the board will buffer before refusing.
 MAX_PASSWORD = 64
@@ -127,6 +129,43 @@ class Login:
 
 # ---------------------------------------------------------------- the board side
 
+
+def take_slot(dupterm, stream, want=None):
+    """Put ``stream`` on a free ``os.dupterm`` slot and return its index.
+
+    ``want`` asks for that slot; otherwise the highest free one is taken, so
+    slot 0 stays WebREPL's on a port with more than one. Returns ``None``,
+    and leaves every slot as it was, when the slot (or all of them) is held:
+    a port like the ESP32 has one, and WebREPL holds it while it has a client.
+    """
+    if want is None:
+        count = 0
+        while True:
+            try:
+                held = dupterm(None, count)
+            except (ValueError, OSError):
+                break
+            dupterm(held, count)
+            count += 1
+        order = range(count - 1, -1, -1)
+    else:
+        order = (want,)
+    for index in order:
+        held = dupterm(None, index)
+        if held is None:
+            dupterm(stream, index)
+            return index
+        dupterm(held, index)
+    return None
+
+
+def give_slot(dupterm, stream, index):
+    """Free slot ``index`` if ``stream`` still holds it."""
+    held = dupterm(None, index)
+    if held is not stream:
+        dupterm(held, index)
+
+
 _server = None
 
 
@@ -135,7 +174,7 @@ def start(
     name="mpy-repl",
     *,
     interval_us=100000,
-    dupterm_index=0,
+    dupterm_index=None,
     files=False,
     console=True,
     window=None,
@@ -157,7 +196,10 @@ def start(
     ``pairing`` is ``None`` (the default: the password alone), ``"passkey"``,
     ``"justworks"``, ``"numeric"`` or ``"auto"`` (see the module notes).
     With a pairing that authenticates (passkey, numeric), ``password=False``
-    serves without one. ``show(passkey)``/``hide()`` replace drawing the
+    serves without one. ``dupterm_index`` picks the ``os.dupterm`` slot the
+    REPL takes at login; by default it takes a free one, and a client that
+    logs in while every slot is held (WebREPL in use, on a one-slot port like
+    the ESP32) is told so and disconnected, as WebREPL does. ``show(passkey)``/``hide()`` replace drawing the
     passkey on ``board_config.display_drv``; ``confirm(number)`` answers
     numeric comparison. ``bond_store`` is where the keys go
     (``bledev.security.use_store``; default NVS on an ESP32).
@@ -284,7 +326,9 @@ class _Server:
         self.tx = bytearray()
         self.flushing = False
         self.dropped_out = 0
-        self.prev_term = None
+        self.slot = None
+        #: ``os.dupterm``, resolved at first login (tests put a stand-in here).
+        self.dupterm = None
         self.stream = _Stream(self)
         self.timer = None
         self.hang_up_at = None
@@ -514,6 +558,9 @@ class _Server:
                 self.ble.gatts_write(self.auth_handle, b"\x01")
             if self.console and not self.authed and not self.greeted:
                 self.greeted = True
+                if not self._slot_free():
+                    self._refuse_busy()
+                    return
                 # A host that wrote its first line while pairing was under
                 # way had it refused, so show the prompt now. A host that
                 # pairs before it subscribes misses this and asks with an
@@ -554,7 +601,9 @@ class _Server:
                 if reply:
                     self.notify_now(reply)
                 return
-            self._attach()
+            if not self._attach():
+                self._refuse_busy()
+                return
             if self.files is not None:
                 self.files.authed = True  # one password unlocks both
             self.send(reply)
@@ -627,23 +676,47 @@ class _Server:
 
     # -- the REPL
 
-    def _attach(self):
-        import os
+    def _resolve_dupterm(self):
+        if self.dupterm is None:
+            import os
 
+            self.dupterm = os.dupterm
+
+    def _slot_free(self):
+        self._resolve_dupterm()
+        index = take_slot(self.dupterm, self.stream, self.dupterm_index)
+        if index is None:
+            return False
+        give_slot(self.dupterm, self.stream, index)
+        return True
+
+    def _refuse_busy(self):
+        # Another console holds the REPL: say so and hang up, the way
+        # WebREPL turns away a second client.
+        import time
+
+        self.notify_now(BUSY)
+        self.login.refused = True
+        self.hang_up_at = time.ticks_add(time.ticks_ms(), 300)
+
+    def _attach(self):
+        """Take a dupterm slot for the REPL; False when none is free."""
+        self._resolve_dupterm()
+        self.slot = take_slot(self.dupterm, self.stream, self.dupterm_index)
+        if self.slot is None:
+            return False
         self.authed = True
-        self.prev_term = os.dupterm(self.stream, self.dupterm_index)
+        return True
 
     def _detach(self):
         if not self.authed:
             return
-        import os
-
         self.authed = False
         try:
-            os.dupterm(self.prev_term, self.dupterm_index)
+            give_slot(self.dupterm, self.stream, self.slot)
         except Exception:
             pass
-        self.prev_term = None
+        self.slot = None
 
     def feed_repl(self, data):
         if len(self.rx) - self.rx_pos + len(data) > self.RX_CAP:
@@ -773,6 +846,8 @@ class _Open:
     verdict = None
 
     def feed(self, data):
+        if self.refused:
+            return b"", False, b""
         for i in range(len(data)):
             if data[i] in (10, 13):
                 rest = bytes(data[i + 1 :])
@@ -899,7 +974,9 @@ async def connect(ble, password=None, name="mpy-repl", *, device=None, timeout_m
             if e.status not in NEEDS_PAIRING:
                 raise
             raise refused(pair, passkey)
-        marker, buffer = await _expect(link, (PROMPT, b">>> "), buffer, timeout_ms)
+        marker, buffer = await _expect(link, (PROMPT, b">>> ", BUSY.strip()), buffer, timeout_ms)
+        if marker == BUSY.strip():
+            raise BLEError("the board's REPL is busy: another console (WebREPL?) holds it")
         if marker is None:
             raise BLEError("the board closed the link before asking for a password")
         if marker == PROMPT:
@@ -908,7 +985,9 @@ async def connect(ble, password=None, name="mpy-repl", *, device=None, timeout_m
             del buffer[: buffer.find(PROMPT) + len(PROMPT)]
             secret = password.encode() if isinstance(password, str) else bytes(password)
             await link.write(secret + b"\r")
-            marker, buffer = await _expect(link, (b">>> ", DENIED.strip()), buffer, timeout_ms)
+            marker, buffer = await _expect(link, (b">>> ", DENIED.strip(), BUSY.strip()), buffer, timeout_ms)
+            if marker == BUSY.strip():
+                raise BLEError("the board's REPL is busy: another console (WebREPL?) holds it")
             if marker != b">>> ":
                 raise AuthError("the board refused the password")
     except BaseException:

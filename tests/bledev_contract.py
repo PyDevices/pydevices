@@ -667,7 +667,7 @@ class _StubRadio:
         pass
 
 
-def _repl_server(password, pairing):
+def _repl_server(password, pairing, slots=None):
     import time
 
     from bledev import security
@@ -681,8 +681,12 @@ def _repl_server(password, pairing):
     server.running = True
     server.tx_handle = 1
     server.adv = (b"", b"")
-    # os.dupterm is MicroPython's; what matters here is that the REPL opens.
-    server._attach = lambda: setattr(server, "authed", True)
+    if slots is None:
+        # os.dupterm is MicroPython's; what matters here is that the REPL opens.
+        server._attach = lambda: setattr(server, "authed", True) or True
+        server._slot_free = lambda: True
+    else:
+        server.dupterm = slots
     server.feed_repl = lambda data: None
     return server, security
 
@@ -732,6 +736,79 @@ async def repl_without_pairing_asks_nothing(air):
     server.on_connect(2)
     equal(server.ble.paired, [], "no pairing request without pairing=")
     equal(server.ble.said(), repl.PROMPT, "the password prompt, at once")
+
+
+class _Slots:
+    """os.dupterm with ``n`` slots, as a port compiles them."""
+
+    def __init__(self, n):
+        self.held = [None] * n
+
+    def __call__(self, stream, index=0):
+        if not 0 <= index < len(self.held):
+            raise ValueError("invalid dupterm index")
+        prev = self.held[index]
+        self.held[index] = stream
+        return prev
+
+
+@check
+async def repl_takes_a_free_dupterm_slot(air):
+    one = _Slots(1)
+    equal(repl.take_slot(one, "ble"), 0, "the only slot, while it's free")
+    repl.give_slot(one, "ble", 0)
+    equal(one.held, [None], "given back")
+    one.held[0] = "webrepl"
+    equal(repl.take_slot(one, "ble"), None, "WebREPL's client holds it")
+    equal(one.held, ["webrepl"], "and keeps it")
+    two = _Slots(2)
+    two.held[0] = "webrepl"
+    equal(repl.take_slot(two, "ble"), 1, "the free slot beside WebREPL")
+    equal(two.held, ["webrepl", "ble"], "both at once")
+    repl.give_slot(two, "ble", 1)
+    equal(two.held, ["webrepl", None], "only its own slot freed")
+    equal(repl.take_slot(_Slots(2), "ble"), 1, "slot 0 left for WebREPL")
+    equal(repl.take_slot(two, "ble", 0), None, "an asked-for slot that's held")
+
+
+@check
+async def repl_waits_its_turn_beside_webrepl(air):
+    # WebREPL takes slot 0 while it has a client. A BLE login then must not
+    # take the REPL from it: it's told the REPL is busy and hung up on.
+    slots = _Slots(1)
+    slots.held[0] = "webrepl"
+    server, _security = _repl_server("hunter22", None, slots)
+    server.on_connect(2)
+    server.on_write(2, b"hunter22\r")
+    expect(not server.authed, "the BLE login didn't open the REPL")
+    equal(slots.held, ["webrepl"], "WebREPL keeps the REPL")
+    expect(repl.BUSY in server.ble.said(), "the client is told why")
+    expect(server.hang_up_at is not None, "and hung up on")
+    server.on_disconnect(2)
+    slots.held[0] = None  # WebREPL's client left
+    server.ble.notified = []
+    server.on_connect(3)
+    server.on_write(3, b"hunter22\r")
+    expect(server.authed, "the next login opens the REPL")
+    equal(slots.held, [server.stream], "on the free slot")
+    server.on_disconnect(3)
+    equal(slots.held, [None], "freed on disconnect, for WebREPL")
+
+
+@check
+async def repl_passkey_busy_says_so_before_the_banner(air):
+    slots = _Slots(1)
+    slots.held[0] = "webrepl"
+    server, security = _repl_server(None, "passkey", slots)
+    try:
+        server.on_connect(7)
+        security._links[7] = (True, True, True, 16)
+        server.on_security(7, True, True, True, 16)
+        equal(server.ble.said(), repl.BUSY, "busy, not a prompt it can't keep")
+        server.on_write(7, b"\r")
+        expect(not server.authed, "and the REPL stays WebREPL's")
+    finally:
+        security._links.pop(7, None)
 
 
 # ---------------------------------------------------------------- improv

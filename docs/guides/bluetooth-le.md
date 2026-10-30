@@ -252,6 +252,11 @@ disconnect, and nothing sent with it reaches the REPL. The link isn't
 encrypted, as with WebREPL, so someone nearby with a sniffer can read the
 password, unless you [pair](#pairing-and-bonding).
 
+It runs beside WebREPL. On a board with one console slot (the ESP32), the
+two take turns: while a WebREPL client is connected, a Bluetooth login gets
+`The REPL is busy` and a disconnect, the way WebREPL turns away a second
+client, and the other way round.
+
 While it runs, the REPL owns the radio: it registers its own service and
 advertises whenever nobody is connected. Call `bledev.repl.stop()` to give the
 radio back to your app.
