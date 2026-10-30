@@ -213,6 +213,91 @@ def test_local():
     device.close()
 
 
+# -- order --
+
+
+class Swapper:
+    """A device-side link that sends two op frames in the wrong order once:
+    the fault a panel's order check must catch."""
+
+    def __init__(self, link):
+        self.link = link
+        self.held = None
+        self.armed = True
+
+    def __getattr__(self, name):
+        return getattr(self.link, name)
+
+    def send(self, frame):
+        if self.armed and b'"t": "op"' in frame:
+            if self.held is None:
+                self.held = frame
+                return
+            self.armed = False
+            self.link.send(frame)
+            frame, self.held = self.held, None
+        self.link.send(frame)
+
+
+def test_order():
+    model = hmilink.Model({"list": [], "k": 0})
+    device = hmilink.Device(model, telemetry_hz=0)
+    lst = device.add(local.serve())
+    p1 = hmilink.Panel(local.connect(lst))
+    p2 = hmilink.Panel(local.connect(lst))
+    pump(device, (p1, p2))
+
+    # Two panels append to one list at once: the device's order wins on both.
+    p1.send("add", "/list/-", "a")
+    p2.send("add", "/list/-", "b")
+    p1.send("add", "/list/-", "c")
+    pump(device, (p1, p2))
+    check(p1.doc == model.doc and p2.doc == model.doc,
+          "crossed appends agree: %r %r %r" % (model.doc, p1.doc, p2.doc))
+    check(p1.stats["resyncs"] + p2.stats["resyncs"] >= 1, "a crossed list was taken again from the device")
+
+    # An index edit after the crossing lands on the same item everywhere.
+    p2.send("replace", "/list/0", "z")
+    pump(device, (p1, p2))
+    check(p1.doc == model.doc == p2.doc, "index edits agree: %r %r" % (p1.doc, p2.doc))
+
+    # An edit inside an item while another panel removes one before it: the
+    # index names a different item on the device, so the copy is taken again.
+    model.doc["rows"] = [{"v": 0}, {"v": 1}, {"v": 2}]
+    device.reset_doc()
+    pump(device, (p1, p2))
+    p2.send("remove", "/rows/0")
+    device.poll()  # the device has the remove; p1 hasn't heard yet
+    p1.send("replace", "/rows/1/v", 10)
+    pump(device, (p1, p2))
+    check(p1.doc == model.doc == p2.doc, "an item edit crossing a remove agrees: %r %r %r"
+          % (model.doc["rows"], p1.doc["rows"], p2.doc["rows"]))
+
+    # local=False: the caller changed doc itself; nothing is applied twice.
+    p1.doc["list"].append("x")
+    p1.send("add", "/list/-", "x", local=False)
+    pump(device, (p1, p2))
+    check(p1.doc == model.doc == p2.doc and model.doc["list"][-1] == "x" and model.doc["list"].count("x") == 1,
+          "local=False sends without applying: %r" % p1.doc)
+
+    # Plant the fault: two ops reach p2 swapped. It must notice, not apply
+    # them, and take the document again.
+    errs = []
+    p2.on_error = errs.append
+    i = [j for j, link in enumerate(device.links) if link.hmi_id == p2.me][0]
+    device.links[i] = Swapper(device.links[i])
+    p1.set("/k", 1)
+    p1.set("/k", 2)
+    pump(device, (p1, p2))
+    check(p2.stats["out_of_order"] == 1, "the swapped op was caught: %r" % p2.stats)
+    check(errs and errs[0]["t"] == "order", "and reported")
+    check(p2.doc == model.doc and p2.doc["k"] == 2, "and the panel is back in step: %r" % p2.doc)
+    p1.set("/k", 3)
+    pump(device, (p1, p2))
+    check(p2.doc["k"] == 3 and p2.stats["out_of_order"] == 1, "and stays in step")
+    device.close()
+
+
 class FakeStream:
     """Two ends; what one writes the other reads, a few bytes at a time."""
 
@@ -540,6 +625,8 @@ def test_all():
     print("ops ok")
     test_local()
     print("local ok")
+    test_order()
+    print("order ok (crossed lists, a swapped op caught)")
     test_stream()
     print("stream ok")
     try:

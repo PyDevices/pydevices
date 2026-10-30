@@ -17,6 +17,10 @@ Every message is a JSON object with a ``t`` (type). What a panel sends:
     A command. What the model does with it is the model's business.
 ``{"t": "ping", "at": 12345}``
     Answered with ``pong`` carrying the same ``at``, for round-trip timing.
+``{"t": "sync"}``
+    Asks for the whole document again. A panel sends it when an op arrives
+    out of order, or when its own early edits to a list may have landed in a
+    different order from another panel's.
 
 What the device sends:
 
@@ -24,7 +28,9 @@ What the device sends:
     The whole document and the model's self-description, on connect and
     whenever the model replaces its document (a patch load).
 ``{"t": "op", "seq": 42, "op": ..., "path": ..., "value": ..., "id": 7, "from": 2}``
-    Every op the model accepted, numbered, to every panel. The sender sees
+    Every op the model accepted, numbered, to every panel. ``seq`` counts up
+    by one from the ``doc`` message's, so a panel can tell when it has missed
+    one or got one out of order: it then asks for the document again. The sender sees
     its own op come back with its ``id``; ``from`` is the device's number
     for the link it came from. ``value`` is what the model applied, which
     may differ from what was asked (a knob is clipped to its range).
@@ -402,6 +408,8 @@ class Device:
                 self.broadcast(ev)
         elif t == "ping":
             self._send(link, {"t": "pong", "at": msg.get("at")})
+        elif t == "sync":
+            self._send(link, self._snapshot(link))
 
 
 # -- the panel ---------------------------------------------------------------
@@ -419,6 +427,17 @@ class Panel:
     knob never lags its own finger; the device's echo is applied when it
     comes back, unless a newer op of this panel's on the same path is still
     in flight.
+
+    Ops are numbered by the device. One that doesn't follow the last by
+    exactly one is counted in ``stats["out_of_order"]``, reported to
+    ``on_error`` as ``{"t": "order", ...}``, and not applied: the panel asks
+    for the whole document instead (``sync``), and ``on_doc`` fires when it
+    comes. The same happens when two panels' edits to a list cross: another
+    panel's op reaches a list this panel has added to or removed from early,
+    or another panel adds to or removes from a list while this panel's edit
+    of one of its items is in flight. The index may name a different item on
+    the device than here, so once this panel's own ops are back it takes the
+    device's document rather than guess (``stats["resyncs"]`` counts both).
     """
 
     def __init__(self, link, codec=None):
@@ -437,8 +456,13 @@ class Panel:
         self.on_pong = None
         self._next_id = 1
         self._pending = {}
+        self._sent = {}  # id -> (op, path): this panel's ops not yet echoed
+        self._flight = {}  # path -> how many of them change it
+        self._lists = {}  # list path -> how many of them add to it or remove from it
+        self._stale = False  # another panel's op crossed one of ours on a list
+        self._syncing = False
         self._pings = {}
-        self.stats = {"ops_in": 0, "ops_out": 0, "tele": 0, "echo_skipped": 0}
+        self.stats = {"ops_in": 0, "ops_out": 0, "tele": 0, "echo_skipped": 0, "out_of_order": 0, "resyncs": 0}
         # Say hello, so a transport that learns its framing from the first
         # line (tcp) can send the document even to a panel that only listens.
         self._send({"t": "hello", "v": 1})
@@ -459,18 +483,26 @@ class Panel:
     def _send(self, msg):
         self.link.send(self.codec.encode(msg))
 
-    def send(self, op, path, value=None):
-        """Apply an op locally and send it. Returns its id."""
+    def send(self, op, path, value=None, local=True):
+        """Apply an op locally and send it. Returns its id.
+
+        ``local=False`` when the caller has already made the same change to
+        ``doc`` itself (an app that edits its own copy and mirrors it here).
+        """
         msg = {"t": "op", "op": op, "path": path, "id": self._next_id}
         if op != "remove":
             msg["value"] = value
         self._next_id += 1
-        if self.doc is not None:
+        if local and self.doc is not None:
             try:
                 apply_op(self.doc, msg)
             except (KeyError, IndexError, ValueError, TypeError):
                 pass
         self._pending[path] = msg["id"]
+        self._sent[msg["id"]] = (op, path)
+        _count(self._flight, path, 1)
+        if op != "replace" and _list_path(path):
+            _count(self._lists, _parent(path), 1)
         self.stats["ops_out"] += 1
         self._send(msg)
         return msg["id"]
@@ -485,6 +517,13 @@ class Panel:
 
     def command(self, name, **args):
         self._send({"t": "cmd", "name": name, "args": args})
+
+    def sync(self):
+        """Ask the device for the whole document again; ``on_doc`` fires when it comes."""
+        if not self._syncing:
+            self._syncing = True
+            self.stats["resyncs"] += 1
+            self._send({"t": "sync"})
 
     def ping(self):
         at = ticks_ms()
@@ -513,10 +552,22 @@ class Panel:
     def _handle(self, msg):
         t = msg.get("t")
         if t == "op":
-            self.seq = msg.get("seq", self.seq)
             self.stats["ops_in"] += 1
+            if self._syncing:
+                return  # the document on its way already holds it
+            seq = msg.get("seq")
+            if seq is not None:
+                if seq != self.seq + 1:
+                    self.stats["out_of_order"] += 1
+                    if self.on_error:
+                        self.on_error({"t": "order", "seq": seq, "after": self.seq, "path": msg.get("path")})
+                    self.sync()
+                    return
+                self.seq = seq
             path = msg["path"]
             mine = self.me is not None and msg.get("from") == self.me
+            if self._sent and self._cross(msg, mine):
+                return
             if mine and path in self._pending:
                 if msg.get("id") == self._pending[path]:
                     del self._pending[path]
@@ -546,6 +597,11 @@ class Panel:
             self.seq = msg.get("seq", 0)
             self.me = msg.get("you", self.me)
             self._pending = {}
+            self._sent = {}
+            self._flight = {}
+            self._lists = {}
+            self._stale = False
+            self._syncing = False
             if self.on_doc:
                 self.on_doc(self.doc, self.desc)
         elif t == "ev":
@@ -560,6 +616,7 @@ class Panel:
                 else:
                     undo = {"op": "remove", "path": path}
                 self._pending.pop(path, None)
+                self._settle(msg.get("id"))
                 try:
                     apply_op(self.doc, undo)
                 except (KeyError, IndexError, ValueError, TypeError):
@@ -575,6 +632,58 @@ class Panel:
                 del self._pings[at]
                 if self.on_pong:
                     self.on_pong(ticks_diff(ticks_ms(), at))
+
+
+    def _cross(self, msg, mine):
+        """Keep count of this panel's ops in flight, and mark the copy stale
+        when another panel's op crosses one of them on a list. True when the
+        panel has asked for the document instead."""
+        kind, path = msg["op"], msg["path"]
+        if mine:
+            self._settle(msg.get("id"))
+            if self._stale and not self._flight:
+                # Our early edits are all back; the device's order is the
+                # true one, so take its document rather than guess.
+                self.sync()
+                return True
+            return False
+        if self._stale:
+            return False
+        # Ours added to or removed from a list this op reaches into.
+        for parent in self._lists:
+            if path == parent or path.startswith(parent + "/"):
+                self._stale = True
+                return False
+        # Its add or remove moves the items after it: is ours inside that list?
+        if kind != "replace" and _list_path(path):
+            inside = _parent(path) + "/"
+            for p in self._flight:
+                if p.startswith(inside):
+                    self._stale = True
+                    break
+        return False
+
+    def _settle(self, op_id):
+        """One of this panel's ops came back (or was refused)."""
+        sent = self._sent.pop(op_id, None)
+        if sent is None:
+            return
+        kind, path = sent
+        _count(self._flight, path, -1)
+        if kind != "replace" and _list_path(path):
+            _count(self._lists, _parent(path), -1)
+
+
+def _count(counts, key, n):
+    n += counts.get(key, 0)
+    if n > 0:
+        counts[key] = n
+    else:
+        counts.pop(key, None)
+
+
+def _parent(path):
+    return path[: path.rfind("/")]
 
 
 _MISSING = object()
