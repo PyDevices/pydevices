@@ -18,10 +18,10 @@ into an afternoon.
 
 Check before installing anything. On an image built with the PyDevices C
 modules (micropython-pydevices' `build_mp.py --modules
-displayif,lvgl-micropython,usbhost,pygraphics,audiodsp,ulab`, say) the following
+displayif,lvgl,usbhost,pygraphics,audiodsp,ulab`, say) the following
 are **frozen or built in** — installing them is wasted effort:
 
-- `lvgl` (from lvgl-micropython)
+- `lvgl` (from [omnipython-lvgl](https://github.com/PyDevices/omnipython-lvgl))
 - `dotclockframebuffer` (from displayif) — the RGB panel interface
 - `_usbhost`, the USB host's C module (usbhost). The USB packages that use
   it (`usb.core`, `usb.host.*`, `usb.device.*`, from this repository's
@@ -58,7 +58,7 @@ text so you can see which module is really absent; a frozen module that
 reports `MISS` with somebody else's name in the message is present and fine.
 Install `pydevices` (which carries `events`, `appdev` and `display_driver`),
 then re-probe. Firmware built before display_driver moved to pydevices
-froze it from lvgl-micropython, where it showed the same trap with
+froze it from the LVGL module, where it showed the same trap with
 `appdev`.
 
 ## 2. Installing, over Wi-Fi

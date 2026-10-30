@@ -7,10 +7,11 @@
 #                           MicroPython commit, the toolchains, and every module;
 #                           the library (pydevices, palettes, pdwidgets) is the
 #                           release's tag
-#   lvgl-circuitpython      the LVGL bindings the CircuitPython build compiles
+#   omnipython-lvgl         LVGL and its bindings, whose ports/circuitpython the
+#                           CircuitPython build compiles
 #
 # To move them to the current tips of their default branches, run
 #   python3 scripts/release_interpreters/sources.py bump
 # and commit the result. docs/publishing.md has the rest.
 micropython-pydevices   https://github.com/PyDevices/micropython-pydevices.git   348da7a435876d2c74371ac5c2744cfa148497cb
-lvgl-circuitpython      https://github.com/PyDevices/lvgl-circuitpython.git      7fb257a5f3d0d5c2f28c27c235e6239714e740c4
+omnipython-lvgl         https://github.com/PyDevices/omnipython-lvgl.git         84d1de375b014c7d49b4ccbd3be551813091f9ef

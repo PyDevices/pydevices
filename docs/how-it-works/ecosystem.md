@@ -36,10 +36,7 @@ Pure Python on any Python 3 host; pygraphics adds native wheels for Linux x86_64
 
 Single-source LVGL C header binding generator and native interpreter modules.
 
-- [`lvgl-bindings`](https://github.com/PyDevices/lvgl-bindings) — Automated binding generator parsing LVGL C headers into native CPython extensions, MicroPython usermods, and CircuitPython modules.
-- [`lvgl-micropython`](https://github.com/PyDevices/lvgl-micropython) — Native MicroPython C module integrating LVGL v9 graphics engine with displayif bus drivers on ESP32 targets.
-- [`lvgl-python`](https://github.com/PyDevices/lvgl-python) — Pre-built CPython extension wheels and Pyodide WASM packages bringing LVGL v9 to Linux, Windows, Android, and web browsers.
-- [`lvgl-circuitpython`](https://github.com/PyDevices/lvgl-circuitpython) — CircuitPython native C module providing LVGL v9 bindings and displayif integration for the Adafruit Feather RP2040 and ESP32 boards.
+- [`omnipython-lvgl`](https://github.com/PyDevices/omnipython-lvgl) — LVGL v9 for MicroPython, CircuitPython and CPython from one binding generator, which parses LVGL's C headers into a MicroPython user C module, a CircuitPython module and a CPython extension (the `pydevices-lvgl` wheels).
 
 ### Tier 4: App Hosts & Mobile
 

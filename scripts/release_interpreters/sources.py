@@ -2,17 +2,17 @@
 """The pins behind a final release's interpreters.
 
 scripts/release_interpreters/sources.lock names the commits of
-micropython-pydevices and lvgl-circuitpython that the interpreters are built
+micropython-pydevices and omnipython-lvgl that the interpreters are built
 from. This reads that file for .github/workflows/release-interpreters.yml and
 bin/upload_interpreters.sh, moves it forward, and writes the "sources" record
 that goes into the attached interpreters.json.
 
-    sources.py pins                      print mpp=<sha> and lvgl_cp=<sha> lines
+    sources.py pins                      print mpp=<sha> and lvgl=<sha> lines
                                          (the workflow appends them to $GITHUB_OUTPUT)
     sources.py bump [--dry-run]          move both pins to the tips of their default branches
     sources.py stale                     print a ::warning:: for each pin behind its default branch
     sources.py verify <name> <dir>       fail unless <dir>'s HEAD is <name>'s pinned commit
-    sources.py record --mpp DIR --lvgl-circuitpython DIR --pydevices DIR [--pydevices-ref TAG]
+    sources.py record --mpp DIR --omnipython-lvgl DIR --pydevices DIR [--pydevices-ref TAG]
                                          print the "sources" JSON for those checkouts
 
 Every command takes --lock FILE to read another lock file.
@@ -26,7 +26,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 LOCK = HERE / "sources.lock"
-NAMES = ("micropython-pydevices", "lvgl-circuitpython")
+NAMES = ("micropython-pydevices", "omnipython-lvgl")
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 
@@ -121,7 +121,7 @@ def record(mpp_dir, lvgl_dir, pydevices_dir, pydevices_ref, path=LOCK):
     lvgl_commit = git_head(lvgl_dir)
     pydevices_commit = git_head(pydevices_dir)
     want = pins(path)
-    pinned = (mpp_commit == want["micropython-pydevices"][1] and lvgl_commit == want["lvgl-circuitpython"][1])
+    pinned = (mpp_commit == want["micropython-pydevices"][1] and lvgl_commit == want["omnipython-lvgl"][1])
     modules = {}
     for name, (_, commit) in read_lock(mpp_dir / "modules.lock").items():
         modules[name] = commit
@@ -137,7 +137,7 @@ def record(mpp_dir, lvgl_dir, pydevices_dir, pydevices_ref, path=LOCK):
         "pinned": pinned,
         "pydevices": pydevices,
         "micropython-pydevices": {"commit": mpp_commit},
-        "lvgl-circuitpython": {"commit": lvgl_commit},
+        "omnipython-lvgl": {"commit": lvgl_commit},
         "micropython": {"commit": (mpp_dir / "UPSTREAM").read_text().strip()},
         "circuitpython": {"version": deps.get("circuitpython", "")},
         "modules": modules,
@@ -157,14 +157,14 @@ def main(argv=None):
     v.add_argument("directory")
     r = sub.add_parser("record")
     r.add_argument("--mpp", required=True)
-    r.add_argument("--lvgl-circuitpython", required=True)
+    r.add_argument("--omnipython-lvgl", required=True)
     r.add_argument("--pydevices", required=True)
     r.add_argument("--pydevices-ref", default="")
     a = ap.parse_args(argv)
     if a.cmd == "pins":
         p = pins(a.lock)
         print(f"mpp={p['micropython-pydevices'][1]}")
-        print(f"lvgl_cp={p['lvgl-circuitpython'][1]}")
+        print(f"lvgl={p['omnipython-lvgl'][1]}")
         return 0
     if a.cmd == "bump":
         return bump(a.lock, a.dry_run)
@@ -172,7 +172,7 @@ def main(argv=None):
         return stale(a.lock)
     if a.cmd == "verify":
         return verify(a.name, a.directory, a.lock)
-    print(json.dumps(record(a.mpp, a.lvgl_circuitpython, a.pydevices, a.pydevices_ref, a.lock), indent=2))
+    print(json.dumps(record(a.mpp, a.omnipython_lvgl, a.pydevices, a.pydevices_ref, a.lock), indent=2))
     return 0
 
 
