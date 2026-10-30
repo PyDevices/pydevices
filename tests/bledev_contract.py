@@ -811,6 +811,31 @@ async def repl_passkey_busy_says_so_before_the_banner(air):
         security._links.pop(7, None)
 
 
+@check
+async def repl_passkey_gets_its_own_time(air):
+    # A phone asks "Pair?" before it shows the passkey box, and that question
+    # can take most of the 30 s the board allows from the connection. Once the
+    # passkey is up, the person typing it gets a fresh 30 s.
+    import time
+
+    server, security = _repl_server(None, "passkey")
+    hung_up = []
+    server.ble.gap_disconnect = hung_up.append
+    try:
+        server.on_connect(7)
+        security._passkey_at[7] = time.ticks_ms()
+        server.hang_up_at = time.ticks_add(time.ticks_ms(), -1)  # 30 s since connecting
+        server._tick()
+        equal(hung_up, [], "no hang-up while the passkey is being typed")
+        expect(server.hang_up_at is not None, "the deadline moves to the passkey's 30 s")
+        security._passkey_at[7] = time.ticks_add(time.ticks_ms(), -repl.PAIR_WITHIN_MS)
+        server.hang_up_at = time.ticks_add(time.ticks_ms(), -1)
+        server._tick()
+        equal(hung_up, [7], "a passkey nobody typed in 30 s still ends the link")
+    finally:
+        security._passkey_at.pop(7, None)
+
+
 # ---------------------------------------------------------------- improv
 
 

@@ -513,8 +513,12 @@ password, so the table depends only on `console` and `files`, and reads 1
 once pairing has unlocked it. With the password gone, the REPL opens on the
 client's first line (`_Open`), so the client sees one `>>>`. A link not
 paired within `PAIR_WITHIN_MS` (30 s) is hung up on, so a host that never
-pairs can't hold the board's one connection. A failed pairing isn't hung up
-on at once: the host would only see a dropped link, not why.
+pairs can't hold the board's one connection. The 30 s start again when the
+stack asks about a passkey (`security.passkey_asked()`): Android asks "Pair?"
+before it shows the passkey box, and a person who reads that question for
+twenty seconds would otherwise have ten left to type six digits. A failed
+pairing isn't hung up on at once: the host would only see a dropped link, not
+why.
 
 **The laptop.** bleak 3.0.2's WinRT `pair()` accepts only `CONFIRM_ONLY`,
 so bledev.bleak runs WinRT's custom pairing itself: `CONFIRM_ONLY` and
