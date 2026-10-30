@@ -454,6 +454,7 @@ class _FpsMeter:
     def __init__(self, now, diff):
         self.now = now
         self.diff = diff
+        self.in_flush = False  # inside a wrapped flush_rect/blit_rect
         self.reset()
 
     def reset(self):
@@ -504,7 +505,7 @@ class _FpsMeter:
         self._advance(t)
 
     def flush(self, t, dt, pixels):
-        """A ``flush_rect`` ended at ``t`` after ``dt`` µs: part of a frame."""
+        """A ``flush_rect`` or ``blit_rect`` ended at ``t`` after ``dt`` µs: part of a frame."""
         self.frame_us += dt
         self.win_present += dt
         self.win_flushes += 1
@@ -987,12 +988,14 @@ class DisplayDriver:
     def measure_fps(self, on=True):
         """Count frames and time presents (``on=True``), or stop (``on=False``).
 
-        Switched on, the instance's ``show`` and ``flush_rect`` are wrapped
-        with timers; switched off they are the class's own methods again. A
-        frame is one ``show()``, or one :meth:`frame_done` from a GUI that
-        presents with ``flush_rect`` (LVGL on a direct-framebuffer panel).
-        ``flush_rect`` calls are counted as ``flushes`` and ``pixels``, not
-        frames. ``PYDEVICES_FPS=1`` switches it on when the driver starts.
+        Switched on, the instance's ``show``, ``flush_rect`` and ``blit_rect``
+        are wrapped with timers; switched off they are the class's own
+        methods again. A frame is one ``show()``, or one :meth:`frame_done`
+        from a GUI that presents with ``flush_rect`` (LVGL on a
+        direct-framebuffer panel). ``flush_rect`` and ``blit_rect`` calls
+        (a partial-render panel presents through ``blit_rect``) are counted
+        as ``flushes`` and ``pixels``, not frames; one that calls the other
+        is counted once. ``PYDEVICES_FPS=1`` switches it on when the driver starts.
 
         Returns:
             bool: Whether it is measuring now.
@@ -1004,6 +1007,7 @@ class DisplayDriver:
                 self._fps_wrapped = []
                 self._fps_wrap("show")
                 self._fps_wrap("flush_rect")
+                self._fps_wrap("blit_rect")
         elif self._fps is not None:
             self.fps_print(0)
             for name, wrapper, prev in self._fps_wrapped:
@@ -1031,10 +1035,28 @@ class DisplayDriver:
         if name == "flush_rect":
 
             def wrapper(x, y, w, h, *args, **kwargs):
+                if meter.in_flush:
+                    return orig(x, y, w, h, *args, **kwargs)
+                meter.in_flush = True
                 t = now()
                 try:
                     return orig(x, y, w, h, *args, **kwargs)
                 finally:
+                    meter.in_flush = False
+                    t1 = now()
+                    meter.flush(t1, diff(t1, t), w * h)
+
+        elif name == "blit_rect":
+
+            def wrapper(buf, x, y, w, h, *args, **kwargs):
+                if meter.in_flush:
+                    return orig(buf, x, y, w, h, *args, **kwargs)
+                meter.in_flush = True
+                t = now()
+                try:
+                    return orig(buf, x, y, w, h, *args, **kwargs)
+                finally:
+                    meter.in_flush = False
                     t1 = now()
                     meter.flush(t1, diff(t1, t), w * h)
 
