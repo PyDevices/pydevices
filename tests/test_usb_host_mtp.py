@@ -72,6 +72,7 @@ class FakePhone:
         self.packets = []
         self.ops = []
         self.session = False
+        self.shared = True   # False: locked, or the access prompt not yet answered
         self.objects = {
             1: (0xFFFFFFFF, mtp.ASSOCIATION, b"", "DCIM"),
             2: (1, mtp.ASSOCIATION, b"", "Camera"),
@@ -124,12 +125,16 @@ class FakePhone:
                  + ptp_string("R5CR20BARDP"))
             return d, 0x2001
         if op == 0x1004:
+            if not self.shared:
+                return struct.pack("<I", 0), 0x2001
             return struct.pack("<II", 1, 0x10001), 0x2001
         if op == 0x1005:
             d = struct.pack("<HHHQQI", 3, 2, 0, 128 << 30, 40 << 30, 0xFFFFFFFF) + ptp_string("Internal storage")
             return d + ptp_string(""), 0x2001
         if op == 0x1007:
             storage, fmt, parent = p
+            if not self.shared:
+                return None, 0x2008   # Invalid_StorageID, as Android answers
             hs = [h for h, o in self.objects.items()
                   if o[0] == parent and (not fmt or o[1] == fmt)]
             return struct.pack("<I%dI" % len(hs), len(hs), *hs), 0x2001
@@ -228,6 +233,18 @@ class TransactionTests(unittest.TestCase):
             self.phone.info(99)
         self.assertEqual(cm.exception.code, 0x2009)
         self.assertEqual(self.phone.storages(), [0x10001], "the next transaction still works")
+
+    def test_a_phone_that_shares_no_storage_says_so(self):
+        # A Samsung S21 before Allow is tapped: a session, no storages, and
+        # Invalid_StorageID for a listing.
+        self.dev.shared = False
+        self.assertEqual(self.phone.storages(), [])
+        with self.assertRaises(mtp.NoStorageError) as cm:
+            self.phone.photos()
+        self.assertIn("allow access", str(cm.exception))
+        self.assertIsInstance(cm.exception, mtp.MTPError)
+        self.dev.shared = True
+        self.assertEqual(self.phone.photos(), [3, 4])
 
     def test_a_session_left_open_is_reused(self):
         again = mtp.MTP(self.dev)

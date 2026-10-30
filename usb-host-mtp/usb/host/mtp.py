@@ -18,8 +18,14 @@
 # describe one (GetObjectInfo), and fetch it whole, in parts, or as its
 # thumbnail. Reading only; nothing is written to the phone.
 #
-# A phone's screen must be unlocked when it is plugged in, or it answers
-# with no storages until it is.
+# A phone shares no storage until its screen is unlocked and someone taps
+# Allow on its "Allow access to phone data?" prompt. Until then it opens a
+# session and describes itself, and anything that lists files raises
+# NoStorageError.
+#
+# Start the USB host before you plug the phone in. A Samsung phone that no
+# host enumerates within about two minutes decides it's on a charger and
+# stops answering on USB until it's plugged in again.
 import struct
 
 import usb.core
@@ -43,6 +49,7 @@ _GET_THUMB = 0x100A
 _GET_PARTIAL_OBJECT = 0x101B
 
 _OK = 0x2001
+_INVALID_STORAGE = 0x2008
 _SESSION_ALREADY_OPEN = 0x201E
 
 _COMMAND, _DATA, _RESPONSE = 1, 2, 3
@@ -53,14 +60,24 @@ _CHUNK = 16384
 class MTPError(OSError):
     """A response other than OK. ``code`` is PTP's response code."""
 
-    def __init__(self, op, code):
-        super().__init__(5, "PTP op 0x%04x answered 0x%04x" % (op, code))
+    def __init__(self, op, code, message=None):
+        super().__init__(5, message or "PTP op 0x%04x answered 0x%04x" % (op, code))
         self.op = op
         self.code = code
 
 
+class NoStorageError(MTPError):
+    """The device shares no storage yet: a phone that is locked, or whose
+    "Allow access to phone data?" prompt hasn't been answered."""
+
+
 class ObjectInfo:
-    """What GetObjectInfo says about one object."""
+    """What GetObjectInfo says about one object.
+
+    Android fills ``width`` and ``height`` with 256 and ``thumb_size`` with
+    204800 for every picture, whatever its real size; read the image's own
+    header when you need its size.
+    """
 
     def __init__(self, handle, data):
         (self.storage, self.format, _prot, self.size, _thumb_fmt, self.thumb_size,
@@ -245,7 +262,16 @@ class MTP:
         """
         if parent is None:
             parent = _ALL
-        return _array(self._transaction(_GET_OBJECT_HANDLES, (storage, format, parent)))
+        try:
+            return _array(self._transaction(_GET_OBJECT_HANDLES, (storage, format, parent)))
+        except MTPError as e:
+            # Asked for every storage when there are none, Android answers
+            # Invalid_StorageID.
+            if e.code == _INVALID_STORAGE and storage == _ALL and not self.storages():
+                raise NoStorageError(
+                    _GET_OBJECT_HANDLES, _INVALID_STORAGE,
+                    "no storage shared: unlock the phone and allow access to its data") from None
+            raise
 
     def info(self, handle):
         """An :class:`ObjectInfo`: name, format, size, parent, dates, image size."""
