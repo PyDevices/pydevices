@@ -64,7 +64,8 @@ PROMPT = b"Password: "
 _TICK_MS = 5
 # With pairing on, how long a link may stay unpaired before the board hangs
 # up, so a host that never pairs can't hold the one connection. SMP's own
-# timeout is 30 s.
+# timeout is 30 s. The clock starts again when the passkey goes up: a phone
+# asks "Pair?" first, and that question alone can take most of the 30 s.
 PAIR_WITHIN_MS = 30000
 BANNER = b"\r\nbledev REPL connected\r\n>>> "
 DENIED = b"\r\nAccess denied\r\n"
@@ -752,6 +753,15 @@ class _Server:
         if self.conn is None:
             return
         if self.pairing is not None and not self.secure(self.conn):
+            import time
+
+            from . import security
+
+            asked = security.passkey_asked(self.conn)
+            if asked is not None and time.ticks_diff(time.ticks_ms(), asked) < PAIR_WITHIN_MS:
+                # Someone is reading or typing the passkey: give them their 30 s.
+                self.hang_up_at = time.ticks_add(asked, PAIR_WITHIN_MS)
+                return
             try:
                 self.ble.gap_disconnect(self.conn)
             except OSError:

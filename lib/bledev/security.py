@@ -63,6 +63,10 @@ _inputs = {}
 # Connections the stack has asked, as central, for the peer's passkey. Stock
 # MicroPython's NimBLE never asks on a connection it made (see mpble's pair()).
 _asked = set()
+# When the stack last asked this board about a passkey, per connection: a
+# person is reading or typing a number, so a server waiting on the pairing
+# gives them time from here rather than from the connection.
+_passkey_at = {}
 # The server's side: what to do when the stack wants a passkey shown or a
 # number confirmed. Set by configure().
 _show = None
@@ -292,6 +296,13 @@ def state(conn_handle):
     return _links.get(conn_handle, (False, False, False, 0))
 
 
+def passkey_asked(conn_handle):
+    """``time.ticks_ms()`` when the stack last asked about a passkey on this
+    connection (shown, typed or compared), or ``None``. Cleared once the
+    link's security settles or it closes."""
+    return _passkey_at.get(conn_handle)
+
+
 def on_change(callback):
     """Call ``callback(conn_handle, encrypted, authenticated, bonded, key_size)``
     from the BLE IRQ whenever a link's security changes. Returns ``callback``."""
@@ -426,13 +437,18 @@ def _irq(event, data):
     if event == _IRQ_ENCRYPTION_UPDATE:
         conn, encrypted, authenticated, bonded, key_size = data
         _links[conn] = (bool(encrypted), bool(authenticated), bool(bonded), key_size)
+        _passkey_at.pop(conn, None)
         if _hide is not None:
             _defer(_call_hide, None)
         for callback in _listeners:
             callback(conn, bool(encrypted), bool(authenticated), bool(bonded), key_size)
     elif event == _IRQ_PASSKEY_ACTION:
         conn, action, number = data
+        import time
+
         from aioble import core
+
+        _passkey_at[conn] = time.ticks_ms()
 
         if action == _ACTION_DISPLAY:
             # Answer the stack at once, from here, as NimBLE's own examples
@@ -456,6 +472,7 @@ def _irq(event, data):
         conn = data[0]
         had = _links.pop(conn, None)
         _inputs.pop(conn, None)
+        _passkey_at.pop(conn, None)
         _asked.discard(conn)
         if had is None and _hide is not None:
             _defer(_call_hide, None)
