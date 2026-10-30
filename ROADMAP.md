@@ -8,6 +8,9 @@ with each kind of peripheral described honestly by its role.
 - A board role for encoded audio. Chips such as the VS1053 decode MP3, Ogg or
   MIDI themselves and encode from a mic, so they get a role of their own
   beside `pcm_out` and `pcm_in` instead of passing as PCM.
+- audiodev on Windows plays through the firmware's C WASAPI speaker when the
+  interpreter has it, instead of feeding WASAPI from Python, which cuts about
+  50 ms from live input to output.
 
 ## USB
 
