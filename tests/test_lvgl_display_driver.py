@@ -451,6 +451,84 @@ class TestDirectPanel(unittest.TestCase):
         self.assertEqual(3, drv.presents)
 
 
+class _AsyncPanel(_Panel):
+    """A panel whose present can be split: show_nowait() then wait_shown()."""
+
+    def __init__(self, pending=True):
+        super().__init__(synced=False)
+        self.pending = pending
+        self.started = 0
+        self.waits = 0
+        self.log = []
+
+    def show_nowait(self):
+        self.started += 1
+        self.log.append("present")
+        return self.pending
+
+    def wait_shown(self):
+        self.waits += 1
+        self.log.append("wait")
+
+
+class TestAsyncPresent(unittest.TestCase):
+    """The last area starts the present; LVGL's flush_wait_cb finishes it."""
+
+    def _drive(self, panel, frames=3, areas=4):
+        cls = _display_driver_class()
+        drv = cls.__new__(cls)
+        drv.display_drv = panel
+        drv.lv_display = _LvDisplay()
+        drv._blocking = True
+        drv._async_present = True
+        drv.presents = 0
+        for _ in range(frames):
+            # What LVGL's wait_for_flushing does before it paints again.
+            drv._flush_wait_cb(None)
+            for i in range(areas):
+                drv.lv_display.last = i == areas - 1
+                drv._flush_cb_direct(None, _Area(0, i * 10, 99, i * 10 + 9), None)
+        return drv
+
+    def test_the_last_area_is_left_pending_until_lvgl_paints_again(self):
+        panel = _AsyncPanel()
+        drv = self._drive(panel)
+        self.assertEqual(3, panel.started)
+        self.assertEqual(0, panel.shows)
+        self.assertEqual(3, drv.presents)
+        # Three areas a frame report ready at once; the fourth waits.
+        self.assertEqual(9, drv.lv_display.ready)
+        # Each present is waited for before the next frame paints.
+        self.assertEqual(["present", "wait"] * 2 + ["present"], panel.log)
+        self.assertTrue(drv._present_pending)
+
+    def test_a_present_that_finished_at_once_reports_ready(self):
+        """A panel without a split present: show_nowait() showed it."""
+        panel = _AsyncPanel(pending=False)
+        drv = self._drive(panel)
+        self.assertEqual(12, drv.lv_display.ready)
+        self.assertEqual(0, panel.waits)
+
+    def test_a_failed_present_still_reports_ready(self):
+        panel = _AsyncPanel()
+
+        def boom():
+            raise SystemExit()
+
+        panel.show_nowait = boom
+        cls = _display_driver_class()
+        drv = cls.__new__(cls)
+        drv.display_drv = panel
+        drv.lv_display = _LvDisplay()
+        drv.lv_display.last = True
+        drv._blocking = True
+        drv._async_present = True
+        drv.presents = 0
+        with self.assertRaises(SystemExit):
+            drv._flush_cb_direct(None, _Area(0, 0, 9, 9), None)
+        self.assertEqual(1, drv.lv_display.ready)
+
+
 class _Raises:
     """A panel whose present raises what a stray soft reset or Ctrl-C raises."""
 
