@@ -341,8 +341,11 @@ after a wrong one is dropped. The prompt goes out at connect, but a client
 that subscribes after connecting misses it, so an empty line asks for it again
 without using up the attempt.
 
-The ESP32 has one dupterm slot. The REPL takes it on login and gives back
-whatever held it (WebREPL, say) on disconnect.
+The REPL takes a free dupterm slot on login (the highest, so slot 0 stays
+WebREPL's where there are several) and frees it on disconnect. The ESP32 has
+one slot, and WebREPL holds it while it has a client, so a BLE login then gets
+`The REPL is busy` and a disconnect, the way WebREPL turns away a second
+client. Both servers run side by side; they only take turns at the REPL.
 
 ## How file transfer gets there
 
