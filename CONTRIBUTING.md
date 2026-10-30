@@ -216,11 +216,11 @@ interpreters are made from fixed commits, never from a branch tip.
 [`scripts/release_interpreters/sources.lock`](scripts/release_interpreters/sources.lock)
 names the commit of `micropython-pydevices` (the build script, its patches, and
 its own locks for MicroPython, the toolchains and every module) and of
-`lvgl-circuitpython`. `interpreters.json` records every commit that went in:
+`omnipython-lvgl`. `interpreters.json` records every commit that went in:
 this release's `pydevices`, the two pins, the MicroPython commit, the
 CircuitPython version and each module's commit, with `"pinned": true` when the
 build used exactly the pins. A run that attaches always does; to try another
-`micropython-pydevices` or `lvgl-circuitpython`, name it in the two inputs of a
+`micropython-pydevices` or `omnipython-lvgl`, name it in the two inputs of a
 manual run, which then attaches nothing.
 
 **Before you cut a final, move the pins:**

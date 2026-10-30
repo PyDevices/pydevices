@@ -7,7 +7,7 @@
 #
 # A final release (vX.Y.Z) builds and attaches them. A dev, a, b or rc release
 # gets none. Every build comes from the release's own tag, with the
-# micropython-pydevices and lvgl-circuitpython commits that
+# micropython-pydevices and omnipython-lvgl commits that
 # scripts/release_interpreters/sources.lock pins, and the manifest lists every
 # source commit that went in. Move the pins before a final with
 # scripts/release_interpreters/sources.py bump (CONTRIBUTING.md).
@@ -16,7 +16,7 @@
 # interpreter from the branch or tag you name and keeps them as a run artifact,
 # attaching nothing. Tick "attach" with a final tag to (re)attach to that
 # release; that always uses the pins. To try another micropython-pydevices or
-# lvgl-circuitpython, name it in the two inputs below, and the run attaches
+# omnipython-lvgl, name it in the two inputs below, and the run attaches
 # nothing. Changes to this recipe run the same builds on their pull request.
 name: Release interpreters
 
@@ -38,8 +38,8 @@ on:
         description: micropython-pydevices branch, tag or commit to build with (empty uses the pin in sources.lock; never attached)
         default: ""
         type: string
-      lvgl-circuitpython-ref:
-        description: lvgl-circuitpython branch, tag or commit for the CircuitPython build (empty uses the pin in sources.lock; never attached)
+      omnipython-lvgl-ref:
+        description: omnipython-lvgl branch, tag or commit for the CircuitPython build (empty uses the pin in sources.lock; never attached)
         default: ""
         type: string
   pull_request:
@@ -66,7 +66,7 @@ jobs:
       tag: ${{ steps.gate.outputs.tag }}
       ref: ${{ steps.ref.outputs.ref }}
       mpp: ${{ steps.gate.outputs.mpp }}
-      lvgl_cp: ${{ steps.gate.outputs.lvgl_cp }}
+      lvgl: ${{ steps.gate.outputs.lvgl }}
     steps:
       - uses: actions/checkout@v7
       - name: Decide whether this run builds and whether it attaches
@@ -77,7 +77,7 @@ jobs:
           INPUT_REF: ${{ inputs.ref }}
           INPUT_ATTACH: ${{ inputs.attach }}
           INPUT_MPP: ${{ inputs.micropython-pydevices-ref }}
-          INPUT_LVGL: ${{ inputs.lvgl-circuitpython-ref }}
+          INPUT_LVGL: ${{ inputs.omnipython-lvgl-ref }}
         run: |
           case "$EVENT" in
             release) ref="$RELEASE_TAG" ;;
@@ -145,12 +145,12 @@ jobs:
       - name: CircuitPython's LVGL helpers
         if: matrix.target == 'cp-unix'
         env:
-          LVGL_CP_REF: ${{ inputs.lvgl-circuitpython-ref }}
+          LVGL_REF: ${{ inputs.omnipython-lvgl-ref }}
         run: |
-          # lvgl-circuitpython at its pin; pdwidgets and palettes are frozen
+          # omnipython-lvgl at its pin; pdwidgets and palettes are frozen
           # from this release's own library.
           mkdir -p ws && cd ws
-          ../recipe/scripts/release_interpreters.sh fetch lvgl-circuitpython lvgl-circuitpython "$LVGL_CP_REF"
+          ../recipe/scripts/release_interpreters.sh fetch omnipython-lvgl omnipython-lvgl "$LVGL_REF"
           ls
 
       - name: Build ${{ matrix.target }}
@@ -186,9 +186,9 @@ jobs:
           path: micropython-pydevices
       - uses: actions/checkout@v7
         with:
-          repository: PyDevices/lvgl-circuitpython
-          ref: ${{ inputs.lvgl-circuitpython-ref || needs.gate.outputs.lvgl_cp }}
-          path: lvgl-circuitpython
+          repository: PyDevices/omnipython-lvgl
+          ref: ${{ inputs.omnipython-lvgl-ref || needs.gate.outputs.lvgl }}
+          path: omnipython-lvgl
       - uses: actions/download-artifact@v8
         with:
           pattern: interpreter-*
@@ -226,7 +226,7 @@ jobs:
           SOURCES_JSON=$RUNNER_TEMP/sources.json
           export SOURCES_JSON
           python3 scripts/release_interpreters/sources.py record --mpp micropython-pydevices \
-            --lvgl-circuitpython lvgl-circuitpython --pydevices pydevices \
+            --omnipython-lvgl omnipython-lvgl --pydevices pydevices \
             --pydevices-ref "${TAG#unreleased}" | tee "$SOURCES_JSON"
           # An attached set is made only from the pins.
           if [[ "$DRY_RUN" == 0 ]]; then

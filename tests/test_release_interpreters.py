@@ -58,14 +58,14 @@ class Scratch(unittest.TestCase):
     def lock(self, mpp, lvgl, comment="# pins\n"):
         path = self.dir / "sources.lock"
         path.write_text(f"{comment}micropython-pydevices   {self.dir}/mpp   {mpp}\n"
-                        f"lvgl-circuitpython      {self.dir}/lvgl  {lvgl}  # trailing note\n")
+                        f"omnipython-lvgl         {self.dir}/lvgl  {lvgl}  # trailing note\n")
         return path
 
 
 class TheShippedLock(unittest.TestCase):
     def test_pins_both_sources_at_full_commits(self):
         pins = sources.pins()
-        self.assertEqual(set(pins), {"micropython-pydevices", "lvgl-circuitpython"})
+        self.assertEqual(set(pins), {"micropython-pydevices", "omnipython-lvgl"})
         for name, (url, commit) in pins.items():
             self.assertRegex(commit, r"^[0-9a-f]{40}$", name)
             self.assertTrue(url.startswith("https://github.com/PyDevices/"), name)
@@ -76,7 +76,7 @@ class ReadingPins(Scratch):
         lock = self.lock("a" * 40, "b" * 40)
         out = subprocess.run([sys.executable, str(SOURCES_PY), "--lock", str(lock), "pins"],
                              check=True, capture_output=True, text=True).stdout.split()
-        self.assertEqual(out, ["mpp=" + "a" * 40, "lvgl_cp=" + "b" * 40])
+        self.assertEqual(out, ["mpp=" + "a" * 40, "lvgl=" + "b" * 40])
 
     def test_a_short_commit_is_refused(self):
         with self.assertRaises(SystemExit) as cm:
@@ -92,7 +92,7 @@ class ReadingPins(Scratch):
         path.write_text(f"micropython-pydevices https://example.com/x.git {'a' * 40}\n")
         with self.assertRaises(SystemExit) as cm:
             sources.pins(path)
-        self.assertIn("lvgl-circuitpython", str(cm.exception))
+        self.assertIn("omnipython-lvgl", str(cm.exception))
 
     def test_a_row_of_the_wrong_shape_is_refused(self):
         path = self.dir / "sources.lock"
@@ -114,7 +114,7 @@ class Bumping(Scratch):
         sources.bump(self.path)
         pins = sources.pins(self.path)
         self.assertEqual(pins["micropython-pydevices"][1], self.mpp_new)
-        self.assertEqual(pins["lvgl-circuitpython"][1], self.lvgl_old)
+        self.assertEqual(pins["omnipython-lvgl"][1], self.lvgl_old)
         text = self.path.read_text()
         self.assertTrue(text.startswith("# pins\n"))
         self.assertIn("# trailing note", text)
@@ -131,7 +131,7 @@ class Bumping(Scratch):
         with contextlib.redirect_stdout(buf):
             sources.stale(self.path)
         self.assertIn("micropython-pydevices pin is behind", buf.getvalue())
-        self.assertNotIn("lvgl-circuitpython pin", buf.getvalue())
+        self.assertNotIn("omnipython-lvgl pin", buf.getvalue())
 
 
 @unittest.skipUnless(HAVE_BASH, "needs git")
@@ -157,7 +157,7 @@ class TheSourcesRecord(Scratch):
         self.assertTrue(rec["pinned"])
         self.assertEqual(rec["pydevices"], {"commit": self.pyd, "ref": "v1.2.3"})
         self.assertEqual(rec["micropython-pydevices"], {"commit": self.mpp})
-        self.assertEqual(rec["lvgl-circuitpython"], {"commit": self.lvgl})
+        self.assertEqual(rec["omnipython-lvgl"], {"commit": self.lvgl})
         self.assertEqual(rec["micropython"], {"commit": "c" * 40})
         self.assertEqual(rec["circuitpython"], {"version": "11.0.0-alpha.1"})
 
@@ -175,7 +175,7 @@ class TheSourcesRecord(Scratch):
         lock = self.lock("d" * 40, self.lvgl)
         with self.assertRaises(SystemExit):
             sources.verify("micropython-pydevices", self.dir / "mpp", lock)
-        sources.verify("lvgl-circuitpython", self.dir / "lvgl", lock)
+        sources.verify("omnipython-lvgl", self.dir / "lvgl", lock)
 
 
 @unittest.skipUnless(HAVE_BASH, "needs bash and git")
@@ -191,7 +191,7 @@ class TheWorkflowSteps(Scratch):
                         ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copy(SCRIPTS / "release_interpreters.sh", self.tree)
         (self.tree / "release_interpreters" / "sources.lock").write_text(
-            f"micropython-pydevices {self.dir}/mpp {self.mpp}\nlvgl-circuitpython {self.dir}/lvgl {self.lvgl}\n")
+            f"micropython-pydevices {self.dir}/mpp {self.mpp}\nomnipython-lvgl {self.dir}/lvgl {self.lvgl}\n")
 
     def sh(self, *args, check=True):
         return subprocess.run(["bash", str(self.tree / "release_interpreters.sh"), *args],
@@ -202,7 +202,7 @@ class TheWorkflowSteps(Scratch):
         self.assertEqual(out["build"], "true")
         self.assertEqual(out["attach"], "true")
         self.assertEqual(out["mpp"], self.mpp)
-        self.assertEqual(out["lvgl_cp"], self.lvgl)
+        self.assertEqual(out["lvgl"], self.lvgl)
 
     def test_gate_refuses_to_attach_a_build_of_another_source(self):
         for mpp_ref, lvgl_ref in (("main", ""), ("", "feature")):
@@ -222,19 +222,19 @@ class TheWorkflowSteps(Scratch):
         make_repo(self.dir / "lvgl", {"a": "2"})
         # The pin is no longer the tip; a fetch by commit needs the server to allow it.
         git(self.dir / "lvgl", "config", "uploadpack.allowAnySHA1InWant", "true")
-        self.sh("fetch", "lvgl-circuitpython", str(self.dir / "out"))
+        self.sh("fetch", "omnipython-lvgl", str(self.dir / "out"))
         self.assertEqual(git(self.dir / "out", "rev-parse", "HEAD"), self.lvgl)
         self.assertEqual((self.dir / "out" / "a").read_text(), "1")
 
     def test_fetch_stops_when_the_pinned_commit_is_gone(self):
         lock = self.tree / "release_interpreters" / "sources.lock"
         lock.write_text(lock.read_text().replace(self.lvgl, "e" * 40))
-        r = self.sh("fetch", "lvgl-circuitpython", str(self.dir / "out"), check=False)
+        r = self.sh("fetch", "omnipython-lvgl", str(self.dir / "out"), check=False)
         self.assertNotEqual(r.returncode, 0)
 
     def test_fetch_takes_another_ref_when_asked(self):
         new = make_repo(self.dir / "lvgl", {"a": "2"})
-        self.sh("fetch", "lvgl-circuitpython", str(self.dir / "out"), "main")
+        self.sh("fetch", "omnipython-lvgl", str(self.dir / "out"), "main")
         self.assertEqual(git(self.dir / "out", "rev-parse", "HEAD"), new)
 
 

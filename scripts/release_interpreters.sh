@@ -3,7 +3,7 @@
 # .github/workflows/release-interpreters.yml calls this; every step also runs
 # by hand on Linux or WSL.
 #
-#   release_interpreters.sh gate <event> <ref> <attach> [<mpp-ref> <lvgl-cp-ref>]
+#   release_interpreters.sh gate <event> <ref> <attach> [<mpp-ref> <lvgl-ref>]
 #       Decide what a run does. <event> is "release", "workflow_dispatch" or
 #       "pull_request";
 #       <ref> is the release tag, or for a dispatch the branch or tag to
@@ -12,12 +12,13 @@
 #       $GITHUB_OUTPUT. Only a final tag (vX.Y.Z) is ever attached: a dev, a,
 #       b or rc release gets no interpreters, and a branch is only ever built.
 #       The optional refs override the commits release_interpreters/sources.lock
-#       pins for micropython-pydevices and lvgl-circuitpython; a run that
-#       overrides one never attaches. Also prints mpp= and lvgl_cp=, the pins.
+#       pins for micropython-pydevices and omnipython-lvgl; a run that
+#       overrides one never attaches. Also prints mpp= and lvgl=, the pins.
 #
 #   release_interpreters.sh fetch <name> <dir> [<ref>]
-#       Check out lvgl-circuitpython (or another source in sources.lock) into
-#       <dir> at its pinned commit, or at <ref> when one is given.
+#       Check out omnipython-lvgl (or another source in sources.lock) into
+#       <dir> at its pinned commit, or at <ref> when one is given, with its
+#       submodules (omnipython-lvgl's LVGL).
 #
 #   release_interpreters.sh build <target> <out-dir>
 #       Build one interpreter with micropython-pydevices' build_mp.py and put
@@ -31,7 +32,7 @@
 #         PYD_DIR  the pydevices tree to build into the interpreters
 #                  (default: the one this script lives in)
 #         WS_DIR   cp-unix only: a directory holding a checkout of
-#                  lvgl-circuitpython
+#                  omnipython-lvgl
 #         JOBS     make parallelism (default: nproc)
 #
 # Every interpreter carries every module, the way the desktop builds are
@@ -68,7 +69,7 @@ gate() {
             ;;
     esac
     if [[ "$do_attach" == "true" && ( -n "$mpp_ref" || -n "$lvgl_ref" ) ]]; then
-        echo "error: will not attach interpreters built from another micropython-pydevices or lvgl-circuitpython than sources.lock pins" >&2
+        echo "error: will not attach interpreters built from another micropython-pydevices or omnipython-lvgl than sources.lock pins" >&2
         return 1
     fi
     echo "build=$build"
@@ -95,6 +96,9 @@ fetch() {
         # A short commit hash: GitHub only serves a fetch by the whole hash.
         git -C "$dir" fetch --quiet "$url" '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
         git -C "$dir" checkout --quiet "$ref"
+    fi
+    if [[ -f "$dir/.gitmodules" ]]; then
+        git -C "$dir" submodule update --quiet --init --depth 1
     fi
 }
 
@@ -133,16 +137,16 @@ build() {
             install -m 755 builds/webassembly/pydevices/micropython.wasm "$out/micropython.wasm"
             ;;
         cp-unix)
-            : "${WS_DIR:?set WS_DIR to a directory with a checkout of lvgl-circuitpython}"
+            : "${WS_DIR:?set WS_DIR to a directory with a checkout of omnipython-lvgl}"
             local ws cp_dir
             ws=$(cd "$WS_DIR" && pwd)
             cp_dir="$HERE/release_interpreters/circuitpython"
-            [[ -f "$ws/lvgl-circuitpython/manifest.py" ]] || { echo "error: $ws/lvgl-circuitpython is not a checkout" >&2; return 1; }
+            [[ -f "$ws/omnipython-lvgl/ports/circuitpython/manifest.py" ]] || { echo "error: $ws/omnipython-lvgl is not a checkout" >&2; return 1; }
             # pydevices, pdwidgets and palettes are frozen from the library, by build_mp.py.
             # pydevices must be named: pdwidgets imports its events module.
             JOBS="$jobs" python3 build_mp.py \
                 --interpreter circuitpython --port unix \
-                --modules "audiodsp,displayif,pygraphics,pydevices,pdwidgets,palettes,$ws/lvgl-circuitpython,$cp_dir/unix-extras"
+                --modules "audiodsp,displayif,pygraphics,pydevices,pdwidgets,palettes,$ws/omnipython-lvgl/ports/circuitpython,$cp_dir/unix-extras"
             install -m 755 builds/circuitpython/unix/coverage/micropython "$out/circuitpython"
             ;;
         *)

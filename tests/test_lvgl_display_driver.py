@@ -5,7 +5,7 @@
 
 Importing the module needs ``lvgl`` and a live ``appdev.App``, so these tests
 extract one class from the real source and execute it against stand-ins, the
-way they did in lvgl-bindings before the file moved here. Four things are held:
+way they did in the LVGL bindings before the file moved here. Four things are held:
 
 * **Pacing.** ``event_loop`` runs ``lv.timer_handler()`` from one ``multimer``
   ONE_SHOT timer and re-arms it to what LVGL asked for. After a pass longer
@@ -17,7 +17,7 @@ way they did in lvgl-bindings before the file moved here. Four things are held:
 * **The nesting gate.** On MicroPython and CircuitPython the binding exports
   ``lv._nesting`` and ``task_handler`` gates re-entrant passes on it. CPython
   exports nothing (a C ContextVar guards re-entrancy), and the gate must stand
-  down rather than raise. lvgl-bindings keeps the other half of this contract:
+  down rather than raise. omnipython-lvgl keeps the other half of this contract:
   its tests fail if the generated C stops exporting ``_nesting``.
 * **Direct panels.** On a DIRECT panel LVGL calls the flush once per dirty
   area; the frame's last area is one present, by ``show()`` when

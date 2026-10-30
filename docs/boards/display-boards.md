@@ -288,10 +288,10 @@ variant (`C6_WIFI`).
   (6, 3, 0, 5)`. Heap ~**450 KiB** free at idle; Simon / LVGL fit with appdev
   + multimer + `display_driver` (~370 KiB free while running).
 - **Firmware:** custom `NUCLEO_H743ZI2` with **displayif** (stm32 port: spibus
-  + notimpl stubs), **graphics**, **lvgl** (`lvgl-micropython`). Flash via
+  + notimpl stubs), **graphics**, **lvgl** ([omnipython-lvgl](https://github.com/PyDevices/omnipython-lvgl)). Flash via
   ST-Link MSD (`NOD_H743ZI2` / `firmware.bin`).
 - **Demos verified:** RGB stripes; [`simon.py`](https://github.com/PyDevices/gallery/blob/main/lib/examples/simon.py) (graphics + appdev); headless
-  [`lvgl-bindings/tools/test_lvgl_smoke.py`](https://github.com/PyDevices/lvgl-bindings/blob/main/tools/test_lvgl_smoke.py); `lvgl_test.py` (tap-count button on real
+  [`omnipython-lvgl/tools/test_lvgl_smoke.py`](https://github.com/PyDevices/omnipython-lvgl/blob/main/tools/test_lvgl_smoke.py); `lvgl_test.py` (tap-count button on real
   panel via `display_driver`). **`main.py`** boots `lvgl_test.py`.
 - **Setup:** copy over serial the board_config + `displaydev/{__init__,busdisplay}.py` +
   `appdev` + `multimer` + `display_driver.py` + `ili9341`/`ft6x36` + examples
