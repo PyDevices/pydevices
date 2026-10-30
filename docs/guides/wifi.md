@@ -113,6 +113,40 @@ mpftp exec -d ws://kitchen-panel.local "print(1 + 1)"
 WebREPL has no encryption, so treat its password as a courtesy lock on your
 own network.
 
+## Slow replies: turn off power saving
+
+By default an ESP32 saves power by letting its Wi-Fi radio sleep between the
+access point's beacons. Anything sent to the board waits until the radio
+next wakes. A stream that only sends barely notices. An app that asks and
+waits for each reply pays that delay on every request: a picture, a REPL
+line, a ping. That includes request-and-reply protocols like the camera
+examples and WebREPL.
+
+On a P4 sending 27 KB camera pictures one request at a time, at -60 to
+-65 dBm:
+
+| Link | Median per picture | Slowest |
+|---|---|---|
+| Ethernet | 62 ms | 103 ms |
+| Wi-Fi, power saving on (the default) | 300 to 690 ms | 7.9 s |
+| Wi-Fi, power saving off | 110 to 210 ms | 2.4 s |
+
+Turn it off when your app talks back and forth or needs low latency:
+
+```python
+import wifi
+wifi.radio.power_management = wifi.PowerManagement.NONE
+```
+
+On MicroPython without `wifi`, `network.WLAN(network.STA_IF).config(pm=network.WLAN.PM_NONE)`
+does the same. It costs battery, so leave it on for a board that only
+checks in now and then.
+
+Power saving also makes pings lie. An idle board in power saving answers
+pings in 100 to 900 ms however good the signal is. To judge the link, read
+the signal strength (`wifi.radio.ap_info.rssi`) instead, or measure with
+power saving off.
+
 ## Setup mode
 
 When setup mode starts, the board shows how to reach it, on its display when

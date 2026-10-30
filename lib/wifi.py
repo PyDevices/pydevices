@@ -41,6 +41,20 @@ Once joined, the port's driver rejoins by itself after a drop.  Leave
 ``WLAN.config(reconnects=...)`` at its default.  On ESP32, 0 means retry
 forever, and -1 means give up after the first drop, despite what the
 MicroPython docs say.
+
+Slow replies: power saving
+--------------------------
+By default the radio sleeps between the access point's beacons, and anything
+sent to the board waits for it to wake.  An app that asks and waits for each
+reply (camera pictures, WebREPL, pings) pays that on every request: on a P4
+at -60 to -65 dBm a picture took 300-690 ms with it on and 110-210 ms with it
+off, with stalls up to 8 s.  For low latency, turn it off::
+
+    wifi.radio.power_management = wifi.PowerManagement.NONE
+
+Pings from an idle board in power saving read 100-900 ms whatever the signal,
+so judge a link by ``radio.ap_info.rssi``, not by ping times.  See the Wi-Fi
+guide, docs/guides/wifi.md.
 """
 
 from time import sleep_ms, ticks_diff, ticks_ms
@@ -83,7 +97,11 @@ def _pm(name):
 
 
 class PowerManagement:
-    """Power-saving options, as in CircuitPython's ``wifi.PowerManagement``."""
+    """Power-saving options, as in CircuitPython's ``wifi.PowerManagement``.
+
+    The default sleeps between beacons, which delays every reply to the board;
+    use ``NONE`` for anything that waits on replies (see "Slow replies" above).
+    """
 
     MIN = "MIN"  # wake every DTIM period (the default)
     MAX = "MAX"  # sleep longer, at some cost in latency
