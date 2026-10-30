@@ -463,6 +463,52 @@ class PressToTalk(unittest.TestCase):
         self.assertEqual((talker.stats["sent"], waits), (1, [1, 1]))
 
 
+class BackedUpSpeaker(FakeSpeaker):
+    """A speaker whose queue never drains below ``queued_ms``."""
+
+    def __init__(self, fmt, queued_ms):
+        super().__init__(fmt)
+        self.queued_ms = queued_ms
+
+    def queued_size(self):
+        return self.format.rate * self.format.channels * 2 * self.queued_ms // 1000
+
+
+class CatchingUp(unittest.TestCase):
+    def run_turn(self, speaker, **kwargs):
+        fmt = speaker.format
+        speech = tone(16000)  # a second: 50 frames
+        network, a, b = pair()
+        mic = FakeMic(fmt, speech)
+        talker = medialink.Intercom(a, mic, None)
+        listener = medialink.Intercom(b, None, speaker, prebuffer=2, **kwargs)
+        serve = Serve(b)
+        a.connect("b")
+        self.assertTrue(talker.press())
+        serve.stop()
+        while mic.at < len(speech):
+            talker.service()
+            listener.service()
+        talker.release()
+        for _ in range(5):
+            listener.service()
+        return listener
+
+    def test_a_queue_that_never_drains_is_trimmed_back(self):
+        listener = self.run_turn(BackedUpSpeaker(Format(16000, 1), 300), catch_up_ms=0)
+        stats = listener.stats
+        self.assertGreater(stats["trimmed"], 0)
+        self.assertEqual(stats["played"] + stats["trimmed"], 50)
+
+    def test_a_queue_at_the_target_keeps_every_frame(self):
+        listener = self.run_turn(BackedUpSpeaker(Format(16000, 1), 40), catch_up_ms=0)
+        self.assertEqual((listener.stats["played"], listener.stats["trimmed"]), (50, 0))
+
+    def test_catching_up_can_be_turned_off(self):
+        listener = self.run_turn(BackedUpSpeaker(Format(16000, 1), 300), catch_up_ms=None)
+        self.assertEqual((listener.stats["played"], listener.stats["trimmed"]), (50, 0))
+
+
 class OnePort:
     """A board's I2S port: a speaker and a microphone on it, one at a time."""
 
