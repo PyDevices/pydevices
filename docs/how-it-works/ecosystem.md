@@ -36,7 +36,7 @@ Pure Python on any Python 3 host; pygraphics adds native wheels for Linux x86_64
 
 Single-source LVGL C header binding generator and native interpreter modules.
 
-- [`omnipython-lvgl`](https://github.com/PyDevices/omnipython-lvgl) — LVGL v9 for MicroPython, CircuitPython and CPython from one binding generator, which parses LVGL's C headers into a MicroPython user C module, a CircuitPython module and a CPython extension (the `pydevices-lvgl` wheels).
+- [`omnipython-lvgl`](https://github.com/PyDevices/omnipython-lvgl) — LVGL v9 for Python: one binding generator turns LVGL's C headers into a MicroPython module, a CircuitPython module and a CPython wheel, so a program imports lvgl the same way on a desktop and on both kinds of board.
 
 ### Tier 4: App Hosts & Mobile
 
@@ -61,6 +61,10 @@ MIP package indexing, multi-usermod builds, and serial/FTP IDE extensions.
 - **audioif** — now [`modules/audioif`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/audioif) in micropython-pydevices. The old repository is archived.
 - **cameraif** — now [`modules/cameraif`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/cameraif) in micropython-pydevices. The old repository is archived.
 - **usbif** — the C module is now [`modules/usbhost`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/usbhost) in micropython-pydevices; the Python USB packages are in [pydevices](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md). The old repository is archived.
+- **lvgl-bindings** — now [`binding`](https://github.com/PyDevices/omnipython-lvgl/tree/main/binding) in omnipython-lvgl. The old repository is archived.
+- **lvgl-micropython** — now [`ports/micropython`](https://github.com/PyDevices/omnipython-lvgl/tree/main/ports/micropython) in omnipython-lvgl. The old repository is archived.
+- **lvgl-python** — now [`ports/cpython`](https://github.com/PyDevices/omnipython-lvgl/tree/main/ports/cpython) in omnipython-lvgl. The old repository is archived.
+- **lvgl-circuitpython** — now [`ports/circuitpython`](https://github.com/PyDevices/omnipython-lvgl/tree/main/ports/circuitpython) in omnipython-lvgl. The old repository is archived.
 
 **Deliberately absent from this map:**
 
