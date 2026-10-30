@@ -97,6 +97,16 @@ already treats touch and mouse identically. Native Windows builds
 directly from the Windows touch stack; native (non-WSL) Linux is unaffected too.
 Prefer mouse input, or native Windows/Linux, for latency-sensitive touch testing.
 
+## Slow or uneven replies over Wi-Fi
+
+If a board answers each request late (pictures, REPL lines or pings take
+hundreds of milliseconds or several seconds), Wi-Fi power saving is the
+usual cause. Turn it off with
+`wifi.radio.power_management = wifi.PowerManagement.NONE`; see
+[Slow replies: turn off power saving](wifi.md#slow-replies-turn-off-power-saving).
+Check the signal strength too: below about -75 dBm, moving the board helps
+more than any code change.
+
 ## Still stuck?
 
 Open an issue on the repository that owns the component, or ask in
