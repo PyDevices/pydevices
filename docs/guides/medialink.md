@@ -203,6 +203,18 @@ absorbs the unevenness of Wi-Fi; `Intercom(..., prebuffer=3)` cuts the wait
 where the network is steadier. Between two boards on home Wi-Fi, sound took
 about a tenth of a second from one microphone to the other speaker.
 
+A late burst (a slow moment on Wi-Fi, or a loop busy decoding a picture)
+leaves more than that waiting at the speaker, and because sound arrives as
+fast as it plays, the extra would stay for the rest of the turn. So when the
+speaker's queue hasn't come down to the prebuffer for two seconds, the
+listener skips a few frames to catch up. Between two ESP32-P4 boards, timed
+by ear (a burst sent, heard back from the far speaker), that brought a
+minute's sound from half a second late down to under 0.2 s, and with the
+board also sending pictures, from 0.4 s to about 0.22 s. Each catch-up is a
+short skip you may hear. `Intercom(..., target_ms=...)` sets the queue it
+aims for, `catch_up_ms=` how long it waits first, and `catch_up_ms=None`
+keeps every frame.
+
 On a CircuitPython board whose screen shows the console, every line you
 print scrolls and redraws that screen. On an 800x480 panel that stops your
 program for over 400 ms, and the frames that arrive meanwhile don't fit
@@ -215,8 +227,9 @@ doesn't import one does it itself, as
 [Board configs](../boards/board-configs.md#the-circuitpython-console) shows.
 
 `intercom.stats` says what came of it:
-`latency_ms` is from the far microphone to this speaker, and `underruns`
-counts the times the speaker ran dry in the middle of a turn.
+`latency_ms` is from the far microphone to this speaker, `underruns`
+counts the times the speaker ran dry in the middle of a turn, and `trimmed`
+the frames skipped to catch up.
 
 ## Pictures
 

@@ -25,6 +25,15 @@ counts the frames sent and played, the underruns (the speaker ran dry in
 the middle of a spurt), and the latency from the far microphone to this
 speaker as best the clocks allow.
 
+**Catching up.** A late burst of frames (a slow moment on Wi-Fi, a loop
+busy decoding a picture) leaves more queued at the speaker than the
+prebuffer, and since sound arrives as fast as it plays, that extra never
+drains on its own: each hiccup would make every word after it later. So
+when the speaker's queue hasn't dropped to ``target_ms`` (the prebuffer,
+by default) for ``catch_up_ms``, the intercom skips enough of the next
+frames to bring it back, and counts them in ``stats["trimmed"]``. Set
+``catch_up_ms`` to None to keep every frame instead.
+
 **Hands-free.** Give it ``voice``, a :class:`~medialink.VoiceActivity`, and
 nobody needs to press anything. While the floor is free and the speaker has
 finished, the microphone listens; when the voice activity hears speech the
@@ -45,7 +54,10 @@ from medialink.link import IDLE, LISTENING, TALKING, PeerUnreachable
 
 
 class Intercom:
-    def __init__(self, link, mic, speaker, *, frame_ms=20, codec=None, prebuffer=5, voice=None, preroll_ms=120):
+    def __init__(
+        self, link, mic, speaker, *, frame_ms=20, codec=None, prebuffer=5, voice=None, preroll_ms=120,
+        target_ms=None, catch_up_ms=2000,
+    ):
         self.link = link
         self.mic = mic
         self.speaker = speaker
@@ -59,6 +71,11 @@ class Intercom:
         # A codec of its own, since a codec may carry state along a stream.
         self.codec = codec.__class__()
         self.prebuffer = prebuffer
+        self.target_ms = prebuffer * frame_ms if target_ms is None else target_ms
+        self.catch_up_ms = catch_up_ms
+        self._low = None
+        self._low_since = None
+        self._skip = 0
         self._capture = bytearray(self.frame_bytes)
         self._filled = 0
         self._talking = False
@@ -79,7 +96,7 @@ class Intercom:
         self.stats = {
             "sent": 0, "played": 0, "underruns": 0, "spurts": 0,
             "latency_ms": None, "max_latency_ms": None, "overflow": 0,
-            "voice_turns": 0,
+            "voice_turns": 0, "trimmed": 0,
         }
 
     @property
@@ -261,6 +278,8 @@ class Intercom:
             if frame.flags & _p.START or not self._spurt:
                 self._spurt = True
                 self._waiting = []
+                self._low = self._low_since = None
+                self._skip = 0
                 self.stats["spurts"] += 1
             if pcm:
                 self._waiting.append((pcm, frame.age))
@@ -303,6 +322,12 @@ class Intercom:
     def _flush(self):
         for pcm, age in self._waiting:
             queued = self._queued_ms()
+            if self._spurt == "playing" and self.catch_up_ms is not None:
+                self._watch_queue(queued)
+                if self._skip:
+                    self._skip -= 1
+                    self.stats["trimmed"] += 1
+                    continue
             if age is not None:
                 # The frame's first sample was spoken a frame before it
                 # was stamped and sent.
@@ -321,6 +346,20 @@ class Intercom:
             self.stats["overflow"] += 1
             cut = len(self._pending) - limit
             self._pending = self._pending[cut - cut % 4:]
+
+    def _watch_queue(self, queued):
+        """Note the speaker's lowest queue; once it has stayed above the
+        target for ``catch_up_ms``, skip frames to bring it down."""
+        now = ticks_ms()
+        if self._low is None or queued < self._low:
+            self._low = queued
+        if self._low_since is None:
+            self._low_since = now
+        elif ticks_diff(now, self._low_since) >= self.catch_up_ms:
+            extra = self._low - self.target_ms
+            if extra >= self.frame_ms:
+                self._skip = extra // self.frame_ms
+            self._low = self._low_since = None
 
     def _drain(self):
         if self._pending and self.speaker is not None:
