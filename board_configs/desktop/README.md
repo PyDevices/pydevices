@@ -52,8 +52,8 @@ Applications instantiate an application coordinator only when they need one. Laz
 roles still come from `board_peripherals`.
 
 This bundle installs:
-- `board_config.py`
-- `board_peripherals.py`
+- [`board_config.py`](board_config.py)
+- [`board_peripherals.py`](board_peripherals.py)
 - `boarddev.py`
 - `audiodev/` (package)
 - `usdl2.py`

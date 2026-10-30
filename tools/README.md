@@ -34,7 +34,7 @@ the sibling `gallery` integration repository.
 
 ## The package library
 
-`libbuild.py` needs Python 3.11 or later, `git`, and `mpy-cross`
+[`libbuild.py`](libbuild.py) needs Python 3.11 or later, `git`, and `mpy-cross`
 (`pip install mpy-cross`). From the repository root:
 
 ```bash

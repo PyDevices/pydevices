@@ -151,9 +151,9 @@ bytes in 8 KB chunks.
 
 [`pygame_audio.py`](pygame_audio.py) and [`web_audio.py`](web_audio.py) cannot run on MicroPython or CircuitPython at
 all (they need pygame-ce and Pyodide's `js` module), so a CPython-only idiom is
-not a bug there. `pygame_audio.py` still uses the portable forms, because it
-mirrors `sdl2_audio.py` closely enough to diff — see "Keep it in step with
-`sdl2_audio.py`" below. `web_audio.py` shares nothing with them and stays as it is.
+not a bug there. [`pygame_audio.py`](pygame_audio.py) still uses the portable forms, because it
+mirrors [`sdl2_audio.py`](sdl2_audio.py) closely enough to diff — see "Keep it in step with
+`sdl2_audio.py`" below. [`web_audio.py`](web_audio.py) shares nothing with them and stays as it is.
 
 Verify with the real interpreters rather than by inspection — CPython accepts
 everything above:
@@ -622,7 +622,7 @@ thread. Do not make it synchronous.
 `PygamePCMOutput` mirrors `SDLPCMOutput` mechanism for mechanism: rate-based
 stall detection, the hardware-only prebuffer gate, the off-thread rebuild with a
 settle gap, the shadow buffer, and the same `recycles` / `lost_bytes` /
-`requeued_bytes` counters. Every "do not simplify" rule in the `sdl2_audio.py`
+`requeued_bytes` counters. Every "do not simplify" rule in the [`sdl2_audio.py`](sdl2_audio.py)
 section above applies here unchanged, and the constants carry the same names and
 values.
 
