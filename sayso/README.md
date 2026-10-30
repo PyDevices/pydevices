@@ -115,7 +115,7 @@ Page-backed fields use `object_by_key` and a `page_method`:
 
 `User` and other non-fetchable types only expose fields present in the embedding
 response. Under February 2026 Dev Mode, `GET /users/{id}` is not available; use
-`client.me()` for the authenticated user. See `PORTABILITY.md`.
+`client.me()` for the authenticated user. See [`PORTABILITY.md`](PORTABILITY.md).
 
 When hydration or lazy page load fails, the object layer raises `HydrationError`
 with object type, endpoint, and Dev Mode hints. The original `TransportError` is
@@ -370,7 +370,7 @@ Some playback controls require Spotify Premium and an active device.
 - **February 2026 Dev Mode** — several endpoints are removed or return 403
   (for example `GET /users/{id}`, legacy `playlist_tracks`). Use `client.me()`
   for the current user and `playlist.items` for playlist entries. See
-  `PORTABILITY.md` for details.
+  [`PORTABILITY.md`](PORTABILITY.md) for details.
 
-See `ROADMAP.md` for implemented areas, next steps, and open design questions.
+See [`ROADMAP.md`](ROADMAP.md) for implemented areas, next steps, and open design questions.
 See `PORTABILITY.md` for CPython, MicroPython, and CircuitPython boundary notes.

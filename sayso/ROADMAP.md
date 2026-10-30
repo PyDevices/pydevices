@@ -12,7 +12,7 @@ transport helpers, read methods, selected write methods, examples, and live test
 - `Artist.albums` and `Playlist.items` wired to client page methods
 - Discovery scripts (`sayso_*_discovery.py`) for object-graph walkthroughs
 - Offline object-layer unit tests in [`tests/test_objects.py`](tests/test_objects.py)
-- February 2026 Dev Mode API notes in `PORTABILITY.md`
+- February 2026 Dev Mode API notes in [`PORTABILITY.md`](PORTABILITY.md)
 - `SpotifyObject.__str__()` pretty-prints raw object data for `print()`
 - Client Credentials auth
 - Authorization Code auth helpers consolidated in `sayso.auth`

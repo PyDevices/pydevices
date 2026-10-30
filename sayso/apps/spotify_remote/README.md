@@ -15,16 +15,16 @@ MicroPython (Linux and Windows) under the PyDevices stack.
 
 | File | Role |
 |------|------|
-| `main.py` | Entry point: auth, playback polling, event loop |
-| `spotify_ctrl.py` | sayso wrapper (no LVGL) |
-| `ui.py` | LVGL widgets; root screen via `scr = lv.screen_active()` |
-| `config.py` | Tunable limits (cover-art cache size, library list size) |
-| `artwork_cache.py` | Downloads and caches cover art from Spotify CDN URLs |
-| `image_view.py` | Small LVGL cover-art view with a placeholder fallback |
-| `genre_seeds.py` | Static genre preset list when the API seed endpoint is unavailable |
-| `__main__.py` | `-m spotify_remote` entry point (runs the loop itself) |
-| `local_speaker.py` | Optional earful Connect speaker in the same process |
-| `keyboard_test.py` | PyDevices keyboard smoke test (LVGL textarea input) |
+| [`main.py`](main.py) | Entry point: auth, playback polling, event loop |
+| [`spotify_ctrl.py`](spotify_ctrl.py) | sayso wrapper (no LVGL) |
+| [`ui.py`](ui.py) | LVGL widgets; root screen via `scr = lv.screen_active()` |
+| [`config.py`](config.py) | Tunable limits (cover-art cache size, library list size) |
+| [`artwork_cache.py`](artwork_cache.py) | Downloads and caches cover art from Spotify CDN URLs |
+| [`image_view.py`](image_view.py) | Small LVGL cover-art view with a placeholder fallback |
+| [`genre_seeds.py`](genre_seeds.py) | Static genre preset list when the API seed endpoint is unavailable |
+| [`__main__.py`](__main__.py) | `-m spotify_remote` entry point (runs the loop itself) |
+| [`local_speaker.py`](local_speaker.py) | Optional earful Connect speaker in the same process |
+| [`keyboard_test.py`](keyboard_test.py) | PyDevices keyboard smoke test (LVGL textarea input) |
 
 ## Prerequisites
 
