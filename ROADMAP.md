@@ -60,9 +60,9 @@ with each kind of peripheral described honestly by its role.
 
 ## Backends
 
-- A small registry for display and audio backends, under consideration.
-  Today `backends.require()` (experimental) names a backend by hand; a registry
-  would let `auto` find host-only ones like RokuDisplay, HlsDisplay and CastDisplay.
+- The backend registry leaves experimental. `backends.register()` and
+  `require()` let `AutoDisplay` and `audiodev.auto` pick a backend you wrote;
+  their names and calling convention settle before they're called stable.
 
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
