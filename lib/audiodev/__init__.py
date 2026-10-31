@@ -1045,8 +1045,13 @@ class PaceOutput(PCMOutput):
     ``write()`` always copies what it is given, then flushes. It does not
     sleep for I2S room: a 250 ms ``sleep_ms`` wait held the GIL while DMA
     played out, which is the Connect skip (C ring full, I2S empty). Overflow
-    above ``queue_ms`` is dropped. The Connect pump must call :meth:`space`
-    and leave PCM in the C ring when the stash is at cap.
+    above ``queue_ms`` is dropped, oldest first, and counted in
+    ``lost_bytes``. The Connect pump must call :meth:`space` and leave PCM
+    in the C ring when the stash is at cap.
+
+    ``try_write()`` never drops: it takes only what the I2S ring and the
+    stash have room for and returns that count, so a caller that keeps the
+    remainder (``medialink.Intercom`` does) loses nothing here.
     """
 
     def __init__(self, inner, queue_ms=80):
@@ -1074,6 +1079,8 @@ class PaceOutput(PCMOutput):
         self._store_mv = memoryview(self._store)
         self._r = 0
         self._held = 0
+        # Bytes write() had to drop because the stash was at its cap.
+        self.lost_bytes = 0
         self.codec = getattr(inner, "codec", None)
 
     def _reset_stash(self):
@@ -1234,12 +1241,40 @@ class PaceOutput(PCMOutput):
         if n:
             self._r = (self._r + drop) % n
         self._held = self._cap
+        self.lost_bytes += drop
 
     def _write(self, buf):
         self._append(buf)
         self._flush()
         self._drop_to_cap()
         return len(buf)
+
+    def try_write(self, buf):
+        """Take what fits in the I2S ring and the stash, drop nothing.
+
+        Returns the bytes taken, whole frames only. ``PCMOutput.try_write``
+        promises the caller keeps the rest; going through :meth:`_write`
+        instead reported every byte taken and dropped what was over the
+        stash's cap.
+        """
+        self.open()
+        source = self._prepare(buf)
+        frame = self._inner.format.frame_size
+        total = len(source)
+        taken = 0
+        while taken < total:
+            self._flush()
+            room = self._cap - self._held
+            chunk = total - taken
+            if chunk > room:
+                chunk = room
+            chunk -= chunk % frame
+            if chunk <= 0:
+                break
+            self._append(source[taken : taken + chunk])
+            taken += chunk
+        self._flush()
+        return taken
 
 
 def pace_output(pcm, queue_ms=80):
