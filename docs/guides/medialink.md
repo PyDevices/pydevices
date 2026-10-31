@@ -155,7 +155,10 @@ The gate can't tell a voice from a door slamming.
 When both sides speak at once, one gets the floor and the other's words
 are lost until the turn ends, as with two buttons. While the peer talks,
 this side doesn't listen, and it waits for the speaker to finish before it
-listens again, so it doesn't send the peer's own voice back.
+listens again, so it doesn't send the peer's own voice back. It also
+ignores the microphone's first 60 ms each time it opens (`settle_ms`),
+since a microphone can click as it starts, and the click would otherwise
+take a turn of nothing back after every turn the peer took.
 [`medialink_hands_free.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_hands_free.py)
 is the whole thing.
 

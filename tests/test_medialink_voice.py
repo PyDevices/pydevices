@@ -121,6 +121,34 @@ class HandsFree(unittest.TestCase):
         # The tone arrived, from a little before it was first heard.
         self.assertIn(tone(8000)[:FRAME * 4], bytes(heard.got))
 
+    def listen_after_a_click(self, **kwargs):
+        """A side that has heard the room for a while opens its microphone
+        again, as it does after each of the peer's turns, and the first
+        frame is a click."""
+        fmt = Format(16000, 1)
+        click = struct.pack("<h", 12000) * (FRAME // 2)
+        sound = click + hiss(16000, seed=5)
+        network, a, b = pair()
+        voice = medialink.VoiceActivity(detector="level", hold_ms=40)
+        for frame in frames(hiss(16000, seed=4)):
+            voice.feed(frame)
+        mic = FakeMic(fmt, sound)
+        intercom = medialink.Intercom(a, mic, FakeSpeaker(fmt), voice=voice, codec=codec.PCM16, **kwargs)
+        serve = Serve(b)
+        a.connect("b")
+        try:
+            while mic.at < len(sound):
+                intercom.service()
+        finally:
+            serve.stop()
+        intercom.close()
+        return intercom.stats["voice_turns"]
+
+    def test_the_microphones_opening_click_is_not_speech(self):
+        self.assertEqual(self.listen_after_a_click(), 0)
+        # Without the settling time, the click takes a turn.
+        self.assertEqual(self.listen_after_a_click(settle_ms=0), 1)
+
     def test_no_voice_means_no_microphone(self):
         fmt = Format(16000, 1)
         network, a, b = pair()

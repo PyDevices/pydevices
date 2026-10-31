@@ -43,6 +43,13 @@ peer talks the microphone is closed, so the speaker never feeds back into
 it. ``press()`` and ``release()`` still work, for a button beside it. Set
 ``intercom.voice`` to None to stop listening, and back to start again.
 
+A microphone's first moment after it opens can hold a click: on a P4 board
+the first 20 ms frame peaked 4 to 80 times over the room, after a turn
+played or not. The voice activity took that for speech, so each time the
+peer finished, this side took a turn of nothing back. Listening throws away
+the first ``settle_ms`` after the microphone opens, before the voice
+activity hears it.
+
 Either side may have no speaker (a baby monitor) or no microphone (its
 listener): pass None.
 """
@@ -56,7 +63,7 @@ from medialink.link import IDLE, LISTENING, TALKING, PeerUnreachable
 class Intercom:
     def __init__(
         self, link, mic, speaker, *, frame_ms=20, codec=None, prebuffer=5, voice=None, preroll_ms=120,
-        target_ms=None, catch_up_ms=2000,
+        target_ms=None, catch_up_ms=2000, settle_ms=60,
     ):
         self.link = link
         self.mic = mic
@@ -90,6 +97,8 @@ class Intercom:
         self.voice = voice
         self._preroll = []
         self._preroll_frames = preroll_ms // frame_ms
+        self._settle_frames = -(-settle_ms // frame_ms)
+        self._settle = 0
         self._mic_open = False
         self._auto = False
         self._refused = None
@@ -203,11 +212,16 @@ class Intercom:
             self.mic.open()
             self._mic_open = True
             self._filled = 0
+            self._settle = self._settle_frames
         view = memoryview(self._capture)
         self._filled += self.mic.readinto(view[self._filled:])
         if self._filled < self.frame_bytes:
             return
         self._filled = 0
+        if self._settle:
+            # The microphone's opening click, not the room.
+            self._settle -= 1
+            return
         frame = bytes(view)
         self._preroll.append(frame)
         if len(self._preroll) > self._preroll_frames + 1:
