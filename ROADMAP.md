@@ -11,6 +11,9 @@ with each kind of peripheral described honestly by its role.
 - audiodev on Windows plays through the firmware's C WASAPI speaker when the
   interpreter has it, instead of feeding WASAPI from Python, which cuts about
   50 ms from live input to output.
+- audiodev on Linux through ALSA directly, from CPython and unix MicroPython,
+  so a Raspberry Pi or another Linux board gets low-latency audio without SDL2
+  or pygame installed.
 
 ## USB
 
@@ -27,6 +30,8 @@ with each kind of peripheral described honestly by its role.
 - SysEx on Windows in `midiports`: `midiInAddBuffer` and `midiOutLongMsg`, so a
   device's Identity Reply and patch dumps work there as they do on other
   ports. Today input drops SysEx and writing 0xF0 raises.
+- DIN MIDI on a Linux serial port in `midiports`, for boards whose MIDI jacks
+  are wired to a UART rather than showing up as an ALSA raw MIDI device.
 
 ## BLE
 
