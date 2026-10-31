@@ -534,6 +534,28 @@ Change the set, and a host that paired with the board before must forget it
 and pair again. Pass `encrypted=True` to make hosts pair first, as real
 keyboards do.
 
+**A paired phone as a presence key.** A phone reconnects to a bonded HID
+device by itself whenever its Bluetooth comes back in range, so a board can
+tell when you walk up, with no app on the phone. Pair once from the phone's
+Bluetooth settings, then wait for each arrival:
+
+```python
+ble = bledev.auto.adapter()
+ble.enable_bonding()
+per = hid.Peripheral(ble, keyboard=False, mouse=False, encrypted=True, name="Presence")
+while True:
+    conn = await per.serve()                # the phone is here
+    screen_on()
+    await conn.disconnected()               # the phone has gone
+    screen_off()
+```
+
+Android gives the phone a new random address over time, so watching
+advertisements for a known address doesn't work; the bonded reconnect does.
+`conn.encrypted` is still False at the moment `serve()` returns. A bonded
+phone re-encrypts the link about 0.3 s later, so wait for it before you treat
+the visitor as the phone you paired.
+
 **Don't pair a test board with the computer you're testing from.** Once
 paired, Windows and phones use it as a real keyboard, and it types into
 them.
