@@ -58,6 +58,12 @@ with each kind of peripheral described honestly by its role.
 - A BLE transport, using ADPCM to fit its bandwidth, for boards with no
   Wi-Fi between them.
 
+## Backends
+
+- A small registry for display and audio backends, under consideration.
+  Today `backends.require()` (experimental) names a backend by hand; a registry
+  would let `auto` find host-only ones like RokuDisplay, HlsDisplay and CastDisplay.
+
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
 - **`hmilink.appkit`.** An adapter that serves an appkit launcher and its
