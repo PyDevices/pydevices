@@ -9,7 +9,7 @@
 | [lib/](lib/) | The libraries that make up the `pydevices` package (`displaydev`, `audiodev`, `appdev`, `multimer`, `bledev` and the rest). |
 | [utils/](utils/) | Desktop helpers that ship in `pydevices-desktop` (`mdns`, `micropython`, `usdl2`, `uwin32` and more). |
 | `usb-core/`, `usb-host-*/`, `usb-device-*/`, `usb-hid/` | The USB packages ([docs/guides/usb.md](docs/guides/usb.md)). |
-| [palettes/](palettes/), [pdwidgets/](pdwidgets/), [appkit/](appkit/), [sayso/](sayso/), [midiports/](midiports/) | Packages that publish on their own, each with its own README. |
+| [palettes/](palettes/), [pdwidgets/](pdwidgets/), [appkit/](appkit/), [controlpanel/](controlpanel/), [sayso/](sayso/), [midiports/](midiports/) | Packages that publish on their own, each with its own README. |
 | [docs/](docs/) | The documentation site's source. |
 | [tests/](tests/) | Unit tests for the libraries. |
 

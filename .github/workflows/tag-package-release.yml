@@ -1,4 +1,5 @@
-# The packages that keep a version of their own (palettes, pdwidgets) release
+# The packages that keep a version of their own (palettes, pdwidgets,
+# controlpanel) release
 # apart from pydevices. A merged pull request that changes <name>/VERSION
 # becomes the <name>-vX.Y.Z tag and a GitHub Release, created with the App
 # token so that publish-package-release.yml runs. A VERSION file that is new
@@ -11,6 +12,7 @@ on:
     paths:
       - 'palettes/VERSION'
       - 'pdwidgets/VERSION'
+      - 'controlpanel/VERSION'
 
 permissions:
   contents: read
@@ -21,7 +23,7 @@ jobs:
     timeout-minutes: 10
     strategy:
       matrix:
-        package: [palettes, pdwidgets]
+        package: [palettes, pdwidgets, controlpanel]
     steps:
       - uses: actions/checkout@v7
         with:

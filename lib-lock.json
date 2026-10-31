@@ -28,6 +28,10 @@
         "pydevices"
       ]
     },
+    "controlpanel": {
+      "description": "A hardware-style control panel in LVGL for an instrument or an effect: patch pads, encoders with LED rings and a dot-matrix display",
+      "pypi": "pydevices-controlpanel"
+    },
     "sayso": {
       "description": "Lightweight Spotify Web API client for CPython, MicroPython and CircuitPython"
     }
