@@ -1,0 +1,38 @@
+{
+  "urls": [
+    [
+      "controlpanel/__init__.py",
+      "github:PyDevices/pydevices/controlpanel/lib/controlpanel/__init__.py"
+    ],
+    [
+      "controlpanel/dotmatrix.py",
+      "github:PyDevices/pydevices/controlpanel/lib/controlpanel/dotmatrix.py"
+    ],
+    [
+      "controlpanel/encoder.py",
+      "github:PyDevices/pydevices/controlpanel/lib/controlpanel/encoder.py"
+    ],
+    [
+      "controlpanel/font5x7.py",
+      "github:PyDevices/pydevices/controlpanel/lib/controlpanel/font5x7.py"
+    ],
+    [
+      "controlpanel/mock.py",
+      "github:PyDevices/pydevices/controlpanel/lib/controlpanel/mock.py"
+    ],
+    [
+      "controlpanel/panel.py",
+      "github:PyDevices/pydevices/controlpanel/lib/controlpanel/panel.py"
+    ],
+    [
+      "controlpanel/sprites.py",
+      "github:PyDevices/pydevices/controlpanel/lib/controlpanel/sprites.py"
+    ],
+    [
+      "controlpanel/theme.py",
+      "github:PyDevices/pydevices/controlpanel/lib/controlpanel/theme.py"
+    ]
+  ],
+  "deps": [],
+  "version": "0.1.0"
+}
