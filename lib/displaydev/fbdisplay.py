@@ -383,6 +383,44 @@ class FBDisplay(DisplayDriver):
             return
         raw.refresh()
 
+    def show_nowait(self):
+        """Start presenting the frame and return without waiting for it.
+
+        On a double-buffered native framebuffer that can split its present
+        (MicroPython ``DotClockFramebuffer`` with ``present()``/``wait()``),
+        this promotes the back buffer and returns at once; call
+        :meth:`wait_shown` before painting the framebuffers again. Elsewhere
+        it is :meth:`show`.
+
+        Returns:
+            bool: ``True`` when a present is pending and :meth:`wait_shown`
+            must follow, ``False`` when the frame is already out.
+        """
+        raw = self._raw_buffer
+        present = getattr(raw, "present", None)
+        if (
+            self._display is None
+            and present is not None
+            and getattr(raw, "wait", None) is not None
+            and not getattr(raw, "auto_refresh", False)
+        ):
+            present()
+            frame_done = getattr(self, "frame_done", None)
+            if frame_done is not None:
+                frame_done()  # one frame for measure_fps, as show() would be
+            return True
+        self.show()
+        return False
+
+    def wait_shown(self):
+        """Return once the frame :meth:`show_nowait` started is on screen.
+
+        Does nothing when no present is pending.
+        """
+        wait = getattr(self._raw_buffer, "wait", None)
+        if wait is not None:
+            wait()
+
     def flush_rect(self, x, y, w, h):
         """Make a directly-painted native framebuffer region visible.
 

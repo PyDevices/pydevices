@@ -1506,6 +1506,14 @@ class DisplayDriver:
     period, so rendering and presenting share one cadence.
     """
 
+    # DIRECT on a panel that can split its present (``show_nowait`` and
+    # ``wait_shown``): the last area starts the present and LVGL waits for it
+    # through its flush_wait_cb only when it is about to paint the
+    # framebuffers again, instead of blocking inside every flush.
+    _async_present = False
+    _present_pending = False  # a present started and not yet waited for
+    _started_present = False  # this flush started one (skip flush_ready)
+
     def __init__(
         self,
         display_drv,
@@ -1568,6 +1576,17 @@ class DisplayDriver:
                 )
             else:
                 self.lv_display.set_buffers(buf1, buf2, int(nbytes), lv.DISPLAY_RENDER_MODE.DIRECT)
+            if (
+                self._blocking
+                and callable(getattr(display_drv, "show_nowait", None))
+                and callable(getattr(display_drv, "wait_shown", None))
+                and hasattr(self.lv_display, "set_flush_wait_cb")
+            ):
+                try:
+                    self.lv_display.set_flush_wait_cb(self._flush_wait_cb)
+                    self._async_present = True
+                except Exception:
+                    self._async_present = False
         else:
             self._draw_buf1 = lv.draw_buf_create(
                 display_drv.width, display_drv.height // 10, color_format, 0
@@ -1650,6 +1669,7 @@ class DisplayDriver:
     def _flush_cb_direct(self, disp_drv, area, color_p):
         """DIRECT: LVGL already painted the panel FB; present on last area."""
         done = False
+        self._started_present = False
         try:
             done = self._present_direct(area)
         finally:
@@ -1659,8 +1679,20 @@ class DisplayDriver:
             # interpreter is stuck inside the timer callback, and neither the
             # REPL nor MicroPython's USB, which runs from the scheduler,
             # answers again until a hard reset (micropython-pydevices#48).
-            if self._blocking or not done:
+            # A present that is still on its way is finished by
+            # _flush_wait_cb, which LVGL calls before it paints again.
+            if (self._blocking or not done) and not (done and self._started_present):
                 self.lv_display.flush_ready()
+
+    def _flush_wait_cb(self, disp_drv):
+        """LVGL is about to paint: finish the present the last flush started."""
+        if not self._present_pending:
+            return
+        self._present_pending = False
+        try:
+            self.display_drv.wait_shown()
+        except Exception:
+            pass
 
     def _present_direct(self, area):
         """The DIRECT flush's work. True once it has finished normally."""
@@ -1695,6 +1727,10 @@ class DisplayDriver:
                     frame_done = getattr(panel, "frame_done", None)
                     if frame_done is not None:
                         frame_done()
+                elif self._async_present:
+                    pending = bool(panel.show_nowait())
+                    self._present_pending = pending
+                    self._started_present = pending
                 else:
                     panel.show()
                 self.presents += 1
