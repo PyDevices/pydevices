@@ -119,7 +119,7 @@ layers without the local config file or interactive OAuth helpers.
 |---------|-------------|--------|
 | CPython | Linux / WSL / desktop | Primary development target |
 | MicroPython | Linux (UNIX port) | Validated with discovery scripts and [`apps/spotify_remote`](apps/spotify_remote/) (pydisplay) |
-| MicroPython | Embedded hardware | Not yet validated |
+| MicroPython | Embedded hardware | Validated on an ESP32-P4 board with [`apps/spotify_remote`](apps/spotify_remote/) |
 | CircuitPython | Embedded hardware | Not yet validated |
 
 On embedded targets, pass credentials and tokens explicitly to `SpotifyClient`

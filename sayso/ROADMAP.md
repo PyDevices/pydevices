@@ -40,6 +40,7 @@ transport helpers, read methods, selected write methods, examples, and live test
 - Lazy `Playlist.items` via `LazyPageRef` (metadata without fetch; load on access)
 - `HydrationError` for contextual object-layer fetch failures
 - MicroPython on Linux validated with discovery scripts and the `spotify_remote` app
+- MicroPython on an ESP32-P4 board validated with the `spotify_remote` app
 - `spotify_remote` LVGL MicroPython app ([`apps/spotify_remote/`](apps/spotify_remote/))
 - `spotify_remote` follows a local earful speaker through its state events (`Device.events()`): while the board is Spotify's active device the screen shows each pause, skip and seek as earful reports it, and the Web API is only asked when playback moves elsewhere
 - `transport.get_bytes()` for binary downloads (for example cover art)
@@ -48,7 +49,7 @@ transport helpers, read methods, selected write methods, examples, and live test
 
 ## Good Next Steps
 
-- Validate MicroPython and CircuitPython on embedded hardware; record results in `PORTABILITY.md`.
+- Validate CircuitPython on embedded hardware; record the result in `PORTABILITY.md`.
 - Keep the schema generator aligned with hand-curated object_by_key overrides and February 2026 endpoint removals.
 - Optionally deprecate removed Dev Mode client methods (`user()`, legacy `playlist_tracks()`) in docstrings and endpoint coverage output.
 
