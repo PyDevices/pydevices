@@ -23,6 +23,7 @@ import math
 import lvgl as lv
 
 from . import sprites
+from ._safe import safe
 
 LEDS = 16
 MAX = 127
@@ -47,8 +48,8 @@ def geometry(width, height, scale):
         "lens_r": lens,
         "knob_r": knob_r,
         "pointer_w": pointer_w,
-        "pointer_len": max(5, int(knob_r * 0.52)),
-        "pointer_gap": max(1, int(knob_r * 0.14)),
+        "pointer_len": max(5, int(knob_r * 0.42)),
+        "pointer_gap": max(1, int(knob_r * 0.28)),
     }
 
 
@@ -126,12 +127,12 @@ class Encoder:
             pointer.set_style_image_opa(110, 0)
 
         if enabled:
-            cell.add_event_cb(self._on_pressed, lv.EVENT.PRESSED, None)
-            cell.add_event_cb(self._on_pressing, lv.EVENT.PRESSING, None)
-            cell.add_event_cb(self._on_double, lv.EVENT.DOUBLE_CLICKED, None)
-            cell.add_event_cb(self._on_key, lv.EVENT.KEY, None)
-            cell.add_event_cb(self._on_focus, lv.EVENT.FOCUSED, None)
-            cell.add_event_cb(self._on_defocus, lv.EVENT.DEFOCUSED, None)
+            cell.add_event_cb(safe(self._on_pressed), lv.EVENT.PRESSED, None)
+            cell.add_event_cb(safe(self._on_pressing), lv.EVENT.PRESSING, None)
+            cell.add_event_cb(safe(self._on_double), lv.EVENT.DOUBLE_CLICKED, None)
+            cell.add_event_cb(safe(self._on_key), lv.EVENT.KEY, None)
+            cell.add_event_cb(safe(self._on_focus), lv.EVENT.FOCUSED, None)
+            cell.add_event_cb(safe(self._on_defocus), lv.EVENT.DEFOCUSED, None)
         else:
             cell.remove_flag(lv.obj.FLAG.CLICKABLE)
         self._show(0, force=True)

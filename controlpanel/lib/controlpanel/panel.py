@@ -13,6 +13,7 @@ import lvgl as lv
 
 from . import encoder as _encoder
 from . import sprites
+from ._safe import safe
 from .dotmatrix import DotMatrix
 from .theme import resolve
 
@@ -168,7 +169,7 @@ class Panel:
         root = _box(screen, 0, 0, width, height)
         _fill(root, theme["face"])
         _finish(root, theme["face"], theme["face_finish"])
-        root.add_event_cb(self._on_delete, lv.EVENT.DELETE, None)
+        root.add_event_cb(safe(self._on_delete), lv.EVENT.DELETE, None)
         self.root = root
 
         header_h = s(78)
@@ -201,7 +202,7 @@ class Panel:
             self._select(min(max(self.adapter.patch_index, 0), len(patches) - 1))
         self._refresh_display(force=True)
         self.refresh_status()
-        self._timer = lv.timer_create(self._tick, _TICK_MS, None)
+        self._timer = lv.timer_create(safe(self._tick), _TICK_MS, None)
 
     def _build_header(self, h, title, subtitle):
         theme = self.theme
@@ -227,12 +228,19 @@ class Panel:
             self.buttons[name] = self._header_button(header, name, x, button_w, h)
             x += button_w + gap
         # The display window, just left of the controls.
+        # Sixteen characters, like a 16 x 2 module, unless the name plate
+        # would be left too narrow to read: then as few as twelve.
         pitch = 2 if self.scale < 0.9 else (3 if self.scale < 1.2 else 4)
-        matrix_w = DISPLAY_COLUMNS * 6 * pitch - pitch
+        columns = DISPLAY_COLUMNS
+        while True:
+            matrix_w = columns * 6 * pitch - pitch
+            bezel_w = matrix_w + 2 * s(8)
+            bezel_x = right_start - s(22) - bezel_w
+            if self.compact or columns <= 12 or bezel_x - s(42) >= s(120):
+                break
+            columns -= 1
         matrix_h = 2 * 8 * pitch + pitch
-        bezel_w = matrix_w + 2 * s(8)
         bezel_h = min(h - s(12), matrix_h + 2 * s(7))
-        bezel_x = right_start - s(22) - bezel_w
         bezel_y = (h - bezel_h) // 2
 
         # The maker's plate on the left: the instrument's name, and under it
@@ -270,7 +278,7 @@ class Panel:
         window = _box(bezel, s(4), s(3), bezel_w - 2 * s(4), bezel_h - 2 * s(3) - 1)
         _fill(window, theme["display_bg"])
         window.set_style_radius(s(2), 0)
-        self.display = DotMatrix(window, DISPLAY_COLUMNS, 2, pitch, theme)
+        self.display = DotMatrix(window, columns, 2, pitch, theme)
         self.display.obj.set_pos((bezel_w - 2 * s(4) - matrix_w) // 2, (bezel_h - 2 * s(3) - 1 - self.display.height) // 2)
         # A sheen across the top of the glass.
         glass = _box(window, 0, 0, bezel_w - 2 * s(4), (bezel_h - 2 * s(3)) // 2)
@@ -318,7 +326,7 @@ class Panel:
             "RELOAD": self._on_reload,
             "EXIT": self._on_exit,
         }[name]
-        button.add_event_cb(handler, lv.EVENT.CLICKED, None)
+        button.add_event_cb(safe(handler), lv.EVENT.CLICKED, None)
         return button, led
 
     def _build_patches(self, x, y, w, h):
@@ -348,7 +356,7 @@ class Panel:
             if used:
                 button.add_flag(lv.obj.FLAG.CLICKABLE)
                 button.set_style_translate_y(1, lv.STATE.PRESSED)
-                button.add_event_cb(lambda e, bank=i: self._on_bank(bank), lv.EVENT.CLICKED, None)
+                button.add_event_cb(safe(lambda e, bank=i: self._on_bank(bank)), lv.EVENT.CLICKED, None)
             self.banks.append((button, letter, used))
 
         # The sixteen pads: two columns of eight, numbered down each column.
@@ -356,9 +364,9 @@ class Panel:
         grid_h = y + h - s(18) - grid_y
         grid = _box(self.root, x, grid_y, w, grid_h)
         grid.add_flag(lv.obj.FLAG.CLICKABLE)
-        grid.add_event_cb(self._on_grid_key, lv.EVENT.KEY, None)
-        grid.add_event_cb(self._on_grid_focus, lv.EVENT.FOCUSED, None)
-        grid.add_event_cb(self._on_grid_defocus, lv.EVENT.DEFOCUSED, None)
+        grid.add_event_cb(safe(self._on_grid_key), lv.EVENT.KEY, None)
+        grid.add_event_cb(safe(self._on_grid_focus), lv.EVENT.FOCUSED, None)
+        grid.add_event_cb(safe(self._on_grid_defocus), lv.EVENT.DEFOCUSED, None)
         self.grid = grid
         if self.group is not None:
             self.group.add_obj(grid)
@@ -390,8 +398,8 @@ class Panel:
             else:
                 name.set_size(pad_w - s(34), 16)
                 name.set_pos(s(28), (pad_h - 16) // 2)
-            pad.add_event_cb(lambda e, k=k: self._on_pad(k), lv.EVENT.CLICKED, None)
-            pad.add_event_cb(self._on_pad_pressed, lv.EVENT.PRESSED, None)
+            pad.add_event_cb(safe(lambda e, k=k: self._on_pad(k)), lv.EVENT.CLICKED, None)
+            pad.add_event_cb(safe(self._on_pad_pressed), lv.EVENT.PRESSED, None)
             self.pads.append([pad, number, name, None])
 
     def _build_encoders(self, x, y, w, h):
@@ -546,7 +554,8 @@ class Panel:
 
     def _turned(self, enc, value):
         label = self.adapter.macro_labels[enc.index] if enc.index < len(self.adapter.macro_labels) else ""
-        self._flash("%-12s%4d" % (label.upper()[:12], value))
+        room = self.display.columns - 4
+        self._flash(label.upper()[:room] + " " * (room - len(label[:room])) + "%4d" % value)
         self.display.set_line(0, self._patch_line())
         if self._echoing:
             return
@@ -655,7 +664,7 @@ class Panel:
         self._show_bank(bank)
         first = bank * PADS + 1
         last = min(len(self.adapter.patches), bank * PADS + PADS)
-        self._flash("BANK %s   %03d-%03d" % (BANK_NAMES[bank], first, last))
+        self._flash("BANK %s %03d-%03d" % (BANK_NAMES[bank], first, last))
 
     def _on_grid_key(self, event):
         key = event.get_key()

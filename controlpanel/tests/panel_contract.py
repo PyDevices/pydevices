@@ -234,7 +234,7 @@ disp = lv.display_get_default()
 steps = 32
 t0 = _clock_us()
 pixels = 0
-for i in range(steps):
+for _ in range(steps):
     adapter.host_parameter(0, (adapter.macro_values[0] + 1) % 128)
     pixels += _headless.refresh()
 step_us = (_clock_us() - t0) // steps

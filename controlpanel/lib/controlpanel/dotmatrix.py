@@ -11,6 +11,7 @@ changed, so a value that turns from 100 to 101 costs one character cell:
 import lvgl as lv
 
 from . import font5x7
+from ._safe import safe
 
 
 class DotMatrix:
@@ -46,7 +47,7 @@ class DotMatrix:
             self._bufs.append(buf)
             self._text.append(None)
             self.set_line(line, "")
-        self.obj.add_event_cb(self._on_delete, lv.EVENT.DELETE, None)
+        self.obj.add_event_cb(safe(self._on_delete), lv.EVENT.DELETE, None)
 
     def _on_delete(self, _event):
         # The canvases go with the object; their buffers are ours to free.

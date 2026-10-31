@@ -5,6 +5,10 @@
       "github:PyDevices/pydevices/controlpanel/lib/controlpanel/__init__.py"
     ],
     [
+      "controlpanel/_safe.py",
+      "github:PyDevices/pydevices/controlpanel/lib/controlpanel/_safe.py"
+    ],
+    [
       "controlpanel/dotmatrix.py",
       "github:PyDevices/pydevices/controlpanel/lib/controlpanel/dotmatrix.py"
     ],
