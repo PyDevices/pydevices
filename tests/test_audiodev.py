@@ -1277,6 +1277,99 @@ class PaceOutputTests(unittest.TestCase):
         self.assertLessEqual(pcm._held, pcm._cap)
         self.assertEqual(0, len(inner.data))
 
+    def test_write_counts_what_it_drops(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        self.assertEqual(0, pcm.lost_bytes)
+        pcm.write(bytes(4000))
+        # Nothing reached the inner device and the stash holds its cap, so
+        # everything else was dropped and must be counted.
+        self.assertEqual(4000 - pcm._cap, pcm.lost_bytes)
+        pcm.write(bytes(400))
+        self.assertEqual(4400 - pcm._cap, pcm.lost_bytes)
+
+    def test_try_write_takes_only_what_fits(self):
+        class Closed(FakePCMOutput):
+            def _write(self, buf):
+                return 0
+
+        inner = Closed(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        took = pcm.try_write(bytes(4000))
+        self.assertEqual(pcm._cap, took)
+        self.assertEqual(0, pcm.try_write(bytes(400)))
+        self.assertEqual(0, pcm.lost_bytes)
+
+    def test_try_write_fills_the_ring_then_the_stash(self):
+        class Ring(FakePCMOutput):
+            def __init__(self, fmt, size):
+                super().__init__(fmt)
+                self.size = size
+
+            def _write(self, buf):
+                room = self.size - len(self.data)
+                take = len(buf) if len(buf) < room else room
+                take -= take % self.format.frame_size
+                self.data.extend(buf[:take])
+                return take
+
+        inner = Ring(AudioFormat(44100, 2, 16), 2000)
+        pcm = pace_output(inner, queue_ms=10)
+        pcm.open()
+        took = pcm.try_write(bytes(8000))
+        self.assertEqual(2000 + pcm._cap, took)
+        self.assertEqual(2000, len(inner.data))
+        self.assertEqual(0, pcm.lost_bytes)
+
+    def test_a_caller_keeping_the_rest_loses_nothing(self):
+        # A speaker whose ring holds 85 ms and plays 20 ms a tick, fed 200 ms
+        # bursts the way medialink.Intercom feeds it: try_write() what is
+        # pending and keep what wasn't taken.
+        fmt = AudioFormat(24000, 1, 16)
+
+        class Speaker(FakePCMOutput):
+            def __init__(self):
+                super().__init__(fmt)
+                self.queued = 0
+                self.played = 0
+
+            def queued_size(self):
+                return self.queued
+
+            def tick(self):
+                n = min(self.queued, 960)
+                self.queued -= n
+                self.played += n
+
+            def _write(self, buf):
+                n = min(len(buf), 4080 - self.queued)
+                n -= n % 2
+                self.queued += n
+                return n
+
+        inner = Speaker()
+        pcm = pace_output(inner, queue_ms=80)
+        pcm.open()
+        pending = b""
+        sent = 0
+        for i in range(400):
+            if i < 150 and i % 10 == 0:
+                pending += bytes(9600)
+                sent += 9600
+            took = pcm.try_write(pending)
+            pending = pending[took:]
+            inner.tick()
+            pcm.service()
+        self.assertEqual(b"", pending)
+        self.assertEqual(sent, inner.played)
+        self.assertEqual(0, pcm.lost_bytes)
+
     def test_write_copies_so_caller_may_reuse_the_buffer(self):
         class Closed(FakePCMOutput):
             def _write(self, buf):

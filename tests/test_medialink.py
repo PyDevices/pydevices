@@ -474,6 +474,13 @@ class BackedUpSpeaker(FakeSpeaker):
         return self.format.rate * self.format.channels * 2 * self.queued_ms // 1000
 
 
+class FullSpeaker(FakeSpeaker):
+    """A speaker with no room: try_write() takes nothing, queue empty."""
+
+    def try_write(self, data):
+        return 0
+
+
 class CatchingUp(unittest.TestCase):
     def run_turn(self, speaker, **kwargs):
         fmt = speaker.format
@@ -503,6 +510,14 @@ class CatchingUp(unittest.TestCase):
     def test_a_queue_at_the_target_keeps_every_frame(self):
         listener = self.run_turn(BackedUpSpeaker(Format(16000, 1), 40), catch_up_ms=0)
         self.assertEqual((listener.stats["played"], listener.stats["trimmed"]), (50, 0))
+
+    def test_sound_the_speaker_has_not_taken_counts_as_queued(self):
+        # What waits in the intercom for a full speaker is as late as what
+        # waits in the speaker, so it is trimmed the same way.
+        listener = self.run_turn(FullSpeaker(Format(16000, 1)), catch_up_ms=0)
+        stats = listener.stats
+        self.assertGreater(stats["trimmed"], 0)
+        self.assertEqual(stats["played"] + stats["trimmed"], 50)
 
     def test_catching_up_can_be_turned_off(self):
         listener = self.run_turn(BackedUpSpeaker(Format(16000, 1), 300), catch_up_ms=None)

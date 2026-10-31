@@ -68,7 +68,8 @@ class I2SPCMOutput(PCMOutput):
     realtime speed (measured 88-160ms per service on the ESP32-P4, which
     starved LVGL and made every interaction stutter). DMA consumption is
     exactly realtime, so a software byte-clock - bytes written minus
-    rate x elapsed - reports the queue accurately enough for backpressure.
+    rate x elapsed - reports the queue well enough for backpressure. It is
+    an estimate; :meth:`queued_size` says how far it can be off.
 
     On open, a POLL ioctl flips the driver to asyncio mode so ``write()``
     returns a partial/zero count instead of holding the GIL until DMA has
@@ -124,6 +125,20 @@ class I2SPCMOutput(PCMOutput):
         _close_i2s(i2s)
 
     def queued_size(self):
+        """Estimate the bytes still queued for the DAC.
+
+        ``machine.I2S`` can't say how full its DMA ring is, so this is a
+        byte clock: bytes written minus the rate times the time since the
+        first write. While the stream is kept fed it holds. On an ESP32-P4,
+        refilled every 10-40 ms for 90 s, it stayed within 11 ms of what a
+        refill found had played (median 1 ms), with no drift. Each time the
+        ring runs dry, the clock clamps at zero and doesn't match the DMA
+        exactly when it restarts. Over a long stream with frequent
+        underruns it can read well above the real fill: in a 60 s intercom
+        run with about 12 underruns a minute it read 150-240 ms while the
+        ring held under 100 ms. Treat it as an upper bound for
+        backpressure, not as a latency measurement.
+        """
         if self._clock_start_ms is None:
             return 0
         elapsed = ticks_diff(ticks_ms(), self._clock_start_ms)

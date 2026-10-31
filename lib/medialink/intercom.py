@@ -368,15 +368,18 @@ class Intercom:
             self._playing = True
 
     def _queued_ms(self):
+        """Sound waiting to be heard: the speaker's queue and what it
+        hasn't taken yet."""
         if self.speaker is None:
             return 0
+        waiting = len(self._pending) * 1000 // self._byte_rate
         queued = getattr(self.speaker, "queued_size", None)
         if queued is None:
-            return 0
+            return waiting
         try:
-            return queued() * 1000 // self._byte_rate
+            return waiting + queued() * 1000 // self._byte_rate
         except (OSError, NotImplementedError):
-            return 0
+            return waiting
 
     def close(self):
         self.release()
