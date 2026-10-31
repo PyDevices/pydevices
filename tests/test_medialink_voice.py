@@ -53,6 +53,23 @@ class Level(unittest.TestCase):
         heard = [voice.feed(f) for f in frames(loud)]
         self.assertFalse(any(heard[-50:]))
 
+    def a_microphone_starting_up(self, detector):
+        """A microphone's first open after power-up, as the P4 board's ES7210
+        gives it: 160 ms of one repeated sample, then 120 ms of zeros, then
+        the room's hiss."""
+        voice = medialink.VoiceActivity(detector=detector, hold_ms=1000)
+        start = frames(struct.pack("<h", -37) * (16 * 160) + bytes(2 * 16 * 120))
+        for frame in start:
+            voice.feed(frame)
+        return [voice.feed(f) for f in frames(hiss(16000 * 3, level=200, seed=7))]
+
+    def test_digital_silence_is_not_the_rooms_quiet(self):
+        self.assertFalse(any(self.a_microphone_starting_up("level")))
+
+    @unittest.skipUnless(HAVE_FEATURES, "needs audiofeatures with voice activity")
+    def test_digital_silence_is_not_the_rooms_quiet_to_audiofeatures(self):
+        self.assertFalse(any(self.a_microphone_starting_up("audiofeatures")))
+
     @unittest.skipUnless(HAVE_FEATURES, "needs audiofeatures with voice activity")
     def test_audiofeatures_is_the_default_where_there_is_one(self):
         voice = medialink.VoiceActivity(hold_ms=0)
@@ -126,7 +143,7 @@ class HandsFree(unittest.TestCase):
         again, as it does after each of the peer's turns, and the first
         frame is a click."""
         fmt = Format(16000, 1)
-        click = struct.pack("<h", 12000) * (FRAME // 2)
+        click = struct.pack("<hh", 12000, -12000) * (FRAME // 4)
         sound = click + hiss(16000, seed=5)
         network, a, b = pair()
         voice = medialink.VoiceActivity(detector="level", hold_ms=40)

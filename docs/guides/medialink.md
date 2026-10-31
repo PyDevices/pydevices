@@ -150,7 +150,9 @@ intercom = medialink.Intercom(link, mic, speaker, voice=voice)
 `audiofeatures`, which ignores a fan or road noise that stays on. Elsewhere,
 CircuitPython among them, it uses a level gate: the room's quiet sets a
 floor, and sound 10 dB over it counts. `voice.detector` says which you got.
-The gate can't tell a voice from a door slamming.
+The gate can't tell a voice from a door slamming. Both learn the room's quiet from
+the first sound they hear, and pass over digital silence (frames in which
+every sample is the same), which a microphone can send while it starts.
 
 When both sides speak at once, one gets the floor and the other's words
 are lost until the turn ends, as with two buttons. While the peer talks,

@@ -15,6 +15,12 @@ the detector can, mostly.
 
 Either way a frame counts for ``hold_ms`` after the last one that held
 speech, so the pauses between words don't end a turn.
+
+Both learn the room's quiet from the first frames they hear, so a frame in
+which every sample is the same is passed over: that is a microphone not yet
+running, not a room. An ES7210 on a P4 board sends 100 to 280 ms of it the
+first time it opens after power-up, and a detector that learned the quiet
+from that took the room's own hiss for 3.4 s of speech.
 """
 
 import struct
@@ -62,6 +68,10 @@ class VoiceActivity:
     def feed(self, pcm):
         """Take a frame of signed 16-bit PCM. True while it is worth sending."""
         self.level = _level(pcm, self.channels)
+        step = 2 * self.channels
+        if bytes(pcm[step:]) == bytes(pcm[:-step]):
+            # Digital silence, from a microphone still starting: not the room.
+            return self.speaking
         if self._frontend is not None:
             voiced = self._voiced_frontend(pcm)
         else:
