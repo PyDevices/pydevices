@@ -264,6 +264,19 @@ check("four macros: four take focus", group.get_obj_count() == 4, str(group.get_
 check("four macros: the other twelve stay dark", all(enc.value == 0 and not any(enc.lit()) for enc in panel.encoders[4:]), str([enc.value for enc in panel.encoders[4:]]))
 screen.delete()
 
+# ---- EXIT, for a panel inside an app ---------------------------------------------------
+
+screen = lv.obj(None)
+lv.screen_load(screen)
+closed = []
+panel = build(MockAdapter(), screen=screen, group=lv.group_create(), on_close=lambda: closed.append(1))
+_headless.refresh()
+button, led = panel.buttons["EXIT"]
+check("EXIT has no LED", led is None and all(panel.buttons[n][1] is not None for n in ("FINE", "BYPASS", "RELOAD")))
+button.send_event(lv.EVENT.CLICKED, None)
+check("EXIT calls on_close", closed == [1], str(closed))
+screen.delete()
+
 # ---- what a frame costs ------------------------------------------------------------------
 
 adapter, panel, group, screen = fresh()
