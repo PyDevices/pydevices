@@ -20,6 +20,12 @@ from .catalog import DEFAULT, RENAMED, TAB_ORDER, catalog, find
 #: what was played, in milliseconds.
 MIDI_MS = 4
 FILL_MS = 10
+#: Every so many fills the app checks what the pump's render costs.
+GOVERN_EVERY = 5
+#: The share of a block's time the voices may take before the app caps them.
+BUDGET = 0.85
+#: Reads to skip after changing the cap, while the stolen voices ring out.
+SETTLE = 4
 #: How often the load readout and the MIDI device names are refreshed.
 STATUS_MS = 500
 #: How often the load is printed to the console while an instrument
@@ -77,6 +83,9 @@ class Station:
         self.name = None
         self.loading = False
         self._filling = False
+        self._fills = 0
+        self._idle_us = None
+        self._settle = 0
         self._timers = []
         self._knobs = {}
         self._program = None
@@ -315,6 +324,8 @@ class Station:
             adapter.set_patch(patch)
         self.prefs["name"] = name
         self.name = name
+        self._idle_us = None
+        self._settle = 0
         self.adapter = adapter
         # RELOAD builds the instrument again. Nothing is played or filled
         # while it does; then the output takes the new one and lets go of
@@ -397,6 +408,40 @@ class Station:
             adapter.instrument.fill()
         finally:
             self._filling = False
+        self._fills += 1
+        if self._fills % GOVERN_EVERY == 0:
+            self._govern(adapter.instrument)
+
+    def _govern(self, inst):
+        """Cap the voices at what the pump can render in time.
+
+        The pump renders on a core of its own, so a chord the core can't
+        keep up with doesn't slow the app, it starves the speaker: the audio
+        runs behind for as long as the keys are held. Each sounding voice
+        costs about the same, so from the cost of the blocks just rendered
+        this works out how many fit in :data:`BUDGET` of a block's time and
+        sets the instrument's ``voices`` to that. The extra notes steal the
+        oldest instead of everything going quiet. The cap stays for as long
+        as the instrument is loaded.
+        """
+        output = self.output
+        cost = output.pull_us()
+        if cost is None or inst.voices < 2:
+            return
+        if self._settle:
+            # The blocks right after a cap still carry the voices it stole.
+            self._settle -= 1
+            return
+        sounding = inst.voice_pool.sounding()
+        if sounding == 0:
+            self._idle_us = cost if self._idle_us is None else min(self._idle_us, cost)
+            return
+        idle = self._idle_us or 0
+        room = BUDGET * output.block_us() - idle
+        per_voice = (cost - idle) / sounding
+        if per_voice > 0 and sounding * per_voice > room:
+            inst.voices = max(1, min(inst.voices, int(room / per_voice + 0.5)))
+            self._settle = SETTLE
 
     def back(self):
         """EXIT: stop the instrument and go back to the picker."""
