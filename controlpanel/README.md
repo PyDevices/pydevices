@@ -62,10 +62,14 @@ copy from.
 
 ## Play it
 
-- Drag an encoder up or right to raise it. FINE makes a drag four times
-  finer and the wheel step one at a time.
+- Drag an encoder up or right to raise it, down or left to lower it. FINE
+  makes a drag four times finer and the wheel step one at a time.
 - Click an encoder, then use the wheel or the arrow keys. Quick notches turn
   it faster. Home and End go to the ends.
+- With two wheels, one moves between the controls and the other turns the one
+  that has focus. The appkit app sets this up on a desktop: scroll to move,
+  tilt the wheel (or turn the thumb wheel) to turn. Pass `two_wheels=True` to
+  `build()` for your own two-wheel setup.
 - Double-click an encoder, or press Backspace, to return it to the value the
   patch gave it. An asterisk after the patch number on the display means the
   sound has been edited away from the patch.

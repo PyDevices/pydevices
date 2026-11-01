@@ -63,12 +63,12 @@ def check(name, ok, why=""):
         failures.append(name)
 
 
-def fresh(**kw):
+def fresh(two_wheels=False, **kw):
     screen = lv.obj(None)
     lv.screen_load(screen)
     group = lv.group_create()
     adapter = MockAdapter(**kw)
-    panel = build(adapter, screen=screen, group=group)
+    panel = build(adapter, screen=screen, group=group, two_wheels=two_wheels)
     _headless.refresh()
     return adapter, panel, group, screen
 
@@ -212,6 +212,40 @@ def _where(obj):
 
 
 check("out of edit mode the wheel moves on to the next encoder", _where(group.get_focused()) == _where(panel.encoders[6].obj), "%s vs %s, enc5 %s" % (_where(group.get_focused()), _where(panel.encoders[6].obj), _where(panel.encoders[5].obj)))
+screen.delete()
+
+# ---- by hand: sideways drags, and two wheels ------------------------------------------
+
+adapter, panel, group, screen = fresh(two_wheels=True)
+_headless.pointer()
+enc = panel.encoders[9]
+enc.obj.get_coords(area)
+x = (area.x1 + area.x2) // 2
+y = (area.y1 + area.y2) // 2 + 10
+start = enc.value
+_headless.touch(x, y, False)
+_headless.touch(x, y, True)
+for i in range(1, 11):
+    _headless.touch(x - 6 * i, y, True)
+_headless.touch(x - 60, y, False, 300)
+check("dragging left turns it down", enc.value < start and adapter.macro_values[9] == enc.value, "%d -> %d" % (start, enc.value))
+low = enc.value
+_headless.touch(x, y, True)
+for i in range(1, 11):
+    _headless.touch(x + 6 * i, y, True)
+_headless.touch(x + 60, y, False, 300)
+check("dragging right turns it up", enc.value > low and adapter.macro_values[9] == enc.value, "%d -> %d" % (low, enc.value))
+_headless.wheel(group)
+lv.group_focus_obj(panel.encoders[2].obj)
+group.focus_next()
+check("two wheels: the navigating wheel moves focus", _where(group.get_focused()) == _where(panel.encoders[3].obj), str(_where(group.get_focused())))
+start = panel.encoders[3].value
+_headless.turn(2)
+check("two wheels: the other wheel turns the focused encoder", panel.encoders[3].value > start and _where(group.get_focused()) == _where(panel.encoders[3].obj), "%d -> %d" % (start, panel.encoders[3].value))
+group.focus_next()
+start = panel.encoders[4].value
+_headless.turn(-2)
+check("two wheels: still turning after focus moves on", panel.encoders[4].value < start and group.get_editing(), "%d -> %d" % (start, panel.encoders[4].value))
 screen.delete()
 
 # ---- fewer macros, no patches ---------------------------------------------------------

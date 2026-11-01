@@ -113,10 +113,12 @@ class AppkitApp(unittest.TestCase):
             "    def adopt(self, obj, close=None):\n"
             "        self.closes.append(lambda: close(obj) if close else obj.delete())\n"
             "        return obj\n"
+            "    def on_close(self, fn):\n"
+            "        self.closes.insert(0, fn)\n"
             "scope = Scope()\n"
             "panel = controlpanel.main(scope)\n"
             "assert len(panel.encoders) == 16\n"
-            "scope.closes[0]()\n"
+            "for close in scope.closes: close()\n"
             "assert scope.root.get_child_count() == 0, scope.root.get_child_count()\n"
             "assert panel._timer is None\n"
             "panel.delete()\n"
@@ -126,6 +128,38 @@ class AppkitApp(unittest.TestCase):
         env["PYTHONPATH"] = os.pathsep.join([str(LIB), str(TESTS), env.get("PYTHONPATH", "")])
         result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
         self.assertIn("APP OK", result.stdout, result.stdout + result.stderr)
+
+    def test_on_a_desktop_one_wheel_moves_focus_and_the_other_turns(self):
+        code = (
+            "import sys, _headless, lvgl as lv\n"
+            "_headless.display(800, 480)\n"
+            "calls = []\n"
+            "class Driver:\n"
+            "    def set_wheel_mapping(self, **kw):\n"
+            "        calls.append(kw)\n"
+            "sys.modules['display_driver'] = Driver()\n"
+            "lv.group_create().set_default()\n"
+            "import controlpanel\n"
+            "class Scope:\n"
+            "    root = lv.screen_active()\n"
+            "    closes = []\n"
+            "    def adopt(self, obj, close=None):\n"
+            "        self.closes.append(lambda: close(obj) if close else obj.delete())\n"
+            "        return obj\n"
+            "    def on_close(self, fn):\n"
+            "        self.closes.insert(0, fn)\n"
+            "scope = Scope()\n"
+            "panel = controlpanel.main(scope)\n"
+            "assert calls == [dict(adjust_axis='h', adjust_sign=1, navigate=True, navigate_sign=-1)], calls\n"
+            "assert panel.group.get_editing()\n"
+            "for close in scope.closes: close()\n"
+            "assert calls[-1]['navigate'] is False and calls[-1]['adjust_axis'] == 'v', calls\n"
+            "print('WHEELS OK')\n"
+        )
+        env = dict(os.environ)
+        env["PYTHONPATH"] = os.pathsep.join([str(LIB), str(TESTS), env.get("PYTHONPATH", "")])
+        result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
+        self.assertIn("WHEELS OK", result.stdout, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

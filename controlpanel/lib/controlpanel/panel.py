@@ -116,9 +116,13 @@ class Panel:
     (the default group). *theme* is a theme name or dict, *title* replaces
     the adapter's name on the faceplate, *subtitle* the line under it, and
     *on_close*, when given, adds an EXIT button that calls it.
+
+    *two_wheels* is for a setup with a second wheel that moves focus between
+    the controls (see ``display_driver.set_wheel_mapping``): the group stays
+    in edit mode, so the other wheel always turns the control that has focus.
     """
 
-    def __init__(self, adapter, screen=None, group=None, theme=None, title=None, subtitle=None, on_close=None):
+    def __init__(self, adapter, screen=None, group=None, theme=None, title=None, subtitle=None, on_close=None, two_wheels=False):
         self.adapter = adapter
         self.screen = screen if screen is not None else lv.screen_active()
         self.group = group if group is not None else lv.group_get_default()
@@ -140,8 +144,11 @@ class Panel:
         self._snapshot_due = False
         self._status = None
         self._on_close = on_close
+        self._two_wheels = two_wheels
         self._timer = None
         self._build(title, subtitle)
+        if two_wheels and self.group is not None:
+            self.group.set_editing(True)
         adapter.on_external_change(self._apply_external)
 
     # ---- sizes ----------------------------------------------------------------
@@ -568,7 +575,11 @@ class Panel:
         # Focus that arrives any other way (a wheel or an encoder stepping
         # through the controls) leaves the mode alone, so a hardware encoder
         # can still leave edit mode with its button.
+        # With two wheels the group never leaves edit mode at all.
         if self.group is None:
+            return
+        if self._two_wheels:
+            self.group.set_editing(True)
             return
         indev = lv.indev_active()
         if indev is not None and indev.get_type() == lv.INDEV_TYPE.POINTER:
