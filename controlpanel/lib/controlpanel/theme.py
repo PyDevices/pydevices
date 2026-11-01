@@ -67,7 +67,8 @@ BLACK = {
     "screw": 0x3E4046,
     "screw_light": 0x8A8D94,
     "screw_slot": 0x0B0B0D,
-    "subtitle": "MACRO CONTROLLER",
+    # The line under the name on the faceplate; blank unless you want one.
+    "subtitle": "",
     # The grain on the faceplate and the header strip: "matte", "brushed"
     # or None for a flat colour (cheapest on a slow board).
     "face_finish": "matte",

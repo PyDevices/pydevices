@@ -169,6 +169,14 @@ panel.buttons["BYPASS"][0].send_event(lv.EVENT.CLICKED, None)
 check("bypass publishes and shows", adapter.bypass and adapter.edits[-1] == ("bypass", 0, True) and panel.display.text(1).startswith("BYPASSED"), panel.display.text(1))
 panel.buttons["RELOAD"][0].send_event(lv.EVENT.CLICKED, None)
 check("reload asks the engine", adapter.reloads == 1)
+check("RELOAD lights while the engine reloads", panel.buttons["RELOAD"][1].rgb is not None)
+adapter.engine_ready = False
+_headless.advance(1000)
+panel.refresh_status()
+check("RELOAD stays lit until the engine is ready", panel.buttons["RELOAD"][1].rgb is not None)
+adapter.engine_ready = True
+panel.refresh_status()
+check("RELOAD goes out once the engine is ready", panel.buttons["RELOAD"][1].rgb is None)
 adapter.engine_error = 3
 panel.refresh_status()
 check("an engine error shows", panel.display.text(1).startswith("ENGINE ERROR 3"), panel.display.text(1))

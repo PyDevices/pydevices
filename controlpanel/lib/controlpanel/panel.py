@@ -26,6 +26,8 @@ DISPLAY_COLUMNS = 16
 SHOW_MS = 1500
 _TICK_MS = 100
 _STATUS_MS = 400
+# RELOAD's LED stays lit at least this long, so a quick reload still shows.
+_RELOAD_MS = 600
 
 
 def _plain(obj, clickable=False):
@@ -143,6 +145,7 @@ class Panel:
         self._status_at = 0
         self._snapshot_due = False
         self._status = None
+        self._reload_at = None
         self._on_close = on_close
         self._two_wheels = two_wheels
         self._timer = None
@@ -489,6 +492,11 @@ class Panel:
         self._status_led.set(rgb)
         self.buttons["BYPASS"][1].set(theme["amber"] if getattr(adapter, "bypass", False) else None)
         self.buttons["FINE"][1].set(theme["led_on"] if self.fine else None)
+        # RELOAD stays lit from the press until the engine is ready again,
+        # and goes out at once on an error: the status light shows that.
+        if self._reload_at is not None and (error or (ready and lv.tick_get() - self._reload_at >= _RELOAD_MS)):
+            self._reload_at = None
+        self.buttons["RELOAD"][1].set(theme["amber"] if self._reload_at is not None else None)
         if state != self._status:
             # A change in the engine's state is news: it replaces whatever
             # the display was showing.
@@ -706,7 +714,9 @@ class Panel:
 
     def _on_reload(self, _event):
         self.adapter.request_reload()
+        self._reload_at = lv.tick_get()
         self._flash("RELOADING")
+        self.refresh_status()
 
     def _on_exit(self, _event):
         if self._on_close is not None:
