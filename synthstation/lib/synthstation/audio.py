@@ -55,6 +55,7 @@ class Output:
         self._starved = 0
         self._base = 0
         self._last = None
+        self._gov = None
         self.underruns = 0
         self.load_pct = None
         self.worst_pct = None
@@ -91,6 +92,7 @@ class Output:
         self._starved = 0
         self._base = 0
         self._last = None
+        self._gov = None
         self.load_pct = None
         self.worst_pct = None
         if self._wire is not None:
@@ -201,6 +203,26 @@ class Output:
             except Exception:
                 pass
         return self.load_pct, self.worst_pct, self.underruns
+
+    def pull_us(self):
+        """Mean render time of a block since the last call, in microseconds.
+
+        None when the pump isn't running on a board, or no block has landed
+        since the last call. The pump renders on its own core, so this is
+        what the instrument costs, whoever is late.
+        """
+        if self._status is None:
+            return None
+        w = struct.unpack_from("<%dQ" % self._pump.STATUS_WORDS, self._status)
+        last = self._gov
+        self._gov = (w[_BLOCKS], w[_PULL_US])
+        if last is None or w[_BLOCKS] <= last[0]:
+            return None
+        return (w[_PULL_US] - last[1]) // (w[_BLOCKS] - last[0])
+
+    def block_us(self):
+        """How long one block of the pump lasts, in microseconds."""
+        return DMA_FRAME * 1000000 // self.rate
 
     def starved_ms(self):
         """On a board, the silence heard since :meth:`start`, in ms."""
