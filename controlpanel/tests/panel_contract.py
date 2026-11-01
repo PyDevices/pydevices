@@ -261,6 +261,7 @@ screen.delete()
 adapter, panel, group, screen = fresh(patch_count=0, macro_count=4)
 check("no patches: no pads", panel.pads == [] and panel.display.text(0).startswith("DEMO SYNTH"))
 check("four macros: four take focus", group.get_obj_count() == 4, str(group.get_obj_count()))
+check("four macros: the other twelve stay dark", all(enc.value == 0 and not any(enc.lit()) for enc in panel.encoders[4:]), str([enc.value for enc in panel.encoders[4:]]))
 screen.delete()
 
 # ---- what a frame costs ------------------------------------------------------------------
