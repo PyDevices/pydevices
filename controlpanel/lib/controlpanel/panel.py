@@ -405,11 +405,9 @@ class Panel:
     def _build_encoders(self, x, y, w, h):
         theme = self.theme
         s = self._s
-        title = _label(self.root, "MACROS", theme["legend"], None, 2)
-        title.set_pos(x + s(4), y + s(10))
-        _fill(_box(self.root, x + s(84), y + s(19), w - s(88), 1), theme["rule"])
-        grid_y = y + s(34)
-        grid_h = h - s(34) - s(14)
+        # No legend over the encoders: their own labels say what each one does.
+        grid_y = y + s(10)
+        grid_h = h - s(10) - s(14)
         cell_w = w // 4
         cell_h = grid_h // 4
         geom = _encoder.geometry(cell_w, cell_h, self.scale)
