@@ -147,6 +147,7 @@ class Panel:
         self._status = None
         self._reload_at = None
         self._on_close = on_close
+        self._status_text = None
         self._two_wheels = two_wheels
         self._timer = None
         self._build(title, subtitle)
@@ -278,6 +279,7 @@ class Panel:
         if self.compact:
             sub.add_flag(lv.obj.FLAG.HIDDEN)
         sub.set_pos(left + int(2 * lens) + s(10), s(47))
+        self.subtitle = sub
 
         bezel = _box(header, bezel_x, bezel_y, bezel_w, bezel_h)
         _fill(bezel, theme["display_bezel"])
@@ -508,6 +510,18 @@ class Panel:
             self._show_until = 0
             self._refresh_display()
 
+    def set_status(self, text):
+        """Show *text* on the display's second line in place of READY.
+
+        For a live readout (a meter, a load figure) that fits the display's
+        width. An engine error, a restart or BYPASSED still takes its place,
+        and so does a value being shown while a control moves. None puts
+        READY back.
+        """
+        self._status_text = text
+        if not self._show_until:
+            self.display.set_line(1, self._idle_line())
+
     def default_value(self, index):
         """The value a reset returns macro *index* to: what the patch set."""
         return self._defaults[index] if index < len(self._defaults) else 64
@@ -540,6 +554,8 @@ class Panel:
             return "ENGINE STARTING"
         if getattr(adapter, "bypass", False):
             return "BYPASSED"
+        if self._status_text:
+            return self._status_text.upper()
         if not adapter.macro_count:
             return "NO MACROS"
         return "READY"
