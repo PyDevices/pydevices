@@ -324,11 +324,15 @@ class Panel:
         button.set_style_shadow_color(lv.color_hex(0), 0)
         button.set_style_translate_y(1, lv.STATE.PRESSED)
         button.set_style_shadow_offset_y(0, lv.STATE.PRESSED)
+        # EXIT has nothing to show, so it has no LED.
+        has_led = name != "EXIT"
         if self.compact:
             text = _label(button, name, theme["button_text"], None, 0)
-            text.align(lv.ALIGN.CENTER, -3, 0)
+            text.align(lv.ALIGN.CENTER, -3 if has_led else 0, 0)
+        led = None
+        if has_led and self.compact:
             led = _Led(header, x + w - 5, (h - 24) // 2 + 5, 2.0, theme)
-        else:
+        elif has_led:
             led = _Led(header, x + w // 2, s(47), max(2.0, s(5) * 0.7), theme)
         handler = {
             "FINE": self._on_fine,
