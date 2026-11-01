@@ -1,4 +1,4 @@
-# Publish a palettes, pdwidgets or controlpanel release: build the distribution from the
+# Publish a palettes, pdwidgets, controlpanel or synthstation release: build the distribution from the
 # package's folder at the release tag, check the wheel installs and imports,
 # upload it to TestPyPI, and attach it to the GitHub Release. pydevices' own
 # releases (vX.Y.Z tags) go through publish-release-packages.yml instead.
@@ -28,6 +28,7 @@ jobs:
       || startsWith(github.event.release.tag_name, 'palettes-v')
       || startsWith(github.event.release.tag_name, 'pdwidgets-v')
       || startsWith(github.event.release.tag_name, 'controlpanel-v')
+      || startsWith(github.event.release.tag_name, 'synthstation-v')
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.release.outputs.tag }}
@@ -41,8 +42,8 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release-ref }}
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^(palettes|pdwidgets|controlpanel)-v([0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+|\.dev[0-9]+)?)$ ]]; then
-            echo "Release ref must be palettes-vX.Y.Z, pdwidgets-vX.Y.Z or controlpanel-vX.Y.Z[{a|b|rc}N|.devN]: $RELEASE_TAG" >&2
+          if [[ ! "$RELEASE_TAG" =~ ^(palettes|pdwidgets|controlpanel|synthstation)-v([0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+|\.dev[0-9]+)?)$ ]]; then
+            echo "Release ref must be palettes-vX.Y.Z, pdwidgets-vX.Y.Z, controlpanel-vX.Y.Z or synthstation-vX.Y.Z[{a|b|rc}N|.devN]: $RELEASE_TAG" >&2
             exit 1
           fi
           {

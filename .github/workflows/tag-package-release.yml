@@ -1,5 +1,5 @@
 # The packages that keep a version of their own (palettes, pdwidgets,
-# controlpanel) release
+# controlpanel, synthstation) release
 # apart from pydevices. A merged pull request that changes <name>/VERSION
 # becomes the <name>-vX.Y.Z tag and a GitHub Release, created with the App
 # token so that publish-package-release.yml runs. A VERSION file that is new
@@ -13,6 +13,7 @@ on:
       - 'palettes/VERSION'
       - 'pdwidgets/VERSION'
       - 'controlpanel/VERSION'
+      - 'synthstation/VERSION'
 
 permissions:
   contents: read
@@ -23,7 +24,7 @@ jobs:
     timeout-minutes: 10
     strategy:
       matrix:
-        package: [palettes, pdwidgets, controlpanel]
+        package: [palettes, pdwidgets, controlpanel, synthstation]
     steps:
       - uses: actions/checkout@v7
         with:

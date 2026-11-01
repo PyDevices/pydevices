@@ -1,0 +1,49 @@
+# Synth Station's tests. A change under synthstation/, or to controlpanel's
+# library it builds on, runs them.
+#
+# Here they run on CPython only, on a display with no window, against
+# controlpanel from this checkout and audioinstruments from its main branch.
+# The MicroPython half needs a unix micropython with LVGL and audiodsp,
+# which the runner doesn't have, so it skips here, loudly. Run it locally
+# with PYDEVICES_MICROPYTHON set (synthstation/README.md).
+name: synthstation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'synthstation/**'
+      - 'controlpanel/lib/**'
+      - '.github/workflows/synthstation.yml'
+  pull_request:
+    paths:
+      - 'synthstation/**'
+      - 'controlpanel/lib/**'
+      - '.github/workflows/synthstation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: PyDevices/audioinstruments
+          path: .audioinstruments
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install LVGL and audiodsp for CPython
+        run: |
+          sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0
+          python -m pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ pydevices-lvgl omnipython-audiodsp numpy
+      - name: Unit tests
+        working-directory: synthstation
+        env:
+          SYNTHSTATION_PATH: ${{ github.workspace }}/.audioinstruments/lib
+        run: python -m unittest discover -s tests -p 'test_*.py' -v

@@ -85,6 +85,10 @@ subtitle=None, on_close=None, two_wheels=False)`. `theme` is `"black"`
 button that calls it. `two_wheels` keeps the encoders in edit mode, for a
 second wheel that moves focus (see "Play it").
 
+`panel.set_status(text)` shows a live readout (a load figure, a meter) on
+the display's second line in place of READY; an engine error, BYPASSED or a
+value being turned still takes its place, and None puts READY back.
+
 ![The same panel in silver](docs/images/controlpanel-silver.png)
 
 The panel scales to its screen. From 800 x 480 up it shows everything; below
