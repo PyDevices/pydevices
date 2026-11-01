@@ -326,9 +326,11 @@ def main(names, shots=None):
         print("ok  %-20s pads play, peak %d, subtitle %r" % (name, peak, panel.subtitle.get_text()))
         app.back()
         scope.run()
+    check(station.current is app, "station.current is the running app")
     for fn in scope.closes:
         fn()
     check(app.panel is None, "close takes the panel down")
+    check(station.current is None, "close clears station.current")
 
 
 SHOT = [False]

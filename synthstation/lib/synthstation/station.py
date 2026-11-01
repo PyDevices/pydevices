@@ -38,6 +38,11 @@ TEXT = 0xE8E6E1
 DIM = 0x8A8D93
 ACCENT = 0xD8402F
 
+#: The running app, for a console or a bench script: ``current.adapter``
+#: is the instrument's adapter, ``current.parser.feed()`` plays MIDI bytes.
+#: None while the app isn't open.
+current = None
+
 
 def _style(obj, bg=None, radius=0):
     obj.set_style_border_width(0, 0)
@@ -98,6 +103,8 @@ class Station:
             tab = find(self.catalog, name)[0] or self.catalog[0][0]
         self.parser = _midi.Parser(self)
         scope.on_close(self.close)
+        global current
+        current = self
         self._build_picker()
         self._show_tab(tab)
         self._status_timer = scope.every(STATUS_MS, self._status_tick)
@@ -447,6 +454,9 @@ class Station:
                     self.name, output.load_pct, output.worst_pct, output.underruns, output.starved_ms()))
 
     def close(self):
+        global current
+        if current is self:
+            current = None
         self._stop_instrument()
         if self.output is not None:
             self.output.close()
