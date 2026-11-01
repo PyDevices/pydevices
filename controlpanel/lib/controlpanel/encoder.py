@@ -140,7 +140,13 @@ class Encoder:
     # ---- what the panel calls ---------------------------------------------
 
     def set_value(self, value):
-        """Show *value* (0 to 127). Never reports back to the panel."""
+        """Show *value* (0 to 127). Never reports back to the panel.
+
+        An encoder past the adapter's macros stays at 0, its ring dark, so it
+        doesn't look like a live control.
+        """
+        if not self.enabled:
+            return
         value = 0 if value < 0 else (MAX if value > MAX else int(value))
         self._show(value)
 
