@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pydevices-controlpanel"
+dynamic = ["version"]
+description = "A hardware-style control panel in LVGL: patch pads, encoders with LED rings, a dot-matrix display"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Brad Barnett" }]
+dependencies = [
+  # LVGL and its Python bindings; nothing else from PyDevices is needed.
+  "pydevices-lvgl",
+]
+urls = { Homepage = "https://github.com/PyDevices/pydevices/tree/main/controlpanel", Issues = "https://github.com/PyDevices/pydevices/issues" }
+
+[tool.setuptools.packages.find]
+where = ["lib"]
+
+[tool.setuptools.dynamic]
+version = { file = "VERSION" }

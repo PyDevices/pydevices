@@ -1,0 +1,39 @@
+# controlpanel's tests. A change under controlpanel/ runs them.
+#
+# Here they run on CPython only, on a display with no window. The
+# MicroPython half needs a unix micropython with LVGL, which the runner
+# doesn't have, so it skips here, loudly. Run it locally with
+# PYDEVICES_MICROPYTHON set (controlpanel/README.md).
+name: controlpanel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'controlpanel/**'
+      - '.github/workflows/controlpanel.yml'
+  pull_request:
+    paths:
+      - 'controlpanel/**'
+      - '.github/workflows/controlpanel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install LVGL for CPython
+        run: |
+          sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0
+          python -m pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ pydevices-lvgl
+      - name: Unit tests
+        working-directory: controlpanel
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
