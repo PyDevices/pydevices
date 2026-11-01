@@ -25,6 +25,8 @@ ROOT = TESTS.parent.parent
 CHECK = TESTS / "station_check.py"
 EXTRA = [p for p in os.environ.get("SYNTHSTATION_PATH", "").split(":") if p]
 PATH = EXTRA + [str(LIB), str(ROOT / "controlpanel" / "lib"), str(ROOT / "midiports")]
+#: pydevices' own lib (audiodev): after the frozen copy on MicroPython.
+REPO_LIB = str(ROOT / "lib")
 
 sys.path[:0] = [str(LIB)]
 
@@ -96,8 +98,8 @@ class MidiParser(unittest.TestCase):
 
 def _run(interpreter, *args):
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join([str(TESTS)] + PATH + [env.get("PYTHONPATH", "")])
-    env["MICROPYPATH"] = ":".join([str(TESTS)] + PATH + [".frozen"])
+    env["PYTHONPATH"] = os.pathsep.join([str(TESTS)] + PATH + [REPO_LIB, env.get("PYTHONPATH", "")])
+    env["MICROPYPATH"] = ":".join([str(TESTS)] + PATH + [".frozen", REPO_LIB])
     return subprocess.run(
         [interpreter, "-X", "heapsize=256M", str(CHECK)] + list(args) if "micropython" in interpreter
         else [interpreter, str(CHECK)] + list(args),
