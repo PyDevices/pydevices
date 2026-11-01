@@ -79,9 +79,11 @@ copy from.
 ## Options
 
 `build(adapter, screen=None, group=None, theme=None, title=None,
-subtitle=None, on_close=None)`. `theme` is `"black"` (above), `"silver"`, or
-a dict of colours: copy one from `controlpanel/theme.py` and change what you
-like. `on_close` adds an EXIT button that calls it.
+subtitle=None, on_close=None, two_wheels=False)`. `theme` is `"black"`
+(above), `"silver"`, or a dict of colours: copy one from
+`controlpanel/theme.py` and change what you like. `on_close` adds an EXIT
+button that calls it. `two_wheels` keeps the encoders in edit mode, for a
+second wheel that moves focus (see "Play it").
 
 ![The same panel in silver](docs/images/controlpanel-silver.png)
 
