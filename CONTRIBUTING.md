@@ -155,6 +155,7 @@ These hold the design together. Some are checked by a test or by `libbuild.py ch
 
 **Package names and what ships**
 
+- `lib/` is the core, and it installs as the `pydevices` package. Each folder under `packages/` publishes on its own, under its own name, with its own version.
 - MIP names and Python imports are unprefixed (`displaydev`, `audiodev`, `appdev`, `events`, `keys`, `multimer`). TestPyPI distribution names are always `pydevices-*`.
 - `displaydev` needs `events` and `keys`; `appdev` needs `events`, `keys` and `multimer`.
 - Every top-level component in `lib/` ships inside the `pydevices` MIP package. Only a directory marked `own-package` in [`mip-split.toml`](mip-split.toml) also publishes on its own; `bledev` is the one that does (install aioble from micropython-lib first). Every library component in `utils/` is bundled into `pydevices-desktop`, which depends on `pydevices`.
