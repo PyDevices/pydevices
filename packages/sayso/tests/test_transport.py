@@ -1,6 +1,7 @@
 import unittest
 
-from sayso.transport import TransportError, http_request, response_bytes, response_json
+from sayso import transport
+from sayso.transport import TransportError, close_connections, http_request, response_bytes, response_json
 
 
 class _MicroPythonLikeResponse:
@@ -99,6 +100,33 @@ class TransportHttpRequestTest(unittest.TestCase):
 
         self.assertEqual(captured["data"], "")
         self.assertEqual(captured["headers"]["Content-Length"], "0")
+
+
+class CloseConnections(unittest.TestCase):
+    def setUp(self):
+        self._requests = transport.requests
+
+    def tearDown(self):
+        transport.requests = self._requests
+
+    def test_closes_a_backend_that_keeps_connections(self):
+        closed = []
+
+        class Backend:
+            @staticmethod
+            def close():
+                closed.append(True)
+
+        transport.requests = Backend
+        close_connections()
+        self.assertEqual(closed, [True])
+
+    def test_a_backend_without_close_is_left_alone(self):
+        class Backend:
+            pass
+
+        transport.requests = Backend
+        close_connections()
 
 
 if __name__ == "__main__":

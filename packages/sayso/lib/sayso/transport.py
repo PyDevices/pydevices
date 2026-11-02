@@ -314,6 +314,13 @@ def _successful_status(status):
     return status is not None and 200 <= status < 300
 
 
+def close_connections():
+    """Drop the backend's kept-alive connections, if it keeps any; otherwise do nothing."""
+    close = getattr(requests, "close", None)
+    if close is not None:
+        close()
+
+
 def close_response(response):
     if hasattr(response, "close"):
         response.close()
