@@ -22,6 +22,13 @@ which on a board is scarce internal RAM. When an app closes, what it queued
 and hasn't started is dropped, and a job of its that finishes afterwards is
 not delivered.
 
+A job that uses something the app would otherwise close at once, such as an
+mDNS server, passes ``release=``. ``release()`` runs once for that job: on
+the thread after ``work()`` returns, even if the app has closed meanwhile,
+or at once if the job is dropped before it starts. So the thing is never
+torn down under a call that is still using it, and close doesn't wait for
+the call.
+
 Where there are no threads (the browser, CircuitPython on a board,
 MicroPython's Windows port) a :class:`TimerWorker` runs each job on a timer
 instead, one per tick, so the screen still gets a turn between jobs.
@@ -57,9 +64,21 @@ def _call_done(done, owner, value, error):
         _report(exc)
 
 
+def _call_release(release):
+    try:
+        release()
+    except Exception as exc:
+        print("appkit.worker: a release() failed: %r" % (exc,))
+
+
+def _release_all(releases):
+    for release in releases:
+        _call_release(release)
+
+
 class _Base:
     def __init__(self):
-        self._jobs = []  # [key, work, done, owner]
+        self._jobs = []  # [key, work, done, owner, release]
         #: True while a job is running, whichever app's it is.
         self.busy = False
         self._key = None  # the running job's key
@@ -67,17 +86,35 @@ class _Base:
         self.ran = 0
         self.errors = 0
 
-    def _queue(self, work, done, key, owner):
+    def _queue(self, work, done, key, owner, release=None):
+        """Queue a job; returns the releases of any waiting jobs it replaced."""
         if not callable(work):
             raise ValueError("work must be callable")
         if done is not None and not callable(done):
             raise ValueError("done must be callable")
+        if release is not None and not callable(release):
+            raise ValueError("release must be callable")
+        dropped = []
         if key is not None:
-            self._jobs = [j for j in self._jobs if j[0] != key or j[3] is not owner]
-        self._jobs.append([key, work, done, owner])
+            kept = []
+            for j in self._jobs:
+                if j[0] == key and j[3] is owner:
+                    if j[4] is not None:
+                        dropped.append(j[4])
+                else:
+                    kept.append(j)
+            self._jobs = kept
+        self._jobs.append([key, work, done, owner, release])
+        return dropped
+
+    def _dropped(self, owner):
+        """Remove *owner*'s waiting jobs; returns their releases."""
+        dropped = [j[4] for j in self._jobs if j[3] is owner and j[4] is not None]
+        self._jobs = [j for j in self._jobs if j[3] is not owner]
+        return dropped
 
     def _run(self, job):
-        key, work, done, owner = job
+        key, work, done, owner, release = job
         self._key = key
         self.busy = True
         value = error = None
@@ -89,6 +126,8 @@ class _Base:
         self.busy = False
         self._key = None
         self.ran += 1
+        if release is not None:
+            _call_release(release)
         return done, owner, value, error
 
     def queued(self, owner=None):
@@ -122,10 +161,11 @@ class Worker(_Base):
                 except Exception:
                     pass
 
-    def submit(self, work, done=None, key=None, owner=None):
+    def submit(self, work, done=None, key=None, owner=None, release=None):
         """Run ``work()`` on the thread, then ``done(value, error)`` on the main thread."""
         with self._lock:
-            self._queue(work, done, key, owner)
+            dropped = self._queue(work, done, key, owner, release)
+        _release_all(dropped)
         if self._wake.locked():
             try:
                 self._wake.release()
@@ -142,7 +182,8 @@ class Worker(_Base):
     def cancel(self, owner):
         """Drop everything *owner* queued that hasn't started."""
         with self._lock:
-            self._jobs = [j for j in self._jobs if j[3] is not owner]
+            dropped = self._dropped(owner)
+        _release_all(dropped)
 
     def _loop(self):
         while True:
@@ -188,9 +229,9 @@ class TimerWorker(_Base):
         _Base.__init__(self)
         self._timer = None
 
-    def submit(self, work, done=None, key=None, owner=None):
+    def submit(self, work, done=None, key=None, owner=None, release=None):
         """Run ``work()`` soon on a timer, then ``done(value, error)``."""
-        self._queue(work, done, key, owner)
+        _release_all(self._queue(work, done, key, owner, release))
         self._kick()
 
     def pending(self, key, owner=None):
@@ -199,7 +240,7 @@ class TimerWorker(_Base):
         return any(j[0] == key and j[3] is owner for j in self._jobs)
 
     def cancel(self, owner):
-        self._jobs = [j for j in self._jobs if j[3] is not owner]
+        _release_all(self._dropped(owner))
 
     def _kick(self):
         t = self._timer
@@ -234,11 +275,16 @@ class ScopedWorker:
         another's: say, before closing a connection a job may be using."""
         return self.worker.busy
 
-    def submit(self, work, done=None, key=None):
-        """Run ``work()`` in the background, then ``done(value, error)`` on the main thread."""
+    def submit(self, work, done=None, key=None, release=None):
+        """Run ``work()`` in the background, then ``done(value, error)`` on the main thread.
+
+        ``release()``, if given, runs once for this job after ``work()`` returns,
+        even if the app has closed by then, and at once if the job is dropped
+        before it starts. Use it to let go of what ``work()`` uses.
+        """
         if _gone(self.owner):
             raise RuntimeError("scope %r is closed" % (getattr(self.owner, "name", None),))
-        self.worker.submit(work, done, key=key, owner=self.owner)
+        self.worker.submit(work, done, key=key, owner=self.owner, release=release)
 
     def pending(self, key):
         """True while this app's job with *key* is waiting or running."""

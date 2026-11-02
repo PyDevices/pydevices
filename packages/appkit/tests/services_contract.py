@@ -259,6 +259,94 @@ def timer_worker_runs_on_a_timer():
 
 
 @check
+def lookup_leaves_the_main_thread_free():
+    # A 1 s blocking lookup (an mDNS find, say) runs on the worker: the main
+    # thread keeps its turns, and the answer still comes back on it.
+    if not _threaded():
+        return
+    import time
+
+    s = AppScope(_app(), "lookup")
+    got = []
+
+    def lookup():
+        time.sleep(1.0)
+        return "peer"
+
+    s.worker.submit(lookup, lambda v, e: got.append(v), key="find")
+    gaps = []
+    last = multimer.ticks_ms()
+    end = multimer.ticks_add(last, 1000)
+    while multimer.ticks_diff(end, multimer.ticks_ms()) > 0:
+        multimer.sleep_ms(10)
+        now = multimer.ticks_ms()
+        gaps.append(multimer.ticks_diff(now, last))
+        last = now
+    expect(max(gaps) < 200, "the main thread stalled for %d ms during the lookup" % max(gaps))
+    expect(_wait(lambda: got == ["peer"], 3000), "done() not called: %r" % (got,))
+    s.close()
+
+
+@check
+def close_during_a_lookup_returns_promptly():
+    # close() doesn't wait for the lookup, the lookup's release() runs on the
+    # thread once it returns, and its answer is never delivered.
+    if not _threaded():
+        return
+    import time
+
+    main = _ident()
+    s = AppScope(_app(), "abandon")
+    got = []
+    events = []
+
+    def lookup():
+        events.append("start")
+        time.sleep(1.0)
+        events.append("end")
+        return "peer"
+
+    def release():
+        events.append(("release", _ident()))
+
+    s.worker.submit(lookup, lambda v, e: got.append(v), key="find", release=release)
+    expect(_wait(lambda: "start" in events), "the lookup never started")
+    t0 = multimer.ticks_ms()
+    s.close()
+    took = multimer.ticks_diff(multimer.ticks_ms(), t0)
+    expect(took < 300, "close() waited %d ms for a lookup in progress" % took)
+    expect(events == ["start"], "close() did not return before the lookup ended: %r" % (events,))
+    expect(_wait(lambda: len(events) == 3, 3000), "release() never ran: %r" % (events,))
+    expect(events[1] == "end" and events[2] == ("release", events[2][1]), "release() ran out of order: %r" % (events,))
+    expect(events[2][1] != main, "release() ran on the main thread, not the worker")
+    multimer.sleep_ms(30)
+    expect(got == [], "a closed app's lookup was delivered: %r" % (got,))
+    # The shared thread is still there for the other apps.
+    b = AppScope(_app(), "after")
+    b.worker.submit(lambda: "b", lambda v, e: got.append(v))
+    expect(_wait(lambda: got == ["b"]), "the worker stopped after an abandoned lookup: %r" % (got,))
+    b.close()
+
+
+@check
+def dropped_job_releases_at_once():
+    # A job closed before it starts never runs, so its release() runs at close.
+    if not _threaded():
+        return
+    a = AppScope(_app(), "dropped")
+    gate = _Gate()
+    released = []
+    a.worker.submit(gate.work)
+    expect(_wait(lambda: gate.entered), "the worker never started the gate job")
+    shared = a.worker.worker
+    a.worker.submit(lambda: 1, release=lambda: released.append(_ident()))
+    a.close()
+    expect(released == [_ident()], "a dropped job's release() did not run at close: %r" % (released,))
+    gate.release()
+    expect(_wait(lambda: not shared.busy), "the gate job never finished")
+
+
+@check
 def worker_busy_while_a_job_runs():
     # Any job, keyed or not, whichever app's: the shared thread is busy.
     app = _app()
@@ -754,6 +842,11 @@ def _plant_worker_late():
     W._gone = lambda owner: False
 
 
+def _plant_worker_release():
+    # release() is never called, so a lookup's resource is never let go.
+    W._call_release = lambda release: None
+
+
 def _plant_worker_key():
     queue = W._Base._queue
 
@@ -902,6 +995,7 @@ PLANTS = {
     "worker-keep": (_plant_worker_keep, "worker_drops_an_apps_jobs_at_close"),
     "worker-late": (_plant_worker_late, "worker_drops_an_apps_jobs_at_close"),
     "worker-key": (_plant_worker_key, "worker_key_replaces_a_waiting_job"),
+    "worker-release": (_plant_worker_release, "close_during_a_lookup_returns_promptly"),
     "timer-sync": (_plant_timer_sync, "timer_worker_runs_on_a_timer"),
     "stack": (_plant_stack, "worker_stack_is_set_on_a_board"),
     "xdg": (_plant_xdg, "data_root_follows_each_system"),

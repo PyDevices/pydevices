@@ -19,6 +19,7 @@ PLANTS = (
     "worker-keep",
     "worker-late",
     "worker-key",
+    "worker-release",
     "timer-sync",
     "stack",
     "xdg",

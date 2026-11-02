@@ -86,6 +86,22 @@ a job might be using. Where there are no threads (the
 browser, CircuitPython on a board, MicroPython on Windows) the work runs on
 a timer instead, one job at a time.
 
+A blocking call that uses something the app would close at once, such as an
+mDNS server, passes `release=`. `release()` runs once for that job, on the
+thread after `work()` returns, even if the app has closed by then; a job
+dropped before it starts gets its `release()` at close. Close doesn't wait
+for a call in progress, and the call is never left using a closed resource:
+
+```python
+def main(scope):
+    mdns = MDNS()
+    scope.worker.submit(lambda: mdns.find("peer", timeout=2), done,
+                        key="peer", release=mdns.deinit)
+```
+
+Don't also `adopt()` the object that `release` closes, or close will tear it
+down while the call still uses it.
+
 `scope.data_dir` is made the first time an app asks for it, at
 `<data root>/<app>`, and `scope.data_dir_of(name)` is app *name*'s folder,
 for an app that shows another's files. The data root is:
