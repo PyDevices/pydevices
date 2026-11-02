@@ -36,7 +36,7 @@ _DIRECT_BUILTINS = frozenset(
         "usdl2-py",
     }
 )
-_PYODIDE_MOUNTED = frozenset({"appdev", "board_config", "displaydev", "multimer"})
+_PYODIDE_BASE = frozenset({"appdev", "board_config", "displaydev", "multimer"})
 _MIP_REWRITE = {
     "display-driver": None,
     "lvgl": None,
@@ -101,7 +101,7 @@ def resolve_dependencies(deps: Iterable[str], runtime: str) -> list[str]:
     """Map logical dependency names to the selected browser package channel."""
     if runtime not in RUNTIMES:
         raise ValueError(f"runtime must be one of {RUNTIMES!r}, got {runtime!r}")
-    skip = _DIRECT_BUILTINS if runtime == "wasm" else _PYODIDE_MOUNTED
+    skip = _DIRECT_BUILTINS if runtime == "wasm" else _PYODIDE_BASE
     output = []
     pulls_pygraphics = False
     for dependency in _dedupe(deps):
