@@ -84,6 +84,7 @@ class Station:
         self.loading = False
         self._filling = False
         self._fills = 0
+        self._played = 0
         self._idle_us = None
         self._settle = 0
         self._timers = []
@@ -237,6 +238,7 @@ class Station:
         adapter = self.adapter
         if adapter is not None and not self.loading:
             adapter.note_on(note, velocity)
+            self._played = 2
 
     def note_off(self, note):
         adapter = self.adapter
@@ -409,7 +411,11 @@ class Station:
         finally:
             self._filling = False
         self._fills += 1
-        if self._fills % GOVERN_EVERY == 0:
+        # A new note is read again once its strike has rendered, rather than
+        # waiting for the next scheduled look.
+        if self._played:
+            self._played -= 1
+        if self._played == 1 or self._fills % GOVERN_EVERY == 0:
             self._govern(adapter.instrument)
 
     def _govern(self, inst):
@@ -421,7 +427,8 @@ class Station:
         costs about the same, so from the cost of the blocks just rendered
         this works out how many fit in :data:`BUDGET` of a block's time and
         sets the instrument's ``voices`` to that. The extra notes steal the
-        oldest instead of everything going quiet. The cap stays for as long
+        oldest instead of everything going quiet. The cap is set from the
+        first sounding voice, before a chord needs it, and stays for as long
         as the instrument is loaded.
         """
         output = self.output
@@ -439,9 +446,11 @@ class Station:
         idle = self._idle_us or 0
         room = BUDGET * output.block_us() - idle
         per_voice = (cost - idle) / sounding
-        if per_voice > 0 and sounding * per_voice > room:
-            inst.voices = max(1, min(inst.voices, int(room / per_voice + 0.5)))
-            self._settle = SETTLE
+        if per_voice > 0:
+            fit = max(1, int(room / per_voice + 0.5))
+            if fit < inst.voices:
+                inst.voices = fit
+                self._settle = SETTLE
 
     def back(self):
         """EXIT: stop the instrument and go back to the picker."""
