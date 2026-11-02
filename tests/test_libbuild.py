@@ -380,6 +380,41 @@ class ShapeCheck(unittest.TestCase):
                 libbuild.check_shape(root, self.UPSTREAM)
 
 
+class SeveralPackages(unittest.TestCase):
+    """A pinned repository whose lib/ holds several packages."""
+
+    def setUp(self):
+        self.scratch = Path(tempfile.mkdtemp(prefix="libbuild-several-"))
+        self.addCleanup(shutil.rmtree, self.scratch, ignore_errors=True)
+        for name in ("one", "two"):
+            folder = self.scratch / "src" / "lib" / name
+            (folder / "examples").mkdir(parents=True)
+            (folder / "__init__.py").write_text("", encoding="utf-8")
+            (folder / "manifest.py").write_text("", encoding="utf-8")
+            (folder / "examples" / "demo.py").write_text("", encoding="utf-8")
+        self.tree = libbuild.Tree(self.scratch / "library")
+        self.tree.path.mkdir()
+        self.pinned = libbuild.Pinned("both", "Org/repo", "v1.2.3", "Both", None, {"one": "First", "two": "Second"})
+        self.local = frozenset({"both", "one", "two"})
+
+    def test_each_is_published_alone_and_the_named_one_requires_them(self):
+        libbuild.assemble_pinned(self.pinned, self.scratch / "src", self.tree, "lib", self.local)
+        for name in ("one", "two"):
+            self.assertTrue((self.tree.path / name / name / "__init__.py").is_file())
+            self.assertFalse((self.tree.path / name / name / "examples").exists())
+            self.assertFalse((self.tree.path / name / name / "manifest.py").exists())
+            self.assertIn('version="1.2.3"', (self.tree.path / name / "manifest.py").read_text(encoding="utf-8"))
+        both = (self.tree.path / "both" / "manifest.py").read_text(encoding="utf-8")
+        self.assertIn('require("one", library="lib", opt=options.opt)', both)
+        self.assertIn('require("two", library="lib", opt=options.opt)', both)
+        self.assertNotIn("package(", both)
+
+    def test_a_missing_folder_fails_the_build(self):
+        shutil.rmtree(self.scratch / "src" / "lib" / "two")
+        with self.assertRaisesRegex(libbuild.BuildError, "has no lib/two"):
+            libbuild.assemble_pinned(self.pinned, self.scratch / "src", self.tree, "lib", self.local)
+
+
 class Lockfile(unittest.TestCase):
     def test_every_pinned_package_names_a_repository_and_a_tag(self):
         lock = libbuild.read_lock(ROOT)

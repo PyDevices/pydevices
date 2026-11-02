@@ -129,6 +129,9 @@ class Pinned:
     ref: str
     description: str
     pypi: str | None
+    # A repository whose lib/ holds several packages: each is published under
+    # its own name with its own description, and this one requires them all.
+    packages: dict[str, str] = field(default_factory=dict)
 
     @property
     def version(self) -> str:
@@ -174,13 +177,13 @@ def read_lock(root: Path) -> Lock:
             raise BuildError(f"{LOCKFILE} repo.{name} has no description")
     pinned = {}
     for name, entry in data.get("pinned", {}).items():
-        extra = sorted(set(entry) - {"repository", "ref", "description", "pypi"})
+        extra = sorted(set(entry) - {"repository", "ref", "description", "pypi", "packages"})
         if extra:
             raise BuildError(f"{LOCKFILE} pinned.{name} has unknown keys: {', '.join(extra)}")
         for key in ("repository", "ref", "description"):
             if not entry.get(key):
                 raise BuildError(f"{LOCKFILE} pinned.{name} has no {key}")
-        pinned[name] = Pinned(name, entry["repository"], entry["ref"], entry["description"], entry.get("pypi"))
+        pinned[name] = Pinned(name, entry["repository"], entry["ref"], entry["description"], entry.get("pypi"), entry.get("packages", {}))
     folders = {}
     for name, entry in data.get("folders", {}).items():
         extra = sorted(set(entry) - {"description", "pypi", "requires"})
@@ -196,6 +199,11 @@ def read_lock(root: Path) -> Lock:
 
 # ---------------------------------------------------------------------------
 # Assembling the library tree
+
+
+def _ignore_member_extras(directory: str, names: list[str]) -> set[str]:
+    """What a package of a several-package repository keeps out of the index."""
+    return _ignore_debris(directory, names) | {name for name in names if name in ("docs", "examples", "tests", "manifest.py")}
 
 
 def _ignore_debris(_directory: str, names: list[str]) -> set[str]:
@@ -504,7 +512,52 @@ def assemble_repo_packages(root: Path, lock: Lock, version: str, tree: Tree, lib
     )
 
 
+def assemble_several(pinned: Pinned, source_root: Path, tree: Tree, library: str, local: frozenset[str]) -> None:
+    """Each package under its own name, and one named for them all that requires them."""
+    for name, description in pinned.packages.items():
+        source = source_root / "lib" / name
+        if not source.is_dir():
+            raise BuildError(f"{pinned.repository} at {pinned.ref} has no lib/{name}")
+        if name in tree.packages:
+            raise BuildError(f"two packages are named {name!r}: {tree.packages[name]} and {pinned.repository}")
+        tree.packages[name] = f"{pinned.repository}@{pinned.ref}"
+        destination = tree.path / name
+        shutil.copytree(source, destination / name, ignore=_ignore_member_extras)
+        (destination / "manifest.py").write_text(
+            render_manifest(
+                description=description,
+                version=pinned.version,
+                pypi=None,
+                requires=(),
+                payloads=(f'package("{name}")',),
+                library=library,
+                local=local,
+            ),
+            encoding="utf-8",
+        )
+    if pinned.name in tree.packages:
+        raise BuildError(f"two packages are named {pinned.name!r}: {tree.packages[pinned.name]} and {pinned.repository}")
+    tree.packages[pinned.name] = f"{pinned.repository}@{pinned.ref}"
+    destination = tree.path / pinned.name
+    destination.mkdir()
+    (destination / "manifest.py").write_text(
+        render_manifest(
+            description=pinned.description,
+            version=pinned.version,
+            pypi=pinned.pypi,
+            requires=tuple(pinned.packages),
+            payloads=(),
+            library=library,
+            local=local,
+        ),
+        encoding="utf-8",
+    )
+
+
 def assemble_pinned(pinned: Pinned, source_root: Path, tree: Tree, library: str, local: frozenset[str]) -> None:
+    if pinned.packages:
+        assemble_several(pinned, source_root, tree, library, local)
+        return
     source = source_root / "lib" / pinned.name
     if not source.is_dir():
         raise BuildError(f"{pinned.repository} at {pinned.ref} has no lib/{pinned.name}")
@@ -573,6 +626,8 @@ def local_names(root: Path, lock: Lock) -> frozenset[str]:
     """Every package name the library will hold, known before assembling it."""
     split = read_split(root)
     names = {"pydevices", "pydevices-desktop", *lock.pinned, *lock.folders}
+    for pinned in lock.pinned.values():
+        names.update(pinned.packages)
     names.update(find_boards(root))
     names.update(read_drivers(root))
     if (root / DESKTOP_BOARD_DIR).is_dir():
@@ -1372,6 +1427,11 @@ def check_shape(root: Path, upstream: frozenset[str] | None, library: str = DEFA
             stub.mkdir()
             (stub / "manifest.py").write_text(f'metadata(version="{pinned.version}")\n', encoding="utf-8")
             tree.packages[pinned.name] = pinned.repository
+            for name in pinned.packages:
+                stub = tree.path / name
+                stub.mkdir()
+                (stub / "manifest.py").write_text(f'metadata(version="{pinned.version}")\n', encoding="utf-8")
+                tree.packages[name] = pinned.repository
         assemble_boards(root, boards, version, tree, library, local)
         assemble_drivers(root, drivers, tree, library, local)
 

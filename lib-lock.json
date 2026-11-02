@@ -41,6 +41,20 @@
       "repository": "PyDevices/audioeffects",
       "ref": "v0.5.0",
       "description": "Studio and guitar-pedal effects on audiodsp (reverbs, delays, compressors, overdrive, EQs); import as audioeffects"
+    },
+    "applibs": {
+      "repository": "PyDevices/apps",
+      "ref": "v0.1.0.dev0",
+      "description": "The libraries apps share; installs each of them",
+      "pypi": "omnipython-applibs",
+      "packages": {
+        "appkit": "Apps you can switch between, and a launcher to run them",
+        "controlkit": "LVGL controls: encoders, sliders, meters, lamp buttons, pad grids and a dot-matrix display",
+        "songmodel": "The song a groovebox edits, and the link that carries it to a front panel",
+        "soundmodule": "A sound module that plays MIDI, headless from a port or through files",
+        "spectrum": "A spectrum analyzer in an app's area, sharing the panel with LVGL",
+        "touchkit": "What the apps on an ESP32-P4 touch board share"
+      }
     }
   }
 }
