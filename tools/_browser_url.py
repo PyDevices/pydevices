@@ -47,7 +47,6 @@ _WHEEL_REWRITE = {
     "appdev": "pydevices",
     "audioeffects": "pydevices-audioeffects",
     "audiodsp": "pydevices-audiodsp",
-    "synthstation": "pydevices-synthstation",
     "audioinstruments": "pydevices-audioinstruments",
     "display-driver": "pydevices-lvgl",
     "displaydev": "pydevices",

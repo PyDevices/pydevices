@@ -28,14 +28,6 @@
         "pydevices"
       ]
     },
-    "synthstation": {
-      "description": "Pick an audioinstruments instrument and play it from a MIDI keyboard, with controlpanel as its front panel and a live render-load readout",
-      "pypi": "pydevices-synthstation",
-      "requires": [
-        "audioinstruments",
-        "midiports"
-      ]
-    },
     "sayso": {
       "description": "Lightweight Spotify Web API client for CPython, MicroPython and CircuitPython"
     }
