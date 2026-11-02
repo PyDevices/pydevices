@@ -39,10 +39,10 @@ transport helpers, read methods, selected write methods, examples, and live test
 - Offline client retry tests in [`tests/test_client.py`](tests/test_client.py)
 - Lazy `Playlist.items` via `LazyPageRef` (metadata without fetch; load on access)
 - `HydrationError` for contextual object-layer fetch failures
-- MicroPython on Linux validated with discovery scripts and the `spotify_remote` app
-- MicroPython on an ESP32-P4 board validated with the `spotify_remote` app
-- `spotify_remote` LVGL MicroPython app ([`apps/spotify_remote/`](apps/spotify_remote/))
-- `spotify_remote` follows a local earful speaker through its state events (`Device.events()`): while the board is Spotify's active device the screen shows each pause, skip and seek as earful reports it, and the Web API is only asked when playback moves elsewhere
+- MicroPython on Linux validated with discovery scripts and the Spotify app
+- MicroPython on an ESP32-P4 board validated with the Spotify app
+- The Spotify LVGL MicroPython app, now in the [apps repo](https://github.com/PyDevices/apps/tree/main/apps/spotify)
+- The Spotify app follows a local earful speaker through its state events (`Device.events()`): while the board is Spotify's active device the screen shows each pause, skip and seek as earful reports it, and the Web API is only asked when playback moves elsewhere
 - `transport.get_bytes()` for binary downloads (for example cover art)
 - Socket-based OAuth callback fallback for MicroPython
 - Offline transport tests in [`tests/test_transport.py`](tests/test_transport.py)

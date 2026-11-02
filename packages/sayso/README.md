@@ -270,11 +270,11 @@ Library code can also use `TokenCache("tokens.json")` with
 
 ## Applications
 
-[`apps/spotify_remote/`](apps/spotify_remote/) is an LVGL touch UI for playback
+The [Spotify app](https://github.com/PyDevices/apps/tree/main/apps/spotify) is an LVGL touch UI for playback
 control, library browse, queue, search, and cover art. It runs on CPython and
 MicroPython, Linux and Windows, on the
 [PyDevices](https://github.com/PyDevices/pydevices) stack. See
-[`apps/spotify_remote/README.md`](apps/spotify_remote/README.md) for setup;
+the apps repo for setup;
 `sayso.local.json` and `tokens.json` live in the app directory, not in this
 folder.
 
