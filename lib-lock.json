@@ -44,9 +44,8 @@
     },
     "applibs": {
       "repository": "PyDevices/apps",
-      "ref": "v0.1.0.dev0",
+      "ref": "v0.1.0",
       "description": "The libraries apps share; installs each of them",
-      "pypi": "omnipython-applibs",
       "packages": {
         "appkit": "Apps you can switch between, and a launcher to run them",
         "controlkit": "LVGL controls: encoders, sliders, meters, lamp buttons, pad grids and a dot-matrix display",
