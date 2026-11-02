@@ -22,12 +22,6 @@
       "description": "Cross-platform widget toolkit for PyDevices",
       "pypi": "pydevices-pdwidgets"
     },
-    "appkit": {
-      "description": "Several apps in one program for PyDevices: a launcher, a home screen, and each app's memory back when it closes",
-      "requires": [
-        "pydevices"
-      ]
-    },
     "sayso": {
       "description": "Lightweight Spotify Web API client for CPython, MicroPython and CircuitPython"
     }

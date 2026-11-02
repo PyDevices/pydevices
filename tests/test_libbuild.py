@@ -218,9 +218,6 @@ class BuiltRepository(unittest.TestCase):
                         self.assertTrue(text.endswith(f"\n\n__version__ = {version!r}\n"), path)
                 self.assertEqual(sorted(p.name for p in (self.out / "library" / name).iterdir()), sorted([name, "manifest.py"]))
 
-    def test_appkit_brings_pydevices_with_it(self):
-        self.assertEqual(self.deps("appkit"), ["pydevices"])
-        self.assertIn("appkit/launcher.py", self.paths("appkit"))
 
     def test_an_upstream_requirement_is_left_out_and_said(self):
         self.assertIn("usb-device-msc requires usb-device", self.report.getvalue())
@@ -267,9 +264,6 @@ class BuiltRepository(unittest.TestCase):
         with redirect_stdout(StringIO()) as out:
             self.assertEqual(libbuild.main(["compare", str(index), str(changed), "--package", "pydevices"]), 1)
         self.assertIn("different content", out.getvalue())
-        # A dep's change shows in the package that depends on it: that is what lands.
-        with redirect_stdout(StringIO()) as out:
-            self.assertEqual(libbuild.main(["compare", str(index), str(changed), "--package", "appkit"]), 1)
 
 
 class Manifests(unittest.TestCase):
