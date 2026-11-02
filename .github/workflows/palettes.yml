@@ -19,7 +19,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: palettes
+    working-directory: packages/palettes
 
 jobs:
   test:

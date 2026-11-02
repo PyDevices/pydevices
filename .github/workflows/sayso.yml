@@ -21,7 +21,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: sayso
+    working-directory: packages/sayso
 
 jobs:
   test:

@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: pdwidgets
+        working-directory: packages/pdwidgets
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
