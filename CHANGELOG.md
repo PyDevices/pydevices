@@ -1,3 +1,8 @@
+## v0.7.9.dev2 (2026-11-02)
+
+- Library: applibs at v0.1.0; browser pages install controlkit from omnipython-applibs
+- Library: a pinned repository can publish several packages; applibs from the apps repository
+
 ## v0.7.9.dev0 (2026-11-01)
 
 - Library: audioinstruments v0.5.1.dev0, which carries audioinstruments.panel (#374)
