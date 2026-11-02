@@ -35,6 +35,7 @@ sys.path.insert(0, _dir + _sep + ".." + _sep + "lib")
 import events
 import multimer
 from appdev import App
+from appkit import foreground as F
 from appkit.scope import AppScope, open_scopes
 
 MICROPYTHON = sys.implementation.name == "micropython"
@@ -389,6 +390,34 @@ def leak_is_reported_on_close():
         expect(problems == [], "unexpected problems: %r" % (problems,))
     else:
         expect(any("still referenced" in p for p in problems), "leak not reported: %r" % (problems,))
+
+
+def _fgapp_closed_during_a_call(app, serving):
+    """Start fgapp, then close it from a timer while its function is in
+    a call; returns what close() reported, once the call has returned."""
+    scope, mod = _start(app, "fgapp")
+    mod = None
+    reported = []
+    multimer.after(10, lambda t: reported.append(scope.close()))
+    if serving:
+        multimer.after(150, lambda t: F.stop())
+        F.serve(app)
+    else:
+        multimer.sleep_ms(100)
+    expect(reported, "the closing timer never ran during the call")
+    expect(F.current() is None, "the closed app is still the foreground")
+    return reported[0]
+
+
+@check
+def foreground_function_does_not_keep_its_app():
+    # The loop's function is a closure over its app's module. A close that
+    # lands while the function is still in a call must not report the
+    # module as kept: the call ends, and then nothing holds it.
+    app = _app()
+    for serving in (False, True):
+        problems = _fgapp_closed_during_a_call(app, serving)
+        expect(problems == [], "%s loop: close() reported problems: %r" % ("serve" if serving else "timer", problems))
 
 
 @check

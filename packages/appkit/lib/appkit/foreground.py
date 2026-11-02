@@ -50,6 +50,9 @@ _fn = None  # the foreground function
 _owner = None  # the scope that set it
 _steps = True  # whether it does one step and returns
 _timer = None  # the timer stepping it, while nothing runs the loop
+_token = None  # changes with the function: a stale timer step sees it
+_calls = 0  # calls of the foreground function in progress
+_after_calls = []  # what to run once no call is in progress
 _serving = False
 _stop = False
 
@@ -72,7 +75,7 @@ def set_function(scope, fn, steps=True):
     Returns True when *fn* runs now (the loop is running, or *fn* steps from
     a timer), False when it waits for :func:`serve`.
     """
-    global _fn, _owner, _steps
+    global _fn, _owner, _steps, _token
     if fn is None:
         clear(scope)
         return True
@@ -82,6 +85,7 @@ def set_function(scope, fn, steps=True):
     _fn = fn
     _owner = scope
     _steps = bool(steps)
+    _token = object()
     if _serving:
         return True
     return _arm()
@@ -89,12 +93,56 @@ def set_function(scope, fn, steps=True):
 
 def clear(scope=None):
     """Clear the foreground function, if *scope* (default: anyone) set it."""
-    global _fn, _owner
+    global _fn, _owner, _token
     if scope is not None and _owner is not scope:
         return
     _fn = None
     _owner = None
+    _token = None
     _stop_timer()
+
+
+def calling(scope):
+    """True while *scope*'s foreground function is in a call now."""
+    return _calls > 0 and _owner is scope
+
+
+def after_calls(fn, *args):
+    """Call ``fn(*args)`` once no call of the foreground function is in
+    progress: at once when none is, else when the call returns.
+
+    A scope closed from inside its own function still has that function
+    on the stack, so its module is alive until the call returns; the
+    check that it was released waits for that.
+    """
+    if _calls == 0:
+        fn(*args)
+    else:
+        _after_calls.append((fn, args))
+
+
+def _call(fn):
+    """Call *fn* once. An error in it is reported, and clears the function
+    if it is still the foreground one. The caller keeps no reference to
+    *fn* while the call runs, and drops its own before :func:`_run_after`."""
+    global _calls
+    _calls += 1
+    try:
+        fn()
+    except Exception as exc:
+        if _fn is fn:
+            _report(exc)
+            clear()
+        # else: its app closed under it, and that's how it noticed
+    finally:
+        _calls -= 1
+
+
+def _run_after():
+    """Run what :func:`after_calls` queued, now that the call is over."""
+    while _calls == 0 and _after_calls:
+        fn, args = _after_calls.pop(0)
+        fn(*args)
 
 
 def current():
@@ -139,18 +187,22 @@ def _arm():
     if scope is None or getattr(scope, "closed", False) or getattr(scope, "_closing", False):
         return False
 
+    token = _token
+
     def step(t):
-        if _fn is not fn or _serving:
+        # The closure keeps no reference to the function: a call that closes
+        # its own app must not find this timer holding its module.
+        if _token is not token or _serving:
             # Not ours any more, or the loop has it: the loop re-arms one
             # when it stops.
             t.deinit()
             return
-        try:
-            fn()
-        except Exception as exc:
-            if _fn is fn:
-                _report(exc)
-                clear()
+        f = _fn
+        if f is None:
+            return
+        _call(f)
+        f = None
+        _run_after()
 
     _timer = scope.every(STEP_MS, step, name="appkit.foreground")
     return True
@@ -188,16 +240,9 @@ def serve(app=None):
             if fn is None:
                 multimer.sleep_ms(IDLE_MS)
                 continue
-            try:
-                fn()
-            except KeyboardInterrupt:
-                raise
-            except Exception as exc:
-                if _fn is fn:
-                    _report(exc)
-                    clear()
-                # else: its app closed under it, and that's how it noticed
+            _call(fn)
             fn = None
+            _run_after()
             # Due timers, on a host whose timers only fire when asked.
             multimer.pump()
     finally:

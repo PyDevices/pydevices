@@ -115,6 +115,19 @@ def _same(a, b):
         return a is b
 
 
+def _check_probes(probes, problems):
+    """Collect, then report each module or main that is still referenced."""
+    gc.collect()
+    # A cycle that holds an object with a finalizer is freed by the
+    # collection after the one that finalised it (PEP 442), so give
+    # the probes one more before calling anything a leak.
+    if any(ref() is not None for label, ref in probes):
+        gc.collect()
+    for label, ref in probes:
+        if ref() is not None:
+            problems.append("%s still referenced after close: something kept a reference to the app" % label)
+
+
 class AppScope:
     """What one app made, through its scope; ``close()`` releases it.
 
@@ -472,6 +485,7 @@ class AppScope:
         self._closing = True
         problems = self.problems
         probes = []
+        busy = False
         try:
             # In a function of its own, so that none of its locals (the last
             # callback a loop saw, say) is still holding the app while the
@@ -479,22 +493,21 @@ class AppScope:
             # app's timers runs in the middle of it: on hosts that deliver
             # between bytecodes one otherwise can, and finds it half closed.
             with multimer.hold():
-                probes = self._release(problems)
+                probes, busy = self._release(problems)
         finally:
             if self in _open:
                 _open.remove(self)
             self._closed = True
             self._closing = False
         if probes:
-            gc.collect()
-            # A cycle that holds an object with a finalizer is freed by the
-            # collection after the one that finalised it (PEP 442), so give
-            # the probes one more before calling anything a leak.
-            if any(ref() is not None for label, ref in probes):
-                gc.collect()
-            for label, ref in probes:
-                if ref() is not None:
-                    problems.append("%s still referenced after close: something kept a reference to the app" % label)
+            if busy:
+                # close() runs inside the app's own foreground function, so
+                # the call still holds the app's module: look once it returns.
+                from appkit import foreground
+
+                foreground.after_calls(_check_probes, probes, problems)
+            else:
+                _check_probes(probes, problems)
             probes = None
         # mem_free() collects first. Where it can't read the heap, collect
         # anyway: close() always gives the memory back.
@@ -508,9 +521,13 @@ class AppScope:
         return problems
 
     def _release(self, problems):
+        # Returns (probes, busy): busy when the app's foreground function is
+        # in a call now, so the probes must wait for it to return.
         # First, so the loop stops calling the app's function.
         fg = sys.modules.get("appkit.foreground")  # loaded only if an app used it
+        busy = False
         if fg is not None:
+            busy = fg.calling(self)
             fg.clear(self)
         fg = None
         hooks = self._on_close
@@ -565,7 +582,7 @@ class AppScope:
             except Exception as exc:
                 problems.append(_error("adopted %r" % (obj,), exc))
         self._close_lvgl(problems)
-        return self._purge_modules(problems)
+        return self._purge_modules(problems), busy
 
     def _purge_modules(self, problems):
         probes = []
