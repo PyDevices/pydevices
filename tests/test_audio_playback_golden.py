@@ -59,7 +59,7 @@ def _built_from(binary):
 def _cpython_oracle_candidate():
     """Return the workspace audiodsp source tree when its extension is built.
 
-    ``pydevices`` deliberately does not depend on ``pydevices-audiodsp``.  In
+    ``pydevices`` deliberately does not depend on ``omnipython-audiodsp``.  In
     the multi-repository workspace, though, include CPython in this integration
     parity test whenever the sibling checkout has an in-place extension for
     the running interpreter.

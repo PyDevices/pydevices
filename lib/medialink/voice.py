@@ -6,7 +6,7 @@ to take the floor when someone starts to speak and give it back when they
 stop, so nobody holds a button.
 
 Where audiodsp's ``audiofeatures`` is built in (MicroPython firmware that
-carries audiodsp, the unix port, and CPython with pydevices-audiodsp), it
+carries audiodsp, the unix port, and CPython with omnipython-audiodsp), it
 decides: the speech detector beside its wake word features, which ignores
 a fan or road noise that stays on. Elsewhere, CircuitPython among them, a
 level gate stands in: a noise floor that follows the quiet, and sound

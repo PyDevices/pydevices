@@ -110,11 +110,11 @@ satisfying CircuitPython's audiosample pull protocol — a
 `WaveFile`, or any effect chained on top of one (`audiofilters`,
 `audiodelays`, `audiofreeverb`, `audiospeed`), all provided by the
 `audiodsp` usermod on MicroPython or the separately installed
-`pydevices-audiodsp` CPython distribution (`import synthio`,
+`omnipython-audiodsp` CPython distribution (`import synthio`,
 `import audiomixer`, ...). CPython users install it from TestPyPI with:
 
 ```sh
-python -m pip install --index-url https://test.pypi.org/simple/ pydevices-audiodsp
+python -m pip install --index-url https://test.pypi.org/simple/ omnipython-audiodsp
 ```
 
 Neither `pydevices` distribution depends on it; importing `audiodev` and
@@ -326,7 +326,7 @@ concrete backend. `audiodev` itself does not import `displaydev`.
 pygame's bundled SDL) and `audiodev.web_audio` (PyScript/Pyodide, via
 `AudioContext`/`getUserMedia`) still exist and still work as raw
 `PCMOutput`/`PCMInput` transports and can back `AudioOut` when
-`pydevices-audiodsp` is installed. Automatic selection uses MicroPython wasm,
+`omnipython-audiodsp` is installed. Automatic selection uses MicroPython wasm,
 Pyodide Web Audio, Windows `uwin32`, `usdl2`, then pygame-ce, in that order.
 Constructing `AudioOut` without `audiocore` fails immediately with the install
 command above; direct raw `write()`/`readinto()` remains independent.
