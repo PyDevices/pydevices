@@ -45,7 +45,7 @@ class TestWasmCli(unittest.TestCase):
 
     def test_every_first_party_dep_is_prefixed_for_pyodide(self):
         # MIP serves `audioinstruments`; the wheel on the index is
-        # `pydevices-audioinstruments`. A first-party name missing from
+        # `omnipython-audioinstruments`. A first-party name missing from
         # _WHEEL_REWRITE passes through unchanged and micropip then looks for
         # a project that does not exist -- the failure drum_machine hit. Any
         # new first-party package belongs in both this list and the table.
@@ -53,6 +53,7 @@ class TestWasmCli(unittest.TestCase):
             "audioeffects",
             "audiodsp",
             "audioinstruments",
+            "controlkit",
             "lvgl",
             "palettes",
             "pdwidgets",
@@ -63,7 +64,7 @@ class TestWasmCli(unittest.TestCase):
                 resolved = resolve_dependencies([name], "pyodide")
                 self.assertTrue(resolved, f"{name} resolved to nothing")
                 self.assertTrue(
-                    resolved[0].startswith("pydevices-"),
+                    resolved[0].startswith(("pydevices-", "omnipython-")),
                     f"{name} -> {resolved[0]}, which is not a wheel name",
                 )
 

@@ -45,9 +45,9 @@ _MIP_REWRITE = {
 }
 _WHEEL_REWRITE = {
     "appdev": "pydevices",
-    "audioeffects": "pydevices-audioeffects",
-    "audiodsp": "pydevices-audiodsp",
-    "audioinstruments": "pydevices-audioinstruments",
+    "audioeffects": "omnipython-audioeffects",
+    "audiodsp": "omnipython-audiodsp",
+    "audioinstruments": "omnipython-audioinstruments",
     "controlkit": "omnipython-applibs",
     "display-driver": "pydevices-lvgl",
     "displaydev": "pydevices",
