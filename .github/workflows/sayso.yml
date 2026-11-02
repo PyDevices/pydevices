@@ -1,18 +1,18 @@
-# sayso's tests. A change under sayso/ runs them. They are offline: the
+# sayso's tests. A change under packages/sayso/ runs them. They are offline: the
 # client, objects and transport tests mock the HTTP layer, and the live tests
 # skip themselves without a sayso.local.json. The MicroPython and CircuitPython
-# runs are local (sayso/AGENTS.md).
+# runs are local (packages/sayso/AGENTS.md).
 name: sayso
 
 on:
   push:
     branches: [main]
     paths:
-      - 'sayso/**'
+      - 'packages/sayso/**'
       - '.github/workflows/sayso.yml'
   pull_request:
     paths:
-      - 'sayso/**'
+      - 'packages/sayso/**'
       - '.github/workflows/sayso.yml'
   workflow_dispatch:
 

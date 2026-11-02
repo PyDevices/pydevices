@@ -120,7 +120,7 @@ own-package = true
 # not published.
 #
 # midiports reaches the index without Adafruit's adafruit_midi, which is not a
-# package in any mip index: install it as midiports/README.md says.
+# package in any mip index: install it as packages/midiports/README.md says.
 
 [midiports]
 top-level = true

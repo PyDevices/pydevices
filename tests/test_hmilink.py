@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""Run hmilink's own checks (hmilink/tests/run.py) under unittest."""
+"""Run hmilink's own checks (packages/hmilink/tests/run.py) under unittest."""
 
 import os
 import sys
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-HMILINK = os.path.join(os.path.dirname(HERE), "hmilink")
+HMILINK = os.path.join(os.path.dirname(HERE), "packages", "hmilink")
 
 
 class TestHmilink(unittest.TestCase):

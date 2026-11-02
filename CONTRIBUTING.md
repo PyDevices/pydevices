@@ -8,8 +8,8 @@
 | [drivers/](drivers/) | Bus, display, touch, input, codec, sensor, power and storage drivers. |
 | [lib/](lib/) | The libraries that make up the `pydevices` package (`displaydev`, `audiodev`, `appdev`, `multimer`, `bledev` and the rest). |
 | [utils/](utils/) | Desktop helpers that ship in `pydevices-desktop` (`mdns`, `micropython`, `usdl2`, `uwin32` and more). |
-| `usb-core/`, `usb-host-*/`, `usb-device-*/`, `usb-hid/` | The USB packages ([docs/guides/usb.md](docs/guides/usb.md)). |
-| [palettes/](palettes/), [pdwidgets/](pdwidgets/), [appkit/](appkit/), [controlpanel/](controlpanel/), [synthstation/](synthstation/), [sayso/](sayso/), [midiports/](midiports/) | Packages that publish on their own, each with its own README. |
+| `packages/usb/usb-core/`, `usb-host-*/`, `usb-device-*/`, `packages/usb/usb-hid/` | The USB packages ([docs/guides/usb.md](docs/guides/usb.md)). |
+| [packages/palettes/](packages/palettes/), [packages/pdwidgets/](packages/pdwidgets/), [packages/appkit/](packages/appkit/), [packages/controlpanel/](packages/controlpanel/), [packages/synthstation/](packages/synthstation/), [packages/sayso/](packages/sayso/), [packages/midiports/](packages/midiports/) | Packages that publish on their own, each with its own README. |
 | [docs/](docs/) | The documentation site's source. |
 | [tests/](tests/) | Unit tests for the libraries. |
 

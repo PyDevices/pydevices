@@ -10,10 +10,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'palettes/VERSION'
-      - 'pdwidgets/VERSION'
-      - 'controlpanel/VERSION'
-      - 'synthstation/VERSION'
+      - 'packages/palettes/VERSION'
+      - 'packages/pdwidgets/VERSION'
+      - 'packages/controlpanel/VERSION'
+      - 'packages/synthstation/VERSION'
 
 permissions:
   contents: read

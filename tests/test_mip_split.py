@@ -22,6 +22,14 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
+def package_dir(name):
+    """A package's folder: packages/<name>, or packages/usb/<name> for the usb group."""
+    for candidate in (ROOT / "packages" / name, ROOT / "packages" / "usb" / name):
+        if candidate.is_dir():
+            return candidate
+    return ROOT / name
+
+
 def load_split():
     return tomllib.loads((ROOT / "mip-split.toml").read_text(encoding="utf-8"))
 
@@ -52,7 +60,7 @@ class TestTopLevelPackages(unittest.TestCase):
         for package, section in top_level_sections(load_split()).items():
             with self.subTest(package=package):
                 self.assertEqual(set(section), {"top-level"}, "the manifest.py says everything else")
-                self.assertTrue((ROOT / package / "manifest.py").is_file(), f"{package}/manifest.py")
+                self.assertTrue((package_dir(package) / "manifest.py").is_file(), f"{package}/manifest.py")
                 self.assertFalse((ROOT / "lib" / package).exists(), f"lib/{package} would be ambiguous")
 
     def test_every_package_directory_is_listed(self):
@@ -60,7 +68,7 @@ class TestTopLevelPackages(unittest.TestCase):
         # A folder lib-lock.json publishes (appkit, say) reaches the index by
         # its own versioned path, and needs no line in mip-split.toml.
         folders = set(json.loads((ROOT / "lib-lock.json").read_text(encoding="utf-8")).get("folders", {}))
-        on_disk = {path.parent.name for path in ROOT.glob("*/manifest.py") if (path.parent / "package.json").is_file()}
+        on_disk = {path.parent.name for path in [*ROOT.glob("packages/*/manifest.py"), *ROOT.glob("packages/usb/*/manifest.py")] if (path.parent / "package.json").is_file()}
         self.assertEqual(
             sorted(on_disk - listed - folders),
             [],
@@ -72,15 +80,15 @@ class TestTopLevelPackages(unittest.TestCase):
     def test_every_require_of_a_sibling_names_a_listed_package(self):
         listed = set(top_level_sections(load_split()))
         for package in sorted(listed):
-            manifest = (ROOT / package / "manifest.py").read_text(encoding="utf-8")
+            manifest = (package_dir(package) / "manifest.py").read_text(encoding="utf-8")
             for required in re.findall(r'^\s*require\(\s*["\']([^"\']+)["\']', manifest, re.MULTILINE):
-                if (ROOT / required / "manifest.py").is_file():
+                if (package_dir(required) / "manifest.py").is_file():
                     with self.subTest(package=package, requires=required):
                         self.assertIn(required, listed)
 
     def test_every_manifest_has_one_version_for_the_publisher_to_set(self):
         for package in sorted(top_level_sections(load_split())):
-            manifest = (ROOT / package / "manifest.py").read_text(encoding="utf-8")
+            manifest = (package_dir(package) / "manifest.py").read_text(encoding="utf-8")
             with self.subTest(package=package):
                 self.assertEqual(len(re.findall(r'^\s*version\s*=\s*["\']', manifest, re.MULTILINE)), 1)
 

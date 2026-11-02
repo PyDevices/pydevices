@@ -19,7 +19,7 @@ directory each, installed with `mip`:
 | [`usb-device-msc`](https://github.com/PyDevices/pydevices/tree/main/usb-device-msc) | `usb.device.msc` | The board as a USB drive, from any block device |
 | [`usb-hid`](https://github.com/PyDevices/pydevices/tree/main/usb-hid) | `usb_hid` | CircuitPython's `usb_hid`, so `adafruit_hid` types and moves the mouse |
 
-MIDI is [`midiports`](https://github.com/PyDevices/pydevices/blob/main/midiports/README.md): `midiports.usb_device` and
+MIDI is [`midiports`](https://github.com/PyDevices/pydevices/blob/main/packages/midiports/README.md): `midiports.usb_device` and
 `midiports.usb_host`. It installs by name the same way.
 
 From release 0.7.6, each package is in the PyDevices index under the name in

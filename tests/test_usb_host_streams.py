@@ -197,14 +197,14 @@ sys.modules["_usbhost"] = host
 for _name in [m for m in sys.modules if m == "usb" or m.startswith("usb.")]:
     del sys.modules[_name]
 usb = types.ModuleType("usb")
-usb.__path__ = [str(ROOT / "usb-core" / "usb")]
+usb.__path__ = [str(ROOT  / "packages" / "usb" / "usb-core" / "usb")]
 sys.modules["usb"] = usb
 import usb.core  # noqa: E402
 import usb.util  # noqa: E402
 
 usb_host = types.ModuleType("usb.host")
-usb_host.__path__ = [str(ROOT / "usb-host-audio" / "usb" / "host"),
-                     str(ROOT / "usb-host-video" / "usb" / "host")]
+usb_host.__path__ = [str(ROOT  / "packages" / "usb" / "usb-host-audio" / "usb" / "host"),
+                     str(ROOT  / "packages" / "usb" / "usb-host-video" / "usb" / "host")]
 sys.modules["usb.host"] = usb_host
 usb.host = usb_host
 

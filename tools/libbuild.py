@@ -450,7 +450,7 @@ def assemble_repo_packages(root: Path, lock: Lock, version: str, tree: Tree, lib
     )
 
     for name in top_level:
-        source = root / name
+        source = package_source(root, name)
         if not source.is_dir():
             raise BuildError(f"{MIP_SPLIT_FILE} names top-level package {name!r}, which is not a directory at the repository root")
         if not (source / "manifest.py").is_file():
@@ -461,7 +461,7 @@ def assemble_repo_packages(root: Path, lock: Lock, version: str, tree: Tree, lib
             raise BuildError(f"top-level package {name!r} collides with a lib/ module")
         manifest = (source / "manifest.py").read_text(encoding="utf-8")
         for required in re.findall(r'^\s*require\(\s*["\']([^"\']+)["\']', manifest, re.MULTILINE):
-            if required not in top_level and (root / required / "manifest.py").is_file():
+            if required not in top_level and (package_source(root, required) / "manifest.py").is_file():
                 raise BuildError(
                     f"top-level package {name!r} requires {required!r}, which is a directory here but is "
                     f"not listed in {MIP_SPLIT_FILE}; add [{required}] with top-level = true"
@@ -527,8 +527,16 @@ def assemble_pinned(pinned: Pinned, source_root: Path, tree: Tree, library: str,
     )
 
 
+def package_source(root: Path, name: str) -> Path:
+    """A package's source folder: packages/<name>, or packages/usb/<name> for the usb group."""
+    for candidate in (root / "packages" / name, root / "packages" / "usb" / name):
+        if candidate.is_dir():
+            return candidate
+    return root / name
+
+
 def folder_version(root: Path, name: str) -> str:
-    path = root / name / "VERSION"
+    path = package_source(root, name) / "VERSION"
     if not path.is_file():
         raise BuildError(f"{LOCKFILE} lists folder package {name!r}, but {name}/VERSION is missing")
     version = path.read_text(encoding="utf-8").strip()
@@ -538,7 +546,7 @@ def folder_version(root: Path, name: str) -> str:
 
 
 def assemble_folder(folder: Folder, root: Path, tree: Tree, library: str, local: frozenset[str]) -> None:
-    source = root / folder.name / "lib" / folder.name
+    source = package_source(root, folder.name) / "lib" / folder.name
     if not source.is_dir():
         raise BuildError(f"{LOCKFILE} lists folder package {folder.name!r}, but {folder.name}/lib/{folder.name} is not a directory")
     if folder.name in tree.packages:

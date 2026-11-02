@@ -26,7 +26,7 @@ import urllib.request
 from _mprun import need_micropython, run
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "midiports"
+PACKAGE = ROOT / "packages" / "midiports"
 CONTRACT = Path(__file__).resolve().parent / "midiports_contract.py"
 ADAFRUIT_PREFIX = "https://raw.githubusercontent.com/adafruit/Adafruit_CircuitPython_MIDI/"
 OURS_PREFIX = "github:PyDevices/pydevices/"
@@ -87,7 +87,7 @@ class PackageFile(unittest.TestCase):
         self.assertEqual(set(listed), modules)
         for dest, path in listed.items():
             self.assertTrue((ROOT / path).is_file(), path)
-            self.assertEqual(path, "midiports/" + dest)
+            self.assertEqual(path, "packages/midiports/" + dest)
 
     def test_adafruit_midi_is_linked_at_one_release_tag(self):
         urls = _adafruit_urls()

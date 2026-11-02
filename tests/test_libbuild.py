@@ -49,7 +49,7 @@ def _folders():
 
 
 def _folder_version(name):
-    return (ROOT / name / "VERSION").read_text(encoding="utf-8").strip()
+    return (ROOT / "packages" / name / "VERSION").read_text(encoding="utf-8").strip()
 
 
 class BuiltRepository(unittest.TestCase):
@@ -406,7 +406,7 @@ class Lockfile(unittest.TestCase):
         for name in lock.folders:
             with self.subTest(package=name):
                 self.assertRegex(_folder_version(name), r"^\d+\.\d+\.\d+")
-                self.assertTrue((ROOT / name / "lib" / name / "__init__.py").is_file())
+                self.assertTrue((ROOT / "packages" / name / "lib" / name / "__init__.py").is_file())
                 self.assertNotIn(name, _split(), "a folder package has its own version; mip-split.toml is for the repository's")
 
     def test_a_package_both_pinned_and_in_a_folder_is_refused(self):

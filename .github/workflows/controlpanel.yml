@@ -1,20 +1,20 @@
-# controlpanel's tests. A change under controlpanel/ runs them.
+# controlpanel's tests. A change under packages/controlpanel/ runs them.
 #
 # Here they run on CPython only, on a display with no window. The
 # MicroPython half needs a unix micropython with LVGL, which the runner
 # doesn't have, so it skips here, loudly. Run it locally with
-# PYDEVICES_MICROPYTHON set (controlpanel/README.md).
+# PYDEVICES_MICROPYTHON set (packages/controlpanel/README.md).
 name: controlpanel
 
 on:
   push:
     branches: [main]
     paths:
-      - 'controlpanel/**'
+      - 'packages/controlpanel/**'
       - '.github/workflows/controlpanel.yml'
   pull_request:
     paths:
-      - 'controlpanel/**'
+      - 'packages/controlpanel/**'
       - '.github/workflows/controlpanel.yml'
   workflow_dispatch:
 

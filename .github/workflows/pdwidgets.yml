@@ -1,20 +1,20 @@
 # pdwidgets' own checks: its tests, its docs site as Read the Docs builds it,
-# and its PyScript filesystem TOML. A change under pdwidgets/ runs them, and
-# so does a change to what it imports from this repository (lib/, palettes/).
+# and its PyScript filesystem TOML. A change under packages/pdwidgets/ runs them, and
+# so does a change to what it imports from this repository (lib/, packages/palettes/).
 name: pdwidgets
 
 on:
   push:
     branches: [main]
     paths:
-      - 'pdwidgets/**'
-      - 'palettes/lib/**'
+      - 'packages/pdwidgets/**'
+      - 'packages/palettes/lib/**'
       - 'lib/**'
       - '.github/workflows/pdwidgets.yml'
   pull_request:
     paths:
-      - 'pdwidgets/**'
-      - 'palettes/lib/**'
+      - 'packages/pdwidgets/**'
+      - 'packages/palettes/lib/**'
       - 'lib/**'
       - '.github/workflows/pdwidgets.yml'
   workflow_dispatch:
@@ -53,7 +53,7 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # From the repository root with pdwidgets/.readthedocs.yaml's paths, the
+    # From the repository root with packages/pdwidgets/.readthedocs.yaml's paths, the
     # way Read the Docs runs it. -W turns a warning into a failure, as
     # fail_on_warning does there.
     steps:
@@ -62,12 +62,12 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install docs requirements
-        run: pip install -r pdwidgets/docs/requirements.txt
+        run: pip install -r packages/pdwidgets/docs/requirements.txt
       - name: Build docs
-        run: sphinx-build -W --keep-going -b html pdwidgets/docs _site/pdwidgets
+        run: sphinx-build -W --keep-going -b html packages/pdwidgets/docs _site/pdwidgets
 
   validate-pyscript-filesystem-toml:
     uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v14
     with:
-      config-path: pdwidgets/pdwidgets.toml
-      source-mappings: pdwidgets/lib=/lib
+      config-path: packages/pdwidgets/pdwidgets.toml
+      source-mappings: packages/pdwidgets/lib=/lib

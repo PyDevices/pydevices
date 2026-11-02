@@ -43,7 +43,7 @@ class CircuitPythonTimeTests(unittest.TestCase):
         for n in ("usb", "usb.core", "usb.util"):
             sys.modules.pop(n, None)
         pkg = types.ModuleType("usb")
-        pkg.__path__ = [str(ROOT / "usb-core" / "usb")]
+        pkg.__path__ = [str(ROOT  / "packages" / "usb" / "usb-core" / "usb")]
         sys.modules["usb"] = pkg
         import usb.core
         self.core = usb.core

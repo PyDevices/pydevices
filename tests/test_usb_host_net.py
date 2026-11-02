@@ -16,7 +16,7 @@ import types
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "usb-host-net"))
+sys.path.insert(0, str(ROOT  / "packages" / "usb" / "usb-host-net"))
 
 if not hasattr(__import__("time"), "sleep_ms"):
     import time as _time
@@ -38,7 +38,7 @@ for _name in [m for m in sys.modules if m == "usb" or m.startswith("usb.")]:
 core = types.ModuleType("usb.core")
 core.USBError = OSError
 usb = types.ModuleType("usb")
-usb.__path__ = [str(ROOT / "usb-host-net" / "usb")]
+usb.__path__ = [str(ROOT  / "packages" / "usb" / "usb-host-net" / "usb")]
 usb.core = core
 sys.modules["usb"] = usb
 sys.modules["usb.core"] = core

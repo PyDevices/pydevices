@@ -11,7 +11,7 @@ MicroPython (which has no unittest)::
     python tests/midiports_contract.py --adafruit=DIR --plant=drop-status   # must FAIL
     python tests/midiports_contract.py --adafruit=DIR --plant=skip-clock-stamp   # must FAIL
 
-``DIR`` holds ``adafruit_midi/`` as ``midiports/package.json`` fetches it;
+``DIR`` holds ``adafruit_midi/`` as ``packages/midiports/package.json`` fetches it;
 ``tests/test_midiports.py`` fetches it there and runs this every way.
 
 Each transport is checked with a fake underneath: a fake ``machine.UART``,
@@ -31,7 +31,7 @@ except NameError:  # pragma: no cover
     _here = sys.argv[0]
 _sep = "\\" if "\\" in _here else "/"
 _dir = _here.rsplit(_sep, 1)[0] if _sep in _here else "."
-sys.path.insert(0, _dir + _sep + ".." + _sep + "midiports")
+sys.path.insert(0, _dir + _sep + ".." + _sep + "packages" + _sep + "midiports")
 
 PLANT = None
 for _arg in sys.argv[1:]:

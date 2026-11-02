@@ -25,16 +25,16 @@ from _mprun import need_micropython, run
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = Path(__file__).resolve().parent
-PACKAGES = sorted(p for p in ROOT.glob("usb-*") if (p / "package.json").is_file())
-PREFIX = "github:PyDevices/pydevices/"
+PACKAGES = sorted(p for p in (ROOT / "packages" / "usb").glob("usb-*") if (p / "package.json").is_file())
+PREFIX = "github:PyDevices/pydevices/packages/usb/"
 
 # The package files that front the C module, and the only ones allowed to
 # import it.
 ALLOWED = {
-    ROOT / "usb-core" / "usb" / "core.py",
-    ROOT / "usb-host-audio" / "usb" / "host" / "audio.py",
-    ROOT / "usb-host-video" / "usb" / "host" / "video.py",
-    ROOT / "usb-host-net" / "usb" / "host" / "net.py",
+    ROOT / "packages" / "usb" / "usb-core" / "usb" / "core.py",
+    ROOT / "packages" / "usb" / "usb-host-audio" / "usb" / "host" / "audio.py",
+    ROOT / "packages" / "usb" / "usb-host-video" / "usb" / "host" / "video.py",
+    ROOT / "packages" / "usb" / "usb-host-net" / "usb" / "host" / "net.py",
 }
 
 _IMPORT = re.compile(r"^\s*(?:import\s+_usbhost|from\s+_usbhost\s+import)", re.M)
@@ -92,7 +92,7 @@ class CorePollOnMicroPython(unittest.TestCase):
     def test_polling_read_allocates_nothing(self):
         interpreter = need_micropython(self)
         result = run([interpreter, TESTS / "usb_core_poll_probe.py"],
-                     env={"MICROPYPATH": str(ROOT / "usb-core")}, timeout=60)
+                     env={"MICROPYPATH": str(ROOT / "packages" / "usb" / "usb-core")}, timeout=60)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("unix core poll: PASS", result.stdout)
 

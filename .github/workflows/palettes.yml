@@ -1,16 +1,16 @@
 # palettes' own checks: its tests, its docs site as Read the Docs builds it,
-# and its PyScript filesystem TOML. Only a change under palettes/ runs them.
+# and its PyScript filesystem TOML. Only a change under packages/palettes/ runs them.
 name: palettes
 
 on:
   push:
     branches: [main]
     paths:
-      - 'palettes/**'
+      - 'packages/palettes/**'
       - '.github/workflows/palettes.yml'
   pull_request:
     paths:
-      - 'palettes/**'
+      - 'packages/palettes/**'
       - '.github/workflows/palettes.yml'
   workflow_dispatch:
 
@@ -53,7 +53,7 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # From the repository root with palettes/.readthedocs.yaml's paths, the
+    # From the repository root with packages/palettes/.readthedocs.yaml's paths, the
     # way Read the Docs runs it. -W turns a warning into a failure, as
     # fail_on_warning does there.
     defaults:
@@ -65,12 +65,12 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install docs requirements
-        run: pip install -r palettes/docs/requirements.txt
+        run: pip install -r packages/palettes/docs/requirements.txt
       - name: Build docs
-        run: sphinx-build -W --keep-going -b html palettes/docs _site/palettes
+        run: sphinx-build -W --keep-going -b html packages/palettes/docs _site/palettes
 
   validate-pyscript-filesystem-toml:
     uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v14
     with:
-      config-path: palettes/palettes.toml
-      source-mappings: palettes/lib=/lib
+      config-path: packages/palettes/palettes.toml
+      source-mappings: packages/palettes/lib=/lib

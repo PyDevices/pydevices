@@ -1,22 +1,22 @@
-# appkit's tests. A change under appkit/ runs them, and so does a change to
+# appkit's tests. A change under packages/appkit/ runs them, and so does a change to
 # the lib/ modules it builds on.
 #
 # Here they run on CPython only. The MicroPython half needs a unix
 # micropython with LVGL as current as the lib/ it runs, and the newest one
 # attached to a release (v0.5.5's) is older than that, so it skips here,
-# loudly. Run it locally with PYDEVICES_MICROPYTHON set (appkit/README.md).
+# loudly. Run it locally with PYDEVICES_MICROPYTHON set (packages/appkit/README.md).
 name: appkit
 
 on:
   push:
     branches: [main]
     paths:
-      - 'appkit/**'
+      - 'packages/appkit/**'
       - 'lib/**'
       - '.github/workflows/appkit.yml'
   pull_request:
     paths:
-      - 'appkit/**'
+      - 'packages/appkit/**'
       - 'lib/**'
       - '.github/workflows/appkit.yml'
   workflow_dispatch:

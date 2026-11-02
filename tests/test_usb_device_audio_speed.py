@@ -21,7 +21,7 @@ import types
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "usb-device-audio" / "usb" / "device" / "audio.py"
+SOURCE = ROOT  / "packages" / "usb" / "usb-device-audio" / "usb" / "device" / "audio.py"
 
 FULL, HIGH = 0, 2
 

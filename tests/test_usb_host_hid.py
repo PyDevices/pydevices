@@ -24,7 +24,7 @@ from binascii import unhexlify
 from _mprun import need_micropython, run
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PKG = pathlib.Path(os.environ.get("USB_HOST_HID_ROOT") or ROOT / "usb-host-hid")
+PKG = pathlib.Path(os.environ.get("USB_HOST_HID_ROOT") or ROOT  / "packages" / "usb" / "usb-host-hid")
 
 # Other test modules install their own usb packages under these names.
 for _name in [m for m in sys.modules if m == "usb" or m.startswith("usb.")]:

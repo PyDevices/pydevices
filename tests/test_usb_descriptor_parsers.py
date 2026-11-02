@@ -31,8 +31,8 @@ def _load(name, path):
     return module
 
 
-uac = _load("_uac_under_test", "usb-host-audio/usb/host/_uac.py")
-uvc = _load("_uvc_under_test", "usb-host-video/usb/host/_uvc.py")
+uac = _load("_uac_under_test", "packages/usb/usb-host-audio/usb/host/_uac.py")
+uvc = _load("_uvc_under_test", "packages/usb/usb-host-video/usb/host/_uvc.py")
 
 
 def _uac_blob(rates=(48000,), channels=1, bits=16, ep=0x81, attrs=0x05,

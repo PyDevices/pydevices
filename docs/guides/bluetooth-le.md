@@ -433,7 +433,7 @@ while True:
     await asyncio.sleep(0.001)
 ```
 
-The port is the contract the [`midiports`](https://github.com/PyDevices/pydevices/blob/main/midiports/README.md) package
+The port is the contract the [`midiports`](https://github.com/PyDevices/pydevices/blob/main/packages/midiports/README.md) package
 documents: `read(nbytes)` returns MIDI bytes or `None` and never blocks,
 `readinto(buf, nbytes)` does the same into your buffer without allocating,
 `any()` says how many bytes are waiting, and `write(buf, nbytes)` sends.

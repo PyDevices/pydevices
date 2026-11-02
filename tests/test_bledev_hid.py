@@ -36,7 +36,7 @@ SUITES = {
 }
 
 
-_PACKAGE = _TESTS.parent / "bledev_hid"
+_PACKAGE = _TESTS.parent  / "packages" / "bledev_hid"
 _HTTPS = "https://raw.githubusercontent.com/"
 _adafruit = None
 

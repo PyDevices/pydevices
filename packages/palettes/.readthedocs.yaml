@@ -1,0 +1,18 @@
+# Read the Docs builds this site from the pydevices repository, with this
+# file as the project's configuration file (Settings, "Path for
+# .readthedocs.yaml": packages/palettes/.readthedocs.yaml). Paths here are relative to the
+# repository root, not to this folder.
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.13"
+
+sphinx:
+  configuration: packages/palettes/docs/conf.py
+  fail_on_warning: true
+
+python:
+  install:
+    - requirements: packages/palettes/docs/requirements.txt

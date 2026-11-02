@@ -1,0 +1,39 @@
+{
+  "urls": [
+    [
+      "synthstation/__init__.py",
+      "github:PyDevices/pydevices/packages/synthstation/lib/synthstation/__init__.py"
+    ],
+    [
+      "synthstation/audio.py",
+      "github:PyDevices/pydevices/packages/synthstation/lib/synthstation/audio.py"
+    ],
+    [
+      "synthstation/catalog.py",
+      "github:PyDevices/pydevices/packages/synthstation/lib/synthstation/catalog.py"
+    ],
+    [
+      "synthstation/midi.py",
+      "github:PyDevices/pydevices/packages/synthstation/lib/synthstation/midi.py"
+    ],
+    [
+      "synthstation/pads.py",
+      "github:PyDevices/pydevices/packages/synthstation/lib/synthstation/pads.py"
+    ],
+    [
+      "synthstation/station.py",
+      "github:PyDevices/pydevices/packages/synthstation/lib/synthstation/station.py"
+    ]
+  ],
+  "deps": [
+    [
+      "github:PyDevices/pydevices/controlpanel",
+      "main"
+    ],
+    [
+      "github:PyDevices/pydevices/midiports",
+      "main"
+    ]
+  ],
+  "version": "0.1.0"
+}
