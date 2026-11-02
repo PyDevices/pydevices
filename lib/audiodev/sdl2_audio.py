@@ -773,12 +773,16 @@ class SDLPCMOutput(PCMOutput):
 
 
 class SDLPCMInput(PCMInput):
-    def __init__(self, fmt, *, device=None, samples=512, queue_ms=250, poll_ms=2):
+    def __init__(self, fmt, *, device=None, samples=512, queue_ms=250, poll_ms=2, timeout_ms=100):
         super().__init__(fmt)
         self.device_name = device
         self.samples = int(samples)
         self.queue_ms = int(queue_ms)
         self.poll_ms = int(poll_ms)
+        # How long a read waits for one frame of samples before it returns
+        # what it has (nothing, when the device is silent). None waits for
+        # as long as it takes, as this class always did.
+        self.timeout_ms = None if timeout_ms is None else int(timeout_ms)
         self.device = 0
 
     def _open(self):
@@ -810,7 +814,10 @@ class SDLPCMInput(PCMInput):
 
     def _readinto(self, buf):
         needed = len(buf)
+        since = _monotonic_ms()
         while sdl.SDL_GetQueuedAudioSize(self.device) < self.format.frame_size:
+            if self.timeout_ms is not None and _elapsed_ms(since) >= self.timeout_ms:
+                return 0
             _sleep_ms(self.poll_ms)
         available = min(needed, sdl.SDL_GetQueuedAudioSize(self.device))
         available -= available % self.format.frame_size
@@ -818,7 +825,10 @@ class SDLPCMInput(PCMInput):
 
     async def _areadinto(self, buf):
         needed = len(buf)
+        since = _monotonic_ms()
         while sdl.SDL_GetQueuedAudioSize(self.device) < self.format.frame_size:
+            if self.timeout_ms is not None and _elapsed_ms(since) >= self.timeout_ms:
+                return 0
             await _asleep_ms(self.poll_ms)
         available = min(needed, sdl.SDL_GetQueuedAudioSize(self.device))
         available -= available % self.format.frame_size
@@ -866,11 +876,13 @@ def pcm_in(
     samples=None,
     queue_ms=None,
     poll_ms=2,
+    timeout_ms=100,
 ):
     """Create an SDL-backed :class:`PCMInput` using real host capture.
 
     ``latency`` picks a profile as in :func:`audio_out`; ``samples`` and
-    ``queue_ms`` given explicitly override it.
+    ``queue_ms`` given explicitly override it. A read returns after
+    ``timeout_ms`` with no samples rather than waiting for them.
     """
     check_latency(latency)
     default_samples, default_queue_ms = _CAPTURE_PROFILES[latency]
@@ -881,6 +893,7 @@ def pcm_in(
         samples=default_samples if samples is None else samples,
         queue_ms=default_queue_ms if queue_ms is None else queue_ms,
         poll_ms=poll_ms,
+        timeout_ms=timeout_ms,
     )
 
 

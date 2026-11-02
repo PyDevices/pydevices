@@ -12,6 +12,7 @@ and move a peer to a new address, and over real UDP on localhost.
 
 import math
 import struct
+import sys
 import threading
 import time
 import unittest
@@ -647,6 +648,115 @@ class SharedPort(unittest.TestCase):
             self.assertEqual(b.floor, medialink.IDLE)
         finally:
             serve.stop()
+
+
+class FakeSDL:
+    """The few usdl2 calls SDLPCMInput makes, with a queue the test fills."""
+
+    AUDIO_S16LSB = 0x8010
+    AUDIO_S16MSB = 0x9010
+    SDL_INIT_AUDIO = 0x10
+
+    def __init__(self):
+        self.queued = bytearray()
+
+    def SDL_InitSubSystem(self, flags):
+        return 0
+
+    def SDL_GetError(self):
+        return "fake"
+
+    def SDL_AudioSpec(self, rate, fmt, channels, samples):
+        return (rate, fmt, channels, samples)
+
+    def SDL_OpenAudioDevice(self, name, capture, spec, obtained, allowed):
+        return 1
+
+    def SDL_PauseAudioDevice(self, device, pause):
+        pass
+
+    def SDL_CloseAudioDevice(self, device):
+        pass
+
+    def SDL_GetQueuedAudioSize(self, device):
+        return len(self.queued)
+
+    def SDL_DequeueAudio(self, device, buf, count):
+        buf[:count] = self.queued[:count]
+        del self.queued[:count]
+        return count
+
+
+def sdl_capture(fake, timeout_ms):
+    """An SDLPCMInput on a fake usdl2, as audiodev builds it on a computer."""
+    import importlib
+    from unittest import mock
+
+    from audiodev import AudioFormat
+
+    with mock.patch.dict(sys.modules, {"usdl2": fake}):
+        sdl2_audio = importlib.import_module("audiodev.sdl2_audio")
+    patch = mock.patch.object(sdl2_audio, "sdl", fake)
+    patch.start()
+    return sdl2_audio.SDLPCMInput(AudioFormat(16000, 1, 16), timeout_ms=timeout_ms), patch
+
+
+class ACaptureWithNoSamples(unittest.TestCase):
+    """A capture that the device gives nothing to must not block the service."""
+
+    BOUND_MS = 100
+
+    def setUp(self):
+        self.fake = FakeSDL()
+        self.mic, patch = sdl_capture(self.fake, self.BOUND_MS)
+        self.addCleanup(patch.stop)
+
+    def test_a_read_with_no_samples_returns_within_the_bound(self):
+        self.mic.open()
+        started = time.monotonic()
+        count = self.mic.readinto(bytearray(640))
+        elapsed_ms = (time.monotonic() - started) * 1000
+        self.assertEqual(count, 0)
+        self.assertGreaterEqual(elapsed_ms, self.BOUND_MS * 0.5)
+        self.assertLess(elapsed_ms, self.BOUND_MS * 10)
+        self.mic.close()
+
+    def test_a_read_with_samples_takes_them_at_once(self):
+        self.fake.queued += tone(320)
+        self.mic.open()
+        started = time.monotonic()
+        count = self.mic.readinto(bytearray(640))
+        self.assertEqual(count, 640)
+        self.assertLess((time.monotonic() - started) * 1000, self.BOUND_MS)
+        self.mic.close()
+
+    def test_a_stop_request_ends_a_service_loop_that_hears_nothing(self):
+        network, a, b = pair()
+        talker = medialink.Intercom(a, self.mic, None)
+        serve = Serve(b)
+        a.connect("b")
+        self.assertTrue(talker.press())
+        serve.stop()
+
+        stop = threading.Event()
+        calls = []
+
+        def loop():
+            while not stop.is_set():
+                talker.service()
+                calls.append(time.monotonic())
+
+        worker = threading.Thread(target=loop, daemon=True)
+        worker.start()
+        time.sleep(self.BOUND_MS * 3 / 1000)
+        self.assertTrue(worker.is_alive())
+        self.assertGreaterEqual(len(calls), 2)  # each service() came back on its own
+        stop.set()
+        worker.join(2)
+        self.assertFalse(worker.is_alive())
+        talker.close()
+        self.assertFalse(talker.talking)
+        self.assertEqual(talker.stats["sent"], 1)  # no frames, only the end mark
 
 
 class OverUDP(unittest.TestCase):

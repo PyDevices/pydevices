@@ -131,13 +131,27 @@ class Screen:
     A picture the decoder can't read (a progressive JPEG, say, which
     jpegio's decoder doesn't take) shows nothing: ``errors`` counts them
     and ``last_error`` says why.
+
+    ``rect`` is the ``(x, y, width, height)`` part of the display the
+    pictures go in, for an app that shares the panel with others. Each
+    picture is fitted and centred inside it, and nothing outside it is
+    drawn or presented. Left as None, the whole display is used.
     """
 
-    def __init__(self, display, background=0):
+    def __init__(self, display, background=0, rect=None):
         import jpegio
 
         self.display = display
         self.background = background
+        if rect is None:
+            rect = (0, 0, display.width, display.height)
+        x, y, width, height = rect
+        if (
+            width <= 0 or height <= 0 or x < 0 or y < 0
+            or x + width > display.width or y + height > display.height
+        ):
+            raise ValueError("rect must lie inside the display and have a size")
+        self.rect = (x, y, width, height)
         try:
             # The ESP32-P4's decoder engine, where there is one.
             self._decoder = jpegio.JpegDecoder(hardware=True)
@@ -161,19 +175,23 @@ class Screen:
     def _show(self, jpeg):
         display = self.display
         decoder = self._decoder
+        left, top, room_w, room_h = self.rect
         width, height = decoder.open(jpeg)
         scale = 0
-        while scale < 3 and ((width >> scale) > display.width or (height >> scale) > display.height):
+        while scale < 3 and ((width >> scale) > room_w or (height >> scale) > room_h):
             scale += 1
         width, height = width >> scale, height >> scale
-        x = (display.width - width) // 2
-        y = (display.height - height) // 2
+        if width > room_w or height > room_h:
+            # Even an eighth is too big: drawing it would spill outside the rect.
+            raise ValueError("picture is too big for the screen's rect")
+        x = left + (room_w - width) // 2
+        y = top + (room_h - height) // 2
         if self._shape != (width, height):
             # A new size: clear what the last picture leaves showing.
             self._shape = (width, height)
             self._pixels = bytearray(width * height * 2)
-            display.fill_rect(0, 0, display.width, display.height, self.background)
-            self._present(0, 0, display.width, display.height)
+            display.fill_rect(left, top, room_w, room_h, self.background)
+            self._present(left, top, room_w, room_h)
         decoder.decode(self._pixels, scale)
         display.blit_rect(self._pixels, x, y, width, height)
         self._present(x, y, width, height)

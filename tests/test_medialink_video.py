@@ -218,10 +218,11 @@ class Display:
         self.width = width
         self.height = height
         self.blits = []
+        self.fills = []
         self.shown = 0
 
     def fill_rect(self, x, y, w, h, c):
-        pass
+        self.fills.append((x, y, w, h))
 
     def blit_rect(self, buf, x, y, w, h):
         self.blits.append((x, y, w, h, bytes(buf)))
@@ -270,6 +271,76 @@ class TheScreen(unittest.TestCase):
         self.assertIsNone(screen.show(b"not a picture"))
         self.assertEqual(screen.errors, 1)
         self.assertEqual(screen.show(jpeg_of(160, 120)), (160, 120))
+
+
+class FlushingDisplay(Display):
+    """A panel that presents by rows, as a board's LVGL-driven one does."""
+
+    def __init__(self, width, height):
+        super().__init__(width, height)
+        self.flushes = []
+
+    def flush_rect(self, x, y, w, h):
+        self.flushes.append((x, y, w, h))
+        return True
+
+
+@unittest.skipUnless(HAVE_PILLOW, "jpegio on CPython needs Pillow")
+class TheScreenInARect(unittest.TestCase):
+    def inside(self, rect, box):
+        left, top, width, height = rect
+        x, y, w, h = box
+        return left <= x and top <= y and x + w <= left + width and y + h <= top + height
+
+    def test_a_small_picture_is_drawn_only_inside_its_rect(self):
+        display = FlushingDisplay(320, 240)
+        rect = (40, 30, 200, 150)
+        screen = medialink.Screen(display, rect=rect)
+        self.assertEqual(screen.rect, rect)
+        self.assertEqual(screen.show(jpeg_of(64, 48)), (64, 48))
+        x, y, w, h, _ = display.blits[-1]
+        self.assertEqual((x, y, w, h), (40 + 68, 30 + 51, 64, 48))
+        self.assertTrue(all(self.inside(rect, fill) for fill in display.fills))
+        self.assertTrue(all(self.inside(rect, flush) for flush in display.flushes))
+        self.assertEqual(display.flushes[-1], (x, y, w, h))
+
+    def test_a_big_picture_is_fitted_inside_the_rect(self):
+        display = Display(320, 240)
+        rect = (0, 0, 100, 100)
+        screen = medialink.Screen(display, rect=rect)
+        self.assertEqual(screen.show(jpeg_of(640, 480)), (80, 60))
+        x, y, w, h, _ = display.blits[-1]
+        self.assertEqual((x, y, w, h), (10, 20, 80, 60))
+        self.assertTrue(self.inside(rect, (x, y, w, h)))
+
+    def test_a_redraw_on_a_new_size_clears_only_the_rect(self):
+        display = Display(320, 240)
+        rect = (100, 50, 120, 90)
+        screen = medialink.Screen(display, rect=rect)
+        screen.show(jpeg_of(160, 120))
+        screen.show(jpeg_of(40, 30))
+        self.assertGreaterEqual(len(display.fills), 2)
+        self.assertEqual(set(display.fills), {rect})
+
+    def test_a_picture_too_big_for_the_rect_is_counted_not_drawn(self):
+        display = Display(320, 240)
+        screen = medialink.Screen(display, rect=(0, 0, 20, 20))
+        self.assertIsNone(screen.show(jpeg_of(640, 480)))
+        self.assertEqual(screen.errors, 1)
+        self.assertEqual(display.blits, [])
+
+    def test_a_rect_off_the_display_is_refused(self):
+        display = Display(320, 240)
+        for rect in ((300, 0, 40, 10), (0, 230, 10, 20), (-1, 0, 10, 10), (0, 0, 0, 10)):
+            with self.assertRaises(ValueError):
+                medialink.Screen(display, rect=rect)
+
+    def test_without_a_rect_the_whole_display_is_used(self):
+        display = Display(320, 240)
+        screen = medialink.Screen(display)
+        self.assertEqual(screen.rect, (0, 0, 320, 240))
+        screen.show(jpeg_of(160, 120))
+        self.assertEqual(display.blits[-1][:4], (80, 60, 160, 120))
 
 
 class TheFileCamera(unittest.TestCase):
