@@ -19,15 +19,15 @@ intercom.press()        # take the floor and talk
 intercom.release()      # let go: the other side may talk now
 ```
 
-[`examples/medialink_walkie_talkie.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_walkie_talkie.py)
+[`medialink_walkie_talkie`](https://github.com/PyDevices/apps/blob/main/apps/medialink_walkie_talkie/__init__.py)
 is the whole walkie-talkie, finding the other side by name.
 [`examples/medialink_simpletest.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_simpletest.py)
 sends one frame and shows a send to an absent peer failing. Three more
 put the same pieces to other uses:
-[`medialink_baby_monitor.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_baby_monitor.py),
-[`medialink_doorbell.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_doorbell.py)
+[`medialink_baby_monitor`](https://github.com/PyDevices/apps/blob/main/apps/medialink_baby_monitor/__init__.py),
+[`medialink_doorbell`](https://github.com/PyDevices/apps/blob/main/apps/medialink_doorbell/__init__.py)
 and
-[`medialink_hands_free.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_hands_free.py),
+[`medialink_hands_free`](https://github.com/PyDevices/apps/blob/main/apps/medialink_hands_free/__init__.py),
 described below.
 
 ## Install
@@ -161,7 +161,7 @@ listens again, so it doesn't send the peer's own voice back. It also
 ignores the microphone's first 60 ms each time it opens (`settle_ms`),
 since a microphone can click as it starts, and the click would otherwise
 take a turn of nothing back after every turn the peer took.
-[`medialink_hands_free.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_hands_free.py)
+[`medialink_hands_free`](https://github.com/PyDevices/apps/blob/main/apps/medialink_hands_free/__init__.py)
 is the whole thing.
 
 To send only when someone says a wake word, put a `medialink.WakeWord` where
@@ -185,14 +185,14 @@ builds can carry; `WAKE_WORD` in the hands-free example turns it on.
 An `Intercom` with no speaker only sends, and one with no microphone only
 listens: `Intercom(link, mic, None, voice=voice)` is a baby monitor that
 sends while there is sound and nothing otherwise.
-[`medialink_baby_monitor.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_baby_monitor.py)
+[`medialink_baby_monitor`](https://github.com/PyDevices/apps/blob/main/apps/medialink_baby_monitor/__init__.py)
 shows "sound" and "quiet" on the listening side.
 
 `link.send_event("ring")` sends a short message the peer acknowledges, sent
 again until it does, and `link.events()` on the other side returns what
 arrived, each once. `intercom.play(pcm)` plays a sound of this side's own,
 such as a chime, without the microphone hearing it as speech.
-[`medialink_doorbell.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_doorbell.py)
+[`medialink_doorbell`](https://github.com/PyDevices/apps/blob/main/apps/medialink_doorbell/__init__.py)
 uses both: the door's button rings a chime in the house, the visitor speaks
 hands-free, and the house holds a button to answer.
 
@@ -257,11 +257,11 @@ if frame is not None:
 ```
 
 Three examples put it together.
-[`medialink_surveillance_camera.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_surveillance_camera.py)
+[`medialink_surveillance_camera`](https://github.com/PyDevices/apps/blob/main/apps/medialink_surveillance_camera/__init__.py)
 is a camera you watch and listen to from another room.
-[`medialink_video_doorbell.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_video_doorbell.py)
+[`medialink_video_doorbell`](https://github.com/PyDevices/apps/blob/main/apps/medialink_video_doorbell/__init__.py)
 shows the door inside, with sound both ways.
-[`medialink_videophone.py`](https://github.com/PyDevices/pydevices/blob/main/examples/medialink_videophone.py)
+[`medialink_videophone`](https://github.com/PyDevices/apps/blob/main/apps/medialink_videophone/__init__.py)
 sends pictures both ways. On a computer without a camera, set `PICTURES` to
 a folder of JPEG files and `medialink.FileCamera` sends them in turn.
 
