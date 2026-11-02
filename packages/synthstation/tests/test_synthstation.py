@@ -24,7 +24,7 @@ LIB = TESTS.parent / "lib"
 ROOT = TESTS.parent.parent
 CHECK = TESTS / "station_check.py"
 EXTRA = [p for p in os.environ.get("SYNTHSTATION_PATH", "").split(":") if p]
-PATH = EXTRA + [str(LIB), str(ROOT / "controlpanel" / "lib"), str(ROOT / "midiports")]
+PATH = EXTRA + [str(LIB), str(ROOT / "midiports")]
 #: pydevices' own lib (audiodev): after the frozen copy on MicroPython.
 REPO_LIB = str(ROOT / "lib")
 

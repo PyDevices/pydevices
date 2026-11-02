@@ -1,8 +1,7 @@
-# Synth Station's tests. A change under packages/synthstation/, or to controlpanel's
-# library it builds on, runs them.
+# Synth Station's tests. A change under packages/synthstation/ runs them.
 #
 # Here they run on CPython only, on a display with no window, against
-# controlpanel from this checkout and audioinstruments from its main branch.
+# controlpanel from the apps repo and audioinstruments from its main branch.
 # The MicroPython half needs a unix micropython with LVGL and audiodsp,
 # which the runner doesn't have, so it skips here, loudly. Run it locally
 # with PYDEVICES_MICROPYTHON set (packages/synthstation/README.md).
@@ -13,12 +12,10 @@ on:
     branches: [main]
     paths:
       - 'packages/synthstation/**'
-      - 'packages/controlpanel/lib/**'
       - '.github/workflows/synthstation.yml'
   pull_request:
     paths:
       - 'packages/synthstation/**'
-      - 'packages/controlpanel/lib/**'
       - '.github/workflows/synthstation.yml'
   workflow_dispatch:
 
@@ -35,6 +32,10 @@ jobs:
         with:
           repository: PyDevices/audioinstruments
           path: .audioinstruments
+      - uses: actions/checkout@v7
+        with:
+          repository: PyDevices/apps
+          path: .apps
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -45,5 +46,5 @@ jobs:
       - name: Unit tests
         working-directory: synthstation
         env:
-          SYNTHSTATION_PATH: ${{ github.workspace }}/.audioinstruments/lib
+          SYNTHSTATION_PATH: ${{ github.workspace }}/.audioinstruments/lib:${{ github.workspace }}/.apps/lib
         run: python -m unittest discover -s tests -p 'test_*.py' -v

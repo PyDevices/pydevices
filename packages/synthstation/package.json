@@ -27,7 +27,7 @@
   ],
   "deps": [
     [
-      "github:PyDevices/pydevices/controlpanel",
+      "github:PyDevices/apps/lib/controlpanel",
       "main"
     ],
     [

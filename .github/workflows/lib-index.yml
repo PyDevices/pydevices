@@ -1,7 +1,7 @@
 name: Package library
 
 # Builds the mip index and the library tree with tools/libbuild.py: this
-# repository's packages from the checkout (palettes, pdwidgets, appkit, controlpanel, synthstation and sayso at
+# repository's packages from the checkout (palettes, pdwidgets, appkit, synthstation and sayso at
 # the versions in their folders, every board config and driver), and the
 # packages lib-lock.json pins from other repositories at their tags. A
 # packaging mistake (a mip-split.toml name that no longer exists, a manifest
@@ -35,8 +35,6 @@ on:
       - 'packages/pdwidgets/VERSION'
       - 'packages/appkit/lib/**'
       - 'packages/appkit/VERSION'
-      - 'packages/controlpanel/lib/**'
-      - 'packages/controlpanel/VERSION'
       - 'packages/synthstation/lib/**'
       - 'packages/synthstation/VERSION'
       - 'packages/sayso/lib/**'
@@ -60,8 +58,6 @@ on:
       - 'packages/pdwidgets/VERSION'
       - 'packages/appkit/lib/**'
       - 'packages/appkit/VERSION'
-      - 'packages/controlpanel/lib/**'
-      - 'packages/controlpanel/VERSION'
       - 'packages/synthstation/lib/**'
       - 'packages/synthstation/VERSION'
       - 'packages/sayso/lib/**'

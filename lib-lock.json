@@ -28,15 +28,10 @@
         "pydevices"
       ]
     },
-    "controlpanel": {
-      "description": "A hardware-style control panel in LVGL for an instrument or an effect: patch pads, encoders with LED rings and a dot-matrix display",
-      "pypi": "pydevices-controlpanel"
-    },
     "synthstation": {
       "description": "Pick an audioinstruments instrument and play it from a MIDI keyboard, with controlpanel as its front panel and a live render-load readout",
       "pypi": "pydevices-synthstation",
       "requires": [
-        "controlpanel",
         "audioinstruments",
         "midiports"
       ]
