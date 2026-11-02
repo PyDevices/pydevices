@@ -268,7 +268,7 @@ class Index(unittest.TestCase):
                 "blocks.py",
                 "apps/__init__.py",
                 "apps/hello/__init__.py",
-                "packages/appkit/launcher.py",
+                "appkit/launcher.py",
             ):
                 self.assertIn(frozen_as, listed, listed)
             self.assertTrue(os.path.isfile(os.path.join(tmp, "index", "_appkit_apps.py")))

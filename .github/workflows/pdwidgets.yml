@@ -47,7 +47,7 @@ jobs:
         run: ruff check lib tests scripts
       - name: Unit tests
         env:
-          PYTHONPATH: lib:tests/stubs:../lib:../palettes/lib:../pygraphics/lib
+          PYTHONPATH: lib:tests/stubs:../../lib:../palettes/lib:../../pygraphics/lib
         run: python -m unittest discover -s tests
 
   docs:
