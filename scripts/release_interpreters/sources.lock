@@ -13,5 +13,5 @@
 # To move them to the current tips of their default branches, run
 #   python3 scripts/release_interpreters/sources.py bump
 # and commit the result. docs/publishing.md has the rest.
-micropython-pydevices   https://github.com/PyDevices/micropython-pydevices.git   348da7a435876d2c74371ac5c2744cfa148497cb
-omnipython-lvgl         https://github.com/PyDevices/omnipython-lvgl.git         84d1de375b014c7d49b4ccbd3be551813091f9ef
+micropython-pydevices   https://github.com/PyDevices/micropython-pydevices.git   363eebf5a56097651e1d949f943160b6f61238d8
+omnipython-lvgl         https://github.com/PyDevices/omnipython-lvgl.git         e2254f39a8e548be3e9b886dfef3f84d2155aa27
