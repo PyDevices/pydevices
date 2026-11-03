@@ -6,18 +6,18 @@ directory each, installed with `mip`:
 
 | Package | Import | What it gives you |
 |---|---|---|
-| [`usb-core`](https://github.com/PyDevices/pydevices/tree/main/usb-core) | `usb.core`, `usb.util`, `usb_host` | Talk to USB devices from the board's host port, in PyUSB's and CircuitPython's shape |
-| [`usb-host-msc`](https://github.com/PyDevices/pydevices/tree/main/usb-host-msc) | `usb.host.msc` | Mount a flash drive |
-| [`usb-host-hid`](https://github.com/PyDevices/pydevices/tree/main/usb-host-hid) | `usb.host.hid` | Read a keyboard or mouse: keys, buttons and movement named the way `adafruit_hid` names them |
-| [`usb-host-cdc`](https://github.com/PyDevices/pydevices/tree/main/usb-host-cdc) | `usb.host.cdc` | A USB serial device |
-| [`usb-host-audio`](https://github.com/PyDevices/pydevices/tree/main/usb-host-audio) | `usb.host.audio` | Play to a USB speaker, record from a USB microphone |
-| [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/usb-host-video) | `usb.host.video` | Frames from a USB webcam |
-| [`usb-host-mtp`](https://github.com/PyDevices/pydevices/tree/main/usb-host-mtp) | `usb.host.mtp` | Photos and files off a phone or a camera, over MTP |
-| [`usb-host-net`](https://github.com/PyDevices/pydevices/tree/main/usb-host-net) | `usb.host.net` | The internet through a phone's USB tethering |
-| [`usb-device-audio`](https://github.com/PyDevices/pydevices/tree/main/usb-device-audio) | `usb.device.audio` | The board as a USB sound card |
-| [`usb-device-video`](https://github.com/PyDevices/pydevices/tree/main/usb-device-video) | `usb.device.video` | The board as a USB webcam, YUY2 or MJPEG |
-| [`usb-device-msc`](https://github.com/PyDevices/pydevices/tree/main/usb-device-msc) | `usb.device.msc` | The board as a USB drive, from any block device |
-| [`usb-hid`](https://github.com/PyDevices/pydevices/tree/main/usb-hid) | `usb_hid` | CircuitPython's `usb_hid`, so `adafruit_hid` types and moves the mouse |
+| [`usb-core`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-core) | `usb.core`, `usb.util`, `usb_host` | Talk to USB devices from the board's host port, in PyUSB's and CircuitPython's shape |
+| [`usb-host-msc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-msc) | `usb.host.msc` | Mount a flash drive |
+| [`usb-host-hid`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-hid) | `usb.host.hid` | Read a keyboard or mouse: keys, buttons and movement named the way `adafruit_hid` names them |
+| [`usb-host-cdc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-cdc) | `usb.host.cdc` | A USB serial device |
+| [`usb-host-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-audio) | `usb.host.audio` | Play to a USB speaker, record from a USB microphone |
+| [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-video) | `usb.host.video` | Frames from a USB webcam |
+| [`usb-host-mtp`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-mtp) | `usb.host.mtp` | Photos and files off a phone or a camera, over MTP |
+| [`usb-host-net`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-net) | `usb.host.net` | The internet through a phone's USB tethering |
+| [`usb-device-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-audio) | `usb.device.audio` | The board as a USB sound card |
+| [`usb-device-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-video) | `usb.device.video` | The board as a USB webcam, YUY2 or MJPEG |
+| [`usb-device-msc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-msc) | `usb.device.msc` | The board as a USB drive, from any block device |
+| [`usb-hid`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-hid) | `usb_hid` | CircuitPython's `usb_hid`, so `adafruit_hid` types and moves the mouse |
 
 MIDI is [`midiports`](https://github.com/PyDevices/pydevices/blob/main/packages/midiports/README.md): `midiports.usb_device` and
 `midiports.usb_host`. It installs by name the same way.

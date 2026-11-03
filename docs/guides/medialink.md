@@ -37,7 +37,7 @@ that never streams doesn't carry it:
 
 ```python
 import mip
-mip.install("medialink", index="https://PyDevices.github.io/mip")
+mip.install("medialink", index="https://lib.omnipython.org")
 ```
 
 On a computer it comes with `pydevices`. Finding a peer by name needs the

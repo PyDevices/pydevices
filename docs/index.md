@@ -34,6 +34,7 @@ boards, a desktop, a browser and an Android phone.
 
 ## Reference
 
+- [The stack: everything you can import or run](stack.md)
 - [Other modules](modules.md)
 - [Board peripherals contract](boards/board-contract.md)
 - [Board configs](boards/board-configs.md)

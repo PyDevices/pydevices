@@ -1,6 +1,8 @@
 # The PyDevices ecosystem
 
-`pydevices` is one repository in a larger organization. This page is the map.
+`pydevices` is one repository in a larger organization. This page is the map
+of the repositories; [the stack](../stack.md) lists the modules and tools inside
+them.
 
 It is **generated** from
 [`data/repos_db.json`](https://github.com/PyDevices/.github/blob/main/data/repos_db.json)
@@ -30,8 +32,8 @@ Standard hardware driver engine and companion reference code.
 Pure Python on any Python 3 host; pygraphics adds native wheels for Linux x86_64, Windows, Android and Pyodide.
 
 - [`pygraphics`](https://github.com/PyDevices/pygraphics) — Native C and pure-Python 2D graphics library with drawing primitives, bitmap font rendering, paletted surface blitting, and area-dirtying pipelines.
-- [`pdwidgets`](https://github.com/PyDevices/pydevices/tree/main/pdwidgets) — Lightweight object-oriented UI widget framework including buttons, sliders, progress bars, labels, and event routing for PyDevices screens.
-- [`palettes`](https://github.com/PyDevices/pydevices/tree/main/palettes) — Color management library with RGB565 / RGB888 output, an HSV color wheel, RGB color cubes, Material Design swatches, and Win16 color names.
+- [`pdwidgets`](https://github.com/PyDevices/pydevices/tree/main/packages/pdwidgets) — Lightweight object-oriented UI widget framework including buttons, sliders, progress bars, labels, and event routing for PyDevices screens.
+- [`palettes`](https://github.com/PyDevices/pydevices/tree/main/packages/palettes) — Color management library with RGB565 / RGB888 output, an HSV color wheel, RGB color cubes, Material Design swatches, and Win16 color names.
 
 ### Tier 3: LVGL Native Extensions & Binding Generator
 

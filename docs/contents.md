@@ -40,6 +40,7 @@ guides/troubleshooting
 :hidden:
 :caption: Reference
 
+stack
 reference/index
 modules
 boards/board-contract
