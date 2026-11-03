@@ -1,7 +1,7 @@
 name: Package library
 
 # Builds the mip index and the library tree with tools/libbuild.py: this
-# repository's packages from the checkout (palettes, pdwidgets and sayso at
+# repository's packages from the checkout (palettes and pdwidgets at
 # the versions in their folders, every board config and driver), and the
 # packages lib-lock.json pins from other repositories at their tags. A
 # packaging mistake (a mip-split.toml name that no longer exists, a manifest
@@ -33,8 +33,6 @@ on:
       - 'packages/palettes/VERSION'
       - 'packages/pdwidgets/lib/**'
       - 'packages/pdwidgets/VERSION'
-      - 'packages/sayso/lib/**'
-      - 'packages/sayso/VERSION'
       - '.github/workflows/lib-index.yml'
   pull_request:
     paths:
@@ -52,8 +50,6 @@ on:
       - 'packages/palettes/VERSION'
       - 'packages/pdwidgets/lib/**'
       - 'packages/pdwidgets/VERSION'
-      - 'packages/sayso/lib/**'
-      - 'packages/sayso/VERSION'
       - '.github/workflows/lib-index.yml'
   workflow_dispatch:
 

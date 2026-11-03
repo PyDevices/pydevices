@@ -65,7 +65,7 @@ class TestTopLevelPackages(unittest.TestCase):
 
     def test_every_package_directory_is_listed(self):
         listed = set(top_level_sections(load_split()))
-        # A folder lib-lock.json publishes (sayso, say) reaches the index by
+        # A folder lib-lock.json publishes (palettes, say) reaches the index by
         # its own versioned path, and needs no line in mip-split.toml.
         folders = set(json.loads((ROOT / "lib-lock.json").read_text(encoding="utf-8")).get("folders", {}))
         on_disk = {path.parent.name for path in [*ROOT.glob("packages/*/manifest.py"), *ROOT.glob("packages/usb/*/manifest.py")] if (path.parent / "package.json").is_file()}
