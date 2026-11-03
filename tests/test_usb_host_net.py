@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT  / "packages" / "usb" / "usb-host-net"))
 if not hasattr(__import__("time"), "sleep_ms"):
     import time as _time
     _time.sleep_ms = lambda ms: None
-    _time.ticks_ms = lambda: 0
+    _time.ticks_ms = lambda: int(_time.monotonic() * 1000)
     _time.ticks_add = lambda a, b: a + b
     _time.ticks_diff = lambda a, b: a - b
 

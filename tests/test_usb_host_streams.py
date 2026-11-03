@@ -25,7 +25,7 @@ from _usb_descriptors import _C920E, _CODEC, _uac2_blob  # noqa: E402
 if not hasattr(__import__("time"), "sleep_ms"):
     import time as _time
     _time.sleep_ms = lambda ms: None
-    _time.ticks_ms = lambda: 0
+    _time.ticks_ms = lambda: int(_time.monotonic() * 1000)
     _time.ticks_add = lambda a, b: a + b
     _time.ticks_diff = lambda a, b: a - b
 
