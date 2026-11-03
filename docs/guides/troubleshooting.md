@@ -107,6 +107,40 @@ usual cause. Turn it off with
 Check the signal strength too: below about -75 dBm, moving the board helps
 more than any code change.
 
+## Slow start or audio dropouts on MicroPython
+
+If a program starts slowly or its sound drops out in a regular rhythm, look for
+these two habits in code that runs often or reads big files. Both cost little on
+CPython. On MicroPython they turn into a system call for each byte or each
+folder, and that gets expensive when the code sits on a slow drive, such as a
+network share or a WSL folder opened from Windows.
+
+**Import `struct`, `time`, `os` and similar modules at the top of the file, not
+inside a function.** MicroPython lets a file replace these built-ins, so every
+`import struct` searches each folder on `sys.path` first, even after the first
+one. With four folders on a WSL drive, each import took about 9 ms on
+`micropython.exe`, and more while audio was playing. A status call that did this
+four times, twice a second, stalled the audio timer long enough to hear.
+
+```python
+import struct
+
+
+def dropped(status):
+    return struct.unpack_from("<Q", status, 80)[0]
+```
+
+**Read a whole file at once when you can.** `for line in file` and `readline()`
+read one byte per system call. On `micropython.exe`, a 52 KB file took:
+
+| Where the file is | `for line in file` | `file.read()` |
+|---|---|---|
+| WSL drive | 15.6 s | 86 ms |
+| Local disk | 223 ms | 3 ms |
+
+If the file is too big for memory, use `file.readinto()` with a buffer and split
+the lines yourself.
+
 ## Still stuck?
 
 Open an issue on the repository that owns the component, or ask in
