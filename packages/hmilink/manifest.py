@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # Freezing hmilink into a firmware. Every module is pure Python and runs on
 # MicroPython, CircuitPython and CPython; a board carries them all (tcp
 # needs sockets, local needs nothing, stream needs a UART or CDC object,

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit PyPortal Titano ILI9341 + TT21100 — MicroPython (SAMD51)"""
 
 from ili9341 import ILI9341

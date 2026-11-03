@@ -12,7 +12,7 @@ class RadioGroup(Widget):
         """
         Initialize a RadioGroup to manage a group of RadioButtons.
 
-        RadioGroup is a real (but invisible, zero-size) :class:`Widget` so it
+        RadioGroup is a real (but invisible, zero-size) `Widget` so it
         participates in the widget tree for lifecycle consistency with every
         other widget. It draws nothing and is skipped by the dirty-rect render
         pass (``invalidate`` and ``draw`` are no-ops). The member RadioButtons

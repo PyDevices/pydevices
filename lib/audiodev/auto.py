@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Optional host backend selection. Backends never import this module."""
 
 import sys
@@ -70,7 +74,7 @@ def select_backend():
     """Return the name of the first usable output backend.
 
     Experimental search order: ``PYDEVICES_AUDIO`` if set, then the backends a
-    board config asked for with ``require`` (see :mod:`backends`), then the ones in the box
+    board config asked for with ``require`` (see `backends`), then the ones in the box
     in the documented probe order: wasm, Web Audio, Windows, SDL2, pygame.
     """
     for name, _spec, _builtin in backends.candidates("audio", backends.env("PYDEVICES_AUDIO")):
@@ -89,7 +93,7 @@ def _impl(name, direction):
 
 
 def pcm_out(format=None, **kwargs):
-    """Construct a raw :class:`~audiodev.PCMOutput` via :func:`select_backend`.
+    """Construct a raw `PCMOutput <audiodev.PCMOutput>` via `select_backend`.
 
     Push bytes at it with ``write()``. This is what a consumer that already
     has PCM wants -- a Connect speaker, a USB audio pump -- and it needs no
@@ -99,19 +103,19 @@ def pcm_out(format=None, **kwargs):
 
 
 def pcm_in(format=None, **kwargs):
-    """Construct a raw :class:`~audiodev.PCMInput` via :func:`select_backend`."""
+    """Construct a raw `PCMInput <audiodev.PCMInput>` via `select_backend`."""
     return _impl(select_backend(), "pcm_in")(format, **kwargs)
 
 
 def audio_out(format=None, **kwargs):
-    """Construct an :class:`~audiodev.sample_out.AudioOut` sample player.
+    """Construct an `AudioOut <audiodev.sample_out.AudioOut>` sample player.
 
     ``play(sample)`` over a CircuitPython-shaped audiosample. This is what a
     board's ``audio_out`` role returns, and the name means the same thing
     here as it does there -- see ``pcm_out`` for the raw sink.
 
     ``chunk_ms``/``lookahead_chunks``/``max_catchup_chunks`` go to the
-    :class:`AudioOut` pump; everything else goes to the transport factory.
+    `AudioOut` pump; everything else goes to the transport factory.
     ``latency="low"`` also shrinks the pump's chunk to 20ms (a 40ms schedule
     with the default 2-chunk lookahead) -- the transport profile alone cannot
     lower note-to-sound latency below what the pump keeps rendered ahead.

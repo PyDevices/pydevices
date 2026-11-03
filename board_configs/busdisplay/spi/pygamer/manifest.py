@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The pygamer board package: what mip.install("pygamer") brings.
 metadata(
     description="Adafruit PyGamer ST7789 — MicroPython (SAMD51)",

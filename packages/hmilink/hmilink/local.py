@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """In-process transport: the device's own screen, and tests.
 
 A device and a panel in one program (the panel on the device's own LCD)

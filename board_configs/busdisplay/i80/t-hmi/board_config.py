@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """LILYGO T-HMI 240x320 ST7789 I80 + XPT2046 (displayif native esp-lcd i80bus)."""
 
 from i80bus import I80Bus

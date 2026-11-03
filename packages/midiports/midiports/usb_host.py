@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI from a keyboard or synth plugged into this board's USB host port.
 
 Built on ``usb.core`` (the ``usb-core`` package beside this one, in PyUSB's and

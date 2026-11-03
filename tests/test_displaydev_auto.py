@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Optional ``displaydev.auto`` selector: backends never import this module."""
 
 import ast

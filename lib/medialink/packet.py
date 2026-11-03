@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The 14-byte header every medialink datagram starts with.
 
 ======  =====  ==========================================================

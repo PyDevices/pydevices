@@ -39,7 +39,7 @@ class IconTheme:
         """Create an icon theme that resolves shipped ``pdwidgets.icons`` modules.
 
         Module stems look like ``home_filled_36dp`` (sizes from
-        :data:`~pdwidgets.ICON_SIZE`: 18, 24, 36, 48). Access icons via
+        `ICON_SIZE <pdwidgets.ICON_SIZE>`: 18, 24, 36, 48). Access icons via
         attribute callables such as ``icon_theme.home(ICON_SIZE.LARGE)``.
 
         Args:
@@ -67,7 +67,7 @@ class IconTheme:
                 ``"home"``, ``"menu"``, ``"close"``).
 
         Returns:
-            A callable that takes an :data:`~pdwidgets.ICON_SIZE` value and
+            A callable that takes an `ICON_SIZE <pdwidgets.ICON_SIZE>` value and
             returns the fully qualified icon module path.
 
         Raises:
@@ -104,7 +104,7 @@ class ColorTheme:
         """Build semantic color slots from a palette's ``color565`` converter.
 
         Args:
-            pal (Palette): A :class:`~palettes.Palette` (or compatible) object used only
+            pal (Palette): A `Palette <palettes.Palette>` (or compatible) object used only
                 for ``color565`` conversion and byteswap handling.
         """
         c = pal.color565

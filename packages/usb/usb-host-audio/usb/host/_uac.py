@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """USB Audio Class descriptor parsing, for the host role.
 
 A UAC device does not announce its formats in its interface descriptors. It
@@ -32,7 +36,7 @@ The shape of a configuration blob, for the reader who has not stared at one::
       INTERFACE  ... alt 2, alt 3     the same again at other formats
 
 Choosing a format therefore means choosing an *alternate setting*, which is
-why :func:`streams` returns one record per alt rather than one per interface.
+why `streams` returns one record per alt rather than one per interface.
 """
 
 try:

@@ -86,14 +86,15 @@ class SSD1322(DisplayDriver):
     """
     SSD1322 driver.
 
-    :param bus: an SPI display bus (see the module docstring).
-    :param int width: the panel's width, a multiple of 4 and at most 480.
-    :param int height: the panel's height, at most 128.
-    :param int rotation: 0, 90, 180 or 270 degrees, applied in software.
-    :param int colstart: the first column address (four pixels each) the
-        panel uses; None centres the panel in the 480 pixels (28 for 256).
-    :param int rowstart: the first RAM row the panel uses.
-    :param float brightness: contrast from 0 to 1; None keeps the init value.
+    Args:
+        bus: an SPI display bus (see the module docstring).
+        width (int): the panel's width, a multiple of 4 and at most 480.
+        height (int): the panel's height, at most 128.
+        rotation (int): 0, 90, 180 or 270 degrees, applied in software.
+        colstart (int): the first column address (four pixels each) the
+            panel uses; None centres the panel in the 480 pixels (28 for 256).
+        rowstart (int): the first RAM row the panel uses.
+        brightness (float): contrast from 0 to 1; None keeps the init value.
     """
 
     def __init__(

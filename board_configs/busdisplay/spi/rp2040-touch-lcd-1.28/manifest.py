@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The rp2040-touch-lcd-1.28 board package: what mip.install("rp2040-touch-lcd-1.28") brings.
 metadata(
     description="Waveshare RP2040-Touch-LCD-1.28 GC9A01 240x240",

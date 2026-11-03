@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Optional backend selection. Nothing in bledev imports this module.
 
     import bledev.auto
@@ -9,7 +13,7 @@ picks, in order: ``mpble`` where MicroPython's ``bluetooth`` module exists,
 Pass ``backend="fake"`` (or set ``BLEDEV_BACKEND``) to force one; extra
 keyword arguments go to the backend's constructor.
 
-A host with none raises :class:`bledev.UnsupportedError` saying what to install.
+A host with none raises `bledev.UnsupportedError` saying what to install.
 """
 
 import sys

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """DIY ESP32 ILI9341 + XPT2046 resistive touch — CircuitPython"""
 
 from adafruit_touchscreen import Touchscreen

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit Feather RP2040 + RGB Matrix FeatherWing 64x32 — CircuitPython"""
 
 import board

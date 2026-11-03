@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for M5Stack Tab5 (ILI9881C). PERIPHERALS = lazy roles only."""
 import boarddev
 import sys

@@ -32,7 +32,7 @@ class Image(Widget):
     ):
         """
         Raster image widget (package icon module or ``.pbm`` / ``.bmp`` path),
-        same loaders as :class:`Icon`.
+        same loaders as `Icon`.
 
         Use for logos / gallery frames that are not tiny monochrome icons.
         When ``value`` is ``None``, a solid ``bg`` placeholder rect is drawn.

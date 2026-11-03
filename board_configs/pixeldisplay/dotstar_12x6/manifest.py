@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The dotstar_12x6 board package: what mip.install("dotstar_12x6") brings.
 metadata(
     description="DotStar 12x6 grid — MicroPython DotStar grid",

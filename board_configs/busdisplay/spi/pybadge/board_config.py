@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit PyBadge LC ST7789 + shift-register buttons — MicroPython (SAMD51)"""
 
 from keypad_shift import PYBADGE_BUTTON_MAP, ShiftRegisterButtons

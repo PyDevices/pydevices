@@ -1812,7 +1812,7 @@ def VirtualAlloc(size, protect=PAGE_READWRITE):
     """Reserve and commit *size* bytes outside the interpreter heap.
 
     Returns the base address, or 0 on failure. Keeps large, long-lived buffers
-    (framebuffers) off the GC heap. Pair every success with :func:`VirtualFree`.
+    (framebuffers) off the GC heap. Pair every success with `VirtualFree`.
     """
     size = int(size)
     if size <= 0:
@@ -1824,7 +1824,7 @@ def VirtualAlloc(size, protect=PAGE_READWRITE):
 
 
 def VirtualFree(ptr):
-    """Release a :func:`VirtualAlloc` block. Drop every view of it first."""
+    """Release a `VirtualAlloc` block. Drop every view of it first."""
     if not ptr:
         return False
     if _use_ffi:
@@ -2626,7 +2626,7 @@ def midiOutGetDevName(index):
 def midiInGetDevName(index):
     """Product name of MIDI input device ``index``.
 
-    Counts first for the same reason as :func:`midiOutGetDevName` -- see there
+    Counts first for the same reason as `midiOutGetDevName` -- see there
     for the lazy-enumeration quirk this works around.
     """
     count = midiInGetNumDevs()

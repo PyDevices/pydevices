@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Nordic UART Service: a two-way byte stream over BLE.
 
 The board advertises and the other side connects::
@@ -7,7 +11,7 @@ The board advertises and the other side connects::
     link = await nus.serve(ble, name="rack")    # on the board
     link = await nus.connect(ble, name="rack")  # on the laptop, phone or another board
 
-Both return a :class:`Link`, which reads like an asyncio stream::
+Both return a `Link`, which reads like an asyncio stream::
 
     await link.write(b"hello\\n")
     line = await link.readline()
@@ -20,7 +24,7 @@ Workbench's Bluetooth transport all speak to it. ``RX`` is what the central
 writes; ``TX`` is what the peripheral notifies.
 
 ``ble`` is a bledev adapter. A raw MicroPython ``bluetooth.BLE`` is wrapped in
-:class:`bledev.mpble.MPBLE` for you.
+`bledev.mpble.MPBLE` for you.
 """
 
 import asyncio
@@ -79,7 +83,7 @@ def _set_mtu(ble, mtu):
 
 
 class Link:
-    """One end of a NUS byte stream. Made by :func:`serve` or :func:`connect`.
+    """One end of a NUS byte stream. Made by `serve` or `connect`.
 
     ``read()`` returns ``b""`` once the link has closed and everything that
     arrived before has been read. ``bytes_in`` and ``bytes_out`` count
@@ -144,7 +148,7 @@ class Link:
         return data
 
     async def readexactly(self, n):
-        """Exactly ``n`` bytes. Raises :class:`DisconnectedError` if the link closes first."""
+        """Exactly ``n`` bytes. Raises `DisconnectedError` if the link closes first."""
         while len(self._buf) < n:
             self._check_error()
             if self._closed:
@@ -306,7 +310,7 @@ def _server_for(ble, mtu):
 
 
 async def serve(ble, name="bledev", *, timeout_ms=None, interval_us=100000, mtu=MTU):
-    """Advertise the Nordic UART service as ``name`` and return a :class:`Link`
+    """Advertise the Nordic UART service as ``name`` and return a `Link`
     when a central connects.
 
     Call it again for the next connection; the service is registered once per
@@ -348,7 +352,7 @@ class _ClientLink(Link):
 
 async def connect(ble, name=None, *, device=None, timeout_ms=10000, mtu=MTU, **connect_options):
     """Find a NUS peripheral (by ``name``, or the first one advertising the
-    service), connect, and return a :class:`Link`.
+    service), connect, and return a `Link`.
 
     Pass ``device`` to skip the scan. ``connect_options`` go to
     ``device.connect()``; on a board, ``min_conn_interval_us`` and

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Teensy 4.1 + external ILI9341 on FlexIO 8080 bus — MicroPython
 
 Wires an 8-bit parallel ILI9341 to **MIMXRT1062 FlexIO2** pads (displayif ``i80bus``).

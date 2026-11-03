@@ -1,6 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Stream transport: a UART, USB CDC, or anything with ``read`` and ``write``.
 
-One frame per line, as :mod:`hmilink.tcp` sends over a socket, so a panel
+One frame per line, as `hmilink.tcp` sends over a socket, so a panel
 on the other end of a serial cable is the same panel::
 
     from machine import UART

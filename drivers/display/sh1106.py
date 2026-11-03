@@ -76,13 +76,14 @@ class SH1106(DisplayDriver):
     """
     SH1106 driver.
 
-    :param bus: the display bus (see the module docstring).
-    :param int width: the panel's width, at most 132.
-    :param int height: the panel's height, at most 64.
-    :param int rotation: 0, 90, 180 or 270 degrees, applied in software.
-    :param int colstart: the RAM column the panel's first pixel is wired to;
-        None centres the panel in the 132 columns (2 for a 128-wide panel).
-    :param float brightness: contrast from 0 to 1; None keeps the init value.
+    Args:
+        bus: the display bus (see the module docstring).
+        width (int): the panel's width, at most 132.
+        height (int): the panel's height, at most 64.
+        rotation (int): 0, 90, 180 or 270 degrees, applied in software.
+        colstart (int): the RAM column the panel's first pixel is wired to;
+            None centres the panel in the 132 columns (2 for a 128-wide panel).
+        brightness (float): contrast from 0 to 1; None keeps the init value.
     """
 
     def __init__(

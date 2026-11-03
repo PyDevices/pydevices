@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """M5Stack Tab5 (ILI9881C + GT911) — CircuitPython"""
 
 import board

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The wt32sc01-plus board package: what mip.install("wt32sc01-plus") brings.
 metadata(
     description="WT32-SC01 Plus 320x480 ST7796 display",

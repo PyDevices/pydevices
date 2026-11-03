@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The MicroPython REPL over Bluetooth, behind a password.
 
 On the board, opt in from ``main.py`` (nothing starts it for you)::
@@ -185,12 +189,12 @@ def start(
     confirm=None,
     bond_store=None,
 ):
-    """Serve the REPL over BLE until :func:`stop` or a reset. MicroPython only.
+    """Serve the REPL over BLE until `stop` or a reset. MicroPython only.
 
     ``password`` defaults to ``webrepl_cfg.PASS`` when that file exists;
     it must be at least 4 characters. Returns at once.
 
-    ``files=True`` also serves :mod:`bledev.filetransfer` (CircuitPython's
+    ``files=True`` also serves `bledev.filetransfer` (CircuitPython's
     file-transfer service) behind the same password, with ``window`` bytes
     of free space per round trip; ``console=False`` leaves the REPL out.
 
@@ -950,7 +954,7 @@ async def _expect(link, markers, buffer, timeout_ms):
 
 
 def refused(pair, passkey):
-    """The :class:`bledev.PairingError` for a board that refused a link."""
+    """The `bledev.PairingError` for a board that refused a link."""
     if not pair:
         return PairingError("the board wants pairing: connect with pair=True")
     if passkey is None:
@@ -959,15 +963,15 @@ def refused(pair, passkey):
 
 
 async def connect(ble, password=None, name="mpy-repl", *, device=None, timeout_ms=10000, pair=False, passkey=None, **connect_options):
-    """Log in to a board's BLE REPL and return the :class:`bledev.nus.Link`, at ``>>>``.
+    """Log in to a board's BLE REPL and return the `bledev.nus.Link`, at ``>>>``.
 
     ``pair=True`` pairs first (bonding, so the next connect skips it), for a
     board started with ``pairing=``; ``passkey`` is what its display shows,
     or a callable that asks for it. A board that pairing unlocks alone needs
     no ``password``.
 
-    Raises :class:`AuthError` if the board refuses the password, and
-    :class:`bledev.PairingError` if pairing fails or the board refuses the
+    Raises `AuthError` if the board refuses the password, and
+    `bledev.PairingError` if pairing fails or the board refuses the
     keys this host kept.
     """
     try:

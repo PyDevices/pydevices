@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # t-embed, through board_peripherals -- the contract, not raw machine.I2S.
 #
 # Non-graphics idiom: import board_peripherals directly. board_config is never

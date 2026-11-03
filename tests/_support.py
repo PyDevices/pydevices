@@ -92,7 +92,7 @@ def quiet():
 
 
 def make_fbdisplay(width=8, height=4, reverse_bytes_in_word=False):
-    """Build an ``FBDisplay`` backed by a :class:`FakeFrameBuffer`.
+    """Build an ``FBDisplay`` backed by a `FakeFrameBuffer`.
 
     Returns ``(display, framebuffer)``.
     """

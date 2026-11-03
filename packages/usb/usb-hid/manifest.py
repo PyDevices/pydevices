@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 metadata(
     description="CircuitPython's usb_hid on MicroPython, over usb-device-hid, for adafruit_hid.",
     version="0.1.0",

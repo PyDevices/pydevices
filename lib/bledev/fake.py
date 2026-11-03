@@ -1,6 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """In-process loopback backend: two adapters, one pretend radio, no hardware.
 
-Every :class:`FakeBLE` built on the same :class:`Air` can see and connect to
+Every `FakeBLE` built on the same `Air` can see and connect to
 the others, so a test runs a peripheral and a central in one event loop::
 
     from bledev.fake import Air, FakeBLE
@@ -13,13 +17,13 @@ It runs on CPython and MicroPython, and it is stricter than a real radio on
 purpose. Where real hardware would quietly truncate or drop data, the fake
 raises, so a bug shows up in a test rather than as corruption on a board:
 
-* A notification or write longer than ``mtu - 3`` raises :class:`BLEError`
+* A notification or write longer than ``mtu - 3`` raises `BLEError`
   (NimBLE truncates it).
 * A write longer than the characteristic's ``max_len`` raises (MicroPython
   truncates to the buffer, 20 bytes by default).
 * Notifications reach a client only after it calls ``subscribe()``.
 * Only ``notify_buffers`` notifications can be in flight per connection;
-  one more raises :class:`BusyError` until the event loop runs, the way a real
+  one more raises `BusyError` until the event loop runs, the way a real
   controller runs out of buffers. Send loops must await between bursts.
 * A receive queue that fills up (``queue_limit``) makes the next
   ``notified()`` or ``written()`` raise instead of dropping data silently.
@@ -89,7 +93,7 @@ _default_air = Air()
 
 
 def default_air():
-    """The :class:`Air` used when an adapter isn't given one."""
+    """The `Air` used when an adapter isn't given one."""
     return _default_air
 
 
@@ -641,7 +645,7 @@ class _FakeClientDescriptor(ClientDescriptor):
 
 
 class _ServerCharacteristic:
-    """The fake's half of a :class:`bledev.Characteristic`."""
+    """The fake's half of a `bledev.Characteristic`."""
 
     def __init__(self, ble, characteristic):
         self._ble = ble

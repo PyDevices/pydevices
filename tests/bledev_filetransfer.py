@@ -4,8 +4,8 @@
 """The file-transfer protocol, board side against client side, without a radio.
 
 A plain script so it runs on CPython and on MicroPython, like
-``bledev_contract.py``: the board's :class:`bledev.filetransfer.FileServer`
-serves a scratch directory, and the :class:`bledev.filetransfer.Client` talks
+``bledev_contract.py``: the board's `bledev.filetransfer.FileServer`
+serves a scratch directory, and the `bledev.filetransfer.Client` talks
 to it through a loopback that splits every write and every notification at
 the link's MTU, as a radio does. ``--plant=flip`` flips one bit in one
 notification and ``--plant=drop`` loses one; each must make the run fail.

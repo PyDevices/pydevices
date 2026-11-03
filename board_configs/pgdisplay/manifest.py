@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The pgdisplay board package: what mip.install("pgdisplay") brings.
 metadata(
     description="Board configuration for PyGame",

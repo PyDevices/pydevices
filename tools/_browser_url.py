@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Private URL policy shared by PyDevices browser launchers and generators."""
 
 from __future__ import annotations

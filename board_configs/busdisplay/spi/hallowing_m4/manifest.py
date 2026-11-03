@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The hallowing_m4 board package: what mip.install("hallowing_m4") brings.
 metadata(
     description="Adafruit HalloWing M4 ST7735 — MicroPython (SAMD51)",

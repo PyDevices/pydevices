@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """AudioWorklet output for Python running in a Pyodide Web Worker.
 
 Web Audio lives on the page, but your Python can run in a Web Worker so audio
@@ -16,7 +20,7 @@ Pull, for an engine that renders on demand::
     out = worklet_audio.WorkletOutput(port, channels=2, sample_rate=48000)
     out.source = render          # render(blocks) -> int16 bytes
 
-Push, for code written against :class:`audiodev.PCMOutput` (an
+Push, for code written against `audiodev.PCMOutput` (an
 ``AudioOut`` pump, a TTS writer)::
 
     pcm = worklet_audio.pcm_out(AudioFormat(48000, 2, 16), port=port)
@@ -33,10 +37,10 @@ The wire protocol, all messages plain objects over the ``MessagePort``:
   echoes the request. Its buffer goes in the transfer list, so nothing is
   copied on the way.
 - worklet to worker: ``{offset: n}`` says rendered frame ``k`` is heard at
-  ``AudioContext`` frame ``k + n``. :attr:`WorkletOutput.offset` holds the
+  ``AudioContext`` frame ``k + n``. `WorkletOutput.offset` holds the
   latest value, so you can schedule an event at an exact sample.
 - worklet to worker: ``{underrun: n}`` reports ``n`` underruns since its
-  last report; :attr:`WorkletOutput.underruns` adds them up.
+  last report; `WorkletOutput.underruns` adds them up.
 
 The format's rate must match the page's ``AudioContext`` rate: the worklet
 plays samples as they come and does not resample.
@@ -104,12 +108,12 @@ class WorkletOutput:
     """The worker's end of an AudioWorklet port.
 
     ``port`` is the ``MessagePort`` the page transferred to this worker.
-    ``channels`` is 1 or 2. Set :attr:`source` to a callable taking a block
+    ``channels`` is 1 or 2. Set `source` to a callable taking a block
     count and returning ``blocks * 256 * channels`` int16 samples as any
     bytes-like object; until you do, the worklet gets silence.
 
     By default this sets ``port.onmessage``. If your worker shares the port
-    with other messages, pass ``listen=False`` and call :meth:`handle` with
+    with other messages, pass ``listen=False`` and call `handle` with
     each message's ``data`` yourself.
     """
 
@@ -230,15 +234,15 @@ class WorkletOutput:
 
 
 class WorkletPCMOutput(PCMOutput):
-    """:class:`audiodev.PCMOutput` over an AudioWorklet port.
+    """`audiodev.PCMOutput` over an AudioWorklet port.
 
     ``write()`` fills a queue and each request from the worklet drains it,
     padding with silence when the queue runs short (counted in
-    :attr:`starved`). The worker can't block while it waits for the worklet,
+    `starved`). The worker can't block while it waits for the worklet,
     since the worklet's requests arrive on the same thread, so:
 
     - ``write()`` never waits. When the queue is full it drops the oldest
-      audio to make room and counts the bytes in :attr:`dropped`.
+      audio to make room and counts the bytes in `dropped`.
     - ``try_write()`` takes only what fits and leaves you the rest.
     - ``awrite()`` and ``adrain()`` wait properly, yielding to the event loop
       so requests keep being answered.
@@ -359,7 +363,7 @@ async def _asleep_ms(milliseconds):
 
 
 def pcm_out(format=None, *, port, latency=None, queue_ms=None, poll_ms=4, listen=True):
-    """Create a :class:`WorkletPCMOutput` on ``port`` (a Pyodide worker's MessagePort).
+    """Create a `WorkletPCMOutput` on ``port`` (a Pyodide worker's MessagePort).
 
     ``latency`` sizes the queue: the default holds 500 ms, ``"low"`` holds
     100 ms. ``queue_ms`` sets it directly. Either way it is at least eight

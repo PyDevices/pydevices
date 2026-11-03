@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """SSD1331 0.96" OLED — MicroPython (Feather breakout pinout)"""
 
 from spibus import SPIBus

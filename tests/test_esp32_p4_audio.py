@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Host simulation of the ESP32-P4 board audio wiring."""
 
 import importlib.util

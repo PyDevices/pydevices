@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 metadata(
     description="Mount a USB flash drive plugged into this board's host port, over usb.core.",
     version="0.1.1",

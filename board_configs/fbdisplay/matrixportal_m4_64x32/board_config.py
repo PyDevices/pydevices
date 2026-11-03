@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MatrixPortal M4 64x32 HUB75 — MicroPython"""
 
 from machine import Pin

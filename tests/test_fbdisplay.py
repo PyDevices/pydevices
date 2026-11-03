@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Tests for ``displaydev.fbdisplay.FBDisplay``.
 
-A :class:`_support.FakeFrameBuffer` stands in for a real CircuitPython
+A `_support.FakeFrameBuffer` stands in for a real CircuitPython
 framebuffer so the pixel-pushing paths can be checked byte-for-byte.
 """
 

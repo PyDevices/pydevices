@@ -51,7 +51,7 @@ class Drawer(Widget):
 
     @property
     def content(self):
-        """The :class:`Card` panel; add child widgets here."""
+        """The `Card` panel; add child widgets here."""
         return self.panel
 
     def _scrim_tap(self, data=None, event=None):

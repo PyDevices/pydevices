@@ -7,7 +7,7 @@ from ..widget import Widget
 
 class _Layout(Widget):
     """
-    Base for :class:`Row` / :class:`Column`: stacks children with fixed spacing.
+    Base for `Row` / `Column`: stacks children with fixed spacing.
 
     Not a full flexbox engine — children are laid out in insertion order along
     one axis (with a constant gap between them); the cross axis is left to each

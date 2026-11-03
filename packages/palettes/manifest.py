@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Freeze the palettes package from its canonical source tree.
 
 A firmware build that wants palettes frozen includes this file from its own

@@ -274,7 +274,7 @@ class MTP:
             raise
 
     def info(self, handle):
-        """An :class:`ObjectInfo`: name, format, size, parent, dates, image size."""
+        """An `ObjectInfo`: name, format, size, parent, dates, image size."""
         return ObjectInfo(handle, self._transaction(_GET_OBJECT_INFO, (handle,)))
 
     def walk(self, parent=None, storage=_ALL):

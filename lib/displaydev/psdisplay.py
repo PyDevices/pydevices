@@ -30,7 +30,7 @@ class PSDevices(WebInput):
 
     Captures all available browser input on a single HTML element and turns it
     into ``events`` objects (matching the desktop SDL2 / PyGame event
-    stream), drained through :meth:`read`:
+    stream), drained through `read`:
 
     - **Pointer** (mouse via Pointer Events): ``MOUSEMOTION`` /
       ``MOUSEBUTTONDOWN`` / ``MOUSEBUTTONUP``.
@@ -41,17 +41,17 @@ class PSDevices(WebInput):
     - **Wheel**: ``MOUSEWHEEL`` (also consumed by encoder devices).
     - **Keyboard**: ``KEYDOWN`` / ``KEYUP`` with SDL-style key codes, names and
       modifier masks (left/right modifier variants via key location).
-    - **Gamepad** (Gamepad API, polled on each :meth:`read`): ``JOYAXISMOTION``,
+    - **Gamepad** (Gamepad API, polled on each `read`): ``JOYAXISMOTION``,
       ``JOYBUTTONDOWN`` / ``JOYBUTTONUP``.
 
-    Quit chord handling is configured on :class:`PSDisplay` via ``quit_chord``
+    Quit chord handling is configured on `PSDisplay` via ``quit_chord``
     (default ``(keys.K_AC_BACK, 0)`` for browser/TV Back).
-    :class:`~appdev.HostEvents` applies the chord when constructed with
+    `HostEvents <appdev.HostEvents>` applies the chord when constructed with
     ``display=``.
 
     Note:
         The element must be focused to receive key events.  The constructor sets
-        ``tabindex`` and calls :meth:`_focus_canvas` so keyboard input goes to the
+        ``tabindex`` and calls `_focus_canvas` so keyboard input goes to the
         game; pointer down on the canvas refocuses it.
 
     Args:
@@ -142,9 +142,9 @@ class PSDisplay(CanvasDisplay):
 
         ``HostEventsDevice`` divides mouse coordinates by this, the same
         contract as ``SDLDisplay``'s window scale. It is the inverse of
-        :meth:`_pointer_scale`, and it is read at each event because the page
+        `_pointer_scale`, and it is read at each event because the page
         can resize the canvas (a ``max-width`` rule, a window resize) after
-        :meth:`init` has run.
+        `init` has run.
         """
         sx, _sy = self._pointer_scale()
         return 1.0 / sx if sx else 1.0

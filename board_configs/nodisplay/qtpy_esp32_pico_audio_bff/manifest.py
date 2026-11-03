@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The qtpy_esp32_pico_audio_bff board package: what mip.install("qtpy_esp32_pico_audio_bff") brings.
 metadata(
     description="board_peripherals for a QT Py ESP32 Pico carrying an Adafruit Audio BFF",

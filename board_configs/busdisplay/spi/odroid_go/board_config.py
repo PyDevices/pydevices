@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """ODROID GO with ILI9341 2.4" display"""
 
 from gpiojoystick import GPIOJoystick

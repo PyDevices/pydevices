@@ -1,15 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Audio codecs, and choosing one to fit a link.
 
 A codec turns a frame of signed 16-bit little-endian PCM into a payload and
 back. Each payload stands alone, so a lost datagram costs its own frame and
 nothing after it.
 
-* :data:`PCM16`, id 0: the samples as they are. 16 kHz mono is 256 kbit/s,
+* `PCM16`, id 0: the samples as they are. 16 kHz mono is 256 kbit/s,
   which Wi-Fi carries easily.
-* :data:`ADPCM`, id 1: IMA ADPCM, four bits a sample, a quarter of the size.
+* `ADPCM`, id 1: IMA ADPCM, four bits a sample, a quarter of the size.
   16 kHz mono is 64 kbit/s, which fits links like BLE. Mono only.
 
-:func:`choose` picks the plainer one whenever the link has room for it.
+`choose` picks the plainer one whenever the link has room for it.
 """
 
 import struct

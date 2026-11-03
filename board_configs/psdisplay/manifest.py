@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The psdisplay board package: what mip.install("psdisplay") brings.
 metadata(
     description="Board configuration for PyScript",

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI through Linux's ALSA raw MIDI devices, from CPython or MicroPython.
 
 A USB keyboard, a board plugged in as a MIDI device, or a virtual port

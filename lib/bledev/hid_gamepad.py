@@ -1,4 +1,8 @@
-"""A gamepad for a :class:`bledev.hid.Peripheral`, in the shape of Adafruit's
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
+"""A gamepad for a `bledev.hid.Peripheral`, in the shape of Adafruit's
 ``hid_gamepad.py`` example (``adafruit_hid`` dropped its own gamepad in 5.0)::
 
     import bledev.hid as hid
@@ -86,8 +90,8 @@ class Gamepad:
 
     def set(self, buttons=None, hat=_KEEP, x=None, y=None, z=None, r_z=None):
         """Change any part of the state in one report: ``buttons`` as a bit
-        mask (bit 0 is button 1), ``hat`` as for :meth:`set_hat`, the axes as
-        for :meth:`move_joysticks`. Anything left out stays as it is."""
+        mask (bit 0 is button 1), ``hat`` as for `set_hat`, the axes as
+        for `move_joysticks`. Anything left out stays as it is."""
         if buttons is not None:
             self._buttons = buttons & 0xFFFF
         if hat is not _KEEP:

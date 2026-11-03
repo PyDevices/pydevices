@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The ssd1351_128_oled board package: what mip.install("ssd1351_128_oled") brings.
 metadata(
     description="SSD1351 1.5\" color OLED — MicroPython (Feather breakout pinout)",

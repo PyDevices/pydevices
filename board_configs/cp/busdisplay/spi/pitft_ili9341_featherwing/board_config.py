@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit 2.4" TFT FeatherWing ILI9341 + STMPE610 — CircuitPython
 
 TFT CS is D9, DC D10, touch CS D6 (the same pins as the 3.5" wing). The

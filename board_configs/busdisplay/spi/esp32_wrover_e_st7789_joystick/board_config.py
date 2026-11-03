@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """ESP32 WROVER E with ST7789 display, and joystick instead of touchscreen"""
 
 from gpiojoystick import GPIOJoystick

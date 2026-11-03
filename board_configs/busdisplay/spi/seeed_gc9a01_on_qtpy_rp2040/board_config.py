@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Seeed Studio Round Display for XIAO GC9A01 240x240 display on Adafruit QT Py RP2040
 
 Touch reaches x from about 30 to 225 only: the display's CHSC6X can't see

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """NeoPixel 8x4 grid — CircuitPython NeoPixel grid"""
 
 from adafruit_pixel_framebuf import PixelFramebuffer

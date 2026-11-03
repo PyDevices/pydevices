@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The funhouse board package: what mip.install("funhouse") brings.
 metadata(
     description="Adafruit FunHouse ST7789 + three buttons — MicroPython (ESP32-S2)",

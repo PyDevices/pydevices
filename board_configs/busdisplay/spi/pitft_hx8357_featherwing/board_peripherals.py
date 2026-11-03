@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for 3.5" TFT FeatherWing. PERIPHERALS = lazy roles only."""
 import boarddev
 import sys

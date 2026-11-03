@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """pygame-ce backend tests (primarily CPython on Windows)."""
 
 import asyncio

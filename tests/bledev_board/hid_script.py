@@ -5,15 +5,15 @@
 
 Shared by the fake-radio check (``tests/bledev_hid_checks.py``) and the
 board-to-board gate (``hid_peripheral.py`` / ``hid_central.py``). The
-peripheral :func:`perform`\\ s ``STEPS`` through Adafruit's ``adafruit_hid``
+peripheral `perform`\\ s ``STEPS`` through Adafruit's ``adafruit_hid``
 (``Keyboard``, ``KeyboardLayoutUS``, ``Mouse``, ``ConsumerControl``) and
-:mod:`bledev.hid_gamepad`, over the peripheral's ``devices``; the central
-collects its events and compares them with :func:`expected`.
+`bledev.hid_gamepad`, over the peripheral's ``devices``; the central
+collects its events and compares them with `expected`.
 
-:func:`expected` is written from the rules in ``docs/guides/bluetooth-le.md``, not from
+`expected` is written from the rules in ``docs/guides/bluetooth-le.md``, not from
 ``bledev.hidreport``: it builds each event by hand (the usbif chord order,
 axis ``2 * (v + 127) / 254 - 1``, hat positions clockwise from north), so a
-decoder bug can't produce its own answer. :func:`typed_text` reads the key
+decoder bug can't produce its own answer. `typed_text` reads the key
 events back into text, which is what a person at the other end would see.
 """
 
@@ -181,7 +181,7 @@ _MOD_KEYCODES = ((0x01, 0xE0), (0x02, 0xE1), (0x04, 0xE2), (0x08, 0xE3),
 
 
 async def perform(peripheral, steps=STEPS, gap_ms=0, sleep_ms=None):
-    """Send ``steps`` from a :class:`bledev.hid.Peripheral`'s ``devices``,
+    """Send ``steps`` from a `bledev.hid.Peripheral`'s ``devices``,
     through ``adafruit_hid`` as a CircuitPython script would over USB."""
     from adafruit_hid.consumer_control import ConsumerControl
     from adafruit_hid.keyboard import Keyboard

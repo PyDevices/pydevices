@@ -37,7 +37,7 @@ class NumberStepper(Widget):
         Initialize a NumberStepper: a ``-`` button, a value display and a ``+``
         button for adjusting a bounded number.
 
-        This generalizes the ad-hoc ``+``/``-`` :class:`IconButton` pattern into
+        This generalizes the ad-hoc ``+``/``-`` `IconButton` pattern into
         a reusable widget. Pressing a button changes ``value`` by ``step``,
         clamped to ``[minimum, maximum]`` when those are given, and fires the
         change callback.

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """AndroidSDLDisplay waits for the Activity to finish turning before CreateWindow.
 
 A renderer created mid-turn can draw a frame that never reaches the screen,

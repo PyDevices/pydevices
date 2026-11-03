@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """M5Stack CoreS3 with ILI9342 320x240 display"""
 
 from ft6x36 import FT6x36

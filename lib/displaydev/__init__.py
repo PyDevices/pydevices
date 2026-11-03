@@ -9,7 +9,7 @@ Each backend is a separate submodule; import only what your target needs::
     from displaydev import DisplayDriver, color565, capabilities
     from displaydev.busdisplay import BusDisplay
 
-Optional host selection lives in :mod:`displaydev.auto` and is never imported
+Optional host selection lives in `displaydev.auto` and is never imported
 from here. Backends never import that module.
 """
 
@@ -583,12 +583,12 @@ class DisplayDriver:
     ``needs_refresh``).
 
     ``share_framebuffer``: when True, a GUI may bind the panel scanout
-    buffer(s) from :meth:`framebuffers` for direct rendering (e.g. LVGL
+    buffer(s) from `framebuffers` for direct rendering (e.g. LVGL
     ``DISPLAY_RENDER_MODE.DIRECT``). Default False — desktop/bus drivers keep
     their own draw buffers.
 
-    Frame rate: :meth:`measure_fps` (or ``PYDEVICES_FPS=1``) counts frames and
-    times presents; :meth:`fps` reads them. Off by default, and nothing is
+    Frame rate: `measure_fps` (or ``PYDEVICES_FPS=1``) counts frames and
+    times presents; `fps` reads them. Off by default, and nothing is
     wrapped or timed while it is off.
     """
 
@@ -607,11 +607,11 @@ class DisplayDriver:
 
     @property
     def frame_clock(self):
-        """This display's :class:`FrameClock`: "call me once per frame".
+        """This display's `FrameClock`: "call me once per frame".
 
         Created on first use. Backends with a real frame signal override
         ``_make_frame_clock``; the default is a ``multimer`` timer at
-        :attr:`refresh_period_ms`.
+        `refresh_period_ms`.
         """
         fc = getattr(self, "_frame_clock", None)
         if fc is None:
@@ -631,7 +631,7 @@ class DisplayDriver:
         return None
 
     def __init__(self, *, quiet=False):
-        """Initialize shared display state and call subclass :meth:`init`.
+        """Initialize shared display state and call subclass `init`.
 
         Args:
             quiet: When True, suppress init / rotation chatter.
@@ -684,7 +684,7 @@ class DisplayDriver:
         has had its say, so it wins over a backend's default (33 ms, or the
         browser's 16). ``appdev.App``'s refresh timer, the frame clock and
         ``display_driver``'s LVGL refresh timer all read
-        :attr:`refresh_period_ms`, so LVGL and non-LVGL apps both follow it.
+        `refresh_period_ms`, so LVGL and non-LVGL apps both follow it.
         Unset, empty, zero or not a number leaves the backend's period alone.
         """
         from boarddev import env_int
@@ -941,7 +941,7 @@ class DisplayDriver:
         """Scroll vertically by ``value`` pixels relative to the current offset.
 
         Args:
-            value: Signed pixel delta applied to :attr:`vscroll`.
+            value: Signed pixel delta applied to `vscroll`.
         """
         self.vscroll += value
 
@@ -949,7 +949,7 @@ class DisplayDriver:
         """Set the absolute vertical scroll offset.
 
         Args:
-            value: New :attr:`vscroll` position.
+            value: New `vscroll` position.
         """
         self.vscroll = value
 
@@ -990,7 +990,7 @@ class DisplayDriver:
 
         Switched on, the instance's ``show``, ``flush_rect`` and ``blit_rect``
         are wrapped with timers; switched off they are the class's own
-        methods again. A frame is one ``show()``, or one :meth:`frame_done`
+        methods again. A frame is one ``show()``, or one `frame_done`
         from a GUI that presents with ``flush_rect`` (LVGL on a
         direct-framebuffer panel). ``flush_rect`` and ``blit_rect`` calls
         (a partial-render panel presents through ``blit_rect``) are counted
@@ -1078,7 +1078,7 @@ class DisplayDriver:
 
         ``display_driver`` calls this on a direct-framebuffer panel when the
         last area was presented by ``flush_rect`` and no ``show()`` followed.
-        Does nothing unless :meth:`measure_fps` is on.
+        Does nothing unless `measure_fps` is on.
         """
         meter = self._fps
         if meter is not None:
@@ -1088,7 +1088,7 @@ class DisplayDriver:
         """The frame rate and present times, or ``None`` when not measuring.
 
         Returns a dict: ``fps`` (the last whole second), ``avg_fps`` (since
-        :meth:`measure_fps` or :meth:`fps_reset`), ``frames``, ``seconds``,
+        `measure_fps` or `fps_reset`), ``frames``, ``seconds``,
         ``present_ms`` / ``present_ms_max`` (mean and worst time presenting a
         frame, its ``flush_rect`` calls included), ``busy`` (the share of
         wall time spent presenting: high means the display is the
@@ -1105,7 +1105,7 @@ class DisplayDriver:
     def fps_print(self, seconds=5):
         """Print a one-line summary every ``seconds``; ``0`` stops it.
 
-        Switches :meth:`measure_fps` on. The line is short, for agents
+        Switches `measure_fps` on. The line is short, for agents
         tailing a log::
 
             fps 29.8 avg 29.5 frames 1180 present 4.2 ms (max 12.0) busy 13%

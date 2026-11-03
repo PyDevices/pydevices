@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 import time as _time
 
 from micropython import const
@@ -64,9 +68,10 @@ class FT6x36:
     """
     FocalTech Self-Capacitive Touch Panel Controller module
 
-    :param I2C i2c: The board I2C object
-    :param int address: The I2C address
-    :param Pin rst: The reset Pin object
+    Args:
+        i2c (I2C): The board I2C object
+        address (int): The I2C address
+        rst (Pin): The reset Pin object
     """
 
     def __init__(self, i2c, address: int = _FT6x36_ADDR, rst=None) -> None:

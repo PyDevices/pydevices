@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Seeed Studio Round Display for XIAO on a XIAO nRF52840.
 
 For stock MicroPython's ``SEEED_XIAO_NRF52`` build, run on the standard

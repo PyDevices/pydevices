@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The metro_m7_tft_touch_shield_1947 board package: what mip.install("metro_m7_tft_touch_shield_1947") brings.
 metadata(
     description="Metro M7 + Adafruit 2.8\" TFT Touch Shield (cap) product 1947",

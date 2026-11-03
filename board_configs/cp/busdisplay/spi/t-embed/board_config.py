@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """LilyGo T-Embed ST7789 170x320 — CircuitPython"""
 
 import board

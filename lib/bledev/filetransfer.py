@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Files over Bluetooth: CircuitPython's BLE file-transfer protocol, both sides.
 
 CircuitPython boards serve this protocol from their supervisor
@@ -17,7 +21,7 @@ On the board, opt in from ``main.py`` (nothing starts it for you)::
     import bledev.filetransfer
     bledev.filetransfer.start(password="correct horse", name="rack")
 
-It's served beside the REPL of :mod:`bledev.repl` by default (``console=False``
+It's served beside the REPL of `bledev.repl` by default (``console=False``
 serves files alone), from interrupts, so it keeps working at the ``>>>``
 prompt and while your program runs. From a laptop or another board::
 
@@ -30,12 +34,12 @@ prompt and while your program runs. From a laptop or another board::
 pairing. bledev uses the REPL's password by default, the same way WebREPL
 does: the service carries one more characteristic (``AUTH``), the client
 writes the password to it, and until it's right every command is answered
-with :data:`STATUS_LOCKED`. One attempt per connection; a wrong password is
+with `STATUS_LOCKED`. One attempt per connection; a wrong password is
 hung up on. Logging in to the REPL over the same connection unlocks files
 too. Without pairing the link isn't encrypted, so a sniffer nearby can capture
 the password.
 
-``start(pairing=...)`` adds pairing, as for :mod:`bledev.repl`: the transfer
+``start(pairing=...)`` adds pairing, as for `bledev.repl`: the transfer
 and ``AUTH`` characteristics then refuse a host that hasn't paired, and with
 a passkey the password can go (``password=False``). ``AUTH`` then reads 1
 once the link is paired. A client connecting to a CircuitPython board finds
@@ -247,7 +251,7 @@ class FileServer:
     def packet(self, size):
         """The next notification's payload (``None`` when nothing is waiting).
 
-        The same bytes come back until :meth:`sent` is called, so a send that
+        The same bytes come back until `sent` is called, so a send that
         failed for want of buffers is simply retried.
         """
         if self._pending is not None:
@@ -611,9 +615,9 @@ def _truncate(path, size):
 def start(password=None, name="mpy-files", *, console=True, window=WINDOW, **options):
     """Serve files (and, unless ``console=False``, the REPL) over BLE. MicroPython only.
 
-    The radio, the password and the advertising are :mod:`bledev.repl`'s;
+    The radio, the password and the advertising are `bledev.repl`'s;
     this is ``bledev.repl.start(..., files=True)``. Returns at once;
-    :func:`stop` or ``bledev.repl.stop()`` ends it.
+    `stop` or ``bledev.repl.stop()`` ends it.
     """
     from . import repl
 
@@ -630,11 +634,11 @@ def stop():
 
 
 class Client:
-    """A connection to a board's file service. Made by :func:`connect`.
+    """A connection to a board's file service. Made by `connect`.
 
     Paths are absolute (``/lib/x.py``). Every method raises
-    :class:`FileTransferError` when the board answers with an error, and
-    :class:`DisconnectedError` if the link drops.
+    `FileTransferError` when the board answers with an error, and
+    `DisconnectedError` if the link drops.
     """
 
     def __init__(self, connection, transfer, version, *, chunk=WINDOW):
@@ -799,7 +803,7 @@ def _now_ns():
 
 async def connect(ble, password=None, name=None, *, device=None, timeout_ms=10000, mtu=247, pair=None, passkey=None, **connect_options):
     """Find a board serving files (by ``name``, or the first advertising the
-    service), connect, log in, and return a :class:`Client`.
+    service), connect, log in, and return a `Client`.
 
     ``password`` is needed for a bledev board locked by one, and ignored by
     a CircuitPython board, which uses pairing instead.

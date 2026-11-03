@@ -34,8 +34,8 @@ class Switch(Widget):
 
         A rounded "pill" track with a circular knob that sits left (off) or
         right (on); tapping anywhere on it flips the state. This is a visual
-        alternative to the icon-swapping :class:`ToggleButton`, built from the
-        same cheap ``round_rect`` + ``circle`` primitives as :class:`Slider`.
+        alternative to the icon-swapping `ToggleButton`, built from the
+        same cheap ``round_rect`` + ``circle`` primitives as `Slider`.
 
         Args:
             parent (Widget): The parent widget or screen that contains this switch.

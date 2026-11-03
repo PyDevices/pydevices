@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The esp32-p4-wifi6-touch-lcd-4b board package: what mip.install("esp32-p4-wifi6-touch-lcd-4b") brings.
 metadata(
     description="Waveshare ESP32-P4-WIFI6-Touch-LCD-4B - MicroPython",

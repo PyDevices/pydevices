@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Register-level host tests for the remaining audio codecs."""
 
 from pathlib import Path

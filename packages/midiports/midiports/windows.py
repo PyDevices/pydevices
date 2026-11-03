@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI through Windows' own MIDI ports (winmm), from CPython or MicroPython.
 
 Any port another program can see is a port here: a USB keyboard, a board
@@ -251,7 +255,7 @@ def _make_sink_window():
 
     HWND_MESSAGE means it's never shown or painted and never in the taskbar.
     Its window procedure takes the MIDI a dispatch brings it, see
-    :func:`_wndproc`, and defers everything else.
+    `_wndproc`, and defers everything else.
     """
     global _wndproc_ref, _class_registered
     if not _class_registered:

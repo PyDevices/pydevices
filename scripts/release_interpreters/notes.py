@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The line in a final release's notes that says what the interpreters are built on.
 
 A final attaches desktop interpreters even when they are built on a MicroPython

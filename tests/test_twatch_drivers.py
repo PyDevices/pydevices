@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Host-side register tests for the T-Watch S3 chip drivers.
 
 AXP2101 (power), PCF8563 (clock), DRV2605 (haptics) and BMA423

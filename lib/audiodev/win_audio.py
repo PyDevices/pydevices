@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """WASAPI queued PCM backend for Windows CPython (via ``uwin32``).
 
 Playback and capture use shared-mode ``IAudioClient`` with
@@ -286,7 +290,7 @@ class WinPCMOutput(PCMOutput):
 
         For a caller that runs its own short queue -- a synth or mixer that
         renders a block at a time and decides itself how far ahead of the
-        device to stay. It skips :meth:`write`'s media queue and coalescing,
+        device to stay. It skips `write`'s media queue and coalescing,
         which batch PCM into 100 ms pieces and hold playback back until about
         100 ms is queued: right for a decoder, far too much for a key-to-sound
         path.
@@ -294,14 +298,14 @@ class WinPCMOutput(PCMOutput):
         Whole frames only, as many as the device has room for; it never waits
         and never keeps the rest, so a short count means the device is full
         and the caller still holds the remainder. Volume and mute apply, as
-        they do to :meth:`write`. With *start* (the default) playback begins
+        they do to `write`. With *start* (the default) playback begins
         as soon as anything has been written; pass ``start=False`` to prime
-        the buffer first and call :meth:`start` when it holds enough.
+        the buffer first and call `start` when it holds enough.
 
-        Use either this or :meth:`write` on one output, not both: they reach
+        Use either this or `write` on one output, not both: they reach
         the device by different paths, and nothing orders one against the
-        other. Pair it with :meth:`device_frames` to see how much the device
-        still has to play, and :attr:`buffer_frames` for its capacity.
+        other. Pair it with `device_frames` to see how much the device
+        still has to play, and `buffer_frames` for its capacity.
         """
         self.open()
         source = self._prepare(buf)
@@ -311,7 +315,7 @@ class WinPCMOutput(PCMOutput):
         return written
 
     def start(self):
-        """Start playing what :meth:`write_now` has written; True once playing."""
+        """Start playing what `write_now` has written; True once playing."""
         self.open()
         self._start_if_primed(force=True)
         return self._started
@@ -577,7 +581,7 @@ def pcm_out(
     prebuffer_ms=None,
     poll_ms=2,
 ):
-    """Create a WASAPI-backed :class:`PCMOutput`."""
+    """Create a WASAPI-backed `PCMOutput`."""
     check_latency(latency)
     p_samples, p_queue_ms, p_coalesce_ms, p_prebuffer_ms = _PLAY_PROFILES[latency]
     fmt = format or AudioFormat(16000, 2, 16)
@@ -601,7 +605,7 @@ def pcm_in(
     queue_ms=None,
     poll_ms=2,
 ):
-    """Create a WASAPI-backed :class:`PCMInput`."""
+    """Create a WASAPI-backed `PCMInput`."""
     check_latency(latency)
     default_samples, default_queue_ms = _CAPTURE_PROFILES[latency]
     fmt = format or AudioFormat(16000, 1, 16)

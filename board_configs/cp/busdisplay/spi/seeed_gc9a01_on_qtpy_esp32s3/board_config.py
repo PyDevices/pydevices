@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Seeed GC9A01 round display on QT Py ESP32-S3 — CircuitPython
 
 The Round Display's touch is a CHSC6X on the board I2C with its interrupt on

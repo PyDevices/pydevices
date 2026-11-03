@@ -63,7 +63,7 @@ def _strip(name, suffix):
 
 
 class RemoteService:
-    """A service that answered :meth:`Server.find`. Read-only; only ``find()``
+    """A service that answered `Server.find`. Read-only; only ``find()``
     makes one."""
 
     __slots__ = ("_hostname", "_instance_name", "_service_type", "_protocol", "_port", "_ipv4_address")
@@ -174,7 +174,7 @@ class Server:
     def find(self, *, service_type, protocol, timeout=1):
         """Every service of ``service_type`` ("_http") over ``protocol``
         ("_tcp") that answers within ``timeout`` seconds, as a tuple of
-        :class:`RemoteService`."""
+        `RemoteService`."""
         self._check()
         kind = "%s.%s.local." % (service_type, protocol)
         deadline = time.monotonic() + max(0.0, float(timeout))

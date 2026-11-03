@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for the LILYGO T-Watch S3. PERIPHERALS = lazy roles only.
 
 Most peripherals on this watch sit behind a rail of its AXP2101 power chip,

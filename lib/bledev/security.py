@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Pairing and bonding on a MicroPython board: the bond store, passkeys, link state.
 
 You rarely call this yourself. ``bledev.repl.start(pairing=...)`` and
@@ -8,13 +12,13 @@ You rarely call this yourself. ``bledev.repl.start(pairing=...)`` and
   in NVS (namespace ``bledev``), which a reformat of the filesystem, a
   ``mip`` reinstall or deleting every file leaves alone. A full chip erase
   (``esptool erase_flash``, ``mpftp firmware flash --erase``) loses them, and
-  so does :func:`forget`. Elsewhere they go in aioble's ``ble_secrets.json``.
+  so does `forget`. Elsewhere they go in aioble's ``ble_secrets.json``.
 * **Passkeys.** aioble leaves the passkey step unhandled. Here a board with a
   display shows a random six-digit passkey (``io=DISPLAY_ONLY``) for the host
   to type in; numeric comparison shows a number both sides must confirm; and
   a board as central types in the passkey its peer shows.
 * **Link state per connection**, from the stack's encryption updates:
-  :func:`state` and :func:`on_change` tell a server whether a link is
+  `state` and `on_change` tell a server whether a link is
   encrypted, authenticated (passkey or numeric comparison) and bonded.
 
 Only the board side lives here. A laptop's pairing is the OS's, through
@@ -207,8 +211,8 @@ def default_store():
 
 
 def use_store(store=None):
-    """Keep the keys in ``store`` (a :class:`NVSStore`, a :class:`FileStore`, or
-    ``"nvs"``/``"file"``; default :func:`default_store`) and turn bonding on.
+    """Keep the keys in ``store`` (a `NVSStore`, a `FileStore`, or
+    ``"nvs"``/``"file"``; default `default_store`) and turn bonding on.
 
     Safe to call again; the last store wins. Returns the store.
     """
@@ -236,7 +240,7 @@ def use_store(store=None):
 
 
 def store():
-    """The store in use, or ``None`` before :func:`use_store`."""
+    """The store in use, or ``None`` before `use_store`."""
     return _store
 
 
@@ -328,12 +332,12 @@ def expect_passkey(conn_handle, passkey):
 def configure(mode, *, show=None, hide=None, confirm=None, display=None):
     """Set this board's pairing as a peripheral. Returns the mode actually used.
 
-    ``mode`` is one of :data:`MODES`. ``show(passkey)`` is called with the
+    ``mode`` is one of `MODES`. ``show(passkey)`` is called with the
     six-digit number to display (passkey and numeric), and ``hide()`` once the
     link's security settles; without ``show``, the number goes on
     ``display`` (default: ``board_config.display_drv`` when the board has one)
     and to the console. ``confirm(number)`` answers numeric comparison with
-    True or False, or returns ``None`` and calls :func:`answer` later.
+    True or False, or returns ``None`` and calls `answer` later.
     """
     global _show, _hide, _confirm
     if mode not in MODES:
@@ -484,7 +488,7 @@ _deferred = []
 
 def _defer(fn, arg):
     """Run ``fn(arg)`` on the main thread soon. If the scheduler's queue is
-    full, :func:`poll` (which bledev.repl's server calls every tick) runs it."""
+    full, `poll` (which bledev.repl's server calls every tick) runs it."""
     import micropython
 
     try:

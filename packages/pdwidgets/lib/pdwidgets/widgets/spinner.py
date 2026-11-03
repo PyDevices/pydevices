@@ -28,7 +28,7 @@ class Spinner(Widget):
         """
         Animated circular busy indicator drawn with framebuf arcs.
 
-        Call :meth:`start` / :meth:`stop` to drive the spin via the display task
+        Call `start` / `stop` to drive the spin via the display task
         list. ``value`` holds the current rotation angle in degrees.
         """
         size = w or h or ICON_SIZE.LARGE

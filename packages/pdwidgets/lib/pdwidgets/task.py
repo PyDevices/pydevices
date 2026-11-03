@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2024 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-"""Scheduled repeating tasks for :class:`Display`."""
+"""Scheduled repeating tasks for `Display`."""
 
 try:
     from time import ticks_add, ticks_ms

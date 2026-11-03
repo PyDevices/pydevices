@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """pngio.py (pydevices-desktop): MicroPython's pngio API over Pillow.
 
 The full round-trip test is micropython-pydevices' modules/pngio/tests/

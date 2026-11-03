@@ -13,7 +13,7 @@ from ._util import _POINTER_EVENTS, _cond_always, _cond_pointer, _log
 class Widget:
     """Base class for pdwidgets UI elements and simple container layouts.
 
-    Subclass :class:`Widget` to build a custom control, or use it directly as a
+    Subclass `Widget` to build a custom control, or use it directly as a
     lightweight layout container. Each widget has a local geometry, an optional
     parent/child tree, a semantic value, and a small event model. The default
     implementation draws a solid background and leaves the interesting visuals to
@@ -21,7 +21,7 @@ class Widget:
     child propagation.
 
     In practice, most applications compose a tree of widgets with
-    :class:`Screen` and :class:`Display`, then use alignment and padding to
+    `Screen` and `Display`, then use alignment and padding to
     arrange content rather than manually calculating absolute coordinates.
     """
     next_instance_id = 0
@@ -51,7 +51,7 @@ class Widget:
             y (int): Relative y offset from the parent or alignment anchor.
             w (int): Width in pixels; defaults to the parent's width.
             h (int): Height in pixels; defaults to the parent's height.
-            align (int): Alignment constant from :data:`ALIGN`.
+            align (int): Alignment constant from `ALIGN`.
             align_to (Widget): Widget used as the alignment anchor.
             fg (int): Foreground color; falls back to the parent color.
             bg (int): Background color; falls back to the parent color.
@@ -102,7 +102,7 @@ class Widget:
         return f"ID {self.id} {self.__class__.__name__}"
 
     def __format__(self, format_spec):
-        """Format like :meth:`__str__`, applying ``format_spec`` to the class name.
+        """Format like `__str__`, applying ``format_spec`` to the class name.
 
         Args:
             format_spec: Format specifier applied to the class name portion.
@@ -125,7 +125,7 @@ class Widget:
                 the widget itself.
 
         This is the primary way to react to pointer and keyboard input without
-        overriding :meth:`handle_event` in every subclass.
+        overriding `handle_event` in every subclass.
         """
         # Each item's key is the callback and value is the optional data.  If the event_type is not found,
         # add it to the dictionary with the callback and data.
@@ -216,7 +216,7 @@ class Widget:
 
     @property
     def padded_area(self):
-        """Bounding box inset by :attr:`padding`."""
+        """Bounding box inset by `padding`."""
         return self.area.inset(*self.padding)
 
     @property
@@ -291,12 +291,12 @@ class Widget:
 
     @property
     def align(self):
-        """Alignment constant from :data:`ALIGN`."""
+        """Alignment constant from `ALIGN`."""
         return self._align
 
     @align.setter
     def align(self, align):
-        """Set alignment relative to :attr:`align_to`."""
+        """Set alignment relative to `align_to`."""
         self.set_position(align=align)
 
     @property
@@ -311,7 +311,7 @@ class Widget:
 
     @property
     def display(self):
-        """Root :class:`Display` for this widget subtree."""
+        """Root `Display` for this widget subtree."""
         return self.parent.display
 
     @property
@@ -324,7 +324,7 @@ class Widget:
         """Get widget visibility.
 
         Detached widgets (``parent is None``) are not visible. The root
-        :class:`~pdwidgets.display.Display` overrides this.
+        `Display <pdwidgets.display.Display>` overrides this.
         """
         if not self._visible:
             return False
@@ -350,7 +350,7 @@ class Widget:
 
     @value.setter
     def value(self, value):
-        """Set the value and call :meth:`changed` when it differs."""
+        """Set the value and call `changed` when it differs."""
         if value != self._value:
             self._value = value
             self.changed()
@@ -405,7 +405,7 @@ class Widget:
             parent.remove_child(self)
 
     def clear(self):
-        """Remove all child widgets via :meth:`remove_child`."""
+        """Remove all child widgets via `remove_child`."""
         for child in list(self.children):
             self.remove_child(child)
 
@@ -534,10 +534,10 @@ class Widget:
         """
         Grab or release modal pointer capture for this widget.
 
-        While a widget is modal, the :class:`Display` routes all pointer events
+        While a widget is modal, the `Display` routes all pointer events
         (mouse/touch) through this widget's branch only, so widgets elsewhere in
         the tree do not receive them. Non-pointer events (e.g. key events) are
-        unaffected. This is used by :class:`Dialog` and :class:`Dropdown` to
+        unaffected. This is used by `Dialog` and `Dropdown` to
         implement modal overlays without a separate event layer. Modality nests:
         the most recently grabbed widget wins, and releasing restores the
         previous one.

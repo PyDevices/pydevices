@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI ports for ``adafruit_midi``, over any transport.
 
 ``adafruit_midi.MIDI`` reads from one object and writes to another. On
@@ -47,7 +51,7 @@ byte, and a realtime byte (clock, start, stop) never lands inside another
 message. ``adafruit_midi`` needs both. It reads no running status and turns a
 clock byte inside a note into a ``MIDIBadEvent``, and a 5-pin cable sends
 both. A transport whose bytes can arrive that way (a UART, Linux raw MIDI)
-wraps its input in :class:`WholeMessages`; USB-MIDI, Windows and Web MIDI already
+wraps its input in `WholeMessages`; USB-MIDI, Windows and Web MIDI already
 deliver whole messages.
 
 A port that holds an OS handle (the desktop ones) also has ``close()`` and
@@ -64,13 +68,13 @@ were played rather than where your loop got round to them::
     if msg is not None:
         when = midi_in.take_timestamp()
 
-The time is a whole number of microseconds on the clock :func:`ticks_us`
+The time is a whole number of microseconds on the clock `ticks_us`
 reads, which is:
 
 - MicroPython: ``time.ticks_us()``. It wraps (after about 18 minutes on a
-  board), so subtract two times with :func:`ticks_diff`, never ``-``.
+  board), so subtract two times with `ticks_diff`, never ``-``.
 - CPython: ``time.monotonic_ns() // 1000``. It doesn't wrap, and
-  :func:`ticks_diff` is a plain subtraction.
+  `ticks_diff` is a plain subtraction.
 - CircuitPython: the same, but on a board it wraps at 2**30 as MicroPython's
   does, so a stamp fits the board's 32-bit arrays.
 - Pyodide: the page's ``performance.now()``, times 1000, the clock Web MIDI
@@ -113,7 +117,7 @@ there. Where it doesn't (a UART, Windows, Linux, a hosted USB device), it's
 taken by the read that finds the bytes, so it's only as fine as how often you
 poll.
 
-:class:`PortIn` and :class:`PortOut` are bases a transport can build on: a
+`PortIn` and `PortOut` are bases a transport can build on: a
 subclass writes ``readinto`` or ``write`` and inherits the rest.
 """
 
@@ -268,10 +272,10 @@ def _count(buf, nbytes):
 
 
 class PortIn:
-    """An input port. Subclasses implement :meth:`readinto`.
+    """An input port. Subclasses implement `readinto`.
 
-    ``size`` bounds a :meth:`read` with no ``nbytes``. The scratch buffer
-    behind :meth:`read` is made once, so an empty poll allocates nothing;
+    ``size`` bounds a `read` with no ``nbytes``. The scratch buffer
+    behind `read` is made once, so an empty poll allocates nothing;
     only bytes that actually arrived become a new ``bytes``.
     """
 
@@ -286,7 +290,7 @@ class PortIn:
     def take_timestamp(self):
         """When the next message arrived (see the contract), or ``None``.
 
-        A subclass that stamps keeps a :class:`Stamps` in ``_stamps``.
+        A subclass that stamps keeps a `Stamps` in ``_stamps``.
         """
         stamps = self._stamps
         return None if stamps is None else stamps.take()
@@ -310,7 +314,7 @@ class PortIn:
 
 
 class PortOut:
-    """An output port. Subclasses implement :meth:`write`."""
+    """An output port. Subclasses implement `write`."""
 
     def write(self, buf, nbytes=None):
         raise NotImplementedError
@@ -364,7 +368,7 @@ class WholeMessages(PortIn):
     where they arrived. A status byte that cuts a SysEx short
     ends it with an 0xF7, as the MIDI spec says it ends. A data byte with no
     status to belong to (a cable plugged in mid-message) is dropped and
-    counted in :attr:`desync`.
+    counted in `desync`.
 
     Each message is stamped with the time the read that found its first byte
     returned (see the contract's arrival times), so a stamp is as fine as how

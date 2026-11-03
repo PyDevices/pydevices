@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Every board and driver package has the shape CI checks a contribution for.
 
 A board's manifest.py is what it installs: its own files, and with require()

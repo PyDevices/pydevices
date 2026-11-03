@@ -136,7 +136,7 @@ class PixelFramebuffer:
             pixels: NeoPixel / DotStar-like object with ``__setitem__`` and ``show()``.
             width: Logical grid width.
             height: Logical grid height.
-            orientation: :data:`HORIZONTAL` or :data:`VERTICAL` strip layout.
+            orientation: `HORIZONTAL` or `VERTICAL` strip layout.
             alternating: Zigzag rows/columns when True.
             reverse_x: Mirror X before mapping.
             reverse_y: Mirror Y before mapping.
@@ -203,7 +203,7 @@ class PixelFramebuffer:
         self._buffer[index : index + 3] = _rgb888_bytes(c)
 
     def blit(self):
-        """Not implemented — use :meth:`display` to flush the strip."""
+        """Not implemented — use `display` to flush the strip."""
         raise NotImplementedError
 
     def display(self) -> None:

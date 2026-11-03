@@ -53,12 +53,12 @@ __version__ = "0.2.0"
 
 
 def every(ms, callback, *, name=None):
-    """A PERIODIC :class:`Timer` firing ``callback(timer)`` every *ms*."""
+    """A PERIODIC `Timer` firing ``callback(timer)`` every *ms*."""
     return Timer(-1, mode=Timer.PERIODIC, period=ms, callback=callback, name=name)
 
 
 def after(ms, callback, *, name=None):
-    """A ONE_SHOT :class:`Timer` firing ``callback(timer)`` once, after *ms*."""
+    """A ONE_SHOT `Timer` firing ``callback(timer)`` once, after *ms*."""
     return Timer(-1, mode=Timer.ONE_SHOT, period=ms, callback=callback, name=name)
 
 

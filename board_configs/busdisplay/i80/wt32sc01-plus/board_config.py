@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """WT32-SC01 Plus 320x480 ST7796 display"""
 
 from ft6x36 import FT6x36

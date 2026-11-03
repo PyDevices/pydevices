@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """HID report descriptors, and the reports they describe, as PyDevices events.
 
 A HID device describes its own reports: the *report descriptor* (Bluetooth
@@ -221,7 +225,7 @@ class Report:
 class ReportMap:
     """A parsed report descriptor.
 
-    ``reports`` maps ``(kind, report_id)`` to :class:`Report`; ``numbered``
+    ``reports`` maps ``(kind, report_id)`` to `Report`; ``numbered``
     says whether the device uses report IDs; ``applications`` lists the
     top-level collections' extended usages in order.
     """

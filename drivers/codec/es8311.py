@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # ES8311 mono audio codec driver
 # Initialises the ES8311 over I2C so that the ESP32 I2S peripheral can route
 # audio to/from the on-board speaker/microphone.

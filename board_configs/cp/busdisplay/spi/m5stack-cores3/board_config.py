@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """M5Stack CoreS3 with ILI9341 320x240 — CircuitPython"""
 
 from adafruit_focaltouch import Adafruit_FocalTouch

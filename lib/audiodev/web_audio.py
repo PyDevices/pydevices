@@ -1,4 +1,8 @@
-"""Browser Web Audio backend for PyScript (:mod:`audiodev` PCM devices)."""
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
+"""Browser Web Audio backend for PyScript (`audiodev` PCM devices)."""
 
 try:
     import asyncio
@@ -65,7 +69,7 @@ def _pcm16_to_f32(buf, channels):
     """Convert little-endian signed 16-bit interleaved PCM to float samples.
 
     Returns one flat interleaved list, each sample divided by 32768. This is
-    the reference the browser path in :func:`_fill_audio_buffer` must match.
+    the reference the browser path in `_fill_audio_buffer` must match.
     """
     return [sample / 32768.0 for sample in _pcm16_samples(buf)]
 
@@ -474,7 +478,7 @@ class WebPCMInput(PCMInput):
 
 
 def pcm_out(format=None, *, latency=None, poll_ms=4):
-    """Create a Web Audio-backed :class:`PCMOutput` (PyScript).
+    """Create a Web Audio-backed `PCMOutput` (PyScript).
 
     ``latency`` is accepted for portability and validated, but every profile
     behaves the same here: playback schedules each buffer onto the
@@ -487,7 +491,7 @@ def pcm_out(format=None, *, latency=None, poll_ms=4):
 
 
 def pcm_in(format=None, *, latency=None, poll_ms=4, queue_ms=500, samples=None):
-    """Create a Web Audio-backed :class:`PCMInput` via getUserMedia (PyScript).
+    """Create a Web Audio-backed `PCMInput` via getUserMedia (PyScript).
 
     ``samples`` is the ``ScriptProcessorNode`` block size, which the browser
     rounds to a power of two. The ``"low"`` profile asks for a smaller block.

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit PyPortal ILI9341 + TT21100 — CircuitPython"""
 
 from adafruit_tt21100 import TT21100

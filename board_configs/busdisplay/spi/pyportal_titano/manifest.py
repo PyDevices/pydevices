@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The pyportal_titano board package: what mip.install("pyportal_titano") brings.
 metadata(
     description="Adafruit PyPortal Titano ILI9341 + TT21100 — MicroPython (SAMD51)",

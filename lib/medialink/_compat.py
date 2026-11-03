@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """What differs between CPython, MicroPython and CircuitPython, in one place.
 
 A clock that every runtime counts the same way, a random session token, and

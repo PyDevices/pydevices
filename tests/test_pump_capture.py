@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Recording while playing: ``audiodev.pump.PumpPCMInput`` over the pump's RX.
 
 On a board whose speaker and microphone share one I2S port, ``machine.I2S``

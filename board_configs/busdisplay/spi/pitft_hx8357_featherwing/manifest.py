@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The pitft_hx8357_featherwing board package: what mip.install("pitft_hx8357_featherwing") brings.
 metadata(
     description="Adafruit 3.5\" TFT FeatherWing (HX8357D) + STMPE610 — MicroPython (Feather RP2040)",

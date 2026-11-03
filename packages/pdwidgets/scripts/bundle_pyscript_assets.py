@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """
 scripts/bundle_pyscript_assets.py — Bundle pure-Python packages for Pyodide in the docs site.
 

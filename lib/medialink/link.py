@@ -1,6 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """A link to one peer: media frames, a reliable control channel, the floor.
 
-A :class:`Link` sits on a transport and does three things over it:
+A `Link` sits on a transport and does three things over it:
 
 * **Media.** ``send_audio()`` and ``send_video()`` push frames best-effort;
   a frame too big for one datagram is cut into fragments and put back
@@ -10,7 +14,7 @@ A :class:`Link` sits on a transport and does three things over it:
   frames, since a screen wants the latest picture, not a backlog.
 * **Control.** Hello, goodbye, and the floor are acknowledged. A control
   message the peer doesn't acknowledge is sent again ``retries`` times, and
-  then :class:`PeerUnreachable` is raised. ``retries`` defaults to 0, so a
+  then `PeerUnreachable` is raised. ``retries`` defaults to 0, so a
   peer that isn't there fails the first send.
 * **Events**: ``send_event(data)`` hands the peer a few bytes, acknowledged
   like any control message, and ``events()`` hands back what arrived. A
@@ -144,7 +148,7 @@ class Link:
     def connect(self, address, retries=None):
         """Say hello to the peer at ``address`` and wait for its answer.
 
-        Raises :class:`PeerUnreachable` if it doesn't answer.
+        Raises `PeerUnreachable` if it doesn't answer.
         """
         self.peer = address
         self._control(_p.HELLO, retries=retries)
@@ -164,7 +168,7 @@ class Link:
     def request_floor(self, retries=None):
         """Ask to talk. True when granted, False when the peer has it.
 
-        Raises :class:`PeerUnreachable` when the peer doesn't answer.
+        Raises `PeerUnreachable` when the peer doesn't answer.
         """
         self.poll()
         if self.floor == TALKING:
@@ -199,7 +203,7 @@ class Link:
         """Hand the peer a few bytes (a ``str`` is sent as UTF-8), and wait
         for it to acknowledge them.
 
-        Raises :class:`PeerUnreachable` when the peer doesn't answer.
+        Raises `PeerUnreachable` when the peer doesn't answer.
         """
         if isinstance(data, str):
             data = data.encode()

@@ -68,11 +68,12 @@ class SSD1306(DisplayDriver):
     """
     SSD1306 driver.
 
-    :param bus: the display bus (see the module docstring).
-    :param int width: the panel's native width, at most 128.
-    :param int height: the panel's native height.
-    :param int rotation: 0, 90, 180 or 270 degrees, applied in software.
-    :param float brightness: contrast from 0 to 1; None keeps the init value.
+    Args:
+        bus: the display bus (see the module docstring).
+        width (int): the panel's native width, at most 128.
+        height (int): the panel's native height.
+        rotation (int): 0, 90, 180 or 270 degrees, applied in software.
+        brightness (float): contrast from 0 to 1; None keeps the init value.
     """
 
     def __init__(self, bus, *, width, height, rotation=0, brightness=None, invert=False, quiet=False):

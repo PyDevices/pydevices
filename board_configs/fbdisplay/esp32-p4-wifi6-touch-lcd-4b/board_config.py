@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Waveshare ESP32-P4-WIFI6-Touch-LCD-4B - MicroPython"""
 
 import time

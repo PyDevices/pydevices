@@ -37,7 +37,7 @@ class Icon(Widget):
         """
         Initialize an Icon widget to display an icon.
 
-        Asset kinds (via :func:`pdwidgets._icon_load.load_framebuffer`):
+        Asset kinds (via `pdwidgets._icon_load.load_framebuffer`):
 
         * **Package module** — ``pdwidgets.icons.<stem>`` (monochrome or RGB565).
         * **Filesystem** — monochrome ``.pbm`` or RGB565 ``.bmp`` via

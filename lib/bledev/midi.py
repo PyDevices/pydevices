@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI over Bluetooth LE (BLE-MIDI 1.0), as a MIDI port.
 
 The board advertises the standard BLE-MIDI service; a laptop, a phone, a DAW
@@ -8,7 +12,7 @@ or another board connects::
     port = await midi.serve(ble, name="rack")    # on the board
     port = await midi.connect(ble, name="rack")  # anywhere that can be a central
 
-Either way you get a :class:`Port`: one object that is both the input and
+Either way you get a `Port`: one object that is both the input and
 the output port ``adafruit_midi`` wants, in the shape of CircuitPython's
 ``usb_midi`` ports (the contract the ``midiports`` package documents). So the
 script you run over USB or a 5-pin cable runs over BLE with only the line
@@ -24,7 +28,7 @@ that opens the port changed::
 message comes out whole, with its status byte, so ``adafruit_midi`` (which
 reads no running status) parses all of it. BLE-MIDI's packets, timestamps,
 running status and SysEx fragments stay inside; the codec is
-:mod:`bledev.midi_codec`. For the sender's timestamps as well,
+`bledev.midi_codec`. For the sender's timestamps as well,
 ``await port.receive()`` returns ``(timestamp, message)``.
 
 The characteristic accepts writes with and without response and notifies, as
@@ -130,7 +134,7 @@ def _set_mtu(ble, mtu):
 
 
 class Port:
-    """One BLE-MIDI link, as a MIDI port. Made by :func:`serve` or :func:`connect`.
+    """One BLE-MIDI link, as a MIDI port. Made by `serve` or `connect`.
 
     It is both ports ``adafruit_midi`` takes: ``read``, ``readinto`` and
     ``any`` on the way in, ``write`` on the way out, plain MIDI bytes, never
@@ -230,7 +234,7 @@ class Port:
 
     def read(self, nbytes=None):
         """Up to ``nbytes`` waiting MIDI bytes (everything waiting when
-        ``None``), whole messages only as :meth:`readinto` says, or ``None``."""
+        ``None``), whole messages only as `readinto` says, or ``None``."""
         want = self._waiting if nbytes is None else min(nbytes, self._waiting)
         if want <= 0:
             self._check_open()
@@ -246,7 +250,7 @@ class Port:
         return self._waiting
 
     async def receive(self, timeout_ms=None):
-        """The next ``(timestamp, message)``. Raises :class:`DisconnectedError`
+        """The next ``(timestamp, message)``. Raises `DisconnectedError`
         once the link has closed and everything that arrived is read."""
         while True:
             if self._messages:
@@ -460,7 +464,7 @@ def _server_for(ble, name, mtu):
 
 
 async def serve(ble, name="bledev-midi", *, timeout_ms=None, interval_us=100000, mtu=MTU, **options):
-    """Advertise BLE-MIDI as ``name`` and return a :class:`Port` when a
+    """Advertise BLE-MIDI as ``name`` and return a `Port` when a
     central connects. Call it again for the next connection.
 
     The service is registered once per adapter, the first time; don't register
@@ -484,7 +488,7 @@ async def connect(
     ble, name=None, *, device=None, timeout_ms=10000, mtu=MTU, queue_limit=QUEUE_LIMIT, running_status=True, **connect_options
 ):
     """Find a BLE-MIDI device (by ``name``, or the first one advertising the
-    service), connect, subscribe, and return a :class:`Port`.
+    service), connect, subscribe, and return a `Port`.
 
     ``connect_options`` go to ``device.connect()``: on a board,
     ``min_conn_interval_us=7500, max_conn_interval_us=7500`` asks for the

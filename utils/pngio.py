@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """pngio on CPython: PNG encode and decode, the same API as MicroPython's
 built-in pngio (micropython-pydevices' modules/pngio), over Pillow.
 

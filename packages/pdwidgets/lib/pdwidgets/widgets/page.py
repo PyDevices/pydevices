@@ -7,7 +7,7 @@ from ..widget import Widget
 
 
 class Page(Widget):
-    """Full-bleed content page for :class:`Navigator` or :class:`TabView`."""
+    """Full-bleed content page for `Navigator` or `TabView`."""
     def __init__(  # noqa: PLR0913
         self,
         parent: Widget,
@@ -25,10 +25,10 @@ class Page(Widget):
         title=None,
     ):
         """
-        Full-bleed content page for use with :class:`Navigator` / :class:`TabView`.
+        Full-bleed content page for use with `Navigator` / `TabView`.
 
         Args:
-            parent (Widget): Usually a :class:`Navigator` or screen.
+            parent (Widget): Usually a `Navigator` or screen.
             title (str): Optional string retained for app logic (not drawn).
             visible (bool): Start hidden when stacking under a Navigator.
         """

@@ -14,7 +14,7 @@ PyDevices plumbing: it needs ``appdev``, ``displaydev``, ``events``, ``keys``,
 lvgl-circuitpython and lvgl-python consumers) carry only ``lvgl`` itself and
 ``fs_driver``, so anyone can use them with plumbing of their own.
 
-Importing this module uses the active :class:`appdev.App` when the application
+Importing this module uses the active `appdev.App` when the application
 has already constructed one explicitly. For compatibility, it falls back to
 creating an app from ``board_config`` when no active app exists. The selected
 coordinator registers display flush and input devices; the LVGL loop is a
@@ -585,12 +585,12 @@ class event_loop:
             asynchronous: Kept for API parity and ignored: ``multimer``
                 delivers on the host's own loop where the host owns one.
             exception_sink: Callable receiving exceptions from task handling;
-                defaults to :meth:`default_exception_sink`.
+                defaults to `default_exception_sink`.
             period_ms: The most the loop waits between passes, in ms
                 (default ``LVGL_PERIOD_MS``). LVGL asks for less when a timer
                 is due sooner.
             max_yield_ms: Most the loop stays off after a slow pass, leaving
-                the thread to the application (default 100; see :meth:`_next_delay`).
+                the thread to the application (default 100; see `_next_delay`).
 
         Raises:
             RuntimeError: Another loop is already running.
@@ -642,11 +642,11 @@ class event_loop:
         event_loop._current_instance = None
 
     def disable(self):
-        """Pause LVGL task handling (re-entrant; pair with :meth:`enable`)."""
+        """Pause LVGL task handling (re-entrant; pair with `enable`)."""
         self._pause += 1
 
     def enable(self):
-        """Resume LVGL task handling after :meth:`disable`; arms the timer."""
+        """Resume LVGL task handling after `disable`; arms the timer."""
         if self._pause > 0:
             self._pause -= 1
         if self._pause == 0:
@@ -654,12 +654,12 @@ class event_loop:
 
     @staticmethod
     def is_running():
-        """True when an :class:`event_loop` instance is currently registered."""
+        """True when an `event_loop` instance is currently registered."""
         return event_loop._current_instance is not None
 
     @staticmethod
     def current_instance():
-        """Return the active :class:`event_loop`, or ``None``."""
+        """Return the active `event_loop`, or ``None``."""
         return event_loop._current_instance
 
     def task_handler(self, _=None):
@@ -741,7 +741,7 @@ class event_loop:
                 timer.reschedule(delay)
 
     def default_exception_sink(self, e):
-        """Print ``e`` with traceback to stderr (default :attr:`exception_sink`)."""
+        """Print ``e`` with traceback to stderr (default `exception_sink`)."""
         if hasattr(sys, "print_exception"):  # MicroPython / CircuitPython
             sys.print_exception(e)
         else:  # CPython has no sys.print_exception
@@ -751,10 +751,10 @@ class event_loop:
 
 
 def main():
-    """Initialize LVGL, wire :class:`DisplayDriver`, and enable the event loop.
+    """Initialize LVGL, wire `DisplayDriver`, and enable the event loop.
 
     Called automatically on ``import display_driver`` using the active
-    :class:`appdev.App`, or the legacy ``board_config`` fallback.
+    `appdev.App`, or the legacy ``board_config`` fallback.
     """
     global _driver_ref, _drivers, _refresh_claim, _polling_claim
     gc.collect()
@@ -856,7 +856,7 @@ def attach(display, devices=None, *, color_format=None, blocking=True):
             reused (window-filtered) so the secondary panel receives pointer
             input.
         color_format: LVGL color format; default RGB565.
-        blocking: Passed to :class:`DisplayDriver`.
+        blocking: Passed to `DisplayDriver`.
 
     Returns:
         DisplayDriver: The new bridge instance.
@@ -890,7 +890,7 @@ def attach_devices(devs, lv_display=None):
         lv_display: Target ``lv.display``; default is the primary LVGL display.
 
     Returns:
-        list: Virtual devices accumulated by :func:`create_devices`.
+        list: Virtual devices accumulated by `create_devices`.
     """
     if lv_display is None:
         if not _drivers:
@@ -1434,7 +1434,7 @@ def create_devices(devs, lv_display, virtual_devices=None, window_id=None):
     Args:
         devs: Iterable of LVGL input devices from ``app.devices``.
         lv_display: LVGL display object to attach indevs to.
-        virtual_devices: Optional list mutated when expanding :class:`HostEventsDevice`
+        virtual_devices: Optional list mutated when expanding `HostEventsDevice`
             into virtual pointer/keypad devices.
         window_id: OS window id for host fan-out filtering (multi-display).
 
@@ -1500,7 +1500,7 @@ class DisplayDriver:
 
     Creates the LVGL display, chooses DIRECT (shared framebuffer) or PARTIAL
     render mode, installs flush callbacks, and wires LVGL input devices via
-    :func:`create_devices`. A PARTIAL panel is presented from the display's
+    `create_devices`. A PARTIAL panel is presented from the display's
     own frame clock, only after a flush; a DIRECT panel presents from
     ``flush_is_last``. LVGL's refresh timer is set to the display's frame
     period, so rendering and presenting share one cadence.

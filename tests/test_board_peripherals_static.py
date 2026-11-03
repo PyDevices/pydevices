@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Every board's board_peripherals.py binds a name before module-level code uses it.
 
 Board modules only import on the board itself, so a desktop suite never runs

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Freeze the universal desktop board config into a desktop or browser build.
 
 One config serves every non-MCU host: ``AutoDisplay`` picks SDL, Windows GDI,

@@ -1,20 +1,24 @@
-"""Pictures over a :class:`~medialink.Link`: a camera on one side, a screen
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
+"""Pictures over a `Link <medialink.Link>`: a camera on one side, a screen
 on the other.
 
-:class:`Video` sends and receives JPEG frames. A frame is cut to the link's
+`Video` sends and receives JPEG frames. A frame is cut to the link's
 packet size and sent a few packets at a time from ``service()``, paced to
 the link's bandwidth, so sound on the same link goes out between them
 instead of waiting behind a whole picture. A frame that loses a packet is
 dropped on the far side and the next whole one is shown, so a lost packet
 costs one picture, never the stream.
 
-:class:`Screen` decodes a JPEG and puts it on a display, fitted and
-centred. :class:`FileCamera` stands in for a camera where there isn't one:
+`Screen` decodes a JPEG and puts it on a display, fitted and
+centred. `FileCamera` stands in for a camera where there isn't one:
 it hands out the JPEG files in a folder, one a call, round and round.
 
 A camera is anything whose ``take()`` returns one JPEG, as bytes or a
 memoryview, or None when no frame is ready: ``cameraif.Camera`` on an
-ESP32-P4 set to JPEG, or :class:`FileCamera`.
+ESP32-P4 set to JPEG, or `FileCamera`.
 """
 
 from medialink import packet as _p
@@ -102,7 +106,7 @@ class Video:
 
     def receive(self):
         """The newest whole picture that has arrived, as a
-        :class:`~medialink.Frame`, or None. Older ones not yet read are
+        `Frame <medialink.Frame>`, or None. Older ones not yet read are
         skipped, and counted in ``stats["replaced"]``."""
         frames = self.link.frames(_p.VIDEO)
         if not frames:

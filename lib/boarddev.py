@@ -9,10 +9,10 @@ and attribute access instead of importing this module.
 
 It also carries the one thing neither ``audiodev`` nor a board can answer on
 its own: whether this machine's audio comes from a board or from a host
-backend. See :func:`pcm_out`.
+backend. See `pcm_out`.
 
-And it is where the portable environment helpers live -- :func:`env_get`,
-:func:`env_int`, :func:`env_float`, :func:`env_bool` and :func:`env_set` --
+And it is where the portable environment helpers live -- `env_get`,
+`env_int`, `env_float`, `env_bool` and `env_set` --
 because a board config, an app and every PyDevices package read their
 ``PYDEVICES_*`` settings through them, on interpreters where ``os.environ``
 may not exist::
@@ -120,7 +120,7 @@ def _role(name, format, kwargs):
 
 
 def pcm_out(format=None, **kwargs):
-    """Raw :class:`~audiodev.PCMOutput` from board or host, same call.
+    """Raw `PCMOutput <audiodev.PCMOutput>` from board or host, same call.
 
     Push bytes at it with ``write()``; no sample graph is pulled, so this
     needs no audiodsp in firmware.
@@ -129,12 +129,12 @@ def pcm_out(format=None, **kwargs):
 
 
 def pcm_in(format=None, **kwargs):
-    """Raw :class:`~audiodev.PCMInput` from board or host, same call."""
+    """Raw `PCMInput <audiodev.PCMInput>` from board or host, same call."""
     return _role("pcm_in", format, kwargs)
 
 
 def audio_out(format=None, **kwargs):
-    """:class:`~audiodev.sample_out.AudioOut` sample player, board or host."""
+    """`AudioOut <audiodev.sample_out.AudioOut>` sample player, board or host."""
     return _role("audio_out", format, kwargs)
 
 

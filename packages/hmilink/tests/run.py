@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """hmilink's checks, runnable on MicroPython, CircuitPython and CPython.
 
     python packages/hmilink/tests/run.py           # from the repo root, or

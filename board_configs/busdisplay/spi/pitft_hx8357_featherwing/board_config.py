@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit 3.5" TFT FeatherWing (HX8357D) + STMPE610 — MicroPython (Feather RP2040)
 
 The HX8357D takes the ILI9341 driver's init unchanged; only the size differs:

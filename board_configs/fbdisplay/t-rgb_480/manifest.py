@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The t-rgb_480 board package: what mip.install("t-rgb_480") brings.
 metadata(
     description="480x480 ST7701 parallel RGB - MicroPython (ESP32-S3)",

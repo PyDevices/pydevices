@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Optional C accelerators for audiodev, from audiodsp when it is present.
 
 This module exists to be a *choice*. ``audiodev/__init__.py`` and every

@@ -712,7 +712,7 @@ def _stage_companions(adb, package_id: str, args, deps: Optional[list] = None) -
     """Stage the extra modules, manifests, and pure-Python packages named on the CLI.
 
     ``--modules`` takes example modules or packages (``name.py`` or ``name/``).
-    ``deps`` is what :func:`resolve_deps` found for ``--deps``: pure-Python
+    ``deps`` is what `resolve_deps` found for ``--deps``: pure-Python
     packages the Runner APK does not bake in, copied into ``run/``.
     """
     for name in _csv(getattr(args, "modules", None)):

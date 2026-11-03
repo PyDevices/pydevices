@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The ili9341_i80_rp2040 board package: what mip.install("ili9341_i80_rp2040") brings.
 metadata(
     description="DIY Raspberry Pi Pico with ILI9341 2.8\" display",

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """One-shot helper to add Google-style API docstrings (run manually if needed)."""
 
 from __future__ import annotations

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for ESP32-WROVER-E joystick board. PERIPHERALS = lazy roles only."""
 import boarddev
 import sys

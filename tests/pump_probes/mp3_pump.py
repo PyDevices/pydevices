@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """pydevices#40: an MP3 pulled through the pump, with a prefetcher in front.
 
 `audiodev.pump.FILE_BACKED` already names `MP3Decoder` beside `WaveFile`, so

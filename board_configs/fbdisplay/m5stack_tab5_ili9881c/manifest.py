@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The m5stack_tab5_ili9881c board package: what mip.install("m5stack_tab5_ili9881c") brings.
 metadata(
     description="M5Stack Tab5 (ILI9881C + GT911) - MicroPython",

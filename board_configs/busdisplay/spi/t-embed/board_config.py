@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """LILYGO T-Embed ST7789 170x320 SPI + rotary (displayif native spibus)."""
 
 from machine import Encoder, Pin

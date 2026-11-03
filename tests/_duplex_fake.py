@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """A stand-in for ``_audioif`` on firmware that records while it plays.
 
 The real one is C: the output and the capture reader are two holders of one

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The pico-lcd-1.8 board package: what mip.install("pico-lcd-1.8") brings.
 metadata(
     description="Waveshare Pico-LCD-1.8 128x160 ST7735S display",

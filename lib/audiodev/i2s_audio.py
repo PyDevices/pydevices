@@ -1,4 +1,8 @@
-"""MCU I2S adapter: wrap ``machine.I2S`` as :class:`audiodev.PCMOutput` / :class:`PCMInput`."""
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
+"""MCU I2S adapter: wrap ``machine.I2S`` as `audiodev.PCMOutput` / `PCMInput`."""
 
 try:
     import asyncio
@@ -69,7 +73,7 @@ class I2SPCMOutput(PCMOutput):
     starved LVGL and made every interaction stutter). DMA consumption is
     exactly realtime, so a software byte-clock - bytes written minus
     rate x elapsed - reports the queue well enough for backpressure. It is
-    an estimate; :meth:`queued_size` says how far it can be off.
+    an estimate; `queued_size` says how far it can be off.
 
     On open, a POLL ioctl flips the driver to asyncio mode so ``write()``
     returns a partial/zero count instead of holding the GIL until DMA has
@@ -231,9 +235,9 @@ class I2SPCMInput(PCMInput):
 
 
 def pcm_out(i2s, format, **kwargs):
-    """Build an :class:`I2SPCMOutput` around *i2s* (instance or factory).
+    """Build an `I2SPCMOutput` around *i2s* (instance or factory).
 
-    ``wire=`` (the board's :class:`~audiodev.I2SWire`) and ``audio_power=``
+    ``wire=`` (the board's `I2SWire <audiodev.I2SWire>`) and ``audio_power=``
     (its power role) are what let the audio pump take the peripheral over on
     esp32. Leave them out and the board plays the old way.
     """
@@ -241,5 +245,5 @@ def pcm_out(i2s, format, **kwargs):
 
 
 def pcm_in(i2s, format, **kwargs):
-    """Build an :class:`I2SPCMInput` around *i2s* (instance or factory)."""
+    """Build an `I2SPCMInput` around *i2s* (instance or factory)."""
     return I2SPCMInput(i2s, format, **kwargs)

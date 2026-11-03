@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MatrixPortal M4 with 64x32 HUB75 RGB matrix — CircuitPython"""
 
 import board

@@ -7,7 +7,7 @@ A plain script so it runs on CPython and on MicroPython, like
 ``bledev_filetransfer.py``. Over ``bledev.fake`` it serves the file-transfer
 service the way CircuitPython does (the transfer characteristic encrypted,
 no ``AUTH``) and the way a bledev board with a passkey does (authenticated),
-and checks that :func:`bledev.filetransfer.connect` pairs when it must,
+and checks that `bledev.filetransfer.connect` pairs when it must,
 refuses what it must, and moves 20 KB intact over a paired link. It also
 checks the NVS store's blob codec.
 

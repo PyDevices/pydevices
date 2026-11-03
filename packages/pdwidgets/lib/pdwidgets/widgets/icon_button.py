@@ -55,12 +55,12 @@ class IconButton(Button):
             icon_file (str): The icon file to display.
             radius (int): Corner radius (default 0).
             shadow (int): Fake drop-shadow offset in pixels (0 disables).
-            style (str): ``\"flat\"`` or ``\"raised\"`` (see :class:`Button`).
+            style (str): ``\"flat\"`` or ``\"raised\"`` (see `Button`).
             bg_hi (int): Optional raised highlight color.
             bg_lo (int): Optional raised shade color.
             rim (int): Optional raised rim stroke.
             backdrop (int | None): Optional clear color under the face
-                (see :class:`Button`).
+                (see `Button`).
 
         Usage:
             icon_button = IconButton(screen, icon_file="pdwidgets.icons.home_filled_36dp")

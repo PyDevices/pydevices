@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Web Bluetooth backend for browsers. Central only.
 
     from bledev.webble import WebBLE
@@ -17,7 +21,7 @@ rather than pretending:
   device chooser filtered by ``name`` and ``service``, and the person picks.
   The chooser only opens during a click or a tap (transient user
   activation), so call ``find()`` or ``nus.connect()`` from one. ``scan()``
-  raises :class:`bledev.UnsupportedError`.
+  raises `bledev.UnsupportedError`.
 * **Only services you named are reachable.** The browser grants the
   services in the ``find()`` filter and those passed as
   ``WebBLE(services=[...])``, and hides the rest from discovery.
@@ -330,7 +334,7 @@ class WebBLE(BLE):
         return js.JSON.parse(json.dumps(options))
 
     async def find(self, name=None, service=None, *, timeout_ms=10000, active=True):
-        """Open the browser's device chooser and return the :class:`Device` picked.
+        """Open the browser's device chooser and return the `Device` picked.
 
         The chooser lists devices matching ``name`` and/or ``service`` (all
         devices if neither), and ``service`` becomes reachable once connected.
@@ -340,7 +344,7 @@ class WebBLE(BLE):
         if the board's name fits in its advertisement.
         Call it from a click or a tap: the browser refuses otherwise.
         ``timeout_ms`` doesn't apply, because a person is choosing. Closing
-        the chooser without choosing raises :class:`BLETimeoutError`, as a
+        the chooser without choosing raises `BLETimeoutError`, as a
         scan that found nothing does.
         """
         options = self._request_options(name, service)

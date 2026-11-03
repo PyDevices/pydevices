@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Redraw docs/images/pdwidgets.png: the README example after three taps.
 
 Needs pydevices-desktop (for ``board_config``) and Pillow. Run it headless:

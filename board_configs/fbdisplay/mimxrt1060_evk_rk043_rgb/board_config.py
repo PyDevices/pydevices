@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """NXP MIMXRT1060-EVK + RK043FN66HS-CTG 4.3" parallel RGB - MicroPython"""
 
 import time

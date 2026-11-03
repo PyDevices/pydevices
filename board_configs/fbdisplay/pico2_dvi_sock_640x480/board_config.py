@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Raspberry Pi Pico 2 + Adafruit DVI Sock or PiCowbell HSTX (640x480).
 
 Sock and PiCowbell HSTX share the pico-examples sock pinout (GP12–19).

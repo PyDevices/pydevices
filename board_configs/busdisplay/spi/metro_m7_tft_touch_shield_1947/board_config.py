@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Metro M7 + Adafruit 2.8\" TFT Touch Shield (cap) product 1947.
 
 ILI9341 SPI, CS=D10 DC=D9. FT6206 on I2C(0). event traffic controller omitted (64KiB heap).

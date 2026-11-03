@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Pico + ILI9341 I80 shield — CircuitPython"""
 
 from adafruit_focaltouch import Adafruit_FocalTouch

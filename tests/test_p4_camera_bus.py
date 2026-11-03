@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """An ESP32-P4 board's camera() opens the board's I2C bus before the camera.
 
 The camera's control bus (SCCB) is the board I2C. When ``camera()`` ran

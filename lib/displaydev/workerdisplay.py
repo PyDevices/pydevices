@@ -32,9 +32,9 @@ hand-offs, input). The page side is a few lines of JavaScript:
     // and whenever the canvas's CSS size changes:
     worker.postMessage({type: "resize", width: rect.width, height: rect.height});
 
-In the worker, hand each ``input`` event to :func:`feed` and each
-``resize`` to :meth:`WorkerDisplay.set_css_size`. The events come out of
-``display_drv.get_events`` exactly as :class:`PSDisplay` produces them, so
+In the worker, hand each ``input`` event to `feed` and each
+``resize`` to `WorkerDisplay.set_css_size`. The events come out of
+``display_drv.get_events`` exactly as `PSDisplay` produces them, so
 ``appdev`` and LVGL's ``display_driver`` work unchanged. The page should
 call ``preventDefault()`` itself on ``wheel``, ``contextmenu`` and the keys
 that scroll a page; a worker can't.
@@ -50,7 +50,7 @@ _current = None
 
 
 class WorkerDevices(WebInput):
-    """Input for a :class:`WorkerDisplay`, fed by events the page relays."""
+    """Input for a `WorkerDisplay`, fed by events the page relays."""
 
     _HANDLERS = {
         "pointerdown": "_on_pointer_down",
@@ -150,12 +150,12 @@ class WorkerDisplay(CanvasDisplay):
 
 
 def feed(event):
-    """Hand a relayed ``input`` event to the most recent :class:`WorkerDisplay`."""
+    """Hand a relayed ``input`` event to the most recent `WorkerDisplay`."""
     if _current is not None:
         _current.feed(event)
 
 
 def resize(width, height):
-    """Hand a relayed ``resize`` to the most recent :class:`WorkerDisplay`."""
+    """Hand a relayed ``resize`` to the most recent `WorkerDisplay`."""
     if _current is not None:
         _current.set_css_size(width, height)

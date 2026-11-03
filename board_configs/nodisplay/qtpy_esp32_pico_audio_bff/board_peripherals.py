@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """board_peripherals for a QT Py ESP32 Pico carrying an Adafruit Audio BFF.
 
 HEARD WORKING 2026-09-15, on a QT Py ESP32 Pico with the BFF stacked on it.

@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: MIT
 """The dispatcher: every Timer is a deadline here; a wake source says when to look.
 
-One list of armed timers. :func:`deliver` runs whatever is due, on the main
+One list of armed timers. `deliver` runs whatever is due, on the main
 thread, at a safe point, and re-arms the host's wake source to the earliest
 deadline left. Idle points (``sleep_ms``, ``pump``, the REPL's input hook,
-the exit-hook loop) call the same :func:`deliver`, so a host with no wake
+the exit-hook loop) call the same `deliver`, so a host with no wake
 source still delivers, just later.
 
 Rules the dispatcher keeps for every timer:
@@ -109,7 +109,7 @@ def _deliver_scheduled(_arg):
 
 def _deliver_protected():
     """Deliver from a context that swallows exceptions; keep the two that end
-    the program for the main thread to raise (:func:`_raise_stashed`)."""
+    the program for the main thread to raise (`_raise_stashed`)."""
     try:
         deliver()
     except (KeyboardInterrupt, SystemExit) as exc:
@@ -197,7 +197,7 @@ def deliver():
     """Run every due callback; return ms until the next deadline, or None.
 
     Returns None without delivering when called re-entrantly (from inside a
-    callback) or while a :func:`hold` is active; the outer delivery, or the
+    callback) or while a `hold` is active; the outer delivery, or the
     end of the hold, picks the work up.
     """
     global _in_deliver, _exit_raised
@@ -327,7 +327,7 @@ def _print_exception(exc):
 class Timer:
     """A ``machine.Timer``-shaped timer delivered by the dispatcher.
 
-    ``Timer(id=-1)`` then :meth:`init`, or keyword arguments straight to the
+    ``Timer(id=-1)`` then `init`, or keyword arguments straight to the
     constructor as on a board. Attributes are for looking at from the REPL::
 
         >>> tim

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The CircuitPython TFT FeatherWing configs use the wings' own pins.
 
 Adafruit's 2.4" (ILI9341) and 3.5" (HX8357D) TFT FeatherWings share one

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Peak-frequency analysis of a raw s16 capture from the loopback rig."""
 import sys
 import numpy as np

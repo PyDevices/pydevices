@@ -57,11 +57,11 @@ class Console(io.IOBase, Widget):
         Initialize a text console in the display's vertical scroll area.
 
         Args:
-            parent (Widget): Parent widget (usually a :class:`Screen` partition).
+            parent (Widget): Parent widget (usually a `Screen` partition).
             fg (int | None): Default text color.
             bg (int | None): Console background color.
             visible (bool): Initial visibility.
-            value (str | None): Unused; kept for :class:`Widget` API compatibility.
+            value (str | None): Unused; kept for `Widget` API compatibility.
             by_char (bool): When ``True``, flush each character as it is written.
             margin (int): Character margin in cells from the left edge.
             text_height (int): Romfont height (``TEXT_SIZE`` constant).

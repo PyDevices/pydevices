@@ -5,8 +5,8 @@
 """
 displaydev._webcanvas
 
-The drawing half shared by the PyScript canvas (:class:`PSDisplay`) and the
-Web Worker canvas (:class:`WorkerDisplay`): an offscreen buffer the size of
+The drawing half shared by the PyScript canvas (`PSDisplay`) and the
+Web Worker canvas (`WorkerDisplay`): an offscreen buffer the size of
 the panel, copied to the visible canvas with vertical scroll applied.
 
 ``blit_rect`` converts a whole RGB565 buffer to RGBA in one JavaScript call.
@@ -49,7 +49,7 @@ def blit565(ctx, buf, x, y, w, h):
 class CanvasDisplay(DesktopDisplay):
     """A panel drawn on an HTML canvas or an OffscreenCanvas.
 
-    Subclasses pass the visible canvas and provide :meth:`_new_buffer`, which
+    Subclasses pass the visible canvas and provide `_new_buffer`, which
     makes the offscreen canvas everything is drawn to first.
     """
 
@@ -180,5 +180,5 @@ class CanvasDisplay(DesktopDisplay):
             vis.drawImage(buf, 0, tfa + vsa, w, bfa, 0, tfa + vsa, w, bfa)
 
     def show(self, _timer=None) -> None:
-        """Present the offscreen canvas (alias of :meth:`render`)."""
+        """Present the offscreen canvas (alias of `render`)."""
         self.render()

@@ -25,7 +25,7 @@ class Navigator(Widget):
         padding=None,
     ):
         """
-        Stack of :class:`Page` children with push / pop navigation.
+        Stack of `Page` children with push / pop navigation.
 
         Only the top page is visible. Typical pattern::
 

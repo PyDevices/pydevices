@@ -165,7 +165,7 @@ class _HIDInterface(HIDInterface):
 
 def interface(devs=None, *, interval_ms=1):
     """The HID interface serving ``devs`` (keyboard, mouse and consumer
-    control when None), for ``usb.device.get().init()``; sets :data:`devices`."""
+    control when None), for ``usb.device.get().init()``; sets `devices`."""
     global devices
     if devs is None:
         devs = (Device.KEYBOARD, Device.MOUSE, Device.CONSUMER_CONTROL)

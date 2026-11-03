@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for Teensy 4.1 RGB matrix wing. PERIPHERALS = lazy roles only."""
 import boarddev
 import sys

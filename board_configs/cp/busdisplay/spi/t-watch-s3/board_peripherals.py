@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """board_peripherals for the LILYGO T-Watch S3, on CircuitPython.
 
 The same roles as the MicroPython config in busdisplay/spi/t-watch-s3, whose

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Freeze the pdwidgets package from its canonical source tree.
 
 Discovered automatically by a workspace's aggregator manifests

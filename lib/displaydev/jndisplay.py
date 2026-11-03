@@ -75,7 +75,7 @@ class JNDevices:
     Creates the interactive ``ipywidgets`` Image that mirrors the display buffer
     and watches it (via ``ipyevents``) for all available input, turning it into
     ``events`` objects (matching the desktop SDL2 / PyGame event
-    stream), drained through :meth:`read`:
+    stream), drained through `read`:
 
     - **Mouse**: ``MOUSEMOTION`` on every move, ``MOUSEBUTTONDOWN`` /
       ``MOUSEBUTTONUP`` for any button.
@@ -83,13 +83,13 @@ class JNDevices:
     - **Keyboard**: ``KEYDOWN`` / ``KEYUP`` with SDL-style key codes, names and
       modifier masks (left/right modifier variants via key location).
 
-    Quit chord handling is configured on :class:`JNDisplay` via ``quit_chord``
+    Quit chord handling is configured on `JNDisplay` via ``quit_chord``
     (default ``(keys.K_AC_BACK, 0)``).
-    :class:`~appdev.HostEvents` applies the chord when constructed with
+    `HostEvents <appdev.HostEvents>` applies the chord when constructed with
     ``display=``.
 
     This class also owns the display widget: ``JNDisplay`` pushes frames to it
-    via :meth:`update_buffer`.
+    via `update_buffer`.
 
     Note:
         The Image widget must be focused (e.g. clicked) to receive key events,
@@ -307,8 +307,8 @@ class JNDisplay(DesktopDisplay):
     """Emulate a display in a Jupyter Notebook output cell.
 
     Supports ILI9341-style vertical scroll emulation (same band compositing as
-    SDL/PG/PS). Interactive output uses :class:`JNDevices`; static notebooks can
-    call :meth:`show` without a device.
+    SDL/PG/PS). Interactive output uses `JNDevices`; static notebooks can
+    call `show` without a device.
 
     Args:
         width (int): Panel width in pixels.
@@ -353,9 +353,9 @@ class JNDisplay(DesktopDisplay):
         return self._jn_devices if self._jn_devices is not False else None
 
     def get_events(self):
-        """Drain Jupyter input; lazily create :class:`JNDevices` on first use.
+        """Drain Jupyter input; lazily create `JNDevices` on first use.
 
-        Static notebooks that only call :meth:`show` never touch this and keep
+        Static notebooks that only call `show` never touch this and keep
         the non-interactive path.
         """
         dev = self._ensure_devices()

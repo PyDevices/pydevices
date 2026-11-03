@@ -7,9 +7,9 @@
 class Form:
     """Register named field widgets and collect/validate their values.
 
-    Depends on existing controls (:class:`FormRow`, :class:`TextInput`,
-    :class:`Switch`, …). Optional ``error_label`` receives the first error
-    string when :meth:`validate` fails.
+    Depends on existing controls (`FormRow`, `TextInput`,
+    `Switch`, …). Optional ``error_label`` receives the first error
+    string when `validate` fails.
     """
 
     def __init__(self, on_commit=None, error_label=None):
@@ -18,7 +18,7 @@ class Form:
 
         Args:
             on_commit (callable | None): Called as ``on_commit(values)`` when
-                :meth:`commit` succeeds.
+                `commit` succeeds.
             error_label (Label | None): Shows the first validation error.
         """
         self._fields = {}

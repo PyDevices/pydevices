@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """PyDevices as a micropython-lib package: freeze it into a firmware, or
 require() it from another manifest.
 

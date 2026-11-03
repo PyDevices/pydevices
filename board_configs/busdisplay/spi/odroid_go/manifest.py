@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The odroid_go board package: what mip.install("odroid_go") brings.
 metadata(
     description="ODROID GO with ILI9341 2.4\" display",

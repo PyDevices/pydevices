@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """GPIO button helper for appdev KEYPAD on CircuitPython and MicroPython."""
 
 import keys

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # ESP32-P4: play something judgeable, at both formats, through the new
 # contract. This is the gate the P4 cannot close by itself -- output and
 # input share I2S(0) and one set of clocks, so it cannot record what it plays,

@@ -1,18 +1,22 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Finding peers: by mDNS on a shared network, or over a hotspot.
 
 Discovery turns a name into a transport address. Each kind has the same
 two calls: ``advertise(name, port)`` for this side, and ``find(name)`` for
 the other, which hands back ``[(name, (ip, port))]`` for
-:meth:`Link.connect`.
+`Link.connect`.
 
-:class:`MDNS` finds a peer on the network both are already on. A peer
+`MDNS` finds a peer on the network both are already on. A peer
 advertises itself as a ``_medialink._udp`` service under its name; another
 finds it by that name.
 
-:class:`BLE` finds a peer nearby by Bluetooth LE: a board advertises its
+`BLE` finds a peer nearby by Bluetooth LE: a board advertises its
 name with its IP address and port, and the media still goes over IP.
 
-:class:`Hotspot` makes the network: one board starts a Wi-Fi access point
+`Hotspot` makes the network: one board starts a Wi-Fi access point
 and the other joins it, so two boards talk directly where the house Wi-Fi is
 weak or absent.
 
@@ -54,7 +58,7 @@ class MDNS:
         return self._server.hostname
 
     def advertise(self, name, port):
-        """Answer for ``name`` on UDP ``port`` until :meth:`deinit`."""
+        """Answer for ``name`` on UDP ``port`` until `deinit`."""
         self._server.instance_name = name
         self._server.advertise_service(service_type=SERVICE_TYPE, protocol=PROTOCOL, port=port)
 
@@ -106,7 +110,7 @@ def _rejoin_house(timeout):
 class Hotspot:
     """Two boards on a Wi-Fi network of their own: one hosts, one joins.
 
-    Use it where you would use :class:`MDNS`, with the same calls::
+    Use it where you would use `MDNS`, with the same calls::
 
         finder = medialink.Hotspot("a password")
         finder.advertise("kitchen", 47800)

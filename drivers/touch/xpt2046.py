@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """XPT2046 resistive touch controller (MicroPython).
 
 Read sequence matches LilyGO arduino_xpt2046 (``SPI.transfer16`` frames,

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The transport seam: how bytes reach a peer.
 
 A transport is small on purpose, so that a new kind of link (BLE, a
@@ -11,7 +15,7 @@ hotspot, a radio) is a short file:
   link's rough capacity in bits a second, which picks the codec.
 
 An address is whatever the transport understands. For UDP it is an
-``(ip, port)`` tuple. Delivery is best effort; :class:`~medialink.Link`
+``(ip, port)`` tuple. Delivery is best effort; `Link <medialink.Link>`
 adds acknowledgement where it matters.
 """
 
