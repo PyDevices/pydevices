@@ -1,4 +1,4 @@
-"""MIDI in a browser, through Web MIDI, for Python running in Pyodide.
+"""MIDI in a browser, through Web MIDI, for Python running in Pyodide or MicroPython.
 
 Web MIDI (``navigator.requestMIDIAccess``) exists only on a page's main
 thread, never in a Web Worker, so there are two ways in.
@@ -27,6 +27,14 @@ The relay's messages are plain objects:
   message per post, with ``timeStamp`` taken from the ``MIDIMessageEvent``.
 - worker to page: ``{data: Uint8Array}``, whole messages for the page to
   ``send()`` to its output.
+
+In MicroPython's WebAssembly port, open an input without awaiting::
+
+    midi_in = webmidi.page_in("keystation")
+
+It reads as any other input does, with no timestamps and no output. Asking
+for MIDI happens in the background, so ``midi_in.names`` is empty until the
+person has said yes, and ``midi_in.why`` says why if the answer was no.
 
 Timestamps
 ----------
@@ -410,6 +418,115 @@ async def open(name="", sysex=False, ring=1024):
     """
     access = await _request_access(sysex)
     return ports(access, name, ring)
+
+
+# -- MicroPython on the page: the bytes wait in JavaScript ---------------------------
+
+#: The most bytes the page holds for a reader that has stopped reading.
+PAGE_LIMIT = 4096
+
+_PAGE_IN = """(name, limit) => {
+    const bytes = [], inputs = new Map();
+    let access = null, why = null, overflows = 0;
+    name = name.toLowerCase();
+    const update = (port) => {
+        if (port.type !== 'input' || !String(port.name).toLowerCase().includes(name)) return;
+        if (port.state !== 'connected') {
+            inputs.delete(port.id);
+            port.onmidimessage = null;
+            return;
+        }
+        inputs.set(port.id, port);
+        port.onmidimessage = (event) => {
+            if (bytes.length + event.data.length > limit) overflows++;
+            else bytes.push(...event.data);
+        };
+    };
+    if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) {
+        why = 'this browser has no Web MIDI here';
+    } else {
+        navigator.requestMIDIAccess().then((granted) => {
+            access = granted;
+            for (const port of access.inputs.values()) update(port);
+            access.onstatechange = (event) => update(event.port);
+        }, (error) => { why = String(error); });
+    }
+    return {
+        any: () => bytes.length,
+        next: () => bytes.shift(),
+        names: () => Array.from(inputs.values(), (port) => port.name).join('\\n'),
+        why: () => why,
+        overflows: () => overflows,
+        close: () => {
+            if (access) access.onstatechange = null;
+            for (const port of inputs.values()) port.onmidimessage = null;
+            inputs.clear();
+            bytes.length = 0;
+        },
+    };
+}"""
+
+
+class _PagePolledIn(PortIn):
+    """An input the browser never calls into.
+
+    MicroPython can be parked in a sleep when a message arrives, and running
+    Python from the browser's callback then isn't safe. So JavaScript keeps
+    the bytes until Python comes for them.
+    """
+
+    def __init__(self, name):
+        PortIn.__init__(self)
+        import js
+
+        self._page = js.eval(_PAGE_IN)(name, PAGE_LIMIT)
+        self._any = self._page.any
+        self._next = self._page.next
+        self._closed = False
+
+    @property
+    def names(self):
+        """The names of the inputs feeding this port right now."""
+        names = self._page.names()
+        return names.split("\n") if names else []
+
+    @property
+    def why(self):
+        """Why there's no MIDI, in a sentence, or ``None``."""
+        return self._page.why()
+
+    @property
+    def overflows(self):
+        """Messages dropped because nothing was reading."""
+        return self._page.overflows()
+
+    def any(self):
+        if self._closed:
+            raise OSError("MIDI input is closed")
+        return self._any()
+
+    def readinto(self, buf, nbytes=None):
+        nbytes = min(_count(buf, nbytes), self.any())
+        next_byte = self._next
+        for i in range(nbytes):
+            buf[i] = next_byte()
+        return nbytes or None
+
+    def close(self):
+        if not self._closed:
+            self._closed = True
+            self._page.close()
+
+    deinit = close
+
+
+def page_in(name=""):
+    """An input over every matching port, for MicroPython's WebAssembly port.
+
+    ``name`` matches part of a port's name, ignoring case; ``""`` merges every
+    input. Ports that match later join while it's open. Never blocks.
+    """
+    return _PagePolledIn(name)
 
 
 # -- in a worker: the page relays over a MessagePort ------------------------------

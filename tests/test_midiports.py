@@ -18,9 +18,12 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
+import types
 import unittest
+from unittest import mock
 import urllib.request
 
 from _mprun import need_micropython, run
@@ -428,6 +431,89 @@ class WebMidiPort(unittest.TestCase):
         self.assertEqual(midi_in.names, ["Keys"])
         # Outside a browser there's no js module at all.
         self.assertRaises(ImportError, asyncio.run, webmidi.open())
+
+    def _page_in(self, *messages, why=None, names="Keys"):
+        """page_in() over a stand-in for the page's side of it."""
+        waiting = [b for message in messages for b in message]
+        closed = []
+        page = _Obj(
+            any=lambda: len(waiting),
+            next=lambda: waiting.pop(0),
+            names=lambda: names,
+            why=lambda: why,
+            overflows=lambda: 0,
+            close=lambda: closed.append(True),
+        )
+        js = types.ModuleType("js")
+        js.eval = lambda source: lambda name, limit: page
+        with mock.patch.dict(sys.modules, {"js": js}):
+            return webmidi.page_in("keys"), waiting, closed
+
+    def test_page_in_reads_what_the_page_holds_and_no_more(self):
+        midi_in, waiting, closed = self._page_in(b"\x90\x3c\x64", b"\x80\x3c\x00")
+        self.assertEqual(midi_in.names, ["Keys"])
+        self.assertEqual(midi_in.any(), 6)
+        buf = bytearray(4)
+        self.assertEqual(midi_in.readinto(buf), 4)
+        self.assertEqual(bytes(buf), b"\x90\x3c\x64\x80")
+        self.assertEqual(midi_in.read(16), b"\x3c\x00")
+        self.assertIsNone(midi_in.readinto(buf))
+        midi_in.close()
+        self.assertEqual(closed, [True])
+        self.assertRaises(OSError, midi_in.any)
+
+    def test_page_in_says_when_it_has_nothing(self):
+        midi_in, _, _ = self._page_in(why="NotAllowedError", names="")
+        self.assertEqual(midi_in.names, [])
+        self.assertEqual(midi_in.why, "NotAllowedError")
+
+    @unittest.skipUnless(shutil.which("node"), "needs node")
+    def test_page_in_javascript_follows_the_ports(self):
+        script = """
+const port = (name) => ({type: 'input', id: name, name, state: 'connected', onmidimessage: null});
+const keys = port('Keys'), pads = port('Pads'), late = port('Late Keys');
+const access = {inputs: new Map([['Keys', keys], ['Pads', pads]]), onstatechange: null};
+Object.defineProperty(globalThis, 'navigator', {value: {requestMIDIAccess: async () => access}});
+(async () => {
+    const page = (%s)('KEYS', 6);
+    const out = {before: page.names()};
+    await null; await null;
+    out.names = page.names();
+    keys.onmidimessage({data: new Uint8Array([0x90, 60, 100])});
+    out.pads = pads.onmidimessage;
+    out.any = page.any();
+    keys.onmidimessage({data: new Uint8Array([0x80, 60, 0])});
+    keys.onmidimessage({data: new Uint8Array([0xf8])});
+    out.full = [page.any(), page.overflows()];
+    out.first = page.next();
+    access.onstatechange({port: late});
+    out.joined = page.names();
+    keys.state = 'disconnected';
+    access.onstatechange({port: keys});
+    out.left = [page.names(), keys.onmidimessage];
+    page.close();
+    out.closed = [page.any(), late.onmidimessage, access.onstatechange];
+    console.log(JSON.stringify(out));
+})();
+""" % webmidi._PAGE_IN
+        got = json.loads(subprocess.run(
+            ["node", "-e", script], capture_output=True, text=True, check=True, timeout=30).stdout)
+        self.assertEqual(got["before"], "")
+        self.assertEqual(got["names"], "Keys")  # "KEYS" matched, ignoring case; Pads didn't
+        self.assertIsNone(got["pads"])
+        self.assertEqual(got["any"], 3)
+        self.assertEqual(got["full"], [6, 1])  # the third message would pass the limit
+        self.assertEqual(got["first"], 0x90)
+        self.assertEqual(got["joined"], "Keys\nLate Keys")
+        self.assertEqual(got["left"], ["Late Keys", None])
+        self.assertEqual(got["closed"], [0, None, None])
+
+    @unittest.skipUnless(shutil.which("node"), "needs node")
+    def test_page_in_javascript_reports_a_browser_without_web_midi(self):
+        script = "Object.defineProperty(globalThis, 'navigator', {value: {}});" \
+            "console.log((%s)('', 6).why())" % webmidi._PAGE_IN
+        out = subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True, timeout=30).stdout
+        self.assertIn("no Web MIDI", out)
 
     def test_relay_input_takes_page_messages_with_their_timestamps(self):
         port = _MessagePort()
