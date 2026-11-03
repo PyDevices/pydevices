@@ -692,10 +692,15 @@ def sdl_capture(fake, timeout_ms):
     import importlib
     from unittest import mock
 
+    import audiodev
     from audiodev import AudioFormat
 
+    imported = hasattr(audiodev, "sdl2_audio")
     with mock.patch.dict(sys.modules, {"usdl2": fake}):
         sdl2_audio = importlib.import_module("audiodev.sdl2_audio")
+    if not imported:
+        # Imported under the fake, this copy keeps it: later tests get their own.
+        del audiodev.sdl2_audio
     patch = mock.patch.object(sdl2_audio, "sdl", fake)
     patch.start()
     return sdl2_audio.SDLPCMInput(AudioFormat(16000, 1, 16), timeout_ms=timeout_ms), patch
