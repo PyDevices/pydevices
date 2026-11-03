@@ -60,6 +60,7 @@ on:
 jobs:
   unittest:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
