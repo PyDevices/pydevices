@@ -144,9 +144,13 @@ build() {
             [[ -f "$ws/omnipython-lvgl/ports/circuitpython/manifest.py" ]] || { echo "error: $ws/omnipython-lvgl is not a checkout" >&2; return 1; }
             # pydevices, pdwidgets and palettes are frozen from the library, by build_mp.py.
             # pydevices must be named: pdwidgets imports its events module.
+            # The unix port's default variant, coverage, has the modules we want
+            # and instruments the binary, which then reports on every exit that
+            # it can't write its profile data to the machine that built it.
             JOBS="$jobs" python3 build_mp.py \
                 --interpreter circuitpython --port unix \
-                --modules "audiodsp,displayif,pygraphics,pydevices,pdwidgets,palettes,$ws/omnipython-lvgl/ports/circuitpython,$cp_dir/unix-extras"
+                --modules "audiodsp,displayif,pygraphics,pydevices,pdwidgets,palettes,$ws/omnipython-lvgl/ports/circuitpython,$cp_dir/unix-extras" \
+                "CFLAGS_EXTRA=-fno-profile-arcs -fno-test-coverage" "LDFLAGS_EXTRA=-fno-profile-arcs -fno-test-coverage"
             install -m 755 builds/circuitpython/unix/coverage/micropython "$out/circuitpython"
             ;;
         *)
