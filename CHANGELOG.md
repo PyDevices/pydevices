@@ -1,3 +1,17 @@
+## v0.7.9 (2026-11-03)
+
+- Interpreters: pin micropython-pydevices and omnipython-lvgl at their tips (#389)
+- Troubleshooting: slow starts and audio dropouts on MicroPython (#387)
+- Library: audioinstruments 0.5.1, audioeffects 0.5.1 and applibs 0.1.1 (#388)
+- audiodev.pump: import struct once, so a status read doesn't search the path (#386)
+- midiports.windows: a display's message pump no longer swallows MIDI input (#385)
+- Library: audioinstruments v0.5.1.dev4 and audioeffects v0.5.1.dev0 (#384)
+- sayso moves to the apps repository: the index takes it from applibs v0.1.1.dev0 (#382)
+- Tests: the USB shims' clock moves, so the unit tests stop hanging (#383)
+- Browser URLs: Pyodide pages install the base libraries themselves
+- audiodev: the install hint and docs name omnipython-audiodsp, the current wheel
+- Browser pages install the audio packages under their current wheel names
+
 ## v0.7.9.dev2 (2026-11-02)
 
 - Library: applibs at v0.1.0; browser pages install controlkit from omnipython-applibs
