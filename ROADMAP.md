@@ -46,12 +46,17 @@ with each kind of peripheral described honestly by its role.
 
 ## hmilink
 
+- A secret a panel must present before it can read or change the document, and
+  encryption on the transports that can carry it, for networks you don't fully
+  trust.
 - Announce the device over mDNS, so a phone finds it without typing its address.
 - A TouchOSC/OSC codec at the edge, so those controllers can be panels. The
   codec layer is already separate from the transports.
 
 ## medialink
 
+- Private links: peers prove they share a secret and their sound and pictures
+  are encrypted, so a link can run on a network you don't fully trust.
 - Talk both ways at once on a videophone, on boards whose speaker and
   microphone share one I2S port: that needs a duplex I2S path.
 - Decode pictures beside the sound rather than in the same loop, so a
