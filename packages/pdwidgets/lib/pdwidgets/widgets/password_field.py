@@ -39,7 +39,7 @@ class PasswordField(TextInput):
             y (int): Relative y-coordinate.
             w (int): Width in pixels (defaults to parent width).
             h (int): Height in pixels (defaults from ``text_height``).
-            align (int): Alignment constant from :data:`~pdwidgets.ALIGN`.
+            align (int): Alignment constant from `ALIGN <pdwidgets.ALIGN>`.
             align_to (Widget): Widget to align against (default parent).
             fg (int): Foreground / text color.
             bg (int): Background / field fill color.

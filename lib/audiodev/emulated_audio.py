@@ -1,6 +1,6 @@
 """CI / no-hardware PCM: WAV files, waveform generator, in-memory loopback.
 
-Never selected by :mod:`audiodev.auto`. Import this module explicitly.
+Never selected by `audiodev.auto`. Import this module explicitly.
 """
 
 import math
@@ -211,7 +211,7 @@ class LoopbackBuffer:
 
 
 class LoopbackPCMOutput(PCMOutput):
-    """Enqueue PCM into a :class:`LoopbackBuffer`."""
+    """Enqueue PCM into a `LoopbackBuffer`."""
 
     def __init__(self, buffer):
         super().__init__(buffer.format)
@@ -231,7 +231,7 @@ class LoopbackPCMOutput(PCMOutput):
 
 
 class LoopbackPCMInput(PCMInput):
-    """Dequeue PCM from a :class:`LoopbackBuffer` (0 when empty)."""
+    """Dequeue PCM from a `LoopbackBuffer` (0 when empty)."""
 
     def __init__(self, buffer):
         super().__init__(buffer.format)
@@ -278,7 +278,7 @@ def _sample_value(wave, phase, amplitude, bits, signed):
 
 
 class GeneratorPCMInput(PCMInput):
-    """Endless or timed waveform as a :class:`PCMInput` (no microphone)."""
+    """Endless or timed waveform as a `PCMInput` (no microphone)."""
 
     def __init__(
         self,

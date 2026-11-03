@@ -39,7 +39,7 @@ class TextInput(Widget):
         Tap the field to focus it (a text cursor appears and the border
         highlights); typing appends printable characters, Backspace deletes, and
         Enter releases focus. Focus order is managed by
-        :class:`~pdwidgets._focus.FocusManager` (Tab / Shift-Tab / arrows).
+        `FocusManager <pdwidgets._focus.FocusManager>` (Tab / Shift-Tab / arrows).
         """
         if text_height not in TEXT_SIZE:
             raise ValueError("Text height must be 8, 14 or 16 pixels.")

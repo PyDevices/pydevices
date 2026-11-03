@@ -11,7 +11,7 @@ hotspot, a radio) is a short file:
   link's rough capacity in bits a second, which picks the codec.
 
 An address is whatever the transport understands. For UDP it is an
-``(ip, port)`` tuple. Delivery is best effort; :class:`~medialink.Link`
+``(ip, port)`` tuple. Delivery is best effort; `Link <medialink.Link>`
 adds acknowledgement where it matters.
 """
 

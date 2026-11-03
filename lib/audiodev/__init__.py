@@ -1,7 +1,7 @@
 """Portable PCM and tone device contracts for MicroPython and CPython.
 
-Backends subclass :class:`PCMOutput`, :class:`PCMInput`, and
-:class:`ToneOutput`. Optional host selection lives in :mod:`audiodev.auto`
+Backends subclass `PCMOutput`, `PCMInput`, and
+`ToneOutput`. Optional host selection lives in `audiodev.auto`
 and is never imported from here.
 """
 
@@ -161,7 +161,7 @@ class AudioCapability:
     Boards used to hand-write a ``_require_format()`` with their own raises,
     which meant every board reimplemented validation with different error
     text and each new question grew another ad-hoc attribute. Here a board
-    states facts and :func:`negotiate` holds the policy.
+    states facts and `negotiate` holds the policy.
 
     ``channels`` is what the **wire** will open; ``native_channels`` is how
     many signals actually reach a transducer. They are not the same thing
@@ -338,12 +338,12 @@ def _remix_s16_py(source, src_channels, dst_channels, dest=None):
     stereo cost 50.5 ms with ``struct`` and 17.3 ms this way, with zero heap
     growth across repeated calls. Per-chunk allocation on an audio path is
     what produced the multi-hundred-millisecond GC pauses recorded in
-    :class:`PaceOutput`.
+    `PaceOutput`.
 
     It is still not fast enough to feed a live 44.1 kHz stereo stream on that
     chip (1.73x realtime); 16 kHz is comfortable at 0.63x and 24 kHz marginal
     at 0.94x. A board that must remix at a high rate needs the C
-    implementation -- see :func:`audiodev.accel.best_remix`.
+    implementation -- see `audiodev.accel.best_remix`.
     """
     src_channels = int(src_channels)
     dst_channels = int(dst_channels)
@@ -578,8 +578,8 @@ class _Device:
 class PCMOutput(_Device):
     """Raw PCM playback with normalized volume and async support.
 
-    Subclasses implement :meth:`_write` (and optionally :meth:`_drain`,
-    :meth:`_awrite`, :meth:`_adrain`, :meth:`service`).
+    Subclasses implement `_write` (and optionally `_drain`,
+    `_awrite`, `_adrain`, `service`).
     """
 
     kind = "pcm"
@@ -724,7 +724,7 @@ class PCMOutput(_Device):
     def try_write(self, buf):
         """Push as many bytes as the backend will take without blocking.
 
-        Unlike :meth:`write`, a 0-byte or partial I2S return is not an error:
+        Unlike `write`, a 0-byte or partial I2S return is not an error:
         the caller keeps the remainder. Volume scaling is applied to *buf*
         before the backend sees it; leftover bytes should be retried as the
         original unscaled prefix.
@@ -777,7 +777,7 @@ class PCMOutput(_Device):
 class PCMInput(_Device):
     """Raw PCM capture with normalized gain and async support.
 
-    Subclasses implement :meth:`_readinto` (and optionally :meth:`_areadinto`).
+    Subclasses implement `_readinto` (and optionally `_areadinto`).
     """
 
     kind = "pcm"
@@ -1037,7 +1037,7 @@ class PaceOutput(PCMOutput):
     while the speaker underruns. ``queue_ms`` only caps how much we keep
     in the stash (OOM), not how much we are willing to push into I2S.
 
-    Inner writes use :meth:`PCMOutput.try_write`, not :meth:`write`. The
+    Inner writes use `PCMOutput.try_write`, not `write`. The
     latter loops until every byte lands (or raises on a 0-byte I2S
     return). ``machine.I2S`` in asyncio mode returns partial/zero when DMA
     is full; that is the stop signal, not an error.
@@ -1046,7 +1046,7 @@ class PaceOutput(PCMOutput):
     sleep for I2S room: a 250 ms ``sleep_ms`` wait held the GIL while DMA
     played out, which is the Connect skip (C ring full, I2S empty). Overflow
     above ``queue_ms`` is dropped, oldest first, and counted in
-    ``lost_bytes``. The Connect pump must call :meth:`space` and leave PCM
+    ``lost_bytes``. The Connect pump must call `space` and leave PCM
     in the C ring when the stash is at cap.
 
     ``try_write()`` never drops: it takes only what the I2S ring and the
@@ -1253,7 +1253,7 @@ class PaceOutput(PCMOutput):
         """Take what fits in the I2S ring and the stash, drop nothing.
 
         Returns the bytes taken, whole frames only. ``PCMOutput.try_write``
-        promises the caller keeps the rest; going through :meth:`_write`
+        promises the caller keeps the rest; going through `_write`
         instead reported every byte taken and dropped what was over the
         stash's cap.
         """
@@ -1287,7 +1287,7 @@ def pace_output(pcm, queue_ms=80):
 class ToneOutput(_Device):
     """Frequency/duty output for PWM speakers and buzzers.
 
-    Subclasses implement :meth:`_play` and :meth:`_stop`.
+    Subclasses implement `_play` and `_stop`.
     """
 
     kind = "tone"

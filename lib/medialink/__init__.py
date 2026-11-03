@@ -7,17 +7,17 @@ CPython, so a board and a computer are peers of the same kind.
 
 It is three layers, so a new kind of link stays small:
 
-* **media** (:mod:`medialink.intercom`, :mod:`medialink.video`,
-  :mod:`medialink.codec`): frames and their timestamps, the half-duplex
+* **media** (`medialink.intercom`, `medialink.video`,
+  `medialink.codec`): frames and their timestamps, the half-duplex
   floor, the codec that fits the link, pictures cut to the link's packet
   size and paced so sound goes first;
-* **transport** (:mod:`medialink.transport`): open, send, receive, close,
+* **transport** (`medialink.transport`): open, send, receive, close,
   and the link's MTU and bandwidth. UDP over IP is the one built;
-* **discovery** (:mod:`medialink.discovery`): finds a peer by name and
+* **discovery** (`medialink.discovery`): finds a peer by name and
   hands back its address: mDNS on a shared network, Bluetooth LE nearby,
   or a hotspot one board starts and the other joins.
 
-:class:`Link` ties a transport to one peer::
+`Link` ties a transport to one peer::
 
     import medialink
 

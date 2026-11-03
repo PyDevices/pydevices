@@ -15,7 +15,7 @@ From a laptop or another board::
     import bledev.improv as improv
     url = await improv.provision(ble, ssid, password, name="kitchen")
 
-A network that can't be joined raises :class:`ImprovError` with
+A network that can't be joined raises `ImprovError` with
 ``code == ERROR_UNABLE_TO_CONNECT``, which the board also reports in its error
 characteristic.
 
@@ -133,7 +133,7 @@ def packet_length(buffer):
 
 
 def unpack(packet):
-    """``(command, [bytes, ...])`` from one whole packet. Raises :class:`ImprovError`."""
+    """``(command, [bytes, ...])`` from one whole packet. Raises `ImprovError`."""
     packet = bytes(packet)
     if len(packet) < 3 or len(packet) != packet[1] + 3:
         raise ImprovError(ERROR_INVALID_RPC, "Improv packet has the wrong length")
@@ -152,7 +152,7 @@ def unpack(packet):
 
 
 def service_data(state, capabilities):
-    """The six bytes the advertisement carries under :data:`SERVICE_DATA`."""
+    """The six bytes the advertisement carries under `SERVICE_DATA`."""
     return bytes((state, capabilities, 0, 0, 0, 0))
 
 
@@ -234,13 +234,13 @@ class Server:
 
     ``join(ssid, password)`` is an async callable returning the IP address
     as a string, or ``None`` if the network couldn't be joined; the default
-    is :func:`wifi_connect`, on MicroPython. ``redirect`` is the URL the client
+    is `wifi_connect`, on MicroPython. ``redirect`` is the URL the client
     is sent to afterwards, with ``{ip}`` filled in; ``None`` sends none.
     ``on_join(ssid, password, ip)`` runs after a successful join, so the app
     can store the credentials for the next boot.
 
     ``require_authorization=True`` starts in "authorization required" until
-    :meth:`authorize` (from a button, say). ``identify`` is a callable that
+    `authorize` (from a button, say). ``identify`` is a callable that
     makes the device noticeable (blink, beep); ``scan`` returns
     ``[(ssid, rssi, secured), ...]``. Each one given turns on its capability.
     """
@@ -295,7 +295,7 @@ class Server:
     # -- state
 
     def authorize(self):
-        """Mark the device authorized for :data:`AUTHORIZATION_MS` (from a button press)."""
+        """Mark the device authorized for `AUTHORIZATION_MS` (from a button press)."""
         if self.state == STATE_AUTHORIZATION_REQUIRED:
             self._authorized_until = AUTHORIZATION_MS
             self.state = STATE_AUTHORIZED
@@ -453,7 +453,7 @@ class Server:
 async def serve(ble, name="improv", *, timeout_ms=None, **options):
     """Serve Improv on ``ble`` until provisioned; return the redirect URL (or the IP).
 
-    ``options`` go to :class:`Server`.
+    ``options`` go to `Server`.
     """
     return await Server(ble, name, **options).serve(timeout_ms)
 
@@ -462,7 +462,7 @@ async def serve(ble, name="improv", *, timeout_ms=None, **options):
 
 
 class Client:
-    """A connection to an Improv device. Use :meth:`connect`, or :func:`provision`."""
+    """A connection to an Improv device. Use `connect`, or `provision`."""
 
     def __init__(self, connection, chars):
         self.connection = connection
@@ -567,7 +567,7 @@ class Client:
     async def send_wifi(self, ssid, password, timeout_ms=60000):
         """Send credentials; return the redirect URL (``""`` if the device sends none).
 
-        Raises :class:`ImprovError` (``ERROR_UNABLE_TO_CONNECT`` for a network
+        Raises `ImprovError` (``ERROR_UNABLE_TO_CONNECT`` for a network
         the device couldn't join).
         """
         state = await self.state()
@@ -616,7 +616,7 @@ class Client:
 async def provision(ble, ssid, password, name=None, *, device=None, timeout_ms=60000):
     """Connect to an Improv device, send it ``ssid`` and ``password``, and return its redirect URL.
 
-    Raises :class:`ImprovError` if it can't join.
+    Raises `ImprovError` if it can't join.
     """
     client = await Client.connect(ble, name, device=device, timeout_ms=min(timeout_ms, 20000))
     try:

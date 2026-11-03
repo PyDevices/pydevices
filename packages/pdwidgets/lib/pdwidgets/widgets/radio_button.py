@@ -11,7 +11,7 @@ from .toggle import Toggle
 
 
 class RadioButton(Toggle):
-    """Mutually exclusive checked icon; belongs to a :class:`RadioGroup`."""
+    """Mutually exclusive checked icon; belongs to a `RadioGroup`."""
     def __init__(
         self,
         parent: Widget,

@@ -37,10 +37,10 @@ class Dropdown(Widget):
         """
         Initialize a Dropdown: a header button that reveals a popup option list.
 
-        Tapping the header opens a small popup (a shadowed :class:`Card` of
+        Tapping the header opens a small popup (a shadowed `Card` of
         option buttons) over the screen; tapping an option selects it, updates
         ``value`` and closes the popup; tapping anywhere else also closes it. The
-        popup uses modal pointer capture (see :meth:`Widget.set_modal`) so the
+        popup uses modal pointer capture (see `Widget.set_modal`) so the
         rest of the UI is inert while it is open.
 
         Args:

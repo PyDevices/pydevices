@@ -11,7 +11,7 @@ a layering rule and one line in a generated TOML.
 Everything here runs under CPython with three stand-ins: the ``audiopump``
 engine, the ``audiomixer`` root and the ``audiocore`` pull. That is enough
 for all of the arbitration, because none of it is C: `Pump` decides, and the
-module it decides *with* is fetched through :func:`audiodev.pump.module`,
+module it decides *with* is fetched through `audiodev.pump.module`,
 which a test can hand anything.
 
 **What it cannot show** is that the pump actually pulls, that the bytes come

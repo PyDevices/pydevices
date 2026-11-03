@@ -1,6 +1,6 @@
 """USB Video Class descriptor parsing, for the host role.
 
-The companion to :mod:`usb.host.audio`, and it exists for the same reason: a
+The companion to `usb.host.audio`, and it exists for the same reason: a
 class-compliant device announces what it can do in *class-specific*
 descriptors interleaved through the configuration blob, and a host has to walk
 all of them before it can ask for a single frame. Doing that walk in Python
@@ -31,8 +31,8 @@ of frame descriptors::
 The alts are pure *bandwidth* tiers: same endpoint, different
 ``wMaxPacketSize``. Choosing a video mode is therefore two independent
 decisions -- which (format, frame) you want, and which alt is big enough to
-carry it -- which is why :func:`formats` and :func:`alt_settings` are separate
-functions and :func:`choose` takes both.
+carry it -- which is why `formats` and `alt_settings` are separate
+functions and `choose` takes both.
 
 The actual mode is then negotiated over the control endpoint with
 VS_PROBE/VS_COMMIT, which is a transaction rather than a descriptor read and
@@ -301,7 +301,7 @@ def required_packet_bytes(frame, interval):
 
     This is an ESTIMATE and an upper bound, useful for reasoning about
     uncompressed formats. Do not select an alternate setting with it -- see
-    :func:`alt_for_payload`. ``max_frame_bytes`` is a worst case, and for
+    `alt_for_payload`. ``max_frame_bytes`` is a worst case, and for
     MJPEG a very loose one, so this over-reports by a wide margin on exactly
     the format most cameras actually stream.
     """
@@ -315,7 +315,7 @@ def alt_for_payload(alts, payload_bytes):
     """The smallest isochronous alt that can carry ``payload_bytes`` per frame.
 
     This is the second half of setting up a stream, and it is deliberately not
-    folded into :func:`choose`. A host does not compute the payload size --
+    folded into `choose`. A host does not compute the payload size --
     it asks. VS_PROBE/VS_COMMIT is a negotiation in which the *device* returns
     ``dwMaxPayloadTransferSize`` for the mode being requested, and that number
     is what selects the alt.
@@ -341,7 +341,7 @@ def choose(formats_found, width=None, height=None, encoding=None,
            min_fps=None):
     """Pick a ``(format, frame, interval)`` for the requested mode, or ``None``.
 
-    The *mode* only -- see :func:`alt_for_payload` for why the alternate
+    The *mode* only -- see `alt_for_payload` for why the alternate
     setting is a separate, later decision.
 
     Unspecified criteria do not constrain. Among matching modes the largest

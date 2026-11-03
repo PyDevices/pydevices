@@ -6,8 +6,8 @@
 displaydev._webinput
 
 Browser input turned into ``events`` objects, shared by the PyScript canvas
-(:mod:`displaydev.psdisplay`, which listens on the DOM itself) and the Web
-Worker display (:mod:`displaydev.workerdisplay`, which is handed the same
+(`displaydev.psdisplay`, which listens on the DOM itself) and the Web
+Worker display (`displaydev.workerdisplay`, which is handed the same
 events by the page). Nothing here touches ``document``, so it imports in a
 worker too.
 """
@@ -54,7 +54,7 @@ class WebInput:
     """Pointer, wheel, keyboard and gamepad input as an appdev HOST device.
 
     Subclasses decide where the browser events come from; the handlers below
-    turn each one into ``events`` objects, drained through :meth:`read`.
+    turn each one into ``events`` objects, drained through `read`.
     """
 
     canvas = None

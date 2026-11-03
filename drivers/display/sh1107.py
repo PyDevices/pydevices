@@ -83,13 +83,14 @@ class SH1107(DisplayDriver):
     """
     SH1107 driver.
 
-    :param bus: the display bus (see the module docstring).
-    :param int width: common lines (RAM columns), at most 128.
-    :param int height: segments (RAM page bits), at most 128.
-    :param int rotation: 0, 90, 180 or 270 degrees, applied in software.
-    :param int display_offset: the common line of the panel's first row;
-        None is 0x60 for a 64-line panel and 0 otherwise.
-    :param float brightness: contrast from 0 to 1; None keeps the init value.
+    Args:
+        bus: the display bus (see the module docstring).
+        width (int): common lines (RAM columns), at most 128.
+        height (int): segments (RAM page bits), at most 128.
+        rotation (int): 0, 90, 180 or 270 degrees, applied in software.
+        display_offset (int): the common line of the panel's first row;
+            None is 0x60 for a 64-line panel and 0 otherwise.
+        brightness (float): contrast from 0 to 1; None keeps the init value.
     """
 
     def __init__(

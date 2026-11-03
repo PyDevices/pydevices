@@ -128,7 +128,7 @@ def mod_mask(ctrl, shift, alt, meta):
     DOM only reports that a modifier *group* is held, not left vs right.
     This returns the **left-hand** ``KMOD_L*`` bits. Prefer matching with
     group masks (``keys.KMOD_SHIFT`` / ``keys.KMOD_CTRL`` / …) or
-    :func:`keys.chord_matches`, or enrich with :func:`enrich_mod` when pressed
+    `keys.chord_matches`, or enrich with `enrich_mod` when pressed
     keycodes are known.
 
     Args:
@@ -159,7 +159,7 @@ def enrich_mod(mod, pressed_keys):
     ``event.mod`` reflects Right Shift/Ctrl/… when those keys are down.
 
     Args:
-        mod (int): Base modifier mask (e.g. from :func:`mod_mask`).
+        mod (int): Base modifier mask (e.g. from `mod_mask`).
         pressed_keys: Iterable of currently pressed key codes.
 
     Returns:

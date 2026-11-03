@@ -1,13 +1,13 @@
 """A wake word, such as "Hey Jarvis", to open the hands-free floor.
 
-:class:`WakeWord` stands where a :class:`~medialink.VoiceActivity` would in
-an :class:`~medialink.Intercom`, so the intercom sends only after someone
+`WakeWord` stands where a `VoiceActivity <medialink.VoiceActivity>` would in
+an `Intercom <medialink.Intercom>`, so the intercom sends only after someone
 says the word: "Hey Jarvis, the baby's awake" sends, and talk in the room
 around it doesn't. After the word the floor stays open for ``listen_ms``,
 time to start speaking, and then for as long as the voice activity hears
 speech. When it stops, the next turn needs the word again.
 
-:class:`MicroWakeWord` is the detector: one of ESPHome's microWakeWord
+`MicroWakeWord` is the detector: one of ESPHome's microWakeWord
 models, run by the firmware's ``tflite`` module on features from
 audiodsp's ``audiofeatures``. A board whose firmware has both runs it;
 CircuitPython and CPython don't, for now. It follows ESPHome's
@@ -105,10 +105,10 @@ class WakeWord:
     """Opens the floor on a wake word; a stand-in for ``VoiceActivity``.
 
     ``manifest`` is a microWakeWord model's JSON, as for
-    :class:`MicroWakeWord`, or pass ``spotter``, anything with
+    `MicroWakeWord`, or pass ``spotter``, anything with
     ``feed(pcm, rate, channels)`` that is True when the word ends.
     ``voice`` says when the speech after it stops; by default a
-    :class:`~medialink.VoiceActivity` at ``rate``. ``listen_ms`` is how
+    `VoiceActivity <medialink.VoiceActivity>` at ``rate``. ``listen_ms`` is how
     long the floor stays open after the word for speech to begin.
     """
 

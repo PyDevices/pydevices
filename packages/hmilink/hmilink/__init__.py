@@ -51,7 +51,7 @@ jack), never how to lay it out: whoever draws a panel decides that.
 The pieces
 ----------
 A **model** is what the device is about. It keeps ``doc`` current and
-answers four calls; :class:`Model` is a base whose defaults make a plain
+answers four calls; `Model` is a base whose defaults make a plain
 document editable with no model code at all::
 
     class RackModel(hmilink.Model):
@@ -62,10 +62,10 @@ document editable with no model code at all::
 
 A **transport** moves frames (one message's bytes) and knows nothing about
 what is in them, so neither the device nor the panel knows which one
-carries it. One module per transport, as in ``midiports``: :mod:`hmilink.tcp`
+carries it. One module per transport, as in ``midiports``: `hmilink.tcp`
 (TCP with newline framing; the same port also serves a page and speaks
-WebSocket to a browser), :mod:`hmilink.local` (in-process, for the
-device's own screen and for tests) and :mod:`hmilink.stream` (anything with
+WebSocket to a browser), `hmilink.local` (in-process, for the
+device's own screen and for tests) and `hmilink.stream` (anything with
 ``read``/``write``: a UART or USB CDC). A transport gives you a *link*
 (``send(frame)``, ``recv()`` returning one frame or ``None``, ``close()``,
 ``closed``) or a *listener* (``accept()`` returning a link or ``None``).

@@ -12,7 +12,7 @@ directly; this factory is convenience only.
 Returns the display driver directly. Desktop drivers expose ``get_events`` for
 ``appdev.App(host_read=...)``.
 
-The host backends are rows of the :mod:`backends` registry (experimental), so a
+The host backends are rows of the `backends` registry (experimental), so a
 backend of your own can join them. See "Experimental: your own backend" in
 docs/guides/displays.md.
 """
@@ -195,7 +195,7 @@ def AutoDisplay(
 
     The search order (experimental) is the ``PYDEVICES_DISPLAY`` environment
     variable, then the backends a board config asked for with ``require``, then the ones in
-    the box. See :mod:`backends`.
+    the box. See `backends`.
 
     Returns:
         A ``PSDisplay``, ``JNDisplay``, ``WinDisplay``, ``PGDisplay``, or

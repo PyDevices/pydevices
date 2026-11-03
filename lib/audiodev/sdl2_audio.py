@@ -1,4 +1,4 @@
-"""SDL2 audio backend for :mod:`audiodev` (pure Python, queued audio only).
+"""SDL2 audio backend for `audiodev` (pure Python, queued audio only).
 
 Playback pushes PCM with ``SDL_QueueAudio`` and never installs an audio
 callback: SDL's audio thread is not registered with the Python/MicroPython
@@ -27,8 +27,8 @@ failure is named so it can be re-tested instead of rediscovered:
 * Detect stalls by **consumption rate over a window**, never by watching queue
   depth. A caller that tops the queue up replaces every consumed period before
   the next check sees it, so depth does not fall even when the sink has died.
-* Gate the prebuffer on :meth:`SDLPCMOutput._hw_queued`, never on
-  :meth:`SDLPCMOutput.queued_size`. Counting bytes still sitting in the
+* Gate the prebuffer on `SDLPCMOutput._hw_queued`, never on
+  `SDLPCMOutput.queued_size`. Counting bytes still sitting in the
   software buffer let the device start on ~40ms of audio, underrun, and wedge
   again immediately after every recovery.
 * Keep the reopen off the caller's thread, and keep ``RECOVER_SETTLE_MS``
@@ -38,7 +38,7 @@ failure is named so it can be re-tested instead of rediscovered:
 * Size ``_shadow`` to cover everything SDL may still hold. Anything smaller
   silently drops audio during recovery.
 * Do not let "the device is unpaused" mean playing in
-  :meth:`SDLPCMOutput.is_active` -- it stays unpaused for the life of the
+  `SDLPCMOutput.is_active` -- it stays unpaused for the life of the
   device, so callers would wait forever for playback that already finished.
 
 The ``recycles``, ``lost_bytes`` and ``requeued_bytes`` counters exist to keep
@@ -173,7 +173,7 @@ def _android_session():
 
     Non-Android hosts get ``session=None`` (unchanged PCMOutput behavior).
     On Android the module must be present; acquire/release stay lazy until
-    ``open()`` / ``write()`` via :class:`SDLPCMOutput`.
+    ``open()`` / ``write()`` via `SDLPCMOutput`.
     """
     if sys.platform != "android":
         return None
@@ -215,7 +215,7 @@ def _diff_ms(later, earlier):
 
 
 def _deadline_ms(milliseconds):
-    """A future timestamp comparable with :func:`_elapsed_ms` (ticks-safe)."""
+    """A future timestamp comparable with `_elapsed_ms` (ticks-safe)."""
     if hasattr(time, "ticks_add"):
         return time.ticks_add(_monotonic_ms(), milliseconds)
     return _monotonic_ms() + milliseconds
@@ -245,10 +245,10 @@ class SDLPCMOutput(PCMOutput):
 
     PCM travels through two buffers: writes land in ``_coalesce`` (software) and
     are handed to SDL in ``coalesce_ms`` pieces up to ``_queue_limit`` (hardware).
-    :meth:`queued_size` reports both, so a caller can treat "queued_size() == 0"
+    `queued_size` reports both, so a caller can treat "queued_size() == 0"
     as end of playback without knowing which buffer holds what.
 
-    Callers must call :meth:`service` from their tick. Without it, a partial
+    Callers must call `service` from their tick. Without it, a partial
     write can sit in ``_coalesce`` unqueued and a wedged device is never noticed.
     """
 
@@ -343,7 +343,7 @@ class SDLPCMOutput(PCMOutput):
         """Open the SDL device **paused** and reset progress accounting.
 
         Opening paused is not an optimization: the device must not start on the
-        first small chunk of a flush (see :meth:`_unpause_if_primed`). Progress
+        first small chunk of a flush (see `_unpause_if_primed`). Progress
         state is per-device, so ``_queued_total`` and the rate samples reset here
         -- carrying them across a reopen would read as a huge instant stall.
         """
@@ -413,7 +413,7 @@ class SDLPCMOutput(PCMOutput):
         """Bytes still waiting to play, including what has not been handed to SDL.
 
         Both buffers count, so audio parked in ``_coalesce`` during a rebuild is
-        not mistaken for silence. Use :meth:`_hw_queued` instead when the
+        not mistaken for silence. Use `_hw_queued` instead when the
         question is what the *device* is doing.
         """
         return self._hw_queued() + len(self._coalesce)
@@ -460,7 +460,7 @@ class SDLPCMOutput(PCMOutput):
         its queue on close, so the unplayed tail can only come from here.
 
         Never waits for room. Backpressure belongs to the callers that can afford
-        it -- :meth:`_flush_coalesce` simply stops early, and :meth:`awrite` awaits
+        it -- `_flush_coalesce` simply stops early, and `awrite` awaits
         instead of sleeping. A wait here would block whichever thread or event
         loop happened to be flushing.
         """
@@ -488,7 +488,7 @@ class SDLPCMOutput(PCMOutput):
 
         Without ``force`` this never blocks and never overfills: it stops at
         ``_queue_limit`` and leaves the rest buffered, because the caller may be
-        a UI thread. :meth:`_unpause_if_primed` is called once at the end rather
+        a UI thread. `_unpause_if_primed` is called once at the end rather
         than per piece, so a large flush cannot start the device on its first
         chunk.
         """
@@ -518,7 +518,7 @@ class SDLPCMOutput(PCMOutput):
         Safe to call during a rebuild -- the data is buffered and queued in order
         behind the re-queued tail once the device is back, so a caller does not
         have to know a recovery is in progress. ``_max_pending`` is only a
-        backstop against callers that ignore :meth:`queued_size` entirely.
+        backstop against callers that ignore `queued_size` entirely.
         """
         if not self._recycling:
             self._open_device()
@@ -537,9 +537,9 @@ class SDLPCMOutput(PCMOutput):
         return len(buf)
 
     async def _awrite(self, buf):
-        """Async :meth:`write`: awaits backpressure instead of sleeping through it.
+        """Async `write`: awaits backpressure instead of sleeping through it.
 
-        Yields once up front even when there is room. :meth:`write`'s bounded
+        Yields once up front even when there is room. `write`'s bounded
         sleeps would otherwise stall the whole event loop, and a task looping on
         ``awrite`` alone would never give the loop a chance to run anything else
         -- including its own cancellation.
@@ -582,7 +582,7 @@ class SDLPCMOutput(PCMOutput):
         """Call from the app's tick: flush partial writes and watch for stalls.
 
         Required, not optional -- stall recovery only happens here and in
-        :meth:`drain`. A no-op during a rebuild, since the worker owns the device
+        `drain`. A no-op during a rebuild, since the worker owns the device
         and the pending PCM is queued on the next tick.
 
         Re-entrancy: a MicroPython ``mp_sched`` callback (spremote's pump) can
@@ -689,8 +689,8 @@ class SDLPCMOutput(PCMOutput):
         the sink is busy, so it retries.
 
         Never raises. Nothing is waiting to catch this, and a half-finished
-        rebuild is worse than a reported failure: with no device, :meth:`service`
-        does nothing, so any PCM left buffered would keep :meth:`is_active` true
+        rebuild is worse than a reported failure: with no device, `service`
+        does nothing, so any PCM left buffered would keep `is_active` true
         forever and hang callers waiting for playback to end. If no device can be
         had, that audio is dropped and counted.
         """
@@ -751,7 +751,7 @@ class SDLPCMOutput(PCMOutput):
         return self.queued_size() == 0
 
     async def adrain(self, timeout_ms=None):
-        """Async :meth:`drain`; identical rules, yields instead of sleeping."""
+        """Async `drain`; identical rules, yields instead of sleeping."""
         self.open()
         self._wait_rebuild()
         self._open_device()
@@ -846,9 +846,9 @@ def pcm_out(
     prebuffer_ms=None,
     poll_ms=2,
 ):
-    """Create an SDL-backed :class:`PCMOutput`.
+    """Create an SDL-backed `PCMOutput`.
 
-    ``latency`` picks a profile (see :data:`audiodev.LATENCIES`); pass
+    ``latency`` picks a profile (see `audiodev.LATENCIES`); pass
     ``"low"`` for interactive callers such as a synth. Any of ``samples``,
     ``queue_ms``, ``coalesce_ms`` and ``prebuffer_ms`` given explicitly
     override the profile.
@@ -878,9 +878,9 @@ def pcm_in(
     poll_ms=2,
     timeout_ms=100,
 ):
-    """Create an SDL-backed :class:`PCMInput` using real host capture.
+    """Create an SDL-backed `PCMInput` using real host capture.
 
-    ``latency`` picks a profile as in :func:`audio_out`; ``samples`` and
+    ``latency`` picks a profile as in `audio_out`; ``samples`` and
     ``queue_ms`` given explicitly override it. A read returns after
     ``timeout_ms`` with no samples rather than waiting for them.
     """

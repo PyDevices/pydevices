@@ -24,7 +24,7 @@ comparison.
 
 
 class _Percent:
-    """Base for :class:`Width` / :class:`Height`: a cached percentage of a widget dimension."""
+    """Base for `Width` / `Height`: a cached percentage of a widget dimension."""
 
     # Value-like and dynamic, so it is intentionally unhashable (mirrors
     # ``pygraphics.Area``); it is never used as a set/dict key.

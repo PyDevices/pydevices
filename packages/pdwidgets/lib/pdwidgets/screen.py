@@ -12,8 +12,8 @@ from .widget import Widget
 class Screen(Widget):
     """Full-screen page container for grouping a coherent UI view.
 
-    A :class:`Screen` is the usual root for a page or modal surface inside a
-    :class:`Display`. It fills the display area and can expose helper children
+    A `Screen` is the usual root for a page or modal surface inside a
+    `Display`. It fills the display area and can expose helper children
     such as ``top``, ``main``, and ``bottom`` when the display has split
     regions. Applications commonly create one screen per page and swap the
     active screen to navigate between views.

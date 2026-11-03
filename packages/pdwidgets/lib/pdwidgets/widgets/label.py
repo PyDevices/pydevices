@@ -35,7 +35,7 @@ class Label(Widget):
         By default the built-in 8-pixel-wide romfont is used. Passing ``font``
         (a proportional bitmap font module from the ``write_font_converter``
         pipeline, e.g. ``chango_32``) renders via the private
-        :mod:`pdwidgets._write_font` helper. Proportional text is opaque, so a
+        `pdwidgets._write_font` helper. Proportional text is opaque, so a
         solid ``bg`` is used (the parent's ``bg`` when none is given).
 
         Args:
@@ -114,7 +114,7 @@ class Label(Widget):
 
         Uses this label's current typeface settings: proportional ``font`` when
         set, otherwise the romfont at ``text_height`` / ``scale`` (and optional
-        ``font_data``). Defaults to measuring :attr:`value`.
+        ``font_data``). Defaults to measuring `value`.
 
         Newlines are not special-cased (same contract as
         ``pygraphics.Font.text_width`` / ``write_width``).

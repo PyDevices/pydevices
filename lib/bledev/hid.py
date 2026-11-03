@@ -12,14 +12,14 @@ desktop::
         for event in await host.events():
             print(event)
 
-It reads the device's Report Map, parses it (:mod:`bledev.hidreport`),
+It reads the device's Report Map, parses it (`bledev.hidreport`),
 subscribes to every input report and decodes each one as it arrives. A
 keyboard that insists on pairing gets it: the first read that fails for want
 of encryption pairs the link and tries again, and with ``bond=True`` (the
 default) the keys are kept, so the next connect is quick.
 
 **As a device** (peripheral), a board advertises as a BLE keyboard, mouse,
-media remote and gamepad. Its :attr:`Peripheral.devices` are CircuitPython's
+media remote and gamepad. Its `Peripheral.devices` are CircuitPython's
 ``usb_hid.devices`` shape, so Adafruit's ``adafruit_hid`` drives them exactly
 as it drives USB::
 
@@ -34,7 +34,7 @@ as it drives USB::
     Mouse(per.devices).move(x=40)
 
 Install ``adafruit_hid`` with ``mip.install("github:PyDevices/pydevices/bledev_hid")``.
-The gamepad, which ``adafruit_hid`` no longer has, is :mod:`bledev.hid_gamepad`.
+The gamepad, which ``adafruit_hid`` no longer has, is `bledev.hid_gamepad`.
 
 Its name, appearance and Report Map follow from which functions it offers,
 the same way every time, because hosts cache a device's services against
@@ -205,7 +205,7 @@ def _sleep_ms_blocking(ms):
 
 
 class Device:
-    """One HID function of a :class:`Peripheral`, in CircuitPython's
+    """One HID function of a `Peripheral`, in CircuitPython's
     ``usb_hid.Device`` shape: ``usage_page``, ``usage``, ``send_report()``
     and ``get_last_received_report()``. ``adafruit_hid`` finds it by usage.
     """
@@ -224,9 +224,9 @@ class Device:
         """Send one input report to the connected host, now.
 
         It returns once the radio has taken the report. A busy radio is
-        retried for up to :data:`SEND_WAIT_MS`, then raises
-        :class:`~bledev.BusyError`; with no host connected it raises
-        :class:`~bledev.BLEError`.
+        retried for up to `SEND_WAIT_MS`, then raises
+        `BusyError <bledev.BusyError>`; with no host connected it raises
+        `BLEError <bledev.BLEError>`.
         """
         if report_id is not None and report_id != self.report_id:
             raise ValueError("report_id {} is not this device's ({})".format(report_id, self.report_id))
@@ -264,9 +264,9 @@ class Device:
 class Peripheral:
     """A board that is a BLE keyboard, mouse, media remote and gamepad (any of them).
 
-    :attr:`devices` lists one :class:`Device` per function, in that order,
+    `devices` lists one `Device` per function, in that order,
     for ``adafruit_hid`` (``Keyboard(per.devices)``, ``Mouse(per.devices)``,
-    ``ConsumerControl(per.devices)``) and :mod:`bledev.hid_gamepad`. The
+    ``ConsumerControl(per.devices)``) and `bledev.hid_gamepad`. The
     default set is ``usb_hid``'s: keyboard, mouse and consumer control.
 
     ``encrypted=True`` serves the Report Map and reports only to a host that
@@ -385,8 +385,8 @@ class Peripheral:
 class Host:
     """One connected HID device, as a stream of PyDevices events.
 
-    Make it with :func:`connect`, or :meth:`start` it on a connection you
-    already have. ``report_map`` is the parsed :class:`ReportMap`;
+    Make it with `connect`, or `start` it on a connection you
+    already have. ``report_map`` is the parsed `ReportMap`;
     ``paired`` says whether it had to pair.
     """
 
@@ -558,7 +558,7 @@ class Host:
 async def connect(ble, name=None, *, device=None, timeout_ms=10000, bond=True, instance_id=0,
                   service_uuid=HID_SERVICE, **options):
     """Find a BLE HID device (by ``name``, or any advertising the HID service),
-    connect, and return a started :class:`Host`."""
+    connect, and return a started `Host`."""
     if device is None:
         device = await ble.find(name=name, service=None if name else service_uuid, timeout_ms=timeout_ms)
     connection = await device.connect(timeout_ms=timeout_ms, **options)

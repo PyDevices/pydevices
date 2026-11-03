@@ -68,7 +68,7 @@ def _pcm_out(format=None, **kwargs):
 
 
 def _pcm_in(format=None, **kwargs):
-    """Raw PCM source at *format*; see :func:`_pcm_out` for the keywords."""
+    """Raw PCM source at *format*; see `_pcm_out` for the keywords."""
     from audiodev.auto import pcm_in as _auto
 
     wire, _ = negotiate(AUDIO_IN, format)

@@ -29,7 +29,7 @@ class Menu(Widget):
         """
         Popup action menu. ``items`` is a sequence of ``(label, callback)``.
 
-        Unlike :class:`Dropdown`, this does not hold an option value — each row
+        Unlike `Dropdown`, this does not hold an option value — each row
         fires its callback and closes.
         """
         screen = _root_screen(parent)

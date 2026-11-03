@@ -385,7 +385,7 @@ class App:
         return tim
 
     def on_tick(self, callback, period=SERVICE_TICK_MS, **_ignored):
-        """Schedule a periodic callback (alias of :meth:`every`)."""
+        """Schedule a periodic callback (alias of `every`)."""
         return self.every(period, callback)
 
     def stop_timers(self):

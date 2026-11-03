@@ -12,7 +12,7 @@ from .page import Page
 
 
 class TabView(Widget):
-    """Tab bar plus content area with one :class:`Page` per tab."""
+    """Tab bar plus content area with one `Page` per tab."""
     def __init__(  # noqa: PLR0913
         self,
         parent: Widget,
@@ -31,7 +31,7 @@ class TabView(Widget):
         bar_height=None,
     ):
         """
-        Tab bar plus a content area hosting one :class:`Page` per tab.
+        Tab bar plus a content area hosting one `Page` per tab.
 
         Args:
             tabs (list): Sequence of ``(label, Page)`` or just labels (empty
@@ -166,10 +166,10 @@ class TabView(Widget):
 
     @index.setter
     def index(self, value):
-        """Select the tab at ``index`` (alias for :meth:`set_index`)."""
+        """Select the tab at ``index`` (alias for `set_index`)."""
         self.set_index(value)
 
     @property
     def pages(self):
-        """List of :class:`Page` widgets, one per tab."""
+        """List of `Page` widgets, one per tab."""
         return list(self._pages)

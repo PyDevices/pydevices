@@ -36,7 +36,7 @@ class Toast(Widget):
         """
         Transient bottom banner for non-modal feedback.
 
-        Call :meth:`show` with a message; the toast auto-hides after
+        Call `show` with a message; the toast auto-hides after
         ``duration_ms`` using the display's task list.
         """
         screen = _root_screen(parent)

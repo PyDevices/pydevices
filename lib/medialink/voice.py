@@ -1,7 +1,7 @@
 """Is anyone speaking? Voice activity for a hands-free floor.
 
-:class:`VoiceActivity` takes the microphone's frames as they come and says
-whether there is sound worth sending. :class:`~medialink.Intercom` uses one
+`VoiceActivity` takes the microphone's frames as they come and says
+whether there is sound worth sending. `Intercom <medialink.Intercom>` uses one
 to take the floor when someone starts to speak and give it back when they
 stop, so nobody holds a button.
 

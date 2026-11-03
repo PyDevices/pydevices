@@ -11,13 +11,13 @@ except the S2), and the ``asyncio`` library from the Adafruit bundle
 ``_bleio`` hands you objects you poll: a connection's ``connected`` flag,
 a buffer a characteristic's writes land in, a scan's iterator. So this backend
 turns each wait into a short poll of those objects (every
-:data:`POLL_MS`), and a few things work differently from the other backends:
+`POLL_MS`), and a few things work differently from the other backends:
 
 * **Some calls block the event loop.** ``_bleio`` has no async API. Connecting,
   service discovery, a read, a write with response and a subscription each
   wait inside ``_bleio`` until the radio answers, usually one or two
   connection intervals, and nothing else in asyncio runs meanwhile. A scan
-  runs in slices of :data:`SCAN_SLICE_MS` for the same reason.
+  runs in slices of `SCAN_SLICE_MS` for the same reason.
 * **Writes land in ring buffers** that CircuitPython fills from the radio's
   task. A characteristic you can notify on gets a ``PacketBuffer``, which
   keeps each write whole but only takes writes from the central that
@@ -27,10 +27,10 @@ turns each wait into a short poll of those objects (every
   Both drop the oldest data when full and don't say so, so read them promptly;
   the stream buffer's fill is checked and a full one raises.
 * **One notification in flight per characteristic.** ``notify()`` raises
-  :class:`BusyError` while the previous one is still waiting for the radio;
+  `BusyError` while the previous one is still waiting for the radio;
   every async sender (nus, midi) waits and tries again. That's how this backend
   steps around a stall in CircuitPython 10.3's ``PacketBuffer`` (see
-  :meth:`_CPServerCharacteristic._send`), and it also keeps each notification
+  `_CPServerCharacteristic._send`), and it also keeps each notification
   whole, where ``PacketBuffer`` would otherwise merge two into one.
 * **Setting a value notifies.** ``Characteristic.write(data)`` on a
   characteristic with notify or indicate sends it to every subscribed central,
@@ -41,7 +41,7 @@ turns each wait into a short poll of those objects (every
   ``capabilities()["indicate"]`` is False.
 * **Pairing is "just works" only.** CircuitPython's ESP32 port has no passkey
   or numeric comparison (``authenticated=True`` raises
-  :class:`UnsupportedError`), and it always bonds. Its MTU is fixed at build
+  `UnsupportedError`), and it always bonds. Its MTU is fixed at build
   time (256 on the ESP32 port), so ``config(mtu=...)`` is unsupported; both
   sides exchange at connect.
 * **A peripheral doesn't learn the central's address.** ``_bleio`` doesn't
@@ -258,7 +258,7 @@ def _layout(service):
 
 
 def get(adapter=None):
-    """The shared :class:`CPBLE` for this board's radio, made on first use."""
+    """The shared `CPBLE` for this board's radio, made on first use."""
     global _shared
     if _shared is None:
         _shared = CPBLE(adapter)
@@ -271,7 +271,7 @@ class CPBLE(BLE):
     ``queue_limit`` bounds each notification and capture queue, and sizes the
     packet buffers ``_bleio`` fills. ``stream_buffer`` is the byte size of the
     buffer behind a write-only characteristic with ``capture=True`` (nus's RX):
-    what arrives while your code doesn't read. Prefer :func:`get`.
+    what arrives while your code doesn't read. Prefer `get`.
     """
 
     backend = "cpble"
@@ -397,7 +397,7 @@ class CPBLE(BLE):
         its characteristics take over the served copy: reads, writes and
         notifications go to them, and the earlier objects get nothing. That
         needs the same characteristics, in the same order, with the same
-        flags and descriptors. If they differ, this raises :class:`BLEError`:
+        flags and descriptors. If they differ, this raises `BLEError`:
         reload the board (Ctrl-D) to serve the new layout. A service served
         before and left out here stays in the table, unbound, until then.
         """
@@ -899,8 +899,8 @@ _retry_task = None
 
 
 def _retry(impl):
-    """Retry ``impl``'s last notification every :data:`POLL_MS` for
-    :data:`RETRY_MS`, in case the radio couldn't take it yet."""
+    """Retry ``impl``'s last notification every `POLL_MS` for
+    `RETRY_MS`, in case the radio couldn't take it yet."""
     global _retry_task
     impl._sent_at = _ticks_ms()
     if impl not in _retrying:
@@ -928,7 +928,7 @@ async def _retry_loop():
 
 
 class _CPServerCharacteristic:
-    """cpble's half of a :class:`bledev.Characteristic`."""
+    """cpble's half of a `bledev.Characteristic`."""
 
     def __init__(self, ble, characteristic, native):
         self._ble = ble

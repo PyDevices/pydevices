@@ -141,7 +141,7 @@ _SDL_WINDOWEVENT_CLOSE = getattr(usdl2, "SDL_WINDOWEVENT_CLOSE", 0xE)
 
 
 def _display_for_window_id(window_id):
-    """Return the :class:`SDLDisplay` for ``window_id``, or ``None``."""
+    """Return the `SDLDisplay` for ``window_id``, or ``None``."""
     if window_id is None:
         return None
     for display in _displays:

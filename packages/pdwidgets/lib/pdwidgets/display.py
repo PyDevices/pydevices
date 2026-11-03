@@ -38,14 +38,14 @@ def _mark_updates_enabled():
 class Display(Widget):
     """Root display surface that owns the framebuffer, event loop, and widget tree.
 
-    Create one :class:`Display` per hardware panel and attach it to the app's
-    shared :mod:`appdev` coordinator. The display becomes the root of the widget
+    Create one `Display` per hardware panel and attach it to the app's
+    shared `appdev` coordinator. The display becomes the root of the widget
     hierarchy, and its render loop is driven by the app's timer callback so
     widgets redraw without a separate timer of their own.
 
     Typical setup:
 
-    - build a :class:`Screen` for the active page
+    - build a `Screen` for the active page
     - add child widgets with relative geometry and alignment
     - nothing else: the app drives input handling and rendering itself
       once construction is done
@@ -64,7 +64,7 @@ class Display(Widget):
                 and drive periodic redraws.
             tfa (int): Top fixed area used for split displays or status bars.
             bfa (int): Bottom fixed area used for split displays or status bars.
-            format (int): Framebuffer color format; defaults to :data:`RGB565`.
+            format (int): Framebuffer color format; defaults to `RGB565`.
 
         Example:
             import board_config
@@ -163,7 +163,7 @@ class Display(Widget):
 
     @parent.setter
     def parent(self, parent):
-        """Raise :exc:`ValueError` if a parent is assigned."""
+        """Raise `ValueError` if a parent is assigned."""
         if parent is not None:
             raise ValueError("Display object cannot have a parent.")
 
@@ -204,7 +204,7 @@ class Display(Widget):
 
     @visible.setter
     def visible(self, visible):
-        """Raise :exc:`ValueError`; the display cannot be hidden."""
+        """Raise `ValueError`; the display cannot be hidden."""
         raise ValueError("Cannot set visibility of Display object.")
 
     def clip_push(self, area: Area):
@@ -238,8 +238,8 @@ class Display(Widget):
         Dispatch an event, honoring modal pointer capture and focus keys.
 
         Focus keys (Tab / Shift-Tab / arrows) are handled by
-        :attr:`focus_manager` before the widget tree walk. Pointer modality
-        (see :meth:`Widget.set_modal`) only affects mouse/touch — key focus is
+        `focus_manager` before the widget tree walk. Pointer modality
+        (see `Widget.set_modal`) only affects mouse/touch — key focus is
         independent so sheets/dialogs can still host TextInput fields.
         """
         if event.type == events.KEYDOWN and self.focus_manager.handle_key(event):
@@ -255,7 +255,7 @@ class Display(Widget):
 
     @property
     def active_screen(self):
-        """The currently attached :class:`Screen`, if any."""
+        """The currently attached `Screen`, if any."""
         if self.children:
             return self.children[0]
         return None
@@ -268,7 +268,7 @@ class Display(Widget):
         super().add_child(screen)
 
     def add_child(self, screen):
-        """Set :attr:`active_screen` to ``screen``."""
+        """Set `active_screen` to ``screen``."""
         self.active_screen = screen
 
     def set_position(self, *args, **kwargs):
@@ -282,14 +282,14 @@ class Display(Widget):
 
     def add_task(self, callback, delay) -> Task:
         """
-        Schedule a repeating task run from :meth:`tick`.
+        Schedule a repeating task run from `tick`.
 
         Args:
             callback (callable): Zero-argument callable to run.
             delay (int): Interval between runs, in milliseconds.
 
         Returns:
-            Task: The created task (pass to :meth:`remove_task` to cancel).
+            Task: The created task (pass to `remove_task` to cancel).
         """
         new_task = Task(callback, delay)
         self._tasks.append(new_task)
@@ -322,7 +322,7 @@ class Display(Widget):
         Cancel a scheduled task.
 
         Args:
-            task (Task): A task previously returned by :meth:`add_task`.
+            task (Task): A task previously returned by `add_task`.
         """
         self._tasks.remove(task)
 
@@ -355,8 +355,8 @@ class Display(Widget):
 
         Flushes dirty areas to the display, otherwise runs scheduled tasks and
         re-renders invalidated widgets. Driven automatically by the app's
-        shared timer (see :meth:`_attach_to_app`); may also be called
-        manually (e.g. :func:`tick`) to force a frame.
+        shared timer (see `_attach_to_app`); may also be called
+        manually (e.g. `tick`) to force a frame.
         """
         if self._tick_busy:
             return
@@ -459,7 +459,7 @@ class Display(Widget):
 
 def tick(_=None):
     """
-    Call the ``tick`` method of every registered :class:`Display`.
+    Call the ``tick`` method of every registered `Display`.
 
     Args:
         _ (Any): Ignored positional argument so this may also be used as a

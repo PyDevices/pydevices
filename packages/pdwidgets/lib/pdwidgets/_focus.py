@@ -10,7 +10,7 @@ import keys
 class FocusManager:
     """Tracks focusable widgets and moves focus without a pointer.
 
-    Pointer modality (:meth:`Widget.set_modal`) remains separate: it captures
+    Pointer modality (`Widget.set_modal`) remains separate: it captures
     mouse/touch only. FocusManager owns which field receives keystrokes.
     """
 

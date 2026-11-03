@@ -7,7 +7,7 @@ The dispatcher answers *how a callback reaches the main thread*. This module
 answers the separate question *who holds the main thread once the script's
 last line has run*, which is what ``app.run()`` used to exist for.
 
-Three strategies, chosen once by :func:`install`:
+Three strategies, chosen once by `install`:
 
 ``ambient``
     The host already runs a loop that outlives the script body: a browser
@@ -17,7 +17,7 @@ Three strategies, chosen once by :func:`install`:
 ``exit_hook``
     Script mode on CPython, MicroPython or CircuitPython. An interpreter exit
     hook takes the main thread during shutdown and delivers timers until
-    :func:`multimer.alive` is false: ``keepalive`` was cleared or no timer is
+    `multimer.alive` is false: ``keepalive`` was cleared or no timer is
     armed. The script "drops out the bottom" and the program keeps running.
 
 ``none``

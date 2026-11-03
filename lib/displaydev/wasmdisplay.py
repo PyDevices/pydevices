@@ -231,20 +231,20 @@ class WasmDevices:
 class WasmDisplay(DesktopDisplay, FBDisplay):
     """A Python-owned RGB565 framebuffer scanned live by the browser.
 
-    Apps draw into ``_framebuffer`` through the inherited :class:`FBDisplay`
+    Apps draw into ``_framebuffer`` through the inherited `FBDisplay`
     primitives. ``_displayed`` starts out *as* ``_framebuffer`` (the same
     object) -- the browser's ``requestAnimationFrame`` loop reads straight
     off WASM linear memory at the registered pointer every frame regardless
-    of whether Python ever calls :meth:`show`, so a single shared buffer is
+    of whether Python ever calls `show`, so a single shared buffer is
     already correct and ``show()`` needs to do nothing.
 
     A second, real ``_displayed`` buffer is only allocated the first time an
     app actually engages the classic hardware vertical-scroll registers
     (``vscrdef``/``vscsad``/``vscroll`` -- emulating a real SPI panel's scan
-    address, the way :class:`PSDisplay` does with ``drawImage``). LVGL apps
+    address, the way `PSDisplay` does with ``drawImage``). LVGL apps
     never touch that API; they scroll entirely at the widget level, so they
     stay single-buffered and never pay for a full-frame copy on every flush.
-    :meth:`_composite` is where that promotion happens, and where the row-
+    `_composite` is where that promotion happens, and where the row-
     shifted copy runs once it has.
 
     Attributes:

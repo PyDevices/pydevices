@@ -10,7 +10,7 @@ from .toggle import Toggle
 
 
 class ToggleButton(Toggle):
-    """Pre-themed :class:`Toggle` using standard on/off icons."""
+    """Pre-themed `Toggle` using standard on/off icons."""
     def __init__(
         self,
         parent: Widget,

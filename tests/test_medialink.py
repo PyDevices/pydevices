@@ -6,7 +6,7 @@ and a press-to-talk exchange between two intercoms.
 
 Two links in one process need somebody to answer while the other waits for
 an acknowledgement, so the far side runs its loop on a thread. The links
-talk over :class:`Pipe`, an in-memory transport that can lose the network
+talk over `Pipe`, an in-memory transport that can lose the network
 and move a peer to a new address, and over real UDP on localhost.
 """
 

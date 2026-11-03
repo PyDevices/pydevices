@@ -8,10 +8,10 @@ Needs aioble, which isn't frozen into our firmware: install it once with
 PyDevices index.
 
 aioble owns the one ``bluetooth.BLE()`` object and its IRQ handler. An
-:class:`MPBLE` also answers every ``bluetooth.BLE`` method (``active()``,
+`MPBLE` also answers every ``bluetooth.BLE`` method (``active()``,
 ``gap_advertise()``, ``gatts_notify()`` and the rest go straight to the radio),
 so code written for the raw object keeps working when a board config hands
-out an :class:`MPBLE` instead. ``irq(handler)`` is the one it changes: the
+out an `MPBLE` instead. ``irq(handler)`` is the one it changes: the
 handler runs beside aioble's rather than replacing it.
 
 Where aioble would lose data, this backend doesn't:
@@ -122,7 +122,7 @@ class _Queue:
     bleak and browsers) delivers nothing before a subscription.
 
     ``append()`` runs in the radio's IRQ, so it numbers each entry as it
-    arrives; ``popleft()`` leaves that number in :attr:`arrival`."""
+    arrives; ``popleft()`` leaves that number in `arrival`."""
 
     def __init__(self, limit, what):
         self._items = []
@@ -276,7 +276,7 @@ def _forget(conn_handle, aconn):
 
 
 def get(ble=None):
-    """The shared :class:`MPBLE` for this board's radio, made on first use."""
+    """The shared `MPBLE` for this board's radio, made on first use."""
     global _shared
     if _shared is None:
         _shared = MPBLE(ble)
@@ -287,7 +287,7 @@ class MPBLE(BLE):
     """The board's radio. ``ble`` may be a ``bluetooth.BLE()``; there is only one.
 
     ``queue_limit`` bounds each notification and capture queue. Prefer
-    :func:`get`, which returns one shared adapter.
+    `get`, which returns one shared adapter.
     """
 
     backend = "mpble"
@@ -328,7 +328,7 @@ class MPBLE(BLE):
 
     def enable_bonding(self, store=None):
         """Bond from now on, keeping the keys in ``store`` (see
-        :func:`bledev.security.use_store`): NVS on an ESP32 by default, which
+        `bledev.security.use_store`): NVS on an ESP32 by default, which
         survives a filesystem erase, or a path for aioble's
         ``ble_secrets.json``.
 
@@ -821,7 +821,7 @@ class _MPClientDescriptor(ClientDescriptor):
 
 
 class _MPServerCharacteristic:
-    """mpble's half of a :class:`bledev.Characteristic`."""
+    """mpble's half of a `bledev.Characteristic`."""
 
     def __init__(self, ble, characteristic, achar):
         self._ble = ble

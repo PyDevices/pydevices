@@ -25,7 +25,7 @@ def key(x):
     """Return the key code whose name is ``x``.
 
     Args:
-        x: A name from :func:`keyname` (e.g. ``"Return"``).
+        x: A name from `keyname` (e.g. ``"Return"``).
 
     Returns:
         int: Matching ``K_*`` code.
@@ -45,7 +45,7 @@ def mod(x):
     """Return the modifier mask whose name is ``x``.
 
     Args:
-        x: A name from :func:`modname` (e.g. ``"Ctrl"``).
+        x: A name from `modname` (e.g. ``"Ctrl"``).
 
     Returns:
         int: Matching ``KMOD_*`` mask.

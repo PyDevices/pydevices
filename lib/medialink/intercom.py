@@ -1,6 +1,6 @@
-"""Half-duplex voice over a :class:`~medialink.Link`: press to talk.
+"""Half-duplex voice over a `Link <medialink.Link>`: press to talk.
 
-:class:`Intercom` joins a microphone and a speaker to a link. ``press()``
+`Intercom` joins a microphone and a speaker to a link. ``press()``
 takes the floor and starts sending what the microphone hears; ``release()``
 stops and hands the floor back. While the peer talks, what it sends plays.
 Call ``service()`` from the app's loop, as often as it can run. While
@@ -34,7 +34,7 @@ by default) for ``catch_up_ms``, the intercom skips enough of the next
 frames to bring it back, and counts them in ``stats["trimmed"]``. Set
 ``catch_up_ms`` to None to keep every frame instead.
 
-**Hands-free.** Give it ``voice``, a :class:`~medialink.VoiceActivity`, and
+**Hands-free.** Give it ``voice``, a `VoiceActivity <medialink.VoiceActivity>`, and
 nobody needs to press anything. While the floor is free and the speaker has
 finished, the microphone listens; when the voice activity hears speech the
 intercom takes the floor and sends, starting ``preroll_ms`` back so the
@@ -115,7 +115,7 @@ class Intercom:
     def press(self):
         """Take the floor and start sending. False when the peer is talking.
 
-        Raises :class:`~medialink.PeerUnreachable` when the peer doesn't
+        Raises `PeerUnreachable <medialink.PeerUnreachable>` when the peer doesn't
         answer.
         """
         if self._talking:

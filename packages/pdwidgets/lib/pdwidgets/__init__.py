@@ -24,10 +24,10 @@ See ``widget-dependencies.md`` for the peer import graph.
 Proportional fonts:
     ``Label`` (and widgets built on it) gains proportional-font rendering when a
     ``font`` module is supplied. That path uses the private
-    :mod:`pdwidgets._write_font` helper (fonts from ``write_font_converter``).
+    `pdwidgets._write_font` helper (fonts from ``write_font_converter``).
 
 Timer architecture:
-    pdwidgets owns **no** timer of its own. Each :class:`Display` wires itself
+    pdwidgets owns **no** timer of its own. Each `Display` wires itself
     into the shared ``appdev.App`` at construction. Apps just build the UI;
     the app keeps itself alive past the end of the script.
 """

@@ -1,4 +1,4 @@
-"""PWM / buzzer adapter for :class:`audiodev.ToneOutput`."""
+"""PWM / buzzer adapter for `audiodev.ToneOutput`."""
 
 from audiodev import ToneOutput
 
@@ -57,5 +57,5 @@ class PWMToneOutput(ToneOutput):
 
 
 def tone_out(pwm, *, session=None, power=None):
-    """Build a :class:`PWMToneOutput` around *pwm* (instance or factory)."""
+    """Build a `PWMToneOutput` around *pwm* (instance or factory)."""
     return PWMToneOutput(pwm, session=session, power=power)

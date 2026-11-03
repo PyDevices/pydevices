@@ -35,7 +35,7 @@ class Dialog(Widget):
         The dialog is a full-screen overlay (painted with an opaque ``scrim`` —
         the pure-Python framebuffer has no alpha blending, so the backdrop is a
         solid muted color rather than a translucent dim) holding a centered
-        :class:`Card` with a title, a message and one or more action buttons.
+        `Card` with a title, a message and one or more action buttons.
         While shown it grabs modal pointer capture so the underlying UI is inert.
         Clicking a button closes the dialog and invokes ``on_result`` with that
         button's label.

@@ -2,7 +2,7 @@
 
 Pure Python with no imports, so it runs anywhere bledev does, and a board, a
 laptop and a browser share one implementation. The radio side is
-:mod:`bledev.midi`; this module only turns bytes into bytes.
+`bledev.midi`; this module only turns bytes into bytes.
 
 The format is the MMA/Apple "MIDI over Bluetooth Low Energy" (BLE-MIDI 1.0)
 one. Each packet is one characteristic write or notification::
@@ -16,8 +16,8 @@ it in the same packet means the high part rolled over. Beyond that:
 
 * **Running status.** A message with the same channel status as the one
   before may leave the status out, and also the timestamp when it is the
-  same. The :class:`Decoder` keeps running status across packets, because a
-  sender may rely on it; the :class:`Encoder` uses it only inside a packet,
+  same. The `Decoder` keeps running status across packets, because a
+  sender may rely on it; the `Encoder` uses it only inside a packet,
   so a receiver that lost the previous packet still decodes this one.
 * **System exclusive** can span packets. A continuation packet is the header
   followed straight by data bytes; the closing ``F7`` has its own timestamp.
@@ -67,7 +67,7 @@ class Splitter:
     middle of another message. ``feed()`` returns the messages it completes,
     each as ``bytes`` with its status byte. SysEx is kept whole, ``F0`` to
     ``F7``. A data byte with no status to attach to is counted in
-    :attr:`desync` and dropped.
+    `desync` and dropped.
     """
 
     def __init__(self):
@@ -130,7 +130,7 @@ class Decoder:
     One decoder per link and direction, because running status and a SysEx
     in progress carry from one packet to the next. ``timestamp`` is the
     sender's 13-bit millisecond clock. Anything malformed is counted in
-    :attr:`errors` and skipped rather than guessed at.
+    `errors` and skipped rather than guessed at.
     """
 
     def __init__(self):

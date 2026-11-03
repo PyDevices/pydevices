@@ -1,26 +1,26 @@
 """Portable Bluetooth Low Energy: the contract every bledev backend implements.
 
 You write a BLE program once against this module, and it runs on a board
-(:mod:`bledev.mpble`), on a laptop (``bledev.bleak``), in a browser
+(`bledev.mpble`), on a laptop (``bledev.bleak``), in a browser
 (``bledev.webble``), or against the in-process loopback in tests
-(:mod:`bledev.fake`). The guide is ``docs/guides/bluetooth-le.md``.
+(`bledev.fake`). The guide is ``docs/guides/bluetooth-le.md``.
 
 The shape is aioble's, and it is async throughout. The pieces:
 
-* :class:`UUID`, the errors, and the ``FLAG_*`` property bits.
-* :class:`BLE`, the adapter. A backend subclasses it. ``capabilities()`` says
+* `UUID`, the errors, and the ``FLAG_*`` property bits.
+* `BLE`, the adapter. A backend subclasses it. ``capabilities()`` says
   which roles it can take, because roles aren't symmetric: bleak and Web
   Bluetooth are central only, and a board can be either.
-* The peripheral side: :class:`Service` and :class:`Characteristic` describe a
+* The peripheral side: `Service` and `Characteristic` describe a
   GATT server, ``ble.register_services()`` installs it, and
-  ``await ble.advertise()`` returns a :class:`Connection` when a central
+  ``await ble.advertise()`` returns a `Connection` when a central
   connects.
-* The central side: ``ble.scan()`` yields :class:`ScanResult`, ``ble.find()``
-  returns a :class:`Device`, and ``await device.connect()`` returns a
-  :class:`Connection`, whose services and characteristics you discover as
-  :class:`ClientService` and :class:`ClientCharacteristic`.
+* The central side: ``ble.scan()`` yields `ScanResult`, ``ble.find()``
+  returns a `Device`, and ``await device.connect()`` returns a
+  `Connection`, whose services and characteristics you discover as
+  `ClientService` and `ClientCharacteristic`.
 
-Nothing here imports a backend, and nothing here imports :mod:`bledev.auto`.
+Nothing here imports a backend, and nothing here imports `bledev.auto`.
 """
 
 import asyncio
@@ -68,7 +68,7 @@ class BLETimeoutError(BLEError):
 class BusyError(BLEError):
     """The controller's transmit buffers are full. Wait a moment and send again.
 
-    Only :meth:`Characteristic.notify` raises it, because it is synchronous;
+    Only `Characteristic.notify` raises it, because it is synchronous;
     every async send waits for room instead.
     """
 
@@ -108,7 +108,7 @@ async def sleep_ms(ms):
 
 
 async def wait_ms(awaitable, timeout_ms, what="operation"):
-    """Await ``awaitable``, raising :class:`BLETimeoutError` after ``timeout_ms``.
+    """Await ``awaitable``, raising `BLETimeoutError` after ``timeout_ms``.
 
     ``timeout_ms=None`` waits forever. Backends use this so every timeout in
     bledev is the same exception.
@@ -357,7 +357,7 @@ def decode_service_data(*payloads):
 class BLE:
     """One radio. Backends subclass this; apps receive one from a board config.
 
-    Methods a backend can't support raise :class:`UnsupportedError`, so a
+    Methods a backend can't support raise `UnsupportedError`, so a
     central-only host fails loudly at ``advertise()`` rather than doing
     nothing. Check ``capabilities()`` first when your app can take either role.
     """
@@ -395,7 +395,7 @@ class BLE:
         ``config(mtu=247)`` sets the ATT MTU this side asks for;
         ``config("mtu")`` reads it. ``gap_name`` is the device name in the GAP
         service. A setting the backend doesn't have raises
-        :class:`UnsupportedError`.
+        `UnsupportedError`.
         """
         raise UnsupportedError("{} has no settings".format(self.backend))
 
@@ -407,7 +407,7 @@ class BLE:
     def register_services(self, *services):
         """Install the GATT server. Replaces whatever was registered before.
 
-        Call it before ``advertise()``. Each :class:`Characteristic` is bound
+        Call it before ``advertise()``. Each `Characteristic` is bound
         to this adapter from here on.
         """
         raise UnsupportedError("{} cannot be a peripheral".format(self.backend))
@@ -424,10 +424,10 @@ class BLE:
         timeout_ms=None,
         service_data=None,
     ):
-        """Advertise until a central connects, and return that :class:`Connection`.
+        """Advertise until a central connects, and return that `Connection`.
 
         ``service_data`` is a list of ``(uuid, data)`` (Improv uses it).
-        Raises :class:`BLETimeoutError` if nobody connects within
+        Raises `BLETimeoutError` if nobody connects within
         ``timeout_ms``. Cancelling the task stops advertising. Advertising
         stops when a central connects; call again to accept another.
         """
@@ -451,7 +451,7 @@ class BLE:
     async def find(self, name=None, service=None, *, timeout_ms=10000, active=True):
         """Scan until a device matching ``name`` and/or ``service`` appears.
 
-        Returns its :class:`Device`, or raises :class:`BLETimeoutError`.
+        Returns its `Device`, or raises `BLETimeoutError`.
         """
         if service is not None:
             service = UUID(service)
@@ -485,7 +485,7 @@ class Service:
 
 
 class Characteristic:
-    """A characteristic in a :class:`Service` you serve.
+    """A characteristic in a `Service` you serve.
 
     The flags are aioble's. ``max_len`` is the largest value a central may
     write; MicroPython's default buffer is 20 bytes, so raise it for anything
@@ -566,7 +566,7 @@ class Characteristic:
         """Send ``data`` (or the current value) to ``connection`` as a notification.
 
         Synchronous, like aioble. ``data`` must fit in ``connection.mtu - 3``
-        bytes. Raises :class:`BusyError` when the transmit buffers are full;
+        bytes. Raises `BusyError` when the transmit buffers are full;
         await a moment and send again (``bledev.nus`` shows the loop).
         """
         if not self.flags & FLAG_NOTIFY:
@@ -582,7 +582,7 @@ class Characteristic:
     async def written(self, timeout_ms=None):
         """Wait for a central to write this characteristic.
 
-        Returns the writer's :class:`Connection`, or ``(connection, data)``
+        Returns the writer's `Connection`, or ``(connection, data)``
         with ``capture=True``. It serves every connection, so it does not end
         when one disconnects; pass ``timeout_ms`` or cancel the task.
         """
@@ -592,7 +592,7 @@ class Characteristic:
 
 
 class Descriptor:
-    """A read-only descriptor on a :class:`Characteristic` you serve.
+    """A read-only descriptor on a `Characteristic` you serve.
 
     HID uses these: each Report characteristic carries a Report Reference
     (0x2908) saying which report it is. The value is fixed once registered.
@@ -650,7 +650,7 @@ class Device:
         return "Device({!r}, name={!r})".format(self.address, self.name)
 
     async def connect(self, timeout_ms=10000, **options):
-        """Connect as central and return the :class:`Connection`.
+        """Connect as central and return the `Connection`.
 
         Options a backend understands (``min_conn_interval_us``,
         ``max_conn_interval_us`` on a board) pass through; others are ignored.
@@ -662,7 +662,7 @@ class ScanResult:
     """One device's advertisement, as aioble reports it.
 
     ``name()``, ``services()`` and ``manufacturer()`` are methods, as in
-    aioble. ``services()`` returns a list of :class:`UUID`.
+    aioble. ``services()`` returns a list of `UUID`.
     """
 
     def __init__(
@@ -823,7 +823,7 @@ class Connection:
 
     @property
     def encrypted(self):
-        """True once the link is encrypted (after :meth:`pair`, or a bonded reconnect)."""
+        """True once the link is encrypted (after `pair`, or a bonded reconnect)."""
         return False
 
     async def pair(self, bond=True, timeout_ms=30000, passkey=None):
@@ -839,8 +839,8 @@ class Connection:
         for as long as both sides keep their keys; pairing a bonded peer just
         encrypts the link with the stored keys.
 
-        Raises :class:`PairingError` when pairing fails (a wrong passkey, or
-        a peer that lost its half of the bond), and :class:`UnsupportedError`
+        Raises `PairingError` when pairing fails (a wrong passkey, or
+        a peer that lost its half of the bond), and `UnsupportedError`
         on a backend without pairing.
         """
         raise UnsupportedError("{} cannot pair".format(self._ble.backend))
@@ -918,7 +918,7 @@ class ClientCharacteristic:
 
     Notifications and indications are queued in arrival order and never
     silently dropped: a backend whose queue overflows raises
-    :class:`BLEError` from the next ``notified()``. Call ``subscribe()``
+    `BLEError` from the next ``notified()``. Call ``subscribe()``
     before you expect any to arrive.
 
     ``arrival`` says in what order the last notification came in, relative
@@ -981,7 +981,7 @@ class ClientCharacteristic:
         raise NotImplementedError
 
     async def notified(self, timeout_ms=None):
-        """The next notification's data. Raises :class:`DisconnectedError` if the link drops."""
+        """The next notification's data. Raises `DisconnectedError` if the link drops."""
         raise NotImplementedError
 
     async def indicated(self, timeout_ms=None):
@@ -998,7 +998,7 @@ class ClientCharacteristic:
 
 
 class ClientDescriptor:
-    """A descriptor on the peer, found by :meth:`ClientCharacteristic.descriptors`."""
+    """A descriptor on the peer, found by `ClientCharacteristic.descriptors`."""
 
     def __init__(self, characteristic, uuid):
         self.characteristic = characteristic
@@ -1013,7 +1013,7 @@ class ClientDescriptor:
 
 
 def is_adapter(obj):
-    """True for a bledev :class:`BLE`; False for a raw ``bluetooth.BLE`` or anything else."""
+    """True for a bledev `BLE`; False for a raw ``bluetooth.BLE`` or anything else."""
     return isinstance(obj, BLE)
 
 
@@ -1042,7 +1042,7 @@ async def connect_and_set_up(
     the first GATT operation on it hangs until Windows gives up nine seconds
     later. ``setup_timeout_ms`` bounds that wait. ``options`` go to
     ``device.connect()``, except ``pair`` (pair before ``setup``) and
-    ``passkey`` (for :meth:`Connection.pair`).
+    ``passkey`` (for `Connection.pair`).
     """
     pair = options.pop("pair", False)
     passkey = options.pop("passkey", None)

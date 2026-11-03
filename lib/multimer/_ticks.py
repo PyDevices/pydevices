@@ -113,7 +113,7 @@ def ticks_ms():
     """Return a wrapping millisecond tick counter (period ``2**29`` ms).
 
     Compatible with MicroPython ``time.ticks_ms`` / CircuitPython
-    ``supervisor.ticks_ms``. Pair with :func:`ticks_diff` and :func:`ticks_add`.
+    ``supervisor.ticks_ms``. Pair with `ticks_diff` and `ticks_add`.
 
     Returns:
         int: Milliseconds since an arbitrary epoch, masked to 29 bits.
@@ -125,7 +125,7 @@ def ticks_us():
     """A wrapping microsecond counter (period ``2**29`` us on hosts without one of their own).
 
     ``time.ticks_us`` where the interpreter has it; otherwise derived from the
-    nanosecond monotonic clock. Pair with :func:`ticks_diff` only for
+    nanosecond monotonic clock. Pair with `ticks_diff` only for
     intervals under the half period (about 4.5 minutes).
     """
     return _impl_ticks_us()
@@ -147,7 +147,7 @@ def ticks_add(ticks, delta):
     """Add a delta to a ticks value with wraparound at ``2**29`` ms.
 
     Args:
-        ticks: Base ticks value from :func:`ticks_ms`.
+        ticks: Base ticks value from `ticks_ms`.
         delta: Signed offset in milliseconds (must fit in half the ticks period).
 
     Returns:
@@ -211,10 +211,10 @@ def set_deadline_hook(hook):
     interactive debugging when you need a wall-clock deadline on hosts that
     cannot run a background quit thread (for example browser WASM).
 
-    ``hook`` is a zero-arg callable, or ``None`` to clear. :func:`sleep_ms`
+    ``hook`` is a zero-arg callable, or ``None`` to clear. `sleep_ms`
     calls it before and after sleeping; callers may also invoke
-    :func:`run_deadline_hook` from a poll loop. The hook's return value is
-    passed through by :func:`run_deadline_hook`.
+    `run_deadline_hook` from a poll loop. The hook's return value is
+    passed through by `run_deadline_hook`.
 
     Example (harness)::
 
@@ -234,7 +234,7 @@ def run_deadline_hook():
     """Invoke the registered deadline hook, if any (dev/troubleshooting only).
 
     Returns the hook's result, or ``False`` when no hook is registered.
-    Prefer leaving this to :func:`sleep_ms` unless you are writing harness
+    Prefer leaving this to `sleep_ms` unless you are writing harness
     code that also polls without sleeping.
     """
     hook = _deadline_hook

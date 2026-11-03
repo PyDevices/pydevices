@@ -40,7 +40,7 @@ class Keyboard(Widget):
         """
         On-screen QWERTY keyboard that feeds the focused field.
 
-        Attach to a screen, call :meth:`show` when an input is focused (or pass
+        Attach to a screen, call `show` when an input is focused (or pass
         ``target``). Keys synthesize ``events.Key`` and forward them to the
         target's ``_key`` handler. The default target is
         ``display.focus_manager.focused`` (with ``TextInput._focused`` as

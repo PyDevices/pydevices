@@ -3,14 +3,14 @@
 ``audiopump`` is a C module that pulls a CircuitPython audiosample graph on a
 thread the interpreter is not on -- a pthread on unix, a pinned FreeRTOS task
 on esp32 -- and writes every block straight into I2S. When the firmware
-carries it, everything in :mod:`audiodev` that plays a sample graph goes
+carries it, everything in `audiodev` that plays a sample graph goes
 through it; when it does not, nothing here does anything and the old path is
 untouched. No app asks for a backend.
 
 There is exactly **one** pump: one C task, one I2S channel. So there is one
-:class:`Pump` here too, reached through :func:`owner`, and it is what
-arbitrates between an :class:`~audiodev.sample_out.AudioOut` graph and a
-:class:`~audiodev.PCMOutput` stream that both want to sound. Two clients get
+`Pump` here too, reached through `owner`, and it is what
+arbitrates between an `AudioOut <audiodev.sample_out.AudioOut>` graph and a
+`PCMOutput <audiodev.PCMOutput>` stream that both want to sound. Two clients get
 a root ``audiomixer.Mixer`` built for them and the pump is retargeted onto
 it; one client is pulled with nothing in the way, which is why a single
 player's PCM is byte-identical to the old path's.
@@ -21,11 +21,11 @@ whether there is a thread to land them from:
 ``RingDriver``
     The desktop (unix, and anything else whose driver has no ``i2s_start``).
     The pump
-    fills a RAM ring; :meth:`Pump.next_block` drains it on the interpreter
+    fills a RAM ring; `Pump.next_block` drains it on the interpreter
     thread and hands the bytes to the existing push transport. The DSP leaves
     the interpreter thread; the byte-shovelling stays. Nothing on a desktop
     paces the pump, so this driver parks it between ticks -- see
-    :meth:`RingDriver.produce`.
+    `RingDriver.produce`.
 
 ``ServiceDriver``
     WebAssembly and CPython, where the pump has no thread of its own.
@@ -38,7 +38,7 @@ whether there is a thread to land them from:
 ``BusioDriver``
     esp32. The graph goes to ``audiobusio.I2SOut`` -- CircuitPython's own
     class, with this same pump under it -- built from the board's
-    :class:`~audiodev.I2SWire`. **There is one way this firmware plays a
+    `I2SWire <audiodev.I2SWire>`. **There is one way this firmware plays a
     sample**, and that is it: the output owns the channel, converts anything
     that is not signed 16-bit on the pump's thread, retunes the bus to the
     sample's rate and sizes the DMA descriptor in time. ``audiodev`` writes no
@@ -46,8 +46,8 @@ whether there is a thread to land them from:
     clients, a file, the fault sentence.
 
 A fault in the pump is a sentence, not a traceback and not a dead speaker:
-:meth:`Pump.died` turns the status block's error and fault words into one,
-and the caller that notices is :class:`AudioOut`, which falls back to the old
+`Pump.died` turns the status block's error and fault words into one,
+and the caller that notices is `AudioOut`, which falls back to the old
 pull-on-the-interpreter path for the rest of the process.
 """
 
@@ -240,13 +240,13 @@ def busio():
     The *public* face of the audio hardware layer, and CircuitPython's own
     spelling: ``audiobusio.I2SOut(bit_clock, word_select, data).play(sample)``
     runs CircuitPython's own docstring example on this firmware unchanged.
-    Everything :mod:`audiodev` does on a board goes through it, so there is
+    Everything `audiodev` does on a board goes through it, so there is
     one way the firmware plays a sample and ``audiodev`` is the policy layer
     over it -- format negotiation, volume, the codec session, two clients,
     files.
 
     It is checked for ``I2SOut``, not merely imported, for the same reason
-    :func:`module` is checked for ``spawn``.
+    `module` is checked for ``spawn``.
     """
     global _busio, _busio_looked
     if _busio_looked:
@@ -298,7 +298,7 @@ def duplex():
     that share a port's clocks -- the ESP32-P4 boards' ES8311 and ES7210, or
     the ES8311's own ADC -- are two halves of one channel rather than two
     owners fighting over it. A board asks this to decide which ``PCMInput``
-    to build: :class:`PumpPCMInput` when True, ``machine.I2S`` when not.
+    to build: `PumpPCMInput` when True, ``machine.I2S`` when not.
     """
     mod = driver()
     return mod is not None and hasattr(mod, "rx_open")
@@ -372,7 +372,7 @@ def events(capacity=96):
     """The pump's event queue, or None on a build with no pump.
 
     ``audiodev.pump.events()`` is how an app reaches the clock; see
-    :meth:`Pump.events` for why the queue belongs to the pump and not to the
+    `Pump.events` for why the queue belongs to the pump and not to the
     app that asked for it.
     """
     return owner().events(capacity)
@@ -382,9 +382,9 @@ def ring_bytes(frame_size, chunk_bytes=0, max_block=0):
     """How deep the desktop output ring is, for *frame_size*-byte frames.
 
     One rule in one place, because three things have to agree on it: the ring
-    :class:`RingDriver` allocates, how far ahead of the interpreter a
+    `RingDriver` allocates, how far ahead of the interpreter a
     free-running pump therefore gets, and how deep anything **feeding** that
-    pump has to be -- a :class:`Prefetch`, above all, which the pump would
+    pump has to be -- a `Prefetch`, above all, which the pump would
     otherwise empty between two ticks.
 
     **This number is the latency of a live event**, and that is why it is two
@@ -438,7 +438,7 @@ def rearranging():
     lands wherever it lands -- including halfway through the method that is
     taking one client off the pump and putting another on. The P4 found the
     first instance of this the hard way: a tick inside
-    :meth:`~audiodev.sample_out.AudioOut.stop` saw a player that read exactly
+    `stop <audiodev.sample_out.AudioOut.stop>` saw a player that read exactly
     like a healthy old-path player, pulled a block, wrote it, and opened
     ``machine.I2S`` on the port the pump had just let go of. Both halves of
     that race were seen on silicon.
@@ -446,7 +446,7 @@ def rearranging():
     `AudioOut._pumping` closed it for **one player's own** methods. It cannot
     close the rest, because the thing being rearranged is *global*: one pump,
     one graph, one peripheral. A tick that services player B while player A
-    is inside :meth:`Pump._retarget` reaches the same C module through a
+    is inside `Pump._retarget` reaches the same C module through a
     different Python object, and ``spawn()`` answers the second one with "a
     pump is already spawned".
 
@@ -469,7 +469,7 @@ def reentered():
 
 
 def health():
-    """The process pump's :meth:`Pump.health`, without building one.
+    """The process pump's `Pump.health`, without building one.
 
     Returns None when this firmware has no pump, so a status screen can ask
     unconditionally.
@@ -518,7 +518,7 @@ def pumpable(sample):
 
     A file-backed source cannot: its ``get_buffer`` re-enters the interpreter
     to read the VFS, and the pump thread has no interpreter on it. Those go
-    through a :class:`Prefetch` into a ring instead.
+    through a `Prefetch` into a ring instead.
 
     This catches the source at the *tail* only. A ``WaveFile`` buried deep in
     a graph is caught by the pump at the first block instead, as a fault --
@@ -539,7 +539,7 @@ class Prefetch:
     an ``audiopump.Ring`` the pump treats as an ordinary source node.
 
     It lives here, next to the thing that owns the pump, because the alternative
-    is every caller inventing it again. Call :meth:`service` from the same tick
+    is every caller inventing it again. Call `service` from the same tick
     that services the player.
     """
 
@@ -653,7 +653,7 @@ class Prefetch:
     def fed(self):
         """True when every byte of the file is in the ring.
 
-        Not the same as :attr:`done`, which only says the file has been read
+        Not the same as `done`, which only says the file has been read
         to the end: a block the ring had no room for is still held here, and
         ``wrote`` has not counted it yet. Treating the two as one ended the
         WAV 22 kB early, which is a clean fade-out and looks like nothing.
@@ -674,11 +674,11 @@ class Prefetch:
 class _Driver:
     """Where the pump's blocks go. Subclassed per port.
 
-    Four verbs, because :class:`Pump` rearranges a live output and each port
-    answers differently: :meth:`spawn` starts one, :meth:`retarget` swaps the
-    tail *without a gap*, :meth:`halt` gives the pump back and :meth:`close`
+    Four verbs, because `Pump` rearranges a live output and each port
+    answers differently: `spawn` starts one, `retarget` swaps the
+    tail *without a gap*, `halt` gives the pump back and `close`
     gives the peripheral back. The desktop drivers below drive the engine
-    directly; the board's drives :class:`~audiobusio.I2SOut`, which owns the
+    directly; the board's drives `I2SOut <audiobusio.I2SOut>`, which owns the
     engine on its side of the line.
     """
 
@@ -732,11 +732,11 @@ class RingDriver(_Driver):
     gone. Making the ring *wait* is the same win with no byte at risk.
 
     The park path is still here, and it is not dead code: it is what a build
-    whose driver has no wait hook gets, and :func:`backpressure` is the
+    whose driver has no wait hook gets, and `backpressure` is the
     question that chooses between them. **Latency is the ring**: with
     back-pressure the pump keeps it full, so what is between a live event and
     the speaker is the ring's own depth plus whatever the host transport holds.
-    :meth:`ahead_ms` says what this one's is.
+    `ahead_ms` says what this one's is.
     """
 
     def __init__(self, frame_size, *, chunk_bytes=0, max_block=0):
@@ -971,7 +971,7 @@ class BusioDriver(_Driver):
     """esp32: the graph goes to ``audiobusio.I2SOut``, and it owns the bus.
 
     **There is one way this firmware plays a sample**, and this is where
-    :mod:`audiodev` joins it. ``I2SOut`` opens the channel, spawns the pump,
+    `audiodev` joins it. ``I2SOut`` opens the channel, spawns the pump,
     converts anything that is not already signed 16-bit on the pump's thread,
     reads a file through a ring of its own, retunes the bus to the sample's
     rate on every ``play()``, sizes the DMA descriptor **in time** and refuses
@@ -994,7 +994,7 @@ class BusioDriver(_Driver):
     microphone on another) and ``main_clock_fs=`` (the board's ``I2SWire``
     has carried it since before this module existed). ``sink=`` is the third,
     and on a desktop it is what makes this class testable at all -- see
-    :meth:`open`.
+    `open`.
     """
 
     needs_service = False
@@ -1150,7 +1150,7 @@ class PumpPCMInput(PCMInput):
     The channel is opened (or joined) BEFORE the codec is brought up, so
     the codec's setup runs with the channel's MCLK already on its pin; a
     board must not start a PWM clock on that pin while
-    :func:`clock_running` says the channel is up.
+    `clock_running` says the channel is up.
 
     ``take`` picks what a one-channel recording hears from a two-slot
     wire: ``"left"``, ``"right"``, or ``"mix"``, their average, which is
@@ -1262,7 +1262,7 @@ class PumpPCMInput(PCMInput):
 
 
 def pcm_input(format, **kwargs):
-    """Build a :class:`PumpPCMInput` (see its docstring for the keywords)."""
+    """Build a `PumpPCMInput` (see its docstring for the keywords)."""
     return PumpPCMInput(format, **kwargs)
 
 
@@ -1287,7 +1287,7 @@ class PumpOutput:
             def _write(self, buf):  return self._ring.write(buf)
             def space(self):        return self._ring.space()
 
-    which is what :func:`attach_stream` builds.
+    which is what `attach_stream` builds.
     """
 
     def __init__(self, fmt, *, frames=256, capacity=6):
@@ -1337,7 +1337,7 @@ class PumpOutput:
 def attach_stream(fmt, *, driver=None, frames=256, capacity=6):
     """Put a push stream on the pump beside whatever else is sounding.
 
-    Returns a :class:`PumpOutput` the caller writes PCM into, already
+    Returns a `PumpOutput` the caller writes PCM into, already
     registered as a pump client -- so an ``AudioOut`` graph and this stream
     are summed by a root Mixer and come out of one peripheral.
 
@@ -1382,7 +1382,7 @@ class _Client:
 class Pump:
     """The one pump, and who is sounding through it.
 
-    Clients come and go with :meth:`play` and :meth:`stop`. One client is the
+    Clients come and go with `play` and `stop`. One client is the
     pump's tail directly. A second client makes a root ``audiomixer.Mixer``
     with a voice each, at level 1.0 -- the Mixer *sums*, so two loud clients
     clip, which is the same arithmetic two CircuitPython ``AudioOut``\\ s into
@@ -1464,7 +1464,7 @@ class Pump:
     def play(self, owner, sample, driver=None, loop=False, raises=False):
         """Put *owner*'s *sample* on the pump. Returns True when it sounds.
 
-        A refusal is ``False`` and a sentence on :meth:`fault`, because the
+        A refusal is ``False`` and a sentence on `fault`, because the
         usual caller is a player that never asked for the pump and cannot be
         made to handle its problems.
 
@@ -1473,7 +1473,7 @@ class Pump:
         `audiobusio.I2SOut.retarget` raises a ``ValueError`` naming *which*
         refusal it is, a rate change or a sample that is not signed 16-bit,
         and until this keyword existed there was no way to catch it
-        (audioif#2). :meth:`refusal` is the same object for the callers that
+        (audioif#2). `refusal` is the same object for the callers that
         take the ``False``.
         """
         _enter()
@@ -1783,13 +1783,13 @@ class Pump:
 
         It is a record, not a verdict: it survives the teardown that repairs
         the pump, so an app can still say what happened after the speaker has
-        come back. :meth:`blocked` is the one to ask before deciding whether
+        come back. `blocked` is the one to ask before deciding whether
         to reach for the pump at all.
         """
         return self._fault
 
     def refusal(self):
-        """The exception behind :meth:`fault`, or None.
+        """The exception behind `fault`, or None.
 
         `audiobusio.I2SOut.retarget` raises a ``ValueError`` naming which
         refusal it is; flattening it to `str()` was the whole of what a
@@ -1799,16 +1799,16 @@ class Pump:
         return self._refusal
 
     def blocked(self):
-        """True while the pump will refuse every :meth:`play`.
+        """True while the pump will refuse every `play`.
 
         Set when a fault lands on a pump that is still holding something --
         a thread, a channel, a half-swapped tail. Cleared by the teardown,
-        which is the repair, or by :meth:`clear_fault`.
+        which is the repair, or by `clear_fault`.
         """
         return self._blocked
 
     def clear_fault(self):
-        """Forget the last fault and let the next :meth:`play` try again."""
+        """Forget the last fault and let the next `play` try again."""
         was = self._fault
         self._fault = None
         self._refusal = None
@@ -1870,7 +1870,7 @@ _owner = None
 
 
 def owner():
-    """The process's one :class:`Pump`."""
+    """The process's one `Pump`."""
     global _owner
     if _owner is None:
         _owner = Pump()

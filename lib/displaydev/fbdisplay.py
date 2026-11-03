@@ -51,7 +51,7 @@ class FBDisplay(DisplayDriver):
         Not when a ``framebufferio.FramebufferDisplay`` was given: it composites
         its own root group into that buffer at the panel rate (and keeps PSRAM's
         cache in step for the scanout), so direct paint would race it and could
-        reach the panel late. The GUI paints through :meth:`blit_rect` instead,
+        reach the panel late. The GUI paints through `blit_rect` instead,
         into ``bitmap`` when there is one.
         """
         return self._display is None
@@ -75,7 +75,7 @@ class FBDisplay(DisplayDriver):
         and wrong for the second — so without LVGL, every MicroPython program had
         to call ``show()`` itself, and forgetting looked exactly like dead
         hardware. The driver already knows which case it is: this is the same
-        test :meth:`show` makes before presenting, asked once rather than left to
+        test `show` makes before presenting, asked once rather than left to
         the caller.
         """
         disp = self._display
@@ -389,11 +389,11 @@ class FBDisplay(DisplayDriver):
         On a double-buffered native framebuffer that can split its present
         (MicroPython ``DotClockFramebuffer`` with ``present()``/``wait()``),
         this promotes the back buffer and returns at once; call
-        :meth:`wait_shown` before painting the framebuffers again. Elsewhere
-        it is :meth:`show`.
+        `wait_shown` before painting the framebuffers again. Elsewhere
+        it is `show`.
 
         Returns:
-            bool: ``True`` when a present is pending and :meth:`wait_shown`
+            bool: ``True`` when a present is pending and `wait_shown`
             must follow, ``False`` when the frame is already out.
         """
         raw = self._raw_buffer
@@ -413,7 +413,7 @@ class FBDisplay(DisplayDriver):
         return False
 
     def wait_shown(self):
-        """Return once the frame :meth:`show_nowait` started is on screen.
+        """Return once the frame `show_nowait` started is on screen.
 
         Does nothing when no present is pending.
         """

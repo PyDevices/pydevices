@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Android media session for :class:`audiodev.PCMOutput`.
+"""Android media session for `audiodev.PCMOutput`.
 
 Hooks into ``PCMOutput(session=…)`` so the first ``open()`` / ``write()``
 acquires audio focus and starts a ``mediaPlayback`` foreground service, and
@@ -21,7 +21,7 @@ _SESSION = None
 
 
 class AndroidMediaSession:
-    """Duck-typed :class:`audiodev.AudioSession` for Android media hardening.
+    """Duck-typed `audiodev.AudioSession` for Android media hardening.
 
     Multiple ``PCMOutput`` instances may share one session; FGS + focus stay
     up while any owner is open.

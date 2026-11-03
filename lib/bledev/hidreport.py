@@ -221,7 +221,7 @@ class Report:
 class ReportMap:
     """A parsed report descriptor.
 
-    ``reports`` maps ``(kind, report_id)`` to :class:`Report`; ``numbered``
+    ``reports`` maps ``(kind, report_id)`` to `Report`; ``numbered``
     says whether the device uses report IDs; ``applications`` lists the
     top-level collections' extended usages in order.
     """

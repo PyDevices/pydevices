@@ -5,7 +5,7 @@
 
 Needs bleak (``pip install "pydevices[ble]"``). A laptop can scan and connect
 but can't advertise, so ``advertise()`` and ``register_services()`` raise
-:class:`bledev.UnsupportedError`; ``capabilities()`` says so up front.
+`bledev.UnsupportedError`; ``capabilities()`` says so up front.
 
 Where bleak and the operating system differ from the contract, this backend
 translates:
@@ -17,7 +17,7 @@ translates:
   that negotiation to finish and returns the result; it can't ask for a
   particular value. BlueZ always reports 23 through bleak, so on Linux the MTU
   comes from the characteristics' write-without-response size instead.
-* A write longer than ``mtu - 3`` raises :class:`bledev.BLEError` before it
+* A write longer than ``mtu - 3`` raises `bledev.BLEError` before it
   reaches the OS, as on every backend, even though a write with response
   could go out as a long write.
 * bleak can't tell a notification from an indication. Data goes to
@@ -342,7 +342,7 @@ class _BleakConnection(Connection):
         protected characteristic is first used. Elsewhere it's bleak's
         ``pair()``, where the OS may ask for the passkey itself.
 
-        Windows keeps the pairing until :meth:`unpair` (or Settings, Remove
+        Windows keeps the pairing until `unpair` (or Settings, Remove
         device). Never pair a board serving HID with the computer you test
         from: Windows then uses it as a keyboard.
         """

@@ -1,7 +1,7 @@
 """CircuitPython-shaped sample playback, off the interpreter thread where it can.
 
 This is the *public* ``audio_out`` contract (see ``docs/guides/audio.md``): a board's
-``audio_out`` role returns an :class:`AudioOut` wrapping a backend transport
+``audio_out`` role returns an `AudioOut` wrapping a backend transport
 (sdl2/win/wasm/i2s/emulated), and app code plays anything satisfying
 CircuitPython's audiosample pull protocol -- a ``synthio.Synthesizer``, an
 ``audiomixer.Mixer``, an ``audiocore.RawSample``/``WaveFile``, or any effect
@@ -32,7 +32,7 @@ interpreter thread, and safe under audiodsp's pump lock with no park. What
 made the old path necessary was never the DSP -- it was that nobody had
 written the thread.
 
-Requires ``audiocore`` when :class:`AudioOut` is constructed.  Importing
+Requires ``audiocore`` when `AudioOut` is constructed.  Importing
 ``audiodev`` and using a raw PCM transport remain independent of audiodsp.
 
 No resampling: ``transport.format`` is the fixed playback rate/bit-depth/
@@ -932,7 +932,7 @@ class AudioOut:
     # --- app-tick integration, same shape as AudioEngine.attach/detach ---
 
     def attach(self, app, period_ms=None):
-        """Subscribe :meth:`service` to *app*'s shared timer; returns self."""
+        """Subscribe `service` to *app*'s shared timer; returns self."""
         ms = self.chunk_ms if period_ms is None else int(period_ms)
         # App timer callbacks are always invoked with one positional arg
         # (the timer/tick object, see appdev.App._dispatch_tick) -- service()
@@ -963,7 +963,7 @@ class AudioOut:
 
 
 def sample_out(transport_factory, format=None, **kwargs):
-    """Wrap a backend's ``pcm_out(format, **kwargs)`` transport in :class:`AudioOut`.
+    """Wrap a backend's ``pcm_out(format, **kwargs)`` transport in `AudioOut`.
 
     ``transport_factory`` is a module (or any object) exposing ``pcm_out``,
     e.g. ``audiodev.sdl2_audio`` -- so ``sample_out(sdl2_audio)`` is the sdl2

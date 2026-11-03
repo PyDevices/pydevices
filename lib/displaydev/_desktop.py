@@ -5,7 +5,7 @@
 """Shared support for the non-MCU (desktop) display backends.
 
 Everything here is host-side: desktop work-area probing, window scale fitting,
-and the :class:`DesktopDisplay` base shared by ``SDLDisplay``, ``PGDisplay``,
+and the `DesktopDisplay` base shared by ``SDLDisplay``, ``PGDisplay``,
 ``WinDisplay``, ``PSDisplay``, ``JNDisplay``, and ``AndroidSDLDisplay``.
 
 MCU backends (``busdisplay``, ``fbdisplay``, ``pixeldisplay``) stay on
@@ -128,7 +128,7 @@ def notify_board_config_scale_override(driver_name, requested, fitted, *, quiet=
     Args:
         driver_name: Display class name for the log line (e.g. ``"SDLDisplay"``).
         requested: Scale requested by board_config / constructor.
-        fitted: Scale after :func:`fit_scale_to_desktop`.
+        fitted: Scale after `fit_scale_to_desktop`.
         quiet: When True, skip printing.
     """
     if quiet or fitted == requested:
@@ -143,7 +143,7 @@ class DesktopDisplay(DisplayDriver):
 
     Carries the vertical-scroll overrides and the window scale fit that the
     host backends would otherwise each copy. Subclasses say what a scroll
-    change means by overriding :meth:`_scroll_changed`.
+    change means by overriding `_scroll_changed`.
     """
 
     _render_dirty = False
@@ -162,7 +162,7 @@ class DesktopDisplay(DisplayDriver):
 
         Backends call this from ``init()``, where the surface may not be ready
         to paint yet. Goes straight to ``DisplayDriver`` so
-        :meth:`_scroll_changed` does not fire mid-init; the frame is marked
+        `_scroll_changed` does not fire mid-init; the frame is marked
         dirty so the first ``show()`` still composites.
         """
         DisplayDriver.vscrdef(self, 0, self.height, 0)
