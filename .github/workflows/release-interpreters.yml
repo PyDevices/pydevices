@@ -209,6 +209,11 @@ jobs:
           # build left out (pdwidgets without events, #290) fails here.
           bin/circuitpython -c "import events, pdwidgets, palettes; print('circuitpython frozen packages ok')"
           bin/micropython -c "import events, pdwidgets, palettes; print('micropython frozen packages ok')"
+          # Coverage instrumentation stays quiet here, where its profile path
+          # exists, and prints a thousand lines on exit everywhere else.
+          for b in bin/micropython bin/circuitpython; do
+            if nm "$b" | grep -q __gcov; then echo "$b is instrumented for coverage" >&2; exit 1; fi
+          done
           file bin/micropython.exe | tee /dev/stderr | grep -q 'PE32+'
           cd bin && node --input-type=module -e "
             import { loadMicroPython } from './micropython.mjs';
