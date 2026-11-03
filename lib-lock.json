@@ -21,9 +21,6 @@
     "pdwidgets": {
       "description": "Cross-platform widget toolkit for PyDevices",
       "pypi": "pydevices-pdwidgets"
-    },
-    "sayso": {
-      "description": "Lightweight Spotify Web API client for CPython, MicroPython and CircuitPython"
     }
   },
   "pinned": {
@@ -44,11 +41,12 @@
     },
     "applibs": {
       "repository": "PyDevices/apps",
-      "ref": "v0.1.0",
+      "ref": "v0.1.1.dev0",
       "description": "The libraries apps share; installs each of them",
       "packages": {
         "appkit": "Apps you can switch between, and a launcher to run them",
         "controlkit": "LVGL controls: encoders, sliders, meters, lamp buttons, pad grids and a dot-matrix display",
+        "sayso": "Lightweight Spotify Web API client for CPython, MicroPython and CircuitPython",
         "songmodel": "The song a groovebox edits, and the link that carries it to a front panel",
         "soundmodule": "A sound module that plays MIDI, headless from a port or through files",
         "spectrum": "A spectrum analyzer in an app's area, sharing the panel with LVGL",
