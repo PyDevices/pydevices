@@ -1480,6 +1480,27 @@ def c_stamps_windows():
         sys.modules.pop("midiports.windows", None)
 
 
+def c_windows_dispatched():
+    fake, windows = _install_fake_win()
+    try:
+        use_fake_clock(windows)
+        _clock.t = 7
+        midi_in, _ = windows.ports("loopmidi")
+        # A display's pump took these off the thread's queue and dispatched
+        # them to the port's hidden window, before any read.
+        hwnd = midi_in._hwnd
+        windows._wndproc(hwnd, FakeWin.MM_MIM_DATA, 0, 0x90 | 60 << 8 | 100 << 16)
+        windows._wndproc(hwnd, FakeWin.MM_MIM_DATA, 0, 0x80 | 60 << 8)
+        assert midi_in.any() == 6
+        assert midi_in.read() == bytes((0x90, 60, 100, 0x80, 60, 0))
+        assert midi_in.take_timestamp() == 7
+        midi_in.close()
+        assert hwnd not in windows._sinks
+    finally:
+        sys.modules.pop("uwin32", None)
+        sys.modules.pop("midiports.windows", None)
+
+
 def c_stamps_webmidi():
     from midiports import webmidi
 
@@ -1576,6 +1597,7 @@ CHECKS = (
     ("stamps: usb_host", c_stamps_usb_host),
     ("stamps: usb_host all_ports", c_stamps_usb_host_all),
     ("stamps: windows", c_stamps_windows),
+    ("windows: a dispatched message reaches its port", c_windows_dispatched),
     ("stamps: webmidi, one per message", c_stamps_webmidi),
     ("stamps: usb_device, real-time bytes inside a SysEx", c_stamps_realtime_in_sysex_usb_device),
     ("stamps: WholeMessages and usb_host, real-time bytes inside a SysEx", c_stamps_realtime_in_sysex_streams),
