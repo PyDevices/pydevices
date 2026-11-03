@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The neopixel_8x4 board package: what mip.install("neopixel_8x4") brings.
 metadata(
     description="NeoPixel 8x4 grid — MicroPython NeoPixel grid",

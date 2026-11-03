@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Wokwi ESP32S3 and ILI9341 Display"""
 
 from ili9341 import ILI9341

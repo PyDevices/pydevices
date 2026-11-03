@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Repo paths shared by the maintainer scripts under ``scripts/`` and ``tools/``.
 
 The package root is read from ``pyproject.toml`` -- the first entry of

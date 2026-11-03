@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """jpegio on CPython: JPEG decode and encode, the same API as MicroPython's
 built-in jpegio (micropython-pydevices' modules/jpegio), over Pillow.
 

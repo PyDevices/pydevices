@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """
 micropython.py - A module to prevent errors when running applications
 written for both CPython and MicroPython.  Doesn't (necessarily) allow

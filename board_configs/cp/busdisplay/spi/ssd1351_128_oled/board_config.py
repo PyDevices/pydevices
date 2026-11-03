@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit 1.5" SSD1351 color OLED — CircuitPython"""
 
 import board

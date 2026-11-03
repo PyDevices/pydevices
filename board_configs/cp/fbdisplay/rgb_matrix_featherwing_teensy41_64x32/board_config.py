@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit RGB Matrix FeatherWing 64x32 - CircuitPython (Teensy 4.1)"""
 
 import board

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """ODROID-GO ILI9341 2.4" — CircuitPython"""
 
 import analogio

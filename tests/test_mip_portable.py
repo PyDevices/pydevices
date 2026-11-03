@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Unit tests for utils/mip.py (portable host mip)."""
 
 from __future__ import annotations

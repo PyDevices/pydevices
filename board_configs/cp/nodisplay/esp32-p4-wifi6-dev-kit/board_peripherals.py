@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """board_peripherals for the Waveshare ESP32-P4-WIFI6-DEV-KIT, on CircuitPython.
 
 Headless, like the MicroPython config in board_configs/nodisplay: there is no

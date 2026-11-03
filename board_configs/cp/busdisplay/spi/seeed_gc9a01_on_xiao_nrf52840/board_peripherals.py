@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy roles for the Seeed Round Display on a XIAO nRF52840 — CircuitPython.
 
 ``sdcard`` is the display's microSD slot, an ``sdcardio.SDCard`` on the

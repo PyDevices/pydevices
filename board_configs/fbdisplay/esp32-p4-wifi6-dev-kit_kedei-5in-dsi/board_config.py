@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Waveshare ESP32-P4-WIFI6-DEV-KIT with a KeDei 5" DSI display (800x480) - MicroPython
 
 The display is a Raspberry Pi-style DSI panel: a Chipone ICN6211 DSI-to-RGB

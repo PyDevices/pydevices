@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Olimex RP2350pc onboard mini-HDMI (HSTX) 640x480 - MicroPython.
 
 Schematic: GPIO12/13=D0, 14/15=CK, 16/17=D2, 18/19=D1 (sock-compatible).

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """DotStar 12x6 grid — CircuitPython DotStar grid"""
 
 import adafruit_dotstar

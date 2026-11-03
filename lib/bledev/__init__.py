@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Portable Bluetooth Low Energy: the contract every bledev backend implements.
 
 You write a BLE program once against this module, and it runs on a board

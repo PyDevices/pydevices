@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit PyBadge LC ST7789 320x240 — CircuitPython"""
 
 import board

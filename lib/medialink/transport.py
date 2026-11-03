@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The transport seam: how bytes reach a peer.
 
 A transport is small on purpose, so that a new kind of link (BLE, a

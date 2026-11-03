@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MCU I2S adapter: wrap ``machine.I2S`` as `audiodev.PCMOutput` / `PCMInput`."""
 
 try:

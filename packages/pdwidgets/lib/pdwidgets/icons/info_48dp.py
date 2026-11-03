@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 WIDTH = 48
 HEIGHT = 48
 FORMAT = 3

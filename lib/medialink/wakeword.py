@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """A wake word, such as "Hey Jarvis", to open the hands-free floor.
 
 `WakeWord` stands where a `VoiceActivity <medialink.VoiceActivity>` would in

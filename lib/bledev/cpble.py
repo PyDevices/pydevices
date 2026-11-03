@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """CircuitPython backend, over ``_bleio``. Both roles.
 
     import bledev.cpble

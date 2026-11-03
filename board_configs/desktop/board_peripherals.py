@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Audio roles for desktop hosts, over whichever backend this machine has.
 
 Audio roles follow the shared contract (docs/guides/audio.md): one name, one return

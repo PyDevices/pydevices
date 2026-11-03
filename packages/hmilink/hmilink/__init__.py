@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """hmilink: any screen as a device's front panel.
 
 A device holds the true state of something (a synth rack, a song) as one

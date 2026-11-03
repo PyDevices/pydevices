@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The t-qt-pro board package: what mip.install("t-qt-pro") brings.
 metadata(
     description="LILYGO T-QT Pro GC9107 128x128 display",

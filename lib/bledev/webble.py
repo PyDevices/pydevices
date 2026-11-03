@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Web Bluetooth backend for browsers. Central only.
 
     from bledev.webble import WebBLE

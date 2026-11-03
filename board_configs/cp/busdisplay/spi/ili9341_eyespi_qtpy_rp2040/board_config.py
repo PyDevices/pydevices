@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """QT Py RP2040 with EyeSPI and ILI9341 2.8" display — CircuitPython"""
 
 from adafruit_focaltouch import Adafruit_FocalTouch

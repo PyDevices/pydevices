@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Local serving and browser-launch helpers for first-party browser CLIs."""
 
 from __future__ import annotations

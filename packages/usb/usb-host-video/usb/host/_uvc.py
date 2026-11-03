@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """USB Video Class descriptor parsing, for the host role.
 
 The companion to `usb.host.audio`, and it exists for the same reason: a

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The m5stack_tab5_st7123 board package: what mip.install("m5stack_tab5_st7123") brings.
 metadata(
     description="M5Stack Tab5 (ST7123 TDDI) - MicroPython",

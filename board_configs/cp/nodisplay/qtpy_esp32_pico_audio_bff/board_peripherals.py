@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """board_peripherals for a QT Py ESP32 Pico carrying an Adafruit Audio BFF, on CircuitPython.
 
 Headless, like the MicroPython config beside it in board_configs/nodisplay:

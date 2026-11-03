@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Browser Web Audio backend for PyScript (`audiodev` PCM devices)."""
 
 try:

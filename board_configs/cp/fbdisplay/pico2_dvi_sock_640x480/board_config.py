@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Raspberry Pi Pico 2 + Adafruit DVI Sock or PiCowbell HSTX — CircuitPython.
 
 Sock and PiCowbell HSTX share GP12–19. Non-UI peripherals use native ``board``.

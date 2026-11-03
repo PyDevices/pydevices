@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Host simulation of the M5Stack Tab5 board audio wiring.
 
 Both panel variants ship the same audio hardware and the same role code, so

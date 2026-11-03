@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """DIY ESP32 psram with and ILI9341 2.8" display and XPT2046 touch controller"""
 
 from ili9341 import ILI9341

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI over Bluetooth LE (BLE-MIDI 1.0), as a MIDI port.
 
 The board advertises the standard BLE-MIDI service; a laptop, a phone, a DAW

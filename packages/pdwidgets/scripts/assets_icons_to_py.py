@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """
 Convert ``lib/pdwidgets/icons/*.{pbm,bmp}`` into importable ``.py`` modules.
 

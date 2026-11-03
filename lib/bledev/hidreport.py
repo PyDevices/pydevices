@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """HID report descriptors, and the reports they describe, as PyDevices events.
 
 A HID device describes its own reports: the *report descriptor* (Bluetooth

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI through Windows' own MIDI ports (winmm), from CPython or MicroPython.
 
 Any port another program can see is a port here: a USB keyboard, a board

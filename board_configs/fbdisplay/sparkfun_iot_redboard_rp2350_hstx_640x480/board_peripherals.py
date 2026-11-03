@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for SparkFun IoT RedBoard RP2350. PERIPHERALS = lazy roles only."""
 import boarddev
 import sys

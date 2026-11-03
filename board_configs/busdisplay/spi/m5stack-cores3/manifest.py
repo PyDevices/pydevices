@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The m5stack-cores3 board package: what mip.install("m5stack-cores3") brings.
 metadata(
     description="M5Stack CoreS3 with ILI9342 320x240 display",

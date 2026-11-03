@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The ssd1331_096_oled board package: what mip.install("ssd1331_096_oled") brings.
 metadata(
     description="SSD1331 0.96\" OLED — MicroPython (Feather breakout pinout)",

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """LilyGo T-Dongle-S3 80x160 ST7735 — CircuitPython"""
 
 import board

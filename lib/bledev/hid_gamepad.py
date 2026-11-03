@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """A gamepad for a `bledev.hid.Peripheral`, in the shape of Adafruit's
 ``hid_gamepad.py`` example (``adafruit_hid`` dropped its own gamepad in 5.0)::
 

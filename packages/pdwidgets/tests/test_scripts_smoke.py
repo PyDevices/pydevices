@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Smoke tests for the maintainer scripts under ``scripts/``.
 
 A hardcoded ``src/`` outlived the move to ``lib/`` and every script in here

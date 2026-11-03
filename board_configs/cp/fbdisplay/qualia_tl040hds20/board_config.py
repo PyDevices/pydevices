@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Qualia S3 RGB-666 with TL040HDS20 4.0" 720x720 Square Display
 
 Paint path matches Adafruit CircuitPython Qualia RGB666 examples:

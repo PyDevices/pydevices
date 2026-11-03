@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """BPI-Centi-S3 170x320 ST7789 display"""
 
 from i80bus import I80Bus

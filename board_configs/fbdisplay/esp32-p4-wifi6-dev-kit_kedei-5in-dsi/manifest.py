@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The esp32-p4-wifi6-dev-kit_kedei-5in-dsi board package: what mip.install("esp32-p4-wifi6-dev-kit_kedei-5in-dsi") brings.
 metadata(
     description="Waveshare ESP32-P4-WIFI6-DEV-KIT with a KeDei 5\" DSI display (800x480) - MicroPython",

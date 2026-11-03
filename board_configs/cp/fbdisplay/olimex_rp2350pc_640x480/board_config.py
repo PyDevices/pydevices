@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Olimex RP2350pc onboard mini-HDMI (HSTX) — CircuitPython.
 
 Sock-compatible HSTX mapping. Non-UI peripherals use native ``board``.

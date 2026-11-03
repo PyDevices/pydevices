@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The mimxrt1170_evk_waveshare_5dsi board package: what mip.install("mimxrt1170_evk_waveshare_5dsi") brings.
 metadata(
     description="NXP MIMXRT1170-EVK + Waveshare 50H-800480-IPS DSI (800x480) on J84 - MicroPython",

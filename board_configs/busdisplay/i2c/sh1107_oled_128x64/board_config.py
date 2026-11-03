@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """SH1107 128x64 OLED (such as Adafruit's 128x64 OLED FeatherWing) — MicroPython
 
 The SH1107 drives its 64 rows from RAM columns and its 128 columns from RAM

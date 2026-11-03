@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """NXP MIMXRT1170-EVK + Waveshare 50H-800480-IPS DSI (800x480) on J84 - CircuitPython"""
 
 import board

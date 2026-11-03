@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """SparkFun IoT RedBoard RP2350 + HSTX-to-DVI breakout — CircuitPython.
 
 Pairs inverted vs Metro (SparkFun ``invert_diffpairs=True``). Non-UI via ``board``.

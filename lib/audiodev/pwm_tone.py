@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """PWM / buzzer adapter for `audiodev.ToneOutput`."""
 
 from audiodev import ToneOutput

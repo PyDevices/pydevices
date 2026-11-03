@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit HalloWing M4 ST7735 240x240 — CircuitPython"""
 
 import board

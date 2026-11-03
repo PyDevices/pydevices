@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # Freezing midiports into a firmware. adafruit_midi isn't here: package.json
 # fetches it from Adafruit at a pinned tag, and a firmware that wants it
 # frozen adds Adafruit's files itself. The desktop ports (windows, linux)

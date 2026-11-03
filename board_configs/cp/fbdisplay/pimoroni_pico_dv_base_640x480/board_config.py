@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Pimoroni Pico DV Demo Base + Raspberry Pi Pico (RP2040) — CircuitPython"""
 
 import board

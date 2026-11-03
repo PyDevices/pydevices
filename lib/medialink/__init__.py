@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Audio and video between boards, and between boards and computers.
 
 medialink sends live media from one device to another over the local

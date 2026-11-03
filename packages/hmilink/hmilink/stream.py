@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Stream transport: a UART, USB CDC, or anything with ``read`` and ``write``.
 
 One frame per line, as `hmilink.tcp` sends over a socket, so a panel

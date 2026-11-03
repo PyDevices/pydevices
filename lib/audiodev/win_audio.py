@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """WASAPI queued PCM backend for Windows CPython (via ``uwin32``).
 
 Playback and capture use shared-mode ``IAudioClient`` with

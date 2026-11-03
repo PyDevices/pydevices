@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Wi-Fi setup over BLE with the Improv standard (https://www.improv-wifi.com/ble/).
 
 A board with no Wi-Fi credentials advertises the Improv service; a phone, a

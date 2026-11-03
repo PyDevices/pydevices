@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """SH1107 128x64 OLED (such as Adafruit's 128x64 OLED FeatherWing) — CircuitPython
 
 The SH1107 needs its pixels sent as display data, which

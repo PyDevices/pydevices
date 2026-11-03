@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The jndisplay board package: what mip.install("jndisplay") brings.
 metadata(
     description="Board configuration for Jupyter Notebook",

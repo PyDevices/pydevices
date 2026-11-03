@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Smoke / contract tests for desktop board_config (MCU-shaped, AutoDisplay)."""
 
 import os

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """pygame-ce playback and capture backend for the portable `audiodev` contract.
 
 Uses **pygame's own SDL** only (never ``usdl2`` / system libSDL2):

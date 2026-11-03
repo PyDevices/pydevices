@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The matrixportal_s3_64x64 board package: what mip.install("matrixportal_s3_64x64") brings.
 metadata(
     description="MatrixPortal S3 64x64 HUB75 — MicroPython",

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The audio pump, used without being asked.
 
 ``audiopump`` is a C module that pulls a CircuitPython audiosample graph on a

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI over a UART: a 5-pin DIN socket, a TRS jack, or two boards wired TX
 to RX.
 

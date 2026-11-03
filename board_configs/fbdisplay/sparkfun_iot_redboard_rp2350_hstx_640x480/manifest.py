@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The sparkfun_iot_redboard_rp2350_hstx_640x480 board package: what mip.install("sparkfun_iot_redboard_rp2350_hstx_640x480") brings.
 metadata(
     description="SparkFun IoT RedBoard RP2350 + HSTX-to-DVI breakout + FPC cable (640x480)",

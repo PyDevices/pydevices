@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Half-duplex voice over a `Link <medialink.Link>`: press to talk.
 
 `Intercom` joins a microphone and a speaker to a link. ``press()``

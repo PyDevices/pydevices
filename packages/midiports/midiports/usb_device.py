@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI over USB, with the board as the device a computer plays.
 
 Built on micropython-lib's ``usb-device-midi``, which hands each USB-MIDI

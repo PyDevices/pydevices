@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """LilyGO T-Display-S3 Pro 222x480 ST7796 — CircuitPython"""
 
 from adafruit_focaltouch import Adafruit_FocalTouch

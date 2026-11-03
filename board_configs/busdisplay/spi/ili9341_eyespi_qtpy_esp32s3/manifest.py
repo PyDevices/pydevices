@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The ili9341_eyespi_qtpy_esp32s3 board package: what mip.install("ili9341_eyespi_qtpy_esp32s3") brings.
 metadata(
     description="QTPy ESP32S3 with EyeSPI and ILI9341 2.8\" display",

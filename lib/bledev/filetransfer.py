@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Files over Bluetooth: CircuitPython's BLE file-transfer protocol, both sides.
 
 CircuitPython boards serve this protocol from their supervisor

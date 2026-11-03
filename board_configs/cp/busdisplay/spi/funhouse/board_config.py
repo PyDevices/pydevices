@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit FunHouse ST7789 + three buttons — CircuitPython
 
 The FunHouse has no touchscreen (its touch inputs are capacitive pads), so no

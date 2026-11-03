@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # t-embed audio rig. Two independent gates, run in sequence:
 #
 #   Phase A  drain timing, TX only, nothing reading. machine.I2S consumes at

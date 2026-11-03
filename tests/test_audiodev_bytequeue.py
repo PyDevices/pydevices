@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """ByteQueue, and the backends that buffer PCM in one instead of a growing bytearray.
 
 win_audio once kept pending PCM in a bytearray grown at the back on every

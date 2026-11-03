@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """USB Audio Class descriptor parsing, for the host role.
 
 A UAC device does not announce its formats in its interface descriptors. It

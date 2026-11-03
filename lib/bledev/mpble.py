@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MicroPython backend, over aioble. Both roles.
 
     from bledev.mpble import MPBLE

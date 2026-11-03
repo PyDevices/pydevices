@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """BPI Centi-S3 170x320 ST7789 I80 — CircuitPython"""
 
 import board

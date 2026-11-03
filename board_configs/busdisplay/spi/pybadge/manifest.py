@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The pybadge board package: what mip.install("pybadge") brings.
 metadata(
     description="Adafruit PyBadge LC ST7789 + shift-register buttons — MicroPython (SAMD51)",

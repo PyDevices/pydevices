@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """CPython backend over bleak: Windows, Linux and macOS. Central only.
 
     from bledev.bleak import BleakBLE

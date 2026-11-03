@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Finding peers: by mDNS on a shared network, or over a hotspot.
 
 Discovery turns a name into a transport address. Each kind has the same

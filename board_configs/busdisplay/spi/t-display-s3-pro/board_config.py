@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """T-Display-S3 Pro 222x480 ST7796 display"""
 
 from cst226 import CST226

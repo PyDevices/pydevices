@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit Metro RP2350 + HSTX DVI breakout — CircuitPython"""
 
 import board

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI ports for ``adafruit_midi``, over any transport.
 
 ``adafruit_midi.MIDI`` reads from one object and writes to another. On

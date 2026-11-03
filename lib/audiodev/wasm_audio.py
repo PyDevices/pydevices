@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Web Audio PCM backend for the direct MicroPython WebAssembly runtime."""
 
 import _wasm_bridge

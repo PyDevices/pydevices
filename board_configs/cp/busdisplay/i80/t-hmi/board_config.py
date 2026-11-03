@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """LilyGO T-HMI 240x320 ST7789 I80 + XPT2046 — CircuitPython"""
 
 from adafruit_touchscreen import Touchscreen

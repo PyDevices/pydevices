@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for WT32-SC01 Plus non-UI devices. PERIPHERALS = lazy roles only."""
 import boarddev
 import sys

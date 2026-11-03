@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """480x480 ST7701 parallel RGB - MicroPython (ESP32-S3)
 
 LILYGO T-RGB 2.1" full circle (CST820). Touch RST on XL9535 IO1; IRQ=GPIO1.

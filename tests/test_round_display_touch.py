@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The Seeed Round Display configs put taps where they land.
 
 This panel's CHSC6X reads x about 1.3 times too far from the centre. The raw

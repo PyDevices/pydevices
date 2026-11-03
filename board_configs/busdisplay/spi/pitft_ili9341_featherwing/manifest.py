@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The pitft_ili9341_featherwing board package: what mip.install("pitft_ili9341_featherwing") brings.
 metadata(
     description="Adafruit PiTFT 2.4\" FeatherWing ILI9341 + STMPE610 — MicroPython (Feather)",

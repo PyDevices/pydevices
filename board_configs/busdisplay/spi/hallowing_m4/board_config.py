@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit HalloWing M4 ST7735 — MicroPython (SAMD51)"""
 
 from spibus import SPIBus

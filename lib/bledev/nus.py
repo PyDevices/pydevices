@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Nordic UART Service: a two-way byte stream over BLE.
 
 The board advertises and the other side connects::

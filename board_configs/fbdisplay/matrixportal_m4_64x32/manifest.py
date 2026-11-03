@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The matrixportal_m4_64x32 board package: what mip.install("matrixportal_m4_64x32") brings.
 metadata(
     description="MatrixPortal M4 64x32 HUB75 — MicroPython",

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Audio codecs, and choosing one to fit a link.
 
 A codec turns a frame of signed 16-bit little-endian PCM into a payload and

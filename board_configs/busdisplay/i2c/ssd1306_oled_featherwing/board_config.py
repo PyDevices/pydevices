@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit FeatherWing OLED 128x32 SSD1306 — MicroPython"""
 
 from i2cbus import I2CBus

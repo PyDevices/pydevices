@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """BLE keyboards and game controllers, both ways: HID over GATT (HOGP).
 
 **As a host** (central), a board or a laptop connects to a BLE keyboard,

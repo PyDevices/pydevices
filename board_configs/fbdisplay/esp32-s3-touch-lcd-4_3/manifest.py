@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The esp32-s3-touch-lcd-4_3 board package: what mip.install("esp32-s3-touch-lcd-4_3") brings.
 metadata(
     description="Waveshare ESP32-S3-Touch-LCD-4.3 — 800x480 RGB565 (ST7262) + GT911",

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """SDL2 audio backend for `audiodev` (pure Python, queued audio only).
 
 Playback pushes PCM with ``SDL_QueueAudio`` and never installs an audio

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """LILYGO T-Watch S3: ST7789 240x240 SPI, FT6336 touch, AXP2101 power (CircuitPython)
 
 For CircuitPython's lilygo_twatch_s3 board definition, or a

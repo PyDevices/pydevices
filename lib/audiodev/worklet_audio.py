@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """AudioWorklet output for Python running in a Pyodide Web Worker.
 
 Web Audio lives on the page, but your Python can run in a Web Worker so audio

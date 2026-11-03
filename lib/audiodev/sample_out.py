@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """CircuitPython-shaped sample playback, off the interpreter thread where it can.
 
 This is the *public* ``audio_out`` contract (see ``docs/guides/audio.md``): a board's

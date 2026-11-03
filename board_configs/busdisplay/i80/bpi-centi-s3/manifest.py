@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The bpi-centi-s3 board package: what mip.install("bpi-centi-s3") brings.
 metadata(
     description="BPI-Centi-S3 170x320 ST7789 display",

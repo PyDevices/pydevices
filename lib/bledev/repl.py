@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The MicroPython REPL over Bluetooth, behind a password.
 
 On the board, opt in from ``main.py`` (nothing starts it for you)::

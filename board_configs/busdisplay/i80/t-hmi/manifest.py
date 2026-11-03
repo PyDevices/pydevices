@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The t-hmi board package: what mip.install("t-hmi") brings.
 metadata(
     description="LILYGO T-HMI 240x320 ST7789 I80 + XPT2046 (displayif native esp-lcd i80bus)",

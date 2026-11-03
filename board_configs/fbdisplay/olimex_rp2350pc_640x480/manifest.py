@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The olimex_rp2350pc_640x480 board package: what mip.install("olimex_rp2350pc_640x480") brings.
 metadata(
     description="Olimex RP2350pc onboard mini-HDMI (HSTX) 640x480 - MicroPython",

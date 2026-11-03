@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Is anyone speaking? Voice activity for a hands-free floor.
 
 `VoiceActivity` takes the microphone's frames as they come and says

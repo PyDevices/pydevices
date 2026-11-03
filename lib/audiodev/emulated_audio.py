@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """CI / no-hardware PCM: WAV files, waveform generator, in-memory loopback.
 
 Never selected by `audiodev.auto`. Import this module explicitly.

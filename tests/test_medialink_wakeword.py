@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """medialink.WakeWord: a wake word opens the hands-free floor.
 
 The model and the feature frontend are stand-ins here, since tflite and

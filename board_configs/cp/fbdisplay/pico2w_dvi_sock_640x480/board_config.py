@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Raspberry Pi Pico 2 W + Adafruit DVI Sock or PiCowbell HSTX — CircuitPython.
 
 Same HSTX pinout as Pico 2 sock/PiCowbell. Wireless via native ``board`` / wifi.

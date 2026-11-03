@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """OSC transport: a control app on a phone or a laptop drives the document.
 
 Apps that speak Open Sound Control (TouchOSC, Open Stage Control, the many

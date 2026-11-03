@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for Feather RP2040 + RGB matrix wing. PERIPHERALS = lazy roles only."""
 import boarddev
 import sys

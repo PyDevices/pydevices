@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The t-display-s3-pro board package: what mip.install("t-display-s3-pro") brings.
 metadata(
     description="T-Display-S3 Pro 222x480 ST7796 display",

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit Feather RP2040 DVI (320x240) — MicroPython
 
 Not implemented: RP2040 SRAM is too tight for a full-screen RGB565

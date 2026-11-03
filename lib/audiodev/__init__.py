@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Portable PCM and tone device contracts for MicroPython and CPython.
 
 Backends subclass `PCMOutput`, `PCMInput`, and

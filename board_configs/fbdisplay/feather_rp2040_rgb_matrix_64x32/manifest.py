@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The feather_rp2040_rgb_matrix_64x32 board package: what mip.install("feather_rp2040_rgb_matrix_64x32") brings.
 metadata(
     description="Adafruit Feather RP2040 + RGB Matrix FeatherWing 64x32 - MicroPython",

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """A link to one peer: media frames, a reliable control channel, the floor.
 
 A `Link` sits on a transport and does three things over it:

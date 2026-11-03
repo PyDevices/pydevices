@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """
 Generate/complete the curated icon set used by ``pdwidgets.icon_theme``
 (``lib/pdwidgets/icons/``) from a local checkout of

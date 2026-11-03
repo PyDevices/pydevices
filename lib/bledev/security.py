@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Pairing and bonding on a MicroPython board: the bond store, passkeys, link state.
 
 You rarely call this yourself. ``bledev.repl.start(pairing=...)`` and

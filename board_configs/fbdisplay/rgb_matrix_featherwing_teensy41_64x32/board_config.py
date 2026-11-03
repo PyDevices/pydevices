@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit RGB Matrix FeatherWing 64x32 — MicroPython (Teensy 4.1)"""
 
 from machine import Pin

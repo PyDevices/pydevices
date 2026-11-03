@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """A byte FIFO for PCM waiting between a writer and a device, kept in small chunks.
 
 The host and browser backends buffer PCM between ``write()`` and the device.

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """
 Combination board configuration for desktop, pyscript and jupyter notebook platforms.
 """

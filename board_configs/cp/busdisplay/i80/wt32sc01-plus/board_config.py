@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """WT32-SC01 Plus 320x480 ST7796 I80 + FT6x36 — CircuitPython"""
 
 from adafruit_focaltouch import Adafruit_FocalTouch

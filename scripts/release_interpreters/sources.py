@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The pins behind a final release's interpreters.
 
 scripts/release_interpreters/sources.lock names the commits of

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for Pico 2 W + DVI Sock/PiCowbell. PERIPHERALS = lazy roles only."""
 import boarddev
 import sys

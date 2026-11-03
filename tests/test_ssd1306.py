@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """SSD1306 driver: the bytes it puts on the bus.
 
 The SSD1306 is a one-bit, page-addressed OLED. The driver once subclassed

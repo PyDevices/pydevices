@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """In-process loopback backend: two adapters, one pretend radio, no hardware.
 
 Every `FakeBLE` built on the same `Air` can see and connect to

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit FeatherWing OLED 128x32 SSD1306 — CircuitPython
 
 The SSD1306 needs its pixels sent as display data, which

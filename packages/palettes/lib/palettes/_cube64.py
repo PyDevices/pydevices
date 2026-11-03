@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 #  Color names based on https://www.chilliant.com/colournames.html
 
 # A color cube with 4 levels of red, green, and blue (64 colors in total)

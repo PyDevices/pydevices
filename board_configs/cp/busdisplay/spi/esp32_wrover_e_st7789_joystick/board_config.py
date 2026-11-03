@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """ESP32 WROVER-E ST7789 with GPIO joystick — CircuitPython"""
 
 import analogio

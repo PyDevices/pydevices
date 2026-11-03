@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Direct MicroPython WebAssembly RGB565 display and browser input backend."""
 
 import json

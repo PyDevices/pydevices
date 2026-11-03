@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # A color cube with 2 levels of red, green, and blue (8 colors in total)
 # (values 0x00 and 0xFF for each of the red, green, and blue components)
 CUBE8 = (

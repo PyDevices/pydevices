@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The t-dongle-s3 board package: what mip.install("t-dongle-s3") brings.
 metadata(
     description="LilyGo T-Dongle-S3 80x160 ST7735 display",

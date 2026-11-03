@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Universal non-MCU board configuration (desktop / Jupyter / PyScript)."""
 
 import sys

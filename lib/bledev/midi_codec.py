@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The BLE-MIDI packet codec: MIDI 1.0 messages in and out of GATT packets.
 
 Pure Python with no imports, so it runs anywhere bledev does, and a board, a

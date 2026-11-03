@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Lazy constructors for T-QT Pro non-UI devices. PERIPHERALS = lazy roles only."""
 import boarddev
 import sys

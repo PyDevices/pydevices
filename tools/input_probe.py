@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Core input / keypad diagnostic (no LVGL required).
 
 Use this when debugging keyboard and hardware keypad behavior. It exercises

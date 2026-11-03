@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """The shared latency vocabulary every audio backend and board config uses."""
 
 from pathlib import Path

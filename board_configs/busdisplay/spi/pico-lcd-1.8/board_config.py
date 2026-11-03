@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Waveshare Pico-LCD-1.8 128x160 ST7735S display"""
 
 from spibus import SPIBus

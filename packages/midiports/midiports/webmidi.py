@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """MIDI in a browser, through Web MIDI, for Python running in Pyodide or MicroPython.
 
 Web MIDI (``navigator.requestMIDIAccess``) exists only on a page's main

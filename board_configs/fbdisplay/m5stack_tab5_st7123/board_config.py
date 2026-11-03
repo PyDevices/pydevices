@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """M5Stack Tab5 (ST7123 TDDI) - MicroPython"""
 
 import time

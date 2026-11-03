@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Host-side register and lifecycle tests for the ES8311 driver."""
 
 from pathlib import Path

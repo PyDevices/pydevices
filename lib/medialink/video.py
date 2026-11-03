@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Pictures over a `Link <medialink.Link>`: a camera on one side, a screen
 on the other.
 

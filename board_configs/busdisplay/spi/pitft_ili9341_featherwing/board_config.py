@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Adafruit PiTFT 2.4" FeatherWing ILI9341 + STMPE610 — MicroPython (Feather)"""
 
 from ili9341 import ILI9341

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """
 ``wifi`` for MicroPython: CircuitPython's ``wifi.radio`` API on ``network.WLAN``.
 

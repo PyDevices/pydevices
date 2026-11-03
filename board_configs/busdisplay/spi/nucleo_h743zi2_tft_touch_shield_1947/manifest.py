@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The nucleo_h743zi2_tft_touch_shield_1947 board package: what mip.install("nucleo_h743zi2_tft_touch_shield_1947") brings.
 metadata(
     description="NUCLEO-H743ZI2 + Adafruit 2.8\" TFT Touch Shield (cap) product 1947",

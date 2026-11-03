@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """
 Bulk-convert a google/material-design-icons ``png/`` tree into ``assets/icons/``
 under this repo (upstream-style names, not the curated IconTheme set).

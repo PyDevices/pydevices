@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The t-watch-s3 board package: what mip.install("t-watch-s3") brings.
 metadata(
     description="LILYGO T-Watch S3: ST7789 240x240 SPI, FT6336 touch, AXP2101 power (MicroPython)",

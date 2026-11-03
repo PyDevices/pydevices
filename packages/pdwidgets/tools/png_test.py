@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """PNG decoder smoke tool (gallery utils/png + DisplayBuffer).
 
 Lives in pdwidgets because it walks a material-design-icons ``png/`` tree used

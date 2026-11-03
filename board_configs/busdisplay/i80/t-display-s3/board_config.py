@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """T-Display-S3 170x320 ST7789 display"""
 
 from time import sleep_ms

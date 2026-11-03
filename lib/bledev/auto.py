@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """Optional backend selection. Nothing in bledev imports this module.
 
     import bledev.auto

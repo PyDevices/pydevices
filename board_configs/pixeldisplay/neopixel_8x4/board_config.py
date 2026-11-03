@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """NeoPixel 8x4 grid — MicroPython NeoPixel grid"""
 
 from machine import Pin

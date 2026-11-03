@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 # The adafruit_feather_rp2040_dvi_320x240 board package: what mip.install("adafruit_feather_rp2040_dvi_320x240") brings.
 metadata(
     description="Adafruit Feather RP2040 DVI (320x240) — MicroPython",

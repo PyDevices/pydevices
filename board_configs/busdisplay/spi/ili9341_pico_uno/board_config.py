@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """RPi Pico with ILI9341 2.8" TFT Touch Shield"""
 
 from ft6x36 import FT6x36

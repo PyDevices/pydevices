@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
+
 """SparkFun IoT RedBoard RP2350 + HSTX-to-DVI breakout + FPC cable (640x480).
 
 SparkFun PicoDVI cfg: pins_tmds={18,16,12}, pins_clk=14, invert_diffpairs=True.
