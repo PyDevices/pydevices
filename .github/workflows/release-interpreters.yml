@@ -103,7 +103,9 @@ jobs:
   build:
     needs: gate
     if: needs.gate.outputs.build == 'true'
-    runs-on: ubuntu-latest
+    # A Linux binary runs only on a C library at least as new as the one it was
+    # built on, so this names a release people have, not the runner's latest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
