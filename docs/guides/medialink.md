@@ -101,6 +101,17 @@ takes the access point down, leaves the hotspot and rejoins the board's own
 network, the one in `secrets.py` on MicroPython or `settings.toml` on
 CircuitPython. It works on boards with Wi-Fi, not on a computer.
 
+## Use it on a network you trust
+
+medialink has no encryption and no passwords of its own. Anyone on the same
+network can read what you send. They can also connect to your device in place
+of its peer, take the floor, and send it sound or pictures.
+
+So use it only on a network where you trust everyone, which matters most for
+a baby monitor, a doorbell or a camera. Keep it off public and guest Wi-Fi, and
+don't forward its port to the internet. A hotspot's password keeps out anyone
+who doesn't have it.
+
 ## When a peer isn't there
 
 `connect()`, `request_floor()` and `Intercom.press()` wait for the other

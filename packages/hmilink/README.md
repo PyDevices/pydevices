@@ -67,6 +67,10 @@ document's `/synth/cutoff`. An app with fixed addresses maps them with
 every change back, so a fader moved on another panel moves on the phone
 too. [`packages/hmilink/osc.py`](packages/hmilink/osc.py)'s docstring has the rest.
 
+Use it on a network you trust. hmilink has no encryption and no passwords, so
+anyone who can reach the device's port can read its document and change it.
+Keep it off public and guest Wi-Fi, and don't forward its port to the internet.
+
 Runs on MicroPython, CircuitPython and CPython, with no threads and no
 asyncio. [`packages/hmilink/tests/run.py`](tests/run.py) runs on all three (CircuitPython has no
 sockets on the desktop, so the TCP checks are skipped there).
