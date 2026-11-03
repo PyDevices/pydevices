@@ -74,6 +74,7 @@ _FIRST_BLOCK_SPINS = 200
 _FIRST_BLOCK_WAIT_US = 20000
 _FIRST_BLOCK_STEP_US = 100
 
+import struct
 from audiodev import PCMInput
 
 try:
@@ -168,8 +169,6 @@ def _why_not_running(mod, status):
     a failure; a loop that pulled something, or that ran out of source, did
     its job; only a pump that left no trace at all never started.
     """
-    import struct
-
     w = struct.unpack("<%dQ" % mod.STATUS_WORDS, status)
     blocks, error, fault = w[0], w[5], w[24]
     if fault:
@@ -827,8 +826,6 @@ class RingDriver(_Driver):
         status = self._status
         if status is None:
             return 0
-        import struct
-
         return struct.unpack_from("<Q", status, 10 * 8)[0]
 
     def waited(self):
@@ -842,8 +839,6 @@ class RingDriver(_Driver):
         status = self._status
         if status is None or len(status) < 34 * 8:
             return (0, 0)
-        import struct
-
         return struct.unpack_from("<QQ", status, 32 * 8)
 
     def produce(self, into):
@@ -1766,8 +1761,6 @@ class Pump:
                     pass
         if mod is not None and self._spawned:
             try:
-                import struct
-
                 w = struct.unpack("<%dQ" % mod.STATUS_WORDS, self.status())
                 report["blocks"] = w[0]
                 report["bytes"] = w[1]
@@ -1780,8 +1773,6 @@ class Pump:
         mod = module()
         if mod is None or not self._spawned or mod.running():
             return None
-        import struct
-
         status = self.status()
         w = struct.unpack("<%dQ" % mod.STATUS_WORDS, status)
         why = _FAULTS.get(w[24]) or _ERRORS.get(w[5])
