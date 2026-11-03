@@ -32,6 +32,7 @@ To use another transport, change the line that opens the ports:
 | Windows' MIDI ports (a keyboard, loopMIDI, a DAW) | `windows.ports("loopMIDI")` |
 | Linux raw MIDI | `linux.ports("DMK25")` |
 | Web MIDI, in a browser page (Pyodide) | `await webmidi.open("DMK25")` |
+| Web MIDI, in a browser page (MicroPython) | `webmidi.page_in("DMK25")` |
 | Web MIDI, in a Web Worker, relayed by the page | `webmidi.relay_ports(port)` |
 
 Import each from `midiports`. BLE MIDI ports come from
@@ -167,6 +168,11 @@ every input and send to the first output. A device plugged in later, or
 unplugged and plugged back in, joins while the ports are open. If you
 already hold a `MIDIAccess`, `webmidi.ports(access, "DMK25")` does the same
 without awaiting. Sending SysEx needs `sysex=True`.
+
+In MicroPython's WebAssembly port, `webmidi.page_in("DMK25")` opens an input
+without awaiting. It has no output and no timestamps. The browser asks for MIDI
+in the background, so `midi_in.names` stays empty until the person says yes, and
+`midi_in.why` says why if the answer was no.
 
 Web MIDI doesn't exist in a Web Worker, so a worker gets its MIDI from the
 page over a `MessagePort`, and a few lines of JavaScript on the page relay
