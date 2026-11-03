@@ -18,15 +18,17 @@ It needs ``uwin32``, which ships in ``pydevices-desktop``.
 Ids carry the direction: ``"out:1"`` and ``"in:1"``. winmm numbers inputs
 and outputs separately, so a bare ``1`` would name two different devices.
 
-Input arrives by draining, never by callback. Windows posts each message to a
-hidden window this module owns, and a read collects them on your thread. A
-winmm callback would run on Windows' own thread, which isn't safe for
-MicroPython.
+Input arrives by draining, never by a winmm callback, which would run on
+Windows' own thread and isn't safe for MicroPython. Windows posts each message
+to a hidden window this module owns, on the thread that opened the port. A read
+collects them from that window's queue, and so does the window's own procedure
+when something else on the thread dispatches them, such as a display's message
+pump, so none is lost to a window that's open beside the port.
 
 Each message is stamped with its arrival time (``take_timestamp()``, the
-package's contract) when a read or ``any()`` drains it from the window's
-queue, so a stamp is as fine as how often you poll, and every message one
-drain finds shares its time. winmm's own time for a message reaches only a
+package's contract) when it's taken from the window's queue, so a stamp is as
+fine as how often you poll or pump, and every message one drain finds shares
+its time. winmm's own time for a message reaches only a
 callback, and the queue's posting time ticks in steps of about 16 ms, which is
 coarser than a loop polling beside audio.
 
@@ -44,6 +46,7 @@ HWND_MESSAGE = -3
 _wndproc_ref = None
 _class_registered = False
 _CLASS_NAME = "midiports_sink"
+_sinks = {}               # a hidden window's handle -> the port it feeds
 
 
 def available():
@@ -169,6 +172,7 @@ class WindowsMidiIn(PortIn):
         self._hwnd = _make_sink_window()
         self._pending = bytearray()
         self._stamps = Stamps(128)
+        _sinks[self._hwnd] = self
         self._handle = win.midiInOpen(index, self._hwnd)
         win.midiInStart(self._handle)
 
@@ -180,16 +184,19 @@ class WindowsMidiIn(PortIn):
                 return
             if msg.message != win.MM_MIM_DATA:
                 continue
-            status, d1, d2 = win.midi_unpack(msg.lParam)
-            want = message_length(status)
             if now is None:
                 now = ticks_us()
-            _stamp(self._stamps, status, now)
-            self._pending.append(status)
-            if want >= 1:
-                self._pending.append(d1)
-            if want >= 2:
-                self._pending.append(d2)
+            self._take(msg.lParam, now)
+
+    def _take(self, lparam, now):
+        status, d1, d2 = win.midi_unpack(lparam)
+        want = message_length(status)
+        _stamp(self._stamps, status, now)
+        self._pending.append(status)
+        if want >= 1:
+            self._pending.append(d1)
+        if want >= 2:
+            self._pending.append(d2)
 
     def any(self):
         if self._handle is None:
@@ -221,23 +228,34 @@ class WindowsMidiIn(PortIn):
         finally:
             win.midiInClose(handle)
             if self._hwnd:
+                _sinks.pop(self._hwnd, None)
                 win.DestroyWindow(self._hwnd)
                 self._hwnd = None
 
     deinit = close
 
 
+def _wndproc(hwnd, msg, wparam, lparam):
+    """A dispatched message: MIDI when another pump on this thread got there
+    before the port's own read, as a display's does."""
+    if msg == win.MM_MIM_DATA:
+        port = _sinks.get(hwnd)
+        if port is not None:
+            port._take(lparam, ticks_us())
+        return 0
+    return win.DefWindowProcW(hwnd, msg, wparam, lparam)
+
+
 def _make_sink_window():
     """A message-only window, there only to own a queue winmm posts into.
 
     HWND_MESSAGE means it's never shown or painted and never in the taskbar.
-    Its window procedure only defers, because the messages we want are
-    posted and read straight off the queue by PeekMessageW.
+    Its window procedure takes the MIDI a dispatch brings it, see
+    :func:`_wndproc`, and defers everything else.
     """
     global _wndproc_ref, _class_registered
     if not _class_registered:
-        _wndproc_ref = win.WNDPROC(
-            lambda hwnd, msg, wparam, lparam: win.DefWindowProcW(hwnd, msg, wparam, lparam))
+        _wndproc_ref = win.WNDPROC(_wndproc)
         cls = win.WNDCLASSEXW()
         cls.cbSize = win.sizeof(win.WNDCLASSEXW)
         cls.lpfnWndProc = _wndproc_ref
