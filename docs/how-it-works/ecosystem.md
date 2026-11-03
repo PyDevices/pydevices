@@ -4,12 +4,6 @@
 of the repositories; [the stack](../stack.md) lists the modules and tools inside
 them.
 
-It is **generated** from
-[`data/repos_db.json`](https://github.com/PyDevices/.github/blob/main/data/repos_db.json)
-in the `.github` repository by
-[`scripts/generate_sites.py`](https://github.com/PyDevices/.github/blob/main/scripts/generate_sites.py),
-which is the same source of truth that drives every landing page in the
-organization. Edit the database, not the block below.
 
 ## The repositories
 
@@ -72,7 +66,6 @@ MIP package indexing, multi-usermod builds, and serial/FTP IDE extensions.
 
 **Deliberately absent from this map:**
 
-- **.github (dotgithub)** — No landing page by design. It holds org-wide data, scripts, and community health files, and is documented as markdown only.
 - **android-runner** — Exists solely to enable pydevices/bin/android.py. The APK is documented in pydevices; the runner publishes no site.
 
 <!-- PYDEVICES-ECOSYSTEM: END -->

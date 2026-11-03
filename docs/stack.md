@@ -36,7 +36,7 @@ and Android.
 - [I want to drive a sensor, radio or other chip](#drive-a-chip)
 - [I want to run on a desktop, in a browser or on a phone](#run-somewhere-other-than-a-board)
 - [I want to run something finished](#run-a-finished-app)
-- [I want to find the project's sites and shared tooling](#find-the-projects-own-sites)
+- [I want to find the project's sites](#find-the-projects-own-sites)
 
 ## Set up a board
 
@@ -377,8 +377,6 @@ and Android.
   Get it: open in a browser. Runs on: Web.
 - [`mip`](https://pydevices.github.io/mip/): Browse the generated package mirror: micropython-lib and the project's releases.\
   Get it: open in a browser. Runs on: Web.
-- [`.github`](https://github.com/PyDevices/.github/blob/main/README.md): Read the shared release workflows, the site generator and this page's data.\
-  Get it: from source. Runs on: GitHub.
 
 ## A to Z
 
@@ -388,7 +386,7 @@ and Android.
 - **D:** [`Display drivers`](#drive-a-chip), [`display_driver`](#draw-on-a-screen), [`displaydev`](#draw-on-a-screen), [`displayif`](#draw-on-a-screen), [`Doorbell`](#run-a-finished-app)
 - **E:** [`Environment sensors`](#drive-a-chip), [`events`](#write-an-app)
 - **F:** [`frame_recorder`](#draw-on-a-screen), [`fs_driver`](#draw-on-a-screen)
-- **G:** [`Gallery`](#run-a-finished-app), [`.github`](#find-the-projects-own-sites)
+- **G:** [`Gallery`](#run-a-finished-app)
 - **H:** [`h264enc`](#use-cameras-video-and-ai-on-a-board), [`Hands free`](#run-a-finished-app), [`Haptics`](#drive-a-chip), [`hmilink`](#connect-devices), [`Home`](#run-a-finished-app)
 - **I:** [`I/O expanders`](#drive-a-chip), [`IMUs`](#drive-a-chip), [`Infrared`](#drive-a-chip)
 - **J:** [`Joysticks`](#drive-a-chip), [`jpegio`](#draw-on-a-screen), [`jpegio for CPython`](#draw-on-a-screen), [`jupyter.py`](#run-somewhere-other-than-a-board)
