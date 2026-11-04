@@ -63,49 +63,43 @@ froze it from the LVGL module, where it showed the same trap with
 
 ## 2. Installing, over Wi-Fi
 
-Serial file transfer is slow. On a Wi-Fi board, put `secrets.py` on it, and
-`wifi.py` too if your firmware doesn't freeze pydevices, then let the board
-fetch everything itself.
+Serial file transfer is slow. On a Wi-Fi board, let the board fetch everything
+itself with `omip`: one file that gets the board online, then installs a package
+and what it needs. If `import omip` works on the freshly flashed board, your
+firmware already has it. Otherwise copy it on from the computer:
 
 ```bash
-mpremote connect <port> fs cp wifi.py :/lib/wifi.py      # only if pydevices isn't frozen in
-mpremote connect <port> fs cp secrets.py :/lib/secrets.py
+mpremote connect <port> mip install github:PyDevices/pydevices/lib/omip.py
 ```
 
-`wifi.py` is `pydevices/lib/wifi.py` — the same file the `pydevices` package
-installs, copied by hand here only because it is what *gets you onto* the
-network that `mip` needs. Firmware that freezes pydevices (an image built with
-pydevices among its modules, as `--modules all` is; see
-[§1](#1-what-the-firmware-already-has-and-what-it-does-not)) freezes `wifi`
-too, and a frozen module is found before `/lib`, so there skip the copy: a
-`wifi.py` in `/lib` would never load. If `import wifi` works on the freshly
-flashed board, it's frozen. `secrets.py` is not in any package and should not be:
-it holds credentials and is per-user. Write it yourself, as two plain
-assignments:
+Then, on the board:
+
+```python
+import omip
+omip.install("pydevices")
+omip.install("github:PyDevices/pydevices/board_configs/fbdisplay/esp32-s3-touch-lcd-4_3")
+```
+
+If the board is offline, `omip` joins the network in `secrets.py`, and with no
+`secrets.py` it asks at the REPL and only saves what you type if you say so. To
+skip the question, put `secrets.py` on the board first, as two plain assignments.
+It holds credentials and is per-user, so it's not in any package:
 
 ```python
 WIFI_SSID = "..."
 WIFI_PASSWORD = "..."
 ```
 
-Then, on the board:
-
-```python
-import wifi
-wifi.connect_from_secrets()
-print(wifi.radio.ipv4_address)
-
-import mip
-INDEX = "https://PyDevices.github.io/mip"
-mip.install("pydevices", index=INDEX)
-mip.install("github:PyDevices/pydevices/board_configs/fbdisplay/esp32-s3-touch-lcd-4_3",
-            index=INDEX)
-```
-
 The board installer pulls its own drivers and depends on `pydevices`, so the
-second call alone is usually enough. Board installers live in the `pydevices`
-repo, not in the MIP index — hence the `github:` prefix with `index=` for the
-dependency.
+second call alone is usually enough. A program with no one at the REPL calls
+`omip.install(name, prompt=False)`, so it never waits for an answer.
+
+`omip.install` takes the arguments of `mip.install`. The difference is what
+happens with no `index`: it looks on the OmniPython index and then on
+micropython-lib, and it brings what a package needs from micropython-lib, such as
+the `sdcard` driver. Plain `mip` uses one index for a whole install, so with `mip`
+you install those first, from its default index. If an install fails, `omip`
+raises `OSError`; `mip` prints a message and returns.
 
 **Take both halves from the same place.** The pair above mixes the *released*
 `pydevices` (the index) with the board config from `main` (`github:`). That
@@ -118,12 +112,12 @@ a working panel and touch and **no audio** — `pcm_out()` raised
 specific version of the board config, add `version=`:
 
 ```python
-mip.install("github:PyDevices/pydevices/board_configs/fbdisplay/esp32-s3-touch-lcd-4_3",
-            index=INDEX, version="v0.7.0")
+omip.install("github:PyDevices/pydevices/board_configs/fbdisplay/esp32-s3-touch-lcd-4_3",
+             version="v0.7.0")
 ```
 
 Note that this does **not** replace files a release already put in `/lib`
-with different names — mip adds and overwrites, it never removes — and that a
+with different names — an install adds and overwrites, it never removes — and that a
 `.py` beside a `.mpy` is the one that loads, so a source install over a
 bytecode one takes effect without deleting anything first.
 
@@ -166,15 +160,15 @@ look for literals passed to `write()`.
 
 ## 3. Choosing what to install, and from where
 
-`mip.install("pydevices", index=INDEX)` and
-`mip.install("github:PyDevices/pydevices/board_configs/...", ...)` both work and give you
+`omip.install("pydevices")` and
+`omip.install("github:PyDevices/pydevices/board_configs/...")` both work and give you
 different things. The difference is invisible until you wonder why your edit
 did not take.
 
 | | What you get | When you want it |
 |---|---|---|
-| `mip.install("name", index=INDEX)` | the **released** version, as `.mpy` bytecode | running a release, which is the normal case |
-| `mip.install("github:owner/repo/path", ...)` | whatever is on that **branch**, as `.py` source | developing against current `main` |
+| `omip.install("name")` | the **released** version, as `.mpy` bytecode | running a release, which is the normal case |
+| `omip.install("github:owner/repo/path")` | whatever is on that **branch**, as `.py` source | developing against current `main` |
 
 Two separate axes hide in there. The index serves a *release* — the tag pinned
 in the [MIP index](https://github.com/PyDevices/mip)'s lockfile — while
@@ -182,7 +176,7 @@ in the [MIP index](https://github.com/PyDevices/mip)'s lockfile — while
 serves bytecode by default and source on request:
 
 ```python
-mip.install("pydevices", index=INDEX, mpy=False)   # released, but as .py source
+omip.install("pydevices", mpy=False)   # released, but as .py source
 ```
 
 Bytecode is smaller and loads faster; source is what you can read on the board
