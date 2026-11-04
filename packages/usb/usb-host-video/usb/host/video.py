@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython USB video host: frames from a webcam on the host port.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #

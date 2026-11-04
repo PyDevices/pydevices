@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """Unit tests for pydevices/bin/pyscript.py CLI parsing, URL generation, and server probing."""
 

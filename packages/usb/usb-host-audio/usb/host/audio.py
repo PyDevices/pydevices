@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython USB audio host: a USB speaker or microphone on the host port.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #

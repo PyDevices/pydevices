@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython USB video module: a UVC webcam the computer watches.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #

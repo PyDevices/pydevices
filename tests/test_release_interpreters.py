@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """The pins behind a final release's interpreters: scripts/release_interpreters/sources.py,
 the gate and fetch steps of scripts/release_interpreters.sh, and the sources

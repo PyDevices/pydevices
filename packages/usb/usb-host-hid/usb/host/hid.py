@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython USB HID host: key presses, mouse movement and media keys from a
 # keyboard or mouse on the host port, named the way adafruit_hid names them.
 # MIT license; Copyright (c) 2026 Brad Barnett
