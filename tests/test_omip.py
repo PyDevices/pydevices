@@ -11,9 +11,11 @@ the same trees: that proves omip's HTTP parsing and file handling, not a real TL
 connection or a real radio.
 """
 
+import contextlib
 import hashlib
 import http.server
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -51,6 +53,15 @@ def write_package(root, name, files, **keys):
         (folder / "latest.json").write_text(json.dumps(body), encoding="utf-8")
 
 
+def write_index(root, *packages):
+    """Write an index.json as the real indexes do, with nested versions in each package."""
+    rows = [
+        {"name": name, "version": "1.0", "description": text, "versions": {"py": ["1.0"]}, "path": name}
+        for name, text in packages
+    ]
+    (root / "index.json").write_text(json.dumps({"v": 2, "packages": rows}, indent=2), encoding="utf-8")
+
+
 def build_indexes(scratch):
     """Returns the (ours, upstream) index trees. `drop_upstream` tests plant faults in them."""
     ours = scratch / "ours"
@@ -83,6 +94,8 @@ def build_indexes(scratch):
         json.dumps({"urls": [["pkg.py", "pkg.py"]], "deps": [["core", "latest"]], "upstream": [["sdcard", "latest"]]}),
         encoding="utf-8",
     )
+    write_index(ours, ("bledev", "Bluetooth for boards"), ("gt911", 'Touch, with {braces} and a "quote"'))
+    write_index(upstream, ("aioble", "Asyncio Bluetooth"), ("sdcard", "SD cards"))
     return ours, upstream
 
 
@@ -145,6 +158,34 @@ class CPythonInstall(Indexes):
     def test_a_package_brings_what_it_needs_from_upstream(self):
         self.assertTrue(self.install("bledev"))
         self.assertEqual(self.landed(), ["aioble/__init__.py", "aioble/core.py", "bledev/__init__.py"])
+
+    def search(self, *words, **kwargs):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.omip.search(*words, prompt=False, **kwargs)
+        return out.getvalue().splitlines()
+
+    def test_search_with_no_words_lists_both_indexes_in_order(self):
+        self.assertEqual(
+            [line.split()[0] for line in self.search()],
+            ["bledev", "gt911", "aioble", "sdcard"],
+        )
+
+    def test_search_needs_every_word_in_the_name_or_description(self):
+        self.assertEqual(self.search("bluetooth", "ASYNCIO"), ["aioble 1.0  Asyncio Bluetooth"])
+        self.assertEqual(self.search("sdcard"), ["sdcard 1.0  SD cards"])
+        self.assertEqual(self.search("nothing-has-this"), [])
+
+    def test_search_survives_braces_and_quotes_in_a_description(self):
+        self.assertEqual(self.search("braces"), ['gt911 1.0  Touch, with {braces} and a "quote"'])
+
+    def test_search_of_one_index(self):
+        self.assertEqual([line.split()[0] for line in self.search(index=self.upstream_url)], ["aioble", "sdcard"])
+
+    def test_search_with_no_index_file_raises(self):
+        (self.ours_dir / "index.json").unlink()
+        with self.assertRaisesRegex(OSError, "HTTP 404"):
+            self.search()
 
     def test_upstream_on_a_dep_is_found_too(self):
         self.install("wrapper")
@@ -242,6 +283,15 @@ print("ONLINE", omip.connect(timeout=1))
 """
 
 
+MP_SEARCH = """
+import omip
+omip.INDEX = {ours!r}
+omip.UPSTREAM = {upstream!r}
+omip.search(*{words!r}, prompt=False)
+print("DONE")
+"""
+
+
 class MicroPythonRun(Indexes):
     def run_mp(self, script, *, stdin=""):
         interpreter = _mprun.need_micropython(self)
@@ -271,6 +321,13 @@ class MicroPythonRun(Indexes):
         self.assertIn("RESULT True", out)
         self.assertIn("IMPORTED aioble", out)
         self.assertEqual(self.landed(), ["aioble/__init__.py", "aioble/core.py", "bledev/__init__.py"])
+
+    def test_search_reads_both_indexes(self):
+        out = self.run_mp(MP_SEARCH.format(ours=self.ours_url, upstream=self.upstream_url, words=("BLUETOOTH",)))
+        self.assertIn("bledev 1.0  Bluetooth for boards", out)
+        self.assertIn("aioble 1.0  Asyncio Bluetooth", out)
+        self.assertNotIn("sdcard", out)
+        self.assertIn("DONE", out)
 
     def test_it_asks_for_the_bytecode_channel(self):
         self.run_mp(self.script(MP_INSTALL))
@@ -456,6 +513,15 @@ class CircuitPythonRun(Indexes):
         self.assertIn("116", out)
         self.assertNotIn("RESULT", out)
         self.assertEqual(self.landed(), [])
+
+    def test_search_through_the_http_parser(self):
+        out = self.run_cp(
+            'import omip\nomip.INDEX = "https://ours.test"\nomip.UPSTREAM = "https://upstream.test"\n'
+            'omip.search("bluetooth", prompt=False)\nprint("DONE")\n'
+        )
+        self.assertIn("bledev 1.0  Bluetooth for boards", out)
+        self.assertIn("aioble 1.0  Asyncio Bluetooth", out)
+        self.assertIn("DONE", out)
 
     def test_not_found_says_so(self):
         out = self.run_cp(self.script("no-such"))
