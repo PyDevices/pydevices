@@ -1,66 +1,131 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+# SPDX-FileCopyrightText: 2024 Shenzhen Xin Yuan Electronic Technology Co., Ltd
+#
+# SPDX-License-Identifier: MIT
+
+"""Start up an ST7701S panel on the LILYGO T-RGB 2.1" round board.
+
+The ST7701S takes its commands over a 3-wire serial port, and on the T-RGB the
+chip select, data, clock and reset lines hang off an I/O expander rather than
+the microcontroller. `run_init` clocks the panel's start-up commands out through
+those pins, one bit at a time. The pixels then arrive over the parallel RGB bus,
+which isn't part of this module.
+
+Each serial frame is 9 bits, most significant first: a D/C bit (0 for a command,
+1 for a command's parameter) and then the byte. Data is taken on the rising edge
+of the clock, and the chip select stays low for a command and its parameters
+(Sitronix ST7701S datasheet, "3-line serial interface").
+
+The register values in `_INIT` are the 2.1" full-circle panel's start-up table
+from LILYGO's T-RGB library (`src/RGBPanelInit.h`, `st7701_2_1_inches`),
+reformatted as Python. That library is MIT licensed:
+
+    MIT License
+
+    Copyright (c) 2024 Xinyuan-LilyGO
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+Example:
+    from st7701 import LCDPins, run_init
+
+    pins = LCDPins(pwr_en=xl.Pin(2, xl.OUT, value=1), cs=xl.Pin(3, xl.OUT, value=1),
+                   sda=xl.Pin(4, xl.OUT, value=1), clk=xl.Pin(5, xl.OUT, value=1),
+                   rst=xl.Pin(6, xl.OUT, value=1))
+    run_init(pins)
 """
-GPL-3.0 License
-see https://github.com/Xinyuan-LilyGO/lilygo-micropython/tree/master/target/esp32s3/boards/LILYGO_T-RGB/modules
-"""
+
+import time
 
 try:
-    from time import sleep_ms
-except ImportError:
-    from time import sleep
+    _sleep_ms = time.sleep_ms
+except AttributeError:
 
-    def sleep_ms(milliseconds):
-        sleep(milliseconds / 1000)
+    def _sleep_ms(ms):
+        time.sleep(ms / 1000)
 
 
-from displaydev.busdisplay import BusDisplay
+_SLPOUT = 0x11
+_DISPON = 0x29
 
-_INIT_SEQUENCE = [
-    (0xFF, b"\x77\x01\x00\x00\x10", 0),
-    (0xC0, b"\x3b\x00", 0),
-    (0xC1, b"\x0b\x02", 0),
-    (0xC2, b"\x07\x02", 0),
-    (0xCC, b"\x10", 0),
-    (0xCD, b"\x08", 0),
-    (0xB0, b"\x00\x11\x16\x0e\x11\x06\x05\x09\x08\x21\x06\x13\x10\x29\x31\x18", 0),
-    (0xB1, b"\x00\x11\x16\x0e\x11\x07\x05\x09\x09\x21\x05\x13\x11\x2a\x31\x18", 0),
-    (0xFF, b"\x77\x01\x00\x00\x11", 0),
-    (0xB0, b"\x6d", 0),
-    (0xB1, b"\x37", 0),
-    (0xB2, b"\x81", 0),
-    (0xB3, b"\x80", 0),
-    (0xB5, b"\x43", 0),
-    (0xB7, b"\x85", 0),
-    (0xB8, b"\x20", 0),
-    (0xC1, b"\x78", 0),
-    (0xC2, b"\x78", 0),
-    (0xC3, b"\x8c", 0),
-    (0xD0, b"\x88", 0),
-    (0xE0, b"\x00\x00\x02", 0),
-    (0xE1, b"\x03\xa0\x00\x00\x04\xa0\x00\x00\x00\x20\x20", 0),
-    (0xE2, b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 0),
-    (0xE3, b"\x00\x00\x11\x00", 0),
-    (0xE4, b"\x22\x00", 0),
-    (0xE5, b"\x05\xec\xa0\xa0\x07\xee\xa0\xa0\x00\x00\x00\x00\x00\x00\x00\x00", 0),
-    (0xE6, b"\x00\x00\x11\x00", 0),
-    (0xE7, b"\x22\x00", 0),
-    (0xE8, b"\x06\xed\xa0\xa0\x08\xef\xa0\xa0\x00\x00\x00\x00\x00\x00\x00\x00", 0),
-    (0xEB, b"\x00\x00\x40\x40\x00\x00\x00", 0),
-    (0xED, b"\xff\xff\xff\xba\x0a\xbf\x45\xff\xff\x54\xfb\xa0\xab\xff\xff\xff", 0),
-    (0xEF, b"\x10\x0d\x04\x08\x3f\x1f", 0),
-    (0xFF, b"\x77\x01\x00\x00\x13", 0),
-    (0xEF, b"\x08", 0),
-    (0xFF, b"\x77\x01\x00\x00\x00", 0),
-    (0x36, b"\x08", 0),
-    (0x3A, b"\x66", 0),
-    (0x11, b"\x00", 100),
-    (0x29, b"\x00", 120),
-]
+# Wait after a command, in milliseconds. The datasheet asks for 120 ms after
+# Sleep Out before anything else is sent.
+_DELAY_AFTER = {_SLPOUT: 120, _DISPON: 100}
+
+# (command, parameters). The 0xFF commands switch the controller between its
+# command banks: 0x10 and 0x11 are the two extended banks, 0x13 a third and
+# 0x00 the standard set. COLMOD (0x3A) is 0x66, 18 bits per pixel.
+_INIT = (
+    (0xFF, b"\x77\x01\x00\x00\x10"),
+    (0xC0, b"\x3b\x00"),
+    (0xC1, b"\x0b\x02"),
+    (0xC2, b"\x07\x02"),
+    (0xCC, b"\x10"),
+    (0xCD, b"\x08"),
+    (0xB0, b"\x00\x11\x16\x0e\x11\x06\x05\x09\x08\x21\x06\x13\x10\x29\x31\x18"),
+    (0xB1, b"\x00\x11\x16\x0e\x11\x07\x05\x09\x09\x21\x05\x13\x11\x2a\x31\x18"),
+    (0xFF, b"\x77\x01\x00\x00\x11"),
+    (0xB0, b"\x6d"),
+    (0xB1, b"\x37"),
+    (0xB2, b"\x81"),
+    (0xB3, b"\x80"),
+    (0xB5, b"\x43"),
+    (0xB7, b"\x85"),
+    (0xB8, b"\x20"),
+    (0xC1, b"\x78"),
+    (0xC2, b"\x78"),
+    (0xC3, b"\x8c"),
+    (0xD0, b"\x88"),
+    (0xE0, b"\x00\x00\x02"),
+    (0xE1, b"\x03\xa0\x00\x00\x04\xa0\x00\x00\x00\x20\x20"),
+    (0xE2, b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"),
+    (0xE3, b"\x00\x00\x11\x00"),
+    (0xE4, b"\x22\x00"),
+    (0xE5, b"\x05\xec\xa0\xa0\x07\xee\xa0\xa0\x00\x00\x00\x00\x00\x00\x00\x00"),
+    (0xE6, b"\x00\x00\x11\x00"),
+    (0xE7, b"\x22\x00"),
+    (0xE8, b"\x06\xed\xa0\xa0\x08\xef\xa0\xa0\x00\x00\x00\x00\x00\x00\x00\x00"),
+    (0xEB, b"\x00\x00\x40\x40\x00\x00\x00"),
+    (0xED, b"\xff\xff\xff\xba\x0a\xbf\x45\xff\xff\x54\xfb\xa0\xab\xff\xff\xff"),
+    (0xEF, b"\x10\x0d\x04\x08\x3f\x1f"),
+    (0xFF, b"\x77\x01\x00\x00\x13"),
+    (0xEF, b"\x08"),
+    (0xFF, b"\x77\x01\x00\x00\x00"),
+    (0x36, b"\x08"),
+    (0x3A, b"\x66"),
+    (_SLPOUT, b""),
+    (_DISPON, b""),
+)
 
 
 class LCDPins:
-    """Callable pin wrappers for 3-wire ST7701 panel init (CS/SDA/CLK/RST/pwr)."""
+    """The expander pins wired to the panel's serial port.
 
-    def __init__(self, *, pwr_en, cs, sda, clk, rst):
+    Args:
+        pwr_en (Pin): Panel power enable, high to power the panel.
+        cs (Pin): Chip select, active low.
+        sda (Pin): Serial data into the panel.
+        clk (Pin): Serial clock.
+        rst (Pin): Panel reset, active low.
+    """
+
+    def __init__(self, pwr_en, cs, sda, clk, rst):
         self.pwr_en = pwr_en
         self.cs = cs
         self.sda = sda
@@ -68,68 +133,54 @@ class LCDPins:
         self.rst = rst
 
 
-def run_init(lcd_pins, init_sequence=_INIT_SEQUENCE):
-    """Bit-bang the ST7701 register init sequence over 3-wire SPI GPIO."""
-
-    lcd_pins.pwr_en(1)
-    lcd_pins.cs(1)
-    lcd_pins.sda(1)
-    lcd_pins.clk(1)
-
-    lcd_pins.rst(1)
-    sleep_ms(200)
-    lcd_pins.rst(0)
-    sleep_ms(200)
-    lcd_pins.rst(1)
-    sleep_ms(200)
-
-    for cmd, data, delay_ms in init_sequence:
-        _tx_cmd(lcd_pins, cmd)
-        if data:
-            _tx_data(lcd_pins, data)
-        if delay_ms:
-            sleep_ms(delay_ms)
+def _send(pins, dc, byte):
+    # One 9-bit frame: the D/C bit, then the byte, high bit first.
+    word = (dc << 8) | byte
+    for shift in range(8, -1, -1):
+        pins.sda.value((word >> shift) & 1)
+        pins.clk.value(1)
+        pins.clk.value(0)
 
 
-def _tx_byte(lcd_pins, bits):
-    for _ in range(8):
-        lcd_pins.sda(1 if bits & 0x80 else 0)
-        bits <<= 1
-        lcd_pins.clk(0)
-        lcd_pins.clk(1)
+def write_command(pins, cmd, data=b""):
+    """Send one command and its parameters.
 
-
-def _tx_cmd(lcd_pins, cmd):
-    lcd_pins.cs(0)
-    lcd_pins.sda(0)
-    lcd_pins.clk(0)
-    lcd_pins.clk(1)
-    _tx_byte(lcd_pins, cmd)
-    lcd_pins.cs(1)
-
-
-def _tx_data(lcd_pins, data):
+    Args:
+        pins (LCDPins): The serial port pins.
+        cmd (int): The command byte.
+        data (bytes, optional): The command's parameters.
+    """
+    pins.cs.value(0)
+    _send(pins, 0, cmd)
     for byte in data:
-        lcd_pins.cs(0)
-        lcd_pins.sda(1)
-        lcd_pins.clk(0)
-        lcd_pins.clk(1)
-        _tx_byte(lcd_pins, byte)
-        lcd_pins.cs(1)
+        _send(pins, 1, byte)
+    pins.cs.value(1)
 
 
-if BusDisplay is not None:
+def run_init(pins):
+    """Power up and reset the panel, then send its start-up commands.
 
-    class ST7701(BusDisplay):
-        """
-        ST7701 display driver for LilyGO T-RGB and similar RGB666 panels.
+    Afterwards the panel is out of sleep with its display on, waiting for pixels
+    on the RGB bus.
 
-        Panel registers are initialized via ``lcd_pins`` (3-wire SPI bit-bang).
-        Pixel data is sent through ``display_bus`` (RGB parallel panel from
-        ``pydevices/displayif`` ``rgbframebuffer`` + ``displaydev.fbdisplay.FBDisplay``).
-        """
+    Args:
+        pins (LCDPins): The serial port pins.
+    """
+    pins.pwr_en.value(1)
+    pins.cs.value(1)
+    pins.clk.value(0)
+    pins.sda.value(1)
 
-        def __init__(self, lcd_pins, display_bus, *, init_sequence=None, **kwargs):
-            self.lcd_pins = lcd_pins
-            run_init(lcd_pins, init_sequence or _INIT_SEQUENCE)
-            super().__init__(display_bus, init_sequence=None, **kwargs)
+    # The datasheet wants reset low for at least 10 us; this is generous.
+    pins.rst.value(1)
+    _sleep_ms(10)
+    pins.rst.value(0)
+    _sleep_ms(20)
+    pins.rst.value(1)
+    _sleep_ms(120)
+
+    for cmd, data in _INIT:
+        write_command(pins, cmd, data)
+        wait = _DELAY_AFTER.get(cmd)
+        if wait:
+            _sleep_ms(wait)
