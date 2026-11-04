@@ -102,6 +102,8 @@ and Android.
   Get it: `mip appkit`, `pip omnipython-applibs`. Runs on: MP, CP, Desktop.
 - [`applibs`](https://github.com/PyDevices/apps/tree/main/lib): Install every shared app library at once.\
   Get it: `mip applibs`, `pip omnipython-applibs`. Runs on: MP, CP, Desktop.
+- [`deskkit`](https://github.com/PyDevices/apps/blob/main/docs/guides/put-a-clock-on-your-desk.md): Put a clock and the weather on a screen on your desk, with swipes between them and the screen dark at night.\
+  Get it: from source. Runs on: MP on an LVGL touch board.
 - [`touchkit`](https://github.com/PyDevices/apps/tree/main/lib/touchkit): Reuse what the apps on an ESP32-P4 touch board share: the shell, settings, clock, network and camera helpers.\
   Get it: `mip touchkit`, `pip omnipython-applibs`. Runs on: MP on an ESP32-P4 touch board.
 
@@ -360,6 +362,10 @@ and Android.
   Get it: from source. Runs on: ESP32-P4 with a camera.
 - [`Cast`](https://github.com/PyDevices/apps/tree/main/apps/cast): Put a screen of its own on a Roku or Windows PC, with the panel as its remote.\
   Get it: from source. Runs on: ESP32-P4 touch board.
+- [`Clock`](https://github.com/PyDevices/apps/blob/main/docs/guides/put-a-clock-on-your-desk.md): Show an analog clock that fills a round touch screen.\
+  Get it: from source. Runs on: MP on an LVGL touch board.
+- [`Weather`](https://github.com/PyDevices/apps/blob/main/docs/guides/put-a-clock-on-your-desk.md): See the conditions and five days ahead, with no account or key.\
+  Get it: from source. Runs on: MP on an LVGL touch board.
 - [`Roku remote`](https://github.com/PyDevices/apps/tree/main/apps/roku): Control a Roku TV from the touch screen, over your network.\
   Get it: from source. Runs on: ESP32-P4 touch board.
 - [`Wake word`](https://github.com/PyDevices/apps/tree/main/apps/wake): Listen on a USB microphone for "Hey Jarvis" and flash on each detection.\
@@ -382,8 +388,8 @@ and Android.
 
 - **A:** [`android-runner`](#run-somewhere-other-than-a-board), [`android-template`](#run-somewhere-other-than-a-board), [`android.py`](#run-somewhere-other-than-a-board), [`appdev`](#write-an-app), [`appkit`](#write-an-app), [`applibs`](#write-an-app), [`Audio codecs`](#drive-a-chip), [`audioairwindows`](#make-and-shape-sound), [`audiobiquad`](#make-and-shape-sound), [`audioconvolve`](#make-and-shape-sound), [`audiocore`](#make-and-shape-sound), [`audiodelays`](#make-and-shape-sound), [`audiodev`](#make-and-shape-sound), [`audiodsp_util`](#make-and-shape-sound), [`audiodynamics`](#make-and-shape-sound), [`audioecho`](#make-and-shape-sound), [`audioeffects`](#make-and-shape-sound), [`audiofeatures`](#make-and-shape-sound), [`audiofilters`](#make-and-shape-sound), [`audiofreeverb`](#make-and-shape-sound), [`audiograph`](#make-and-shape-sound), [`audioif`](#make-and-shape-sound), [`audioinstruments`](#make-and-shape-sound), [`audioladder`](#make-and-shape-sound), [`audiomath`](#make-and-shape-sound), [`audiometer`](#make-and-shape-sound), [`audiomixer`](#make-and-shape-sound), [`audiomodal`](#make-and-shape-sound), [`audiomp3`](#make-and-shape-sound), [`audiooscillator`](#make-and-shape-sound), [`audiopump`](#make-and-shape-sound), [`audiorender`](#make-and-shape-sound), [`audioroute`](#make-and-shape-sound), [`audiosampler`](#make-and-shape-sound), [`audioshaper`](#make-and-shape-sound), [`audiospeed`](#make-and-shape-sound), [`audioverb`](#make-and-shape-sound), [`audiovorbis`](#make-and-shape-sound)
 - **B:** [`Baby monitor`](#run-a-finished-app), [`backends`](#write-an-app), [`bledev`](#connect-devices), [`bledev_hid`](#connect-devices), [`Board configs`](#set-up-a-board), [`boarddev`](#set-up-a-board), [`Bus drivers`](#drive-a-chip), [`Buttons and keypads`](#drive-a-chip)
-- **C:** [`Camera`](#run-a-finished-app), [`Camera sensors`](#drive-a-chip), [`cameraif`](#use-cameras-video-and-ai-on-a-board), [`Cast`](#run-a-finished-app), [`castif`](#use-cameras-video-and-ai-on-a-board), [`controlkit`](#draw-on-a-screen)
-- **D:** [`Display drivers`](#drive-a-chip), [`display_driver`](#draw-on-a-screen), [`displaydev`](#draw-on-a-screen), [`displayif`](#draw-on-a-screen), [`Doorbell`](#run-a-finished-app)
+- **C:** [`Camera`](#run-a-finished-app), [`Camera sensors`](#drive-a-chip), [`cameraif`](#use-cameras-video-and-ai-on-a-board), [`Cast`](#run-a-finished-app), [`castif`](#use-cameras-video-and-ai-on-a-board), [`Clock`](#run-a-finished-app), [`controlkit`](#draw-on-a-screen)
+- **D:** [`deskkit`](#write-an-app), [`Display drivers`](#drive-a-chip), [`display_driver`](#draw-on-a-screen), [`displaydev`](#draw-on-a-screen), [`displayif`](#draw-on-a-screen), [`Doorbell`](#run-a-finished-app)
 - **E:** [`Environment sensors`](#drive-a-chip), [`events`](#write-an-app)
 - **F:** [`frame_recorder`](#draw-on-a-screen), [`fs_driver`](#draw-on-a-screen)
 - **G:** [`Gallery`](#run-a-finished-app)
@@ -400,6 +406,6 @@ and Android.
 - **T:** [`tflite`](#use-cameras-video-and-ai-on-a-board), [`Touch drivers`](#drive-a-chip), [`touchkit`](#write-an-app), [`tsmux`](#use-cameras-video-and-ai-on-a-board)
 - **U:** [`ulab`](#use-cameras-video-and-ai-on-a-board), [`usb-core`](#use-usb), [`usb-device-audio`](#use-usb), [`usb-device-msc`](#use-usb), [`usb-device-video`](#use-usb), [`usb-hid`](#use-usb), [`usb-host-audio`](#use-usb), [`usb-host-cdc`](#use-usb), [`usb-host-hid`](#use-usb), [`usb-host-msc`](#use-usb), [`usb-host-mtp`](#use-usb), [`usb-host-net`](#use-usb), [`usb-host-video`](#use-usb), [`usbhost`](#use-usb), [`usdl2`](#run-somewhere-other-than-a-board), [`uwin32`](#run-somewhere-other-than-a-board)
 - **V:** [`Vamp`](#run-a-finished-app), [`Video doorbell`](#run-a-finished-app), [`Videophone`](#run-a-finished-app), [`vision`](#use-cameras-video-and-ai-on-a-board)
-- **W:** [`Wake word`](#run-a-finished-app), [`Walkie-talkie`](#run-a-finished-app), [`wasm.py`](#run-somewhere-other-than-a-board), [`wifi`](#connect-devices), [`wifi_manager`](#connect-devices), [`Workbench`](#set-up-a-board)
+- **W:** [`Wake word`](#run-a-finished-app), [`Walkie-talkie`](#run-a-finished-app), [`wasm.py`](#run-somewhere-other-than-a-board), [`Weather`](#run-a-finished-app), [`wifi`](#connect-devices), [`wifi_manager`](#connect-devices), [`Workbench`](#set-up-a-board)
 
 <!-- PYDEVICES-STACK: END -->
