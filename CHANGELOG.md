@@ -1,3 +1,19 @@
+## v0.8.0.dev0 (2026-11-04)
+
+- omip: install a package in one line, with what it needs upstream
+- Stack: deskkit, Clock and Weather (#405)
+- Style check: fail a pull request on the mechanical style rules (#403)
+- T-RGB: st7701 and xl9535 drivers under MIT (#402)
+- LICENSE: copyright Brad Barnett, as the file headers say (#401)
+- Docstrings: Google sections and cross-references; licence headers on every file (#400)
+- medialink, hmilink: say they're for networks you trust, and plan for others (#399)
+- Docs: don't send readers to the .github repository (#398)
+- Ecosystem map: regenerate from the site database (#397)
+- Docs: the stack, a page listing everything you can import or run (#396)
+- midiports.webmidi: an input for MicroPython's WebAssembly port (#395)
+- Interpreters: don't publish CircuitPython with coverage instrumentation (#393)
+- Interpreters: build on Ubuntu 24.04, so the Linux binaries start there (#392)
+
 ## v0.7.9 (2026-11-03)
 
 - Interpreters: pin micropython-pydevices and omnipython-lvgl at their tips (#389)
