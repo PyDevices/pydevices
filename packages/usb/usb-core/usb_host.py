@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython usb_host: start this board's USB host port, as CircuitPython's
 # usb_host does, for usb.core to find devices on.
 # MIT license; Copyright (c) 2026 Brad Barnett

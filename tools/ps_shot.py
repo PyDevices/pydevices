@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """
 Take a screenshot after N seconds using a separate process with a hard kill.

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython USB network host: a phone's USB tethering as a network interface.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython usb.util: constants and helpers beside usb.core, as PyUSB's.
 # MIT license; Copyright (c) 2026 Brad Barnett
 from array import array

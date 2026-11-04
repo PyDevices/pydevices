@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """PSDisplay.touch_scale follows the SDL contract HostEventsDevice divides by.
 

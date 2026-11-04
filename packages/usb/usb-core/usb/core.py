@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython usb.core: the devices plugged into this board's USB host port.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #

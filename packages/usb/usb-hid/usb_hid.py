@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython usb_hid: CircuitPython's usb_hid module, over micropython-lib's
 # usb-device-hid.
 # MIT license; Copyright (c) 2026 Brad Barnett

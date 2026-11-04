@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """Direct-WASM CLI and shared browser URL policy tests."""
 

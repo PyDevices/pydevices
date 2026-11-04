@@ -1,0 +1,9 @@
+# Paths the style check skips: code that isn't ours, and generated files.
+# One glob per line.
+
+# Adafruit copies and drivers adapted from other projects keep their upstream
+# headers and docstrings.
+drivers/
+
+# Adafruit's HID library, kept as upstream wrote it.
+packages/bledev_hid/adafruit_hid/

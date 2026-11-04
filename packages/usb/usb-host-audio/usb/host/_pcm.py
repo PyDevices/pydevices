@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # The hosted speaker and microphone as audiodev's PCMOutput and PCMInput.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #

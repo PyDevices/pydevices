@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """WorkerDisplay: an OffscreenCanvas in a Web Worker, with input the page relays.
 

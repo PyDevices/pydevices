@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython USB MTP/PTP host: photos and files off a phone or a camera.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #

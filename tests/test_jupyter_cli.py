@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """Unit tests for pydevices/bin/jupyter.py CLI parsing and notebook generation."""
 

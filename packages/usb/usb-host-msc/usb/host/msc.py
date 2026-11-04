@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython USB mass storage host: a flash drive as a block device.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #

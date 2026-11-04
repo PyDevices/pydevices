@@ -1,4 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """The color_depth surface: what it accepts, and what each depth returns.
 

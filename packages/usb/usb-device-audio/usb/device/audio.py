@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # MicroPython USB audio module: a UAC2 sound card the computer plays to.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #

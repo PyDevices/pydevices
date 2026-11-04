@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """Unit tests for pydevices/bin/android.py CLI parsing and helpers."""
 

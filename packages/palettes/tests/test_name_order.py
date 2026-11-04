@@ -1,4 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
+#
 # SPDX-License-Identifier: MIT
 """Index <-> name order is fixed by the name tables, not by dict iteration.
 

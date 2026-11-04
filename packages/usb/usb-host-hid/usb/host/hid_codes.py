@@ -1,12 +1,12 @@
+# SPDX-FileCopyrightText: 2017 Scott Shawcroft for Adafruit Industries
+# SPDX-FileCopyrightText: 2018 Dan Halbert for Adafruit Industries
+# SPDX-FileCopyrightText: 2026 Brad Barnett
+#
+# SPDX-License-Identifier: MIT
 # Keycode, ConsumerControlCode and Mouse's button names, with the values
 # adafruit_hid gives them (Adafruit_CircuitPython_HID 6.1.10), so what
 # usb.host.hid returns can be compared by name without adafruit_hid installed.
 # A keyboard's key codes are the USB usage IDs; a Mouse button is a bit.
-#
-# SPDX-FileCopyrightText: 2017 Scott Shawcroft for Adafruit Industries
-# SPDX-FileCopyrightText: 2018 Dan Halbert for Adafruit Industries
-#
-# SPDX-License-Identifier: MIT
 
 
 class Keycode:
