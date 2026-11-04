@@ -470,6 +470,25 @@ class CircuitPythonRun(Indexes):
         self.assertIn("JOIN home pw", out)
         self.assertIn("ONLINE True", out)
 
+    def ask_on_cp(self, serial, stdin):
+        (self.home / "supervisor.py").write_text(
+            "class runtime:\n    serial_connected = %r\n" % serial, encoding="utf-8"
+        )
+        return self.run_cp('import omip\nprint("ONLINE", omip.connect())\n', address="None", stdin=stdin)
+
+    def test_it_asks_on_the_serial_console_and_saves_to_settings_toml(self):
+        out = self.ask_on_cp(True, 'home\npw"x\ny\n')
+        self.assertIn('JOIN home pw"x', out)
+        self.assertEqual(
+            (self.home / "settings.toml").read_text(),
+            'CIRCUITPY_WIFI_SSID = "home"\nCIRCUITPY_WIFI_PASSWORD = "pw\\"x"\n',
+        )
+
+    def test_with_no_serial_console_it_doesnt_ask(self):
+        out = self.ask_on_cp(False, "home\npw\ny\n")
+        self.assertNotIn("JOIN", out)
+        self.assertIn("ONLINE False", out)
+
     def test_settings_toml_is_used(self):
         # CircuitPython's os.getenv is what reads the file on a board; the unix
         # build reads the environment, which proves omip asks for the right names.
