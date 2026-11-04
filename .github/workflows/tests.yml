@@ -157,6 +157,15 @@ jobs:
         timeout-minutes: 5
         run: python -m unittest discover -s tests -p 'test_multimer_machine_source.py' -k TestNrfInterruptRunsNoDelivery -v
 
+      - name: omip on MicroPython
+        working-directory: pydevices
+        env:
+          PYDEVICES_MICROPYTHON: >-
+            ${{ github.workspace }}/micropython/ports/unix/build-standard/micropython
+          PYDEVICES_REQUIRE_MICROPYTHON: '1'
+        timeout-minutes: 5
+        run: python -m unittest discover -s tests -p 'test_omip.py' -k MicroPythonRun -v
+
       # sys.exit() or Ctrl-C from a timer must end the program however the
       # tick reached the main thread. On unix MicroPython the signal source
       # delivers through micropython.schedule, which swallows both, and which

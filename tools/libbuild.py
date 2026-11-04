@@ -381,6 +381,7 @@ class Tree:
 
     path: Path
     packages: dict[str, str] = field(default_factory=dict)  # name -> where it came from
+    upstream: dict[str, tuple[str, ...]] = field(default_factory=dict)  # lib-lock.json's repo.<name>.upstream
 
 
 def assemble_repo_packages(root: Path, lock: Lock, version: str, tree: Tree, library: str, local: frozenset[str]) -> None:
@@ -393,6 +394,8 @@ def assemble_repo_packages(root: Path, lock: Lock, version: str, tree: Tree, lib
     for name in ("pydevices", "pydevices-desktop", *own):
         if name not in lock.repo:
             raise BuildError(f"{LOCKFILE} has no repo.{name} entry (its description)")
+        if lock.repo[name].get("upstream"):
+            tree.upstream[name] = tuple(lock.repo[name]["upstream"])
 
     def add(name: str, origin: str) -> Path:
         if name in tree.packages:
@@ -1114,6 +1117,12 @@ def compile_index(
                 body = {"v": PACKAGE_JSON_VERSION, "hashes": hashes, "version": version}
                 if manifest.deps:
                     body["deps"] = [[dep, "latest"] for dep in manifest.deps]
+                # What the package needs from micropython-lib. mip and mpremote
+                # stop at the first dep they can't find on the index they were
+                # given, so these aren't deps: only omip reads this key.
+                needed = [*manifest.left_out, *(n for n in tree.upstream.get(name, ()) if n not in manifest.left_out)]
+                if needed:
+                    body["upstream"] = [[dep, "latest"] for dep in needed]
                 for stem in ("latest", version):
                     _write_json(body, out / "package" / kind / name / f"{stem}.json", minify=True)
             entries.append(
@@ -1458,6 +1467,11 @@ def check_shape(root: Path, upstream: frozenset[str] | None, library: str = DEFA
                 found.add(dep)
             return found
 
+        for name, entry in sorted(lock.repo.items()):
+            for missing in entry.get("upstream", ()):
+                if upstream is not None and missing not in upstream:
+                    problems.append(f"{LOCKFILE} repo.{name}: upstream {missing!r} is no package in micropython-lib")
+
         for name, manifest in sorted(manifests.items()):
             source = tree.packages[name]
             where = source if source.endswith("/") else f"{source} ([{name}] in {DRIVERS_FILE}): "
@@ -1573,7 +1587,7 @@ def cmd_build(args) -> int:
         where = "" if name in main_names else "  [untested]"
         print(f"  {name:<40} {entry['version']:<10} {files:>4} files  ({tree.packages[name]}){where}")
     for name, names in sorted(compiled.left_out.items()):
-        print(f"  note: {name} requires {', '.join(names)}, which is not in this library; install it from micropython-lib's index first")
+        print(f"  note: {name} requires {', '.join(names)}, which is not in this library; omip brings it from micropython-lib")
     return 0
 
 

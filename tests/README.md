@@ -39,6 +39,7 @@ Do not run audiodev tests while another process is playing audio — see
 | [`test_wifi.py`](test_wifi.py) | `wifi.connect_from_secrets()` counts a board as connected only with a link, so a static address joins at boot and rejoins after a drop |
 | [`test_standalone.py`](test_standalone.py) | displaydev and multimer import in isolation |
 | [`test_mip_portable.py`](test_mip_portable.py) | portable [`utils/mip.py`](../utils/mip.py) |
+| [`test_omip.py`](test_omip.py) | [`lib/omip.py`](../lib/omip.py) installing across two local indexes on CPython, unix MicroPython and unix CircuitPython, and its Wi-Fi paths with fake radios |
 | `test_audiodev*.py`, `test_*_audio.py`, [`test_auto.py`](test_auto.py) | audiodev (see audio README) |
 | [`test_portability.py`](test_portability.py) / [`test_contract_proof.py`](test_contract_proof.py) | portable-module constraints |
 | [`test_bledev.py`](test_bledev.py) | runs [`bledev_contract.py`](bledev_contract.py) on CPython and unix MicroPython, and proves five planted faults fail it (see [docs/how-it-works/bledev-internals.md](../docs/how-it-works/bledev-internals.md#the-checks)) |
