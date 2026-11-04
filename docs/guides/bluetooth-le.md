@@ -69,9 +69,11 @@ Firmware that freezes aioble doesn't need it installed.
 On a laptop, bledev is inside the `pydevices` wheel. `pip install "pydevices[ble]"`
 adds bleak, which the laptop backend needs.
 
-On CircuitPython with Wi-Fi, `omip.install("bledev")` works on the board too, once
+On CircuitPython with Wi-Fi, `omip.install("bledev")` runs on the board too, once
 `boot.py` has made the drive writable, and `omip` tells you how if it isn't. It
-leaves aioble out, because CircuitPython's Bluetooth is its own. Or copy the files
+leaves aioble out, because CircuitPython's Bluetooth is its own. At around -70 dBm
+it usually loses the connection partway and raises `OSError`. Run it again: it
+keeps the files it already has. Or copy the files
 yourself: bledev isn't in a circup bundle. With the board's CIRCUITPY drive mounted, make a
 [`lib/bledev/`](https://github.com/PyDevices/pydevices/tree/main/lib/bledev) folder on it and copy these into it from
 [`lib/bledev/`](https://github.com/PyDevices/pydevices/tree/main/lib/bledev), as `.py` source (MicroPython's `.mpy` files
