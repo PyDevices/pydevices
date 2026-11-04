@@ -378,6 +378,8 @@ class Socket:
             self.out = b"HTTP/1.0 404 Not Found\\r\\nContent-Length: 0\\r\\n\\r\\n"
         return len(data)
     def recv_into(self, buf):
+        if b"DROPPED" in self.out and self.pos > len(self.out) // 2:
+            raise OSError(116)
         n = min(7, len(buf), len(self.out) - self.pos)
         buf[:n] = self.out[self.pos:self.pos + n]
         self.pos += n
@@ -447,6 +449,14 @@ class CircuitPythonRun(Indexes):
         )
         self.assertIn("1.0", out)
 
+    def test_a_dropped_connection_names_the_url_and_leaves_no_partial_file(self):
+        write_package(self.ours_dir, "dropped", {"d.py": "# DROPPED\n" + "X = 1\n" * 200})
+        out = self.run_cp(self.script("dropped"))
+        self.assertIn("Couldn't get https://ours.test/file/", out)
+        self.assertIn("116", out)
+        self.assertNotIn("RESULT", out)
+        self.assertEqual(self.landed(), [])
+
     def test_not_found_says_so(self):
         out = self.run_cp(self.script("no-such"))
         self.assertIn("Package not found: no-such", out)
@@ -457,6 +467,7 @@ class CircuitPythonRun(Indexes):
         self.target.mkdir()
         self.target.chmod(0o555)
         out = self.run_cp(self.script())
+        self.assertIn("usually because", out)
         self.assertIn("boot.py", out)
         self.assertIn("circup", out)
         self.assertNotIn("RESULT", out)

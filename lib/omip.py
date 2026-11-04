@@ -38,7 +38,7 @@ _HOSTS = {
     "gitlab:": "gitlab.com/{}/{}/-/raw/{}/{p}",
 }
 _READ_ONLY = (
-    "%s is read-only while a computer has the CIRCUITPY drive mounted. Either put "
+    "%s is read-only, usually because a computer has the CIRCUITPY drive mounted. Either put "
     'import storage; storage.remount("/", False) in boot.py and restart (the '
     "computer can't write to the drive then), or install from the computer with "
     "circup or mcuctl."
@@ -150,10 +150,18 @@ else:
             return exc.code
 
 
+def _request(url, write):
+    """`_get`, with a failed connection's error naming the URL it was getting."""
+    try:
+        return _get(url, write)
+    except OSError as exc:
+        raise OSError("Couldn't get %s: %s" % (url, exc))
+
+
 def _read_json(url):
     """The JSON at url, or None when it isn't there."""
     parts = []
-    status = _get(url, parts.append)
+    status = _request(url, parts.append)
     if status == 404:
         return None
     if status != 200:
@@ -274,8 +282,13 @@ def _fetch(path, source, short, target):
     url = source if short is None else "%s/file/%s/%s" % (source, short[:2], short)
     print("Copying:", dest)
     _ensure_parent(dest)
-    with open(dest, "wb") as f:
-        status = _get(url, f.write)
+    try:
+        with open(dest, "wb") as f:
+            status = _request(url, f.write)
+    except OSError:
+        # A partial file would pass for the real one where there's no hash to check.
+        os.remove(dest)
+        raise
     if status != 200:
         os.remove(dest)
         raise OSError("HTTP %d from %s" % (status, url))
