@@ -6,7 +6,8 @@ or look a name up in the [A to Z](#a-to-z). If something is missing, it's a bug:
 
 **Get it** says how to install each one:
 
-- `mip name` installs on a board, with `omip.install("name")`.
+- `mip name` installs on a board, with
+  `mip.install("name", index="https://lib.omnipython.org")`.
 - `pip name` installs on a computer, with the index options
   [Install](get-started/install.md) shows.
 - "Firmware build" means you get it by building
@@ -47,7 +48,7 @@ and Android.
   Get it: open in a browser. Runs on: Web.
 - [`Board configs`](https://github.com/PyDevices/pydevices/blob/main/docs/boards/board-configs.md): Describe one board's display, touch, audio and pins, so a program runs on it unchanged. There is one per board.\
   Get it: `mip`, from the board's folder. Runs on: MP, CP, Desktop.
-- [`omip`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/bring-up-a-board.md): Install a package on a board in one line, with what it needs from micropython-lib, after getting the board online if it isn't.\
+- [`omip`](https://github.com/PyDevices/pydevices/blob/main/lib/omip.py): Install a package on a board in one line, with what it needs from micropython-lib, after getting the board online if it isn't.\
   Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop.
 - [`boarddev`](https://github.com/PyDevices/pydevices/blob/main/docs/boards/board-contract.md): Bring up a board's extra devices, such as its camera or sensors, only when you ask for them.\
   Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web, Android.

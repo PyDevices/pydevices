@@ -2,7 +2,7 @@
 
 A board can be what a computer plugs into, or what a keyboard, drive, MIDI
 controller, speaker or camera plugs into. Each role is a package here, one
-directory each, installed with `omip`:
+directory each, installed with `mip`:
 
 | Package | Import | What it gives you |
 |---|---|---|
@@ -22,21 +22,20 @@ directory each, installed with `omip`:
 MIDI is [`midiports`](https://github.com/PyDevices/pydevices/blob/main/packages/midiports/README.md): `midiports.usb_device` and
 `midiports.usb_host`. It installs by name the same way.
 
-Each package is in the PyDevices index under the name in the table, and one
-install brings what it builds on with it, including `usb-device` from
-micropython-lib for the device packages:
+From release 0.7.6, each package is in the PyDevices index under the name in
+the table, and one install brings what it builds on with it:
 
 ```python
-import omip
-omip.install("usb-host-msc")     # brings usb-core with it
-omip.install("usb-device-msc")   # brings usb-device with it
+import mip
+mip.install("usb-host-msc", index="https://PyDevices.github.io/mip")   # brings usb-core with it
 ```
 
 A board config or your own `manifest.py` can `require("usb-core")` by the same
-names. To install whatever is on `main`, fetch the directory from GitHub instead:
+names. To install a release before 0.7.6, or whatever is on `main`, fetch the
+directory from GitHub instead:
 
 ```python
-omip.install("github:PyDevices/pydevices/packages/usb/usb-host-msc")
+mip.install("github:PyDevices/pydevices/usb-host-msc")
 ```
 
 ## What your firmware needs
