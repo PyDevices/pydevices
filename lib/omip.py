@@ -6,6 +6,7 @@
 
     import omip
     omip.install("bledev")
+    omip.search("display")
 
 That gets the board online if it isn't, looks for the package on the OmniPython
 index and then on micropython-lib, and brings what it needs from both. It takes
@@ -57,7 +58,12 @@ if _MP:
         response = requests.get(url)
         try:
             if response.status_code == 200:
-                write(response.content)
+                # In pieces, so an index larger than the free heap can still be searched.
+                while True:
+                    chunk = response.raw.read(512)
+                    if not chunk:
+                        break
+                    write(chunk)
             return response.status_code
         finally:
             response.close()
@@ -434,6 +440,73 @@ def connect(prompt=True, timeout=30):
         if ssid and _join(radio, ssid, password or "", timeout):
             return True
     return bool(prompt and _ask(radio, timeout))
+
+
+def _each_package(found):
+    """A `write` for `_get` that hands found() each package of an index.json, one at a time."""
+    depth = 0
+    quoted = escaped = False
+    package = bytearray()
+
+    def write(chunk):
+        nonlocal depth, quoted, escaped, package
+        for byte in chunk:
+            if depth:
+                package.append(byte)
+            if quoted:
+                if escaped:
+                    escaped = False
+                elif byte == 92:  # backslash
+                    escaped = True
+                elif byte == 34:  # double quote
+                    quoted = False
+            elif byte == 34:
+                quoted = True
+            elif byte == 123:  # {
+                depth += 1
+                if depth == 2:
+                    package = bytearray(b"{")
+            elif byte == 125:  # }
+                depth -= 1
+                if depth == 1:
+                    found(json.loads(package))
+                    package = bytearray()
+
+    return write
+
+
+def search(*words, index=None, prompt=True):
+    """Print the packages whose name or description has every one of the words.
+
+    With no words, it prints every package. It reads the index a piece at a time,
+    so it needs little memory, but on a board it takes as long as the download.
+
+    Args:
+        words (str): What to look for, in any case.
+        index (str): The index to search. By default the OmniPython index, then
+            micropython-lib.
+        prompt (bool): Whether `connect` may ask for Wi-Fi details.
+
+    Raises:
+        OSError: An index couldn't be read.
+    """
+    connect(prompt)
+    words = [word.lower() for word in words]
+
+    def found(package):
+        name, description = package["name"], package.get("description", "")
+        text = (name + " " + description).lower()
+        for word in words:
+            if word not in text:
+                return
+        print("%s %s  %s" % (name, package.get("version", ""), description))
+
+    for source in [index.rstrip("/")] if index else [INDEX, UPSTREAM]:
+        url = source + "/index.json"
+        status = _request(url, _each_package(found))
+        if status != 200:
+            raise OSError("HTTP %d from %s" % (status, url))
+        gc.collect()
 
 
 def install(package, index=None, target=None, version=None, mpy=True, prompt=True):
