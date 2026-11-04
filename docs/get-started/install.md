@@ -69,17 +69,13 @@ is the guide: what the firmware already has so you do not install it twice,
 how to let the board fetch its own files over Wi-Fi instead of feeding them
 down a serial line, and the handful of traps that look like broken hardware.
 
-Board installers live in this repository rather than the MIP index. Select the
-matching directory and install it directly from GitHub while passing the
-PyDevices index for its `pydevices` dependency:
+Board installers live in this repository. Select the matching directory and
+install it from GitHub; `omip` finds its `pydevices` dependency on the index:
 
 ```python
-import mip
+import omip
 
-mip.install(
-    "github:PyDevices/pydevices/board_configs/busdisplay/i80/t-display-s3",
-    index="https://PyDevices.github.io/mip",
-)
+omip.install("github:PyDevices/pydevices/board_configs/busdisplay/i80/t-display-s3")
 ```
 
 Each board installer includes its board-specific Python display, touch, and

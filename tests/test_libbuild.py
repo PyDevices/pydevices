@@ -121,7 +121,7 @@ class BuiltRepository(unittest.TestCase):
                 for kind in ("py", "6"):
                     for stem in ("latest", version):
                         body = json.loads((self.untested / "package" / kind / name / f"{stem}.json").read_text())
-                        self.assertLessEqual(set(body), {"v", "hashes", "version", "deps"})
+                        self.assertLessEqual(set(body), {"v", "hashes", "version", "deps", "upstream"})
                         self.assertEqual(body["version"], version)
                 py = self.paths(name)
                 self.assertTrue(py or self.deps(name))
@@ -223,15 +223,27 @@ class BuiltRepository(unittest.TestCase):
         self.assertIn("usb-device-msc requires usb-device", self.report.getvalue())
         manifest = (self.out / "library" / "usb-device-msc" / "manifest.py").read_text(encoding="utf-8")
         self.assertIn('require("usb-device")\n', manifest)
+        for kind in ("py", "6"):
+            body = self.package("usb-device-msc", kind)
+            self.assertEqual(body["upstream"], [["usb-device", "latest"]])
+            self.assertNotIn("usb-device", [dep for dep, _version in body.get("deps", ())])
 
-    def test_bledev_declares_no_dependency_on_aioble(self):
-        # aioble is micropython-lib's, and an index can't depend on another one:
-        # bledev's docs show the two-step install instead.
+    def test_bledev_names_aioble_for_omip_and_nothing_else_sees_it(self):
+        # aioble is micropython-lib's. In deps, mip would stop at it; in the
+        # manifest, a CircuitPython firmware freezing bledev would look for it.
         self.assertNotIn("aioble/core.py", self.paths("bledev"))
-        self.assertNotIn("bledev requires aioble", self.report.getvalue())
         self.assertEqual(self.deps("bledev"), [])
         manifest = (self.out / "library" / "bledev" / "manifest.py").read_text(encoding="utf-8")
         self.assertNotIn('require("aioble")', manifest)
+        for kind in ("py", "6"):
+            self.assertEqual(self.package("bledev", kind)["upstream"], [["aioble", "latest"]])
+
+    def test_the_upstream_key_reaches_the_main_index(self):
+        body = json.loads((self.out / "index" / "package" / "py" / "bledev" / "latest.json").read_text(encoding="utf-8"))
+        self.assertEqual(body["upstream"], [["aioble", "latest"]])
+
+    def test_a_package_that_needs_nothing_upstream_has_no_key(self):
+        self.assertNotIn("upstream", self.package("pydevices"))
 
     def test_a_tree_only_build_writes_the_tree_and_no_index_and_needs_no_mpy_cross(self):
         lock_dir = self.scratch / "lock"

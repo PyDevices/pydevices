@@ -6,8 +6,7 @@ or look a name up in the [A to Z](#a-to-z). If something is missing, it's a bug:
 
 **Get it** says how to install each one:
 
-- `mip name` installs on a board, with
-  `mip.install("name", index="https://lib.omnipython.org")`.
+- `mip name` installs on a board, with `omip.install("name")`.
 - `pip name` installs on a computer, with the index options
   [Install](get-started/install.md) shows.
 - "Firmware build" means you get it by building
@@ -48,6 +47,8 @@ and Android.
   Get it: open in a browser. Runs on: Web.
 - [`Board configs`](https://github.com/PyDevices/pydevices/blob/main/docs/boards/board-configs.md): Describe one board's display, touch, audio and pins, so a program runs on it unchanged. There is one per board.\
   Get it: `mip`, from the board's folder. Runs on: MP, CP, Desktop.
+- [`omip`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/bring-up-a-board.md): Install a package on a board in one line, with what it needs from micropython-lib, after getting the board online if it isn't.\
+  Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop.
 - [`boarddev`](https://github.com/PyDevices/pydevices/blob/main/docs/boards/board-contract.md): Bring up a board's extra devices, such as its camera or sensors, only when you ask for them.\
   Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
 
@@ -399,7 +400,7 @@ and Android.
 - **K:** [`keys`](#write-an-app)
 - **L:** [`LEDs`](#drive-a-chip), [`lib`](#find-the-projects-own-sites), [`lite-assistant`](#connect-devices), [`lvgl`](#draw-on-a-screen)
 - **M:** [`mdns`](#connect-devices), [`mdns for CPython`](#connect-devices), [`medialink`](#connect-devices), [`micropython shim`](#run-somewhere-other-than-a-board), [`midiEngine`](#run-a-finished-app), [`midiports`](#play-and-sequence-music), [`mip`](#find-the-projects-own-sites), [`mip for hosts`](#run-somewhere-other-than-a-board), [`MP3 player`](#run-a-finished-app), [`mpftp`](#set-up-a-board), [`mpvst`](#make-and-shape-sound), [`multimer`](#write-an-app)
-- **O:** [`Object detection`](#run-a-finished-app), [`OmniPython firmware`](#set-up-a-board), [`Ostinato`](#run-a-finished-app)
+- **O:** [`Object detection`](#run-a-finished-app), [`omip`](#set-up-a-board), [`OmniPython firmware`](#set-up-a-board), [`Ostinato`](#run-a-finished-app)
 - **P:** [`palettes`](#draw-on-a-screen), [`pdwidgets`](#draw-on-a-screen), [`picotts`](#make-and-shape-sound), [`pngio`](#draw-on-a-screen), [`pngio for CPython`](#draw-on-a-screen), [`Power`](#drive-a-chip), [`ppa`](#draw-on-a-screen), [`pydevices-desktop`](#run-somewhere-other-than-a-board), [`PyDevices.github.io`](#find-the-projects-own-sites), [`pygraphics`](#draw-on-a-screen), [`pyscript-template`](#run-somewhere-other-than-a-board), [`pyscript.py`](#run-somewhere-other-than-a-board)
 - **R:** [`Radios`](#drive-a-chip), [`Real-time clocks`](#drive-a-chip), [`Roku remote`](#run-a-finished-app)
 - **S:** [`sayso`](#connect-devices), [`Security camera`](#run-a-finished-app), [`songmodel`](#play-and-sequence-music), [`Sound card`](#run-a-finished-app), [`soundmodule`](#play-and-sequence-music), [`spectrum`](#draw-on-a-screen), [`Spotify`](#run-a-finished-app), [`Stompbox`](#run-a-finished-app), [`Storage`](#drive-a-chip), [`Surveillance camera`](#run-a-finished-app), [`Synth Station`](#run-a-finished-app), [`synthio`](#make-and-shape-sound), [`System`](#run-a-finished-app)

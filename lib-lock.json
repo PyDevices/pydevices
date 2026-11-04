@@ -7,7 +7,8 @@
       "description": "Complete PyDevices desktop stack and board configuration"
     },
     "bledev": {
-      "description": "Portable async Bluetooth Low Energy for PyDevices, over aioble on boards"
+      "description": "Portable async Bluetooth Low Energy for PyDevices, over aioble on boards",
+      "upstream": ["aioble"]
     },
     "medialink": {
       "description": "Live audio and video between boards and computers: a walkie-talkie, an intercom, a baby monitor"
