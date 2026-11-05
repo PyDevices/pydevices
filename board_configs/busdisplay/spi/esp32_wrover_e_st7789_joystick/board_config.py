@@ -33,18 +33,6 @@ display_drv = ST7789(
     brightness=1.0,
     backlight_pin=None,
     backlight_on_high=True,
-    cp={
-        "width": 240,
-        "height": 240,
-        "colstart": 0,
-        "rowstart": 0,
-        "rotation": 0,
-        "mirrored": True,
-        "color_depth": 16,
-        "bgr": True,
-        "reverse_bytes_in_word": True,
-        "invert": False,
-    },
 )
 joystick = GPIOJoystick(
     instance_id=1,

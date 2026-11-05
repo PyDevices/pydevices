@@ -36,21 +36,6 @@ display_drv = GC9A01(
     reset_high=True,
     power_pin=None,
     power_on_high=True,
-    cp={
-        "width": 128,
-        "height": 128,
-        "colstart": 0,
-        "rowstart": 0,
-        "rotation": 180,
-        "mirrored": False,
-        "color_depth": 16,
-        "bgr": True,
-        "reverse_bytes_in_word": True,
-        "invert": True,
-        "brightness": 1.0,
-        "backlight_pin": "board.GP10",
-        "backlight_on_high": True,
-    },
 )
 
 from board_peripherals import PERIPHERALS, load_peripherals

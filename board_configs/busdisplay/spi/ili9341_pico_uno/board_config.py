@@ -39,18 +39,6 @@ display_drv = ILI9341(
     reset_high=True,
     power_pin=None,
     power_on_high=True,
-    cp={
-        "width": 240,
-        "height": 320,
-        "colstart": 0,
-        "rowstart": 0,
-        "rotation": 0,
-        "mirrored": False,
-        "color_depth": 16,
-        "bgr": True,
-        "reverse_bytes_in_word": True,
-        "invert": False,
-    },
 )
 i2c = I2C(0, sda=Pin(20), scl=Pin(21), freq=100_000)
 touch = FT6x36(i2c)

@@ -32,17 +32,6 @@ display_drv = ST7789(
     color_depth=16,
     bgr=False,
     reverse_bytes_in_word=True,
-    cp={
-        "width": 320,
-        "height": 240,
-        "colstart": 0,
-        "rowstart": 0,
-        "rotation": 0,
-        "mirrored": False,
-        "color_depth": 16,
-        "bgr": False,
-        "reverse_bytes_in_word": True,
-    },
 )
 keypad = ShiftRegisterButtons(
     clock=63,
