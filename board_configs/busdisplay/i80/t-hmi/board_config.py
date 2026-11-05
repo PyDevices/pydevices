@@ -19,6 +19,7 @@ display_bus = I80Bus(
     chip_select=6,
     write=8,
     data_pins=[48, 47, 39, 40, 41, 42, 45, 46],
+    frequency=15_000_000,  # pixels go missing at the bus's 30 MHz default
 )
 
 display_drv = ST7789(

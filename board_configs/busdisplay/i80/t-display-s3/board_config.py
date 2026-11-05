@@ -24,18 +24,19 @@ display_bus = I80Bus(
     chip_select=6,
     write=8,
     data_pins=[39, 40, 41, 42, 45, 46, 47, 48],
+    frequency=15_000_000,  # pixels go missing at the bus's 30 MHz default
 )
 
 display_drv = ST7789(
     display_bus,
     width=170,
     height=320,
-    colstart=0,
-    rowstart=35,
+    colstart=35,  # the 170 columns sit in the middle of the controller's 240
+    rowstart=0,
     rotation=0,
-    mirrored=True,  # an RGB panel: this table's rotation 0 is MADCTL 0, as it always was
+    mirrored=True,  # this table's rotation 0 is MADCTL 0, then the BGR bit
     color_depth=16,
-    bgr=False,
+    bgr=True,
     reverse_bytes_in_word=True,
     invert=True,
     brightness=1.0,
