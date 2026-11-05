@@ -16,9 +16,12 @@ asked for. An ESP32-P4 divides a fixed source by a whole number, so asking for
 refresh rate you want.
 
 The register sequence is Espressif's ``esp_lcd_lt9611`` component (esp-bsp),
-ported from C. That component is Apache-2.0 licensed, and so is this file. Port
-B comes from the Kendryte K230 SDK's driver, with its lane count combined by
-inference, and hasn't been run. This driver doesn't set up audio yet.
+ported from C. That component is Apache-2.0 licensed, and so is this file. It
+expects straight wiring into port A. ``port="B"`` uses the Kendryte K230 SDK's
+values for LCKFB's MIPI-to-HDMI board, whose lanes are reordered and partly
+swapped in polarity: those values are for that wiring, not for port B in
+general, and the SDK only uses them with four lanes. Running them with two
+hasn't been tried. This driver doesn't set up audio yet.
 
 Example:
     fb = Display(bus, b"", width=1920, height=1080, ...)
@@ -46,7 +49,7 @@ class LT9611:
         vsync_pulse_width (int): Lines.
         vsync_back_porch (int): Lines.
         lanes (int): DSI data lanes, 2 or 4.
-        port (str): The bridge's DSI port the board wires up, ``"A"`` or ``"B"``.
+        port (str): ``"A"`` for straight wiring into port A, ``"B"`` for LCKFB's board.
         vic (int): CEA video code to announce, or 0 for a mode that isn't one.
         hsync_active_low (bool): HDMI sync polarity.
         vsync_active_low (bool): HDMI sync polarity.
