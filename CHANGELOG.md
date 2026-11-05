@@ -1,3 +1,10 @@
+## v0.8.0.dev1 (2026-11-05)
+
+- Stack page: omip links its guide (#413)
+- Install guides: omip is the way in (#407)
+- omip: search the indexes (#411)
+- omip: name the URL when a download fails, and leave no partial file (#409)
+
 ## v0.8.0.dev0 (2026-11-04)
 
 - omip: install a package in one line, with what it needs upstream
