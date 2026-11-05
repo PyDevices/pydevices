@@ -137,46 +137,6 @@ _stack_use = None  # micropython.stack_use, when the guard is on
 _stack_limit = None  # the deepest stack_use() before the overflow check fires
 
 
-def _cb(gen):
-    # A soft machine.Timer callback: the port already delivered it through
-    # micropython.schedule, so this is a bytecode boundary of the main thread.
-    # The scheduler prints what a callback raises and carries on, and a Ctrl-C
-    # that arrived during an earlier callback is raised at the first branch
-    # here: catch the two that end the program around the whole body.
-    try:
-        _cb_body(gen)
-    except (KeyboardInterrupt, SystemExit) as exc:
-        _dispatch._stash(exc)
-
-
-def _cb_body(gen):
-    global _due, deferred, _deferring
-    if gen == _gen:
-        _due = None
-    # A fire the source has since replaced still wakes the dispatcher (a
-    # spare delivery costs nothing), but leaves the pending deadline alone.
-    if not _wanted:
-        return
-    if _stack_limit is not None:
-        used = _stack_use()
-        if used > _stack_limit - STACK_ROOM:
-            deferred += 1
-            now = ticks_ms()
-            if _deferring is None:
-                _deferring = now
-            elif not _warned and ticks_diff(now, _deferring) >= _WARN_MS:
-                _starved(_stack_limit - used)
-            try:
-                arm(_RETRY_MS)
-            except RuntimeError:
-                pass  # no room even for this: the backstop arms it
-            return
-        _deferring = None
-    w = _wake
-    if w is not None:
-        w(True)
-
-
 def _starved(room):
     global _warned
     _warned = True
@@ -194,34 +154,68 @@ def _starved(room):
 
 
 def _make_cb(gen):
-    return lambda _t: _cb(gen)
+    # All one function, because a fire may have little stack: the guard has to
+    # run before a second Python call, and on rp2 each call takes 256 bytes.
+    def cb(_t):
+        # A soft machine.Timer callback: the port already delivered it through
+        # micropython.schedule, so this is a bytecode boundary of the main thread.
+        # The scheduler prints what a callback raises and carries on, and a Ctrl-C
+        # that arrived during an earlier callback is raised at the first branch
+        # here: catch the two that end the program around the whole body.
+        global _due, deferred, _deferring
+        try:
+            if gen == _gen:
+                _due = None
+            # A fire the source has since replaced still wakes the dispatcher (a
+            # spare delivery costs nothing), but leaves the pending deadline alone.
+            if not _wanted:
+                return
+            if _stack_limit is not None:
+                used = _stack_use()
+                if used > _stack_limit - STACK_ROOM:
+                    deferred += 1
+                    now = ticks_ms()
+                    if _deferring is None:
+                        _deferring = now
+                    elif not _warned and ticks_diff(now, _deferring) >= _WARN_MS:
+                        _starved(_stack_limit - used)
+                    try:
+                        arm(_RETRY_MS)
+                    except RuntimeError:
+                        pass  # no room even for this: the backstop arms it
+                    return
+                _deferring = None
+            w = _wake
+            if w is not None:
+                w(True)
+        except (KeyboardInterrupt, SystemExit) as exc:
+            _dispatch._stash(exc)
+
+    return cb
 
 
 def _backstop(_t):
-    # Soft, like _cb, and guarded the same way.
+    # Soft, like a fire, guarded the same way, and all one function for the same
+    # reason.
+    global _due, lost
     try:
-        _backstop_body()
+        if not _wanted:
+            return
+        if _stack_limit is not None and _stack_use() > _stack_limit - STACK_ROOM:
+            return  # too deep to deliver; the next period looks again
+        if _due is None:
+            if _deferring is not None:
+                arm(_RETRY_MS)  # a deferral that overflowed arming its retry
+            return
+        if ticks_diff(ticks_ms(), _due) <= _BACKSTOP_MS:
+            return  # late, perhaps queued behind a long delivery; not yet lost
+        lost += 1
+        _due = None  # so arm() re-inits the hardware
+        w = _wake
+        if w is not None:
+            w(True)
     except (KeyboardInterrupt, SystemExit) as exc:
         _dispatch._stash(exc)
-
-
-def _backstop_body():
-    global _due, lost
-    if not _wanted:
-        return
-    if _stack_limit is not None and _stack_use() > _stack_limit - STACK_ROOM:
-        return  # too deep to deliver; the next period looks again
-    if _due is None:
-        if _deferring is not None:
-            arm(_RETRY_MS)  # a deferral that overflowed arming its retry
-        return
-    if ticks_diff(ticks_ms(), _due) <= _BACKSTOP_MS:
-        return  # late, perhaps queued behind a long delivery; not yet lost
-    lost += 1
-    _due = None  # so arm() re-inits the hardware
-    w = _wake
-    if w is not None:
-        w(True)
 
 
 def _start_backstop():
@@ -273,7 +267,7 @@ _nrf_self = None
 
 
 def _nrf_soft(cb):
-    # Scheduled from the interrupt; guarded like _cb.
+    # Scheduled from the interrupt; guarded like a fire.
     try:
         if cb is not None:
             cb(_nrf_self)
