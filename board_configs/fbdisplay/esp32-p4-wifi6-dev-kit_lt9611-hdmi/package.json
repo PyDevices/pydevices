@@ -1,0 +1,37 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/fbdisplay/esp32-p4-wifi6-dev-kit_lt9611-hdmi/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/nodisplay/esp32-p4-wifi6-dev-kit/board_peripherals.py"
+    ],
+    [
+      "es8311.py",
+      "github:PyDevices/pydevices/drivers/codec/es8311.py"
+    ],
+    [
+      "camera_sensors.py",
+      "github:PyDevices/pydevices/drivers/camera/camera_sensors.py"
+    ],
+    [
+      "imx219.py",
+      "github:PyDevices/pydevices/drivers/camera/imx219.py"
+    ],
+    [
+      "lt9611.py",
+      "github:PyDevices/pydevices/drivers/display/lt9611.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1.0",
+  "description": "Waveshare ESP32-P4-WIFI6-DEV-KIT with an LT9611 HDMI add-on, 1080p30 - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
+}
