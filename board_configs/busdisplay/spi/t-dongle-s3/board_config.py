@@ -36,23 +36,6 @@ display_drv = ST7735(
     reset_high=True,
     power_pin=None,
     power_on_high=True,
-    cp={
-        "width": 80,
-        "height": 160,
-        "colstart": 0,
-        "rowstart": 0,
-        "rotation": 180,
-        "mirrored": False,
-        "color_depth": 16,
-        "bgr": True,
-        "reverse_bytes_in_word": False,
-        "invert": True,
-        "brightness": 1.0,
-        "backlight_pin": "board.D38",
-        "backlight_on_high": True,
-        "reset_pin": "board.D1",
-        "reset_high": True,
-    },
 )
 
 from board_peripherals import PERIPHERALS, load_peripherals

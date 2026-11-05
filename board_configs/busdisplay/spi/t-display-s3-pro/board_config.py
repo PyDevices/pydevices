@@ -39,22 +39,6 @@ display_drv = ST7796(
     reset_high=False,
     power_pin=None,
     power_on_high=True,
-    cp={
-        "width": 222,
-        "height": 480,
-        "colstart": 49,
-        "rowstart": 0,
-        "rotation": 0,
-        "mirrored": False,
-        "color_depth": 16,
-        "bgr": True,
-        "reverse_bytes_in_word": True,
-        "invert": True,
-        "brightness": 1.0,
-        "backlight_pin": "board.GP48",
-        "backlight_on_high": True,
-        "reset_high": False,
-    },
 )
 i2c = I2C(0, sda=Pin(5), scl=Pin(6), freq=100_000)
 touch = CST226(i2c, irq_pin=21, rst_pin=13)

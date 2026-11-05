@@ -32,17 +32,6 @@ display_drv = ILI9341(
     color_depth=16,
     bgr=True,
     reverse_bytes_in_word=True,
-    cp={
-        "width": 240,
-        "height": 320,
-        "colstart": 0,
-        "rowstart": 0,
-        "rotation": 90,
-        "mirrored": False,
-        "color_depth": 16,
-        "bgr": True,
-        "reverse_bytes_in_word": True,
-    },
 )
 touch_spi = SPI(
     0,

@@ -44,18 +44,6 @@ display_drv = GC9A01(
     reset_high=True,
     power_pin=None,
     power_on_high=True,
-    cp={
-        "width": 240,
-        "height": 240,
-        "colstart": 0,
-        "rowstart": 0,
-        "rotation": 0,
-        "mirrored": False,
-        "color_depth": 16,
-        "bgr": True,
-        "reverse_bytes_in_word": True,
-        "invert": True,
-    },
 )
 i2c = I2C(0, sda=Pin(24), scl=Pin(25), freq=100_000)
 touch = CHSC6X(i2c, irq_pin=5)
