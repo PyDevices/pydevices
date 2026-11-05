@@ -57,7 +57,7 @@ touch_spi = SPI(
 )
 touch = Touch(
     spi=touch_spi,
-    chip_select=Pin(2),
+    cs=Pin(2),
     int_pin=Pin(9),  # driver enables PULL_UP; IRQ active-low
 )
 
