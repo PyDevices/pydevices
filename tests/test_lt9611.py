@@ -87,7 +87,8 @@ class LT9611Test(unittest.TestCase):
 
     def test_four_lanes_changes_only_the_lane_count(self):
         i2c, _ = self._start(lanes=4)
-        expected = ["8300=00" if entry == "8300=02" else entry for entry in _ESP_LCD_1080P]
+        # The trace ends with the C driver's hot-plug read, which start() doesn't do.
+        expected = ["8300=00" if entry == "8300=02" else entry for entry in _ESP_LCD_1080P[:-1]]
         self.assertEqual(i2c.trace, expected)
 
     def test_connected_reads_hot_plug(self):
