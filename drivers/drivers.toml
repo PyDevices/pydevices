@@ -204,6 +204,11 @@ version = "0.1.0"
 description = "ST LIS3DH accelerometer (PyGamer / PyBadge)"
 modules = ["imu/lis3dh.py"]
 
+[lt9611]
+version = "0.1.0"
+description = "Lontium LT9611 MIPI DSI to HDMI bridge"
+modules = ["display/lt9611.py"]
+
 [pca9554]
 version = "0.1.0"
 description = "PCA9554 I/O expander driver"
