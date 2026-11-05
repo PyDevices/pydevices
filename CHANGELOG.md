@@ -1,3 +1,9 @@
+## v0.8.0.dev2 (2026-11-05)
+
+- multimer: a timer fire reaches the stack guard with two fewer calls (#418)
+- multimer: RP2040 timers wait for stack room instead of overflowing (#417)
+- T-HMI board config: touch takes cs, so board_config imports (#415)
+
 ## v0.8.0.dev1 (2026-11-05)
 
 - Stack page: omip links its guide (#413)
