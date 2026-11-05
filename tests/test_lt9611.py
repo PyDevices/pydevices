@@ -85,10 +85,10 @@ class LT9611Test(unittest.TestCase):
         self.assertFalse(hdmi.connected)
         self.assertEqual(i2c.trace, _ESP_LCD_1080P)
 
-    def test_port_b_routes_the_byte_clock_and_lanes(self):
-        i2c, _ = self._start(port="B")
-        for write in ("8300=62", "8250=14", "8303=4F", "8304=00", "8307=40"):
-            self.assertIn(write, i2c.trace)
+    def test_four_lanes_changes_only_the_lane_count(self):
+        i2c, _ = self._start(lanes=4)
+        expected = ["8300=00" if entry == "8300=02" else entry for entry in _ESP_LCD_1080P]
+        self.assertEqual(i2c.trace, expected)
 
     def test_connected_reads_hot_plug(self):
         i2c = _FakeI2C(hpd=0x04)

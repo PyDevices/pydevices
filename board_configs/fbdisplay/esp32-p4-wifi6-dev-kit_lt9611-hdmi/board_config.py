@@ -4,10 +4,9 @@
 
 """Waveshare ESP32-P4-WIFI6-DEV-KIT with an LT9611 HDMI bridge - MicroPython
 
-The bridge is LCKFB's MIPI-to-HDMI board, joined to the kit's 15-pin DSI
-connector (J3) by a passive adapter. J3 carries two data lanes, the clock, I2C
-on GPIO 7/8 and 3.3 V. It has no reset line, so this config doesn't pulse the
-bridge's reset.
+The bridge sits on the kit's 15-pin DSI connector (J3), wired straight into its
+port A. J3 carries two data lanes, the clock, I2C on GPIO 7/8 and 3.3 V. It has
+no reset line, so this config doesn't pulse the bridge's reset.
 
 The video is 1920x1080 at 30.0 Hz. The DSI host divides its 240 MHz source by
 a whole number, so the standard 74.25 MHz isn't available: this runs at 80 MHz
@@ -52,7 +51,7 @@ fb = Display(
 )
 
 # The bridge measures the incoming clock, so DSI video has to be running first.
-hdmi = LT9611(i2c, width=1920, height=1080, pixel_clock=PIXEL_CLOCK, port="B", **TIMING)
+hdmi = LT9611(i2c, width=1920, height=1080, pixel_clock=PIXEL_CLOCK, **TIMING)
 hdmi.start()
 
 display_drv = FBDisplay(fb)

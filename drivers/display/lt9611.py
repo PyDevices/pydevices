@@ -17,11 +17,8 @@ refresh rate you want.
 
 The register sequence is Espressif's ``esp_lcd_lt9611`` component (esp-bsp),
 ported from C. That component is Apache-2.0 licensed, and so is this file. It
-expects straight wiring into port A. ``port="B"`` uses the Kendryte K230 SDK's
-values for LCKFB's MIPI-to-HDMI board, whose lanes are reordered and partly
-swapped in polarity: those values are for that wiring, not for port B in
-general, and the SDK only uses them with four lanes. Running them with two
-hasn't been tried. This driver doesn't set up audio yet.
+expects DSI wired straight into the bridge's port A, with no lanes reordered or
+swapped in polarity. This driver doesn't set up audio yet.
 
 Example:
     fb = Display(bus, b"", width=1920, height=1080, ...)
@@ -49,14 +46,13 @@ class LT9611:
         vsync_pulse_width (int): Lines.
         vsync_back_porch (int): Lines.
         lanes (int): DSI data lanes, 2 or 4.
-        port (str): ``"A"`` for straight wiring into port A, ``"B"`` for LCKFB's board.
         vic (int): CEA video code to announce, or 0 for a mode that isn't one.
         hsync_active_low (bool): HDMI sync polarity.
         vsync_active_low (bool): HDMI sync polarity.
         address (int): The bridge's 7-bit I2C address.
 
     Raises:
-        ValueError: If `lanes` or `port` isn't one of the values above.
+        ValueError: If `lanes` isn't 2 or 4.
     """
 
     def __init__(
@@ -73,7 +69,6 @@ class LT9611:
         vsync_pulse_width,
         vsync_back_porch,
         lanes=2,
-        port="A",
         vic=0,
         hsync_active_low=False,
         vsync_active_low=False,
@@ -81,8 +76,6 @@ class LT9611:
     ):
         if lanes not in (2, 4):
             raise ValueError("lanes must be 2 or 4")
-        if port not in ("A", "B"):
-            raise ValueError("port must be 'A' or 'B'")
         self._i2c = i2c
         self._address = address
         self._width = width
@@ -95,7 +88,6 @@ class LT9611:
         self._vs = vsync_pulse_width
         self._vbp = vsync_back_porch
         self._lanes = lanes
-        self._port = port
         self._vic = vic
         self._hsync_active_low = hsync_active_low
         self._vsync_active_low = vsync_active_low
@@ -150,18 +142,17 @@ class LT9611:
         return (self._read(0x825E) & 0x05) != 0
 
     def _mipi_digital(self):
-        lanes = 0x02 if self._lanes == 2 else 0x00
-        if self._port == "A":
-            self._write(0x8300, lanes)
-        else:
-            self._write(0x8300, 0x60 | lanes)
-        self._write(0x830A, 0x00)
-        self._write(0x824F, 0x80)
-        if self._port == "A":
-            self._write_all(((0x8250, 0x10), (0x8303, 0x00)))
-        else:
-            self._write_all(((0x8250, 0x14), (0x8303, 0x4F), (0x8304, 0x00), (0x8307, 0x40)))
-        self._write_all(((0x8302, 0x0A), (0x8306, 0x0A)))
+        self._write_all(
+            (
+                (0x8300, 0x02 if self._lanes == 2 else 0x00),
+                (0x830A, 0x00),
+                (0x824F, 0x80),
+                (0x8250, 0x10),
+                (0x8303, 0x00),
+                (0x8302, 0x0A),
+                (0x8306, 0x0A),
+            )
+        )
 
     def _pll(self):
         self._write_all(
