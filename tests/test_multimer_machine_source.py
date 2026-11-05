@@ -644,9 +644,9 @@ class TestNrfTimer(unittest.TestCase):
 
 
 class TestNrfStackRoom(TestNrfTimer):
-    """On nrf a fire that lands deep in the program's stack is put off.
+    """On nrf and rp2 a fire that lands deep in the program's stack is put off.
 
-    The port's stack is about 8 KB; a delivery that reads I2C and draws from
+    Their stacks are about 8 KB; a delivery that reads I2C and draws from
     deep inside an import overflowed it at boot. The source delivers only
     when ``STACK_ROOM`` bytes are left, and otherwise re-arms a short retry.
     """
@@ -682,6 +682,39 @@ class TestNrfStackRoom(TestNrfTimer):
         self.assertGreater(len(FakeNrfHW.made), made)  # a retry is armed
         self.assertEqual(FakeNrfHW.made[-1].period, self.src._RETRY_MS * 1000 + 20)
         self.depth[0] = 600  # the program came back up
+        self._fire()
+        self.assertEqual(len(self.wakes), 1)
+
+    def test_backstop_holds_back_on_a_deep_stack(self):
+        self.src.arm(5)
+        self.src._start_backstop = lambda: None
+        self.depth[0] = self.LIMIT - self.src.STACK_ROOM + 1
+        _clock[0] += self.src._BACKSTOP_MS + 100
+        self.src._backstop(None)
+        self.assertEqual(self.wakes, [])
+        self.assertEqual(self.src.lost, 0)
+        self.depth[0] = 600  # the program came back up
+        self.src._backstop(None)
+        self.assertEqual(len(self.wakes), 1)
+        self.assertEqual(self.src.lost, 1)
+
+    def test_backstop_recovers_a_retry_that_overflowed(self):
+        # The fire cleared its deadline, then ran out of stack arming the
+        # retry: nothing is pending, and only the backstop is left to notice.
+        self.src.arm(5)
+        self.depth[0] = self.LIMIT - self.src.STACK_ROOM + 1
+        arm = self.src.arm
+
+        def overflow(_ms):
+            raise RuntimeError("maximum recursion depth exceeded")
+
+        self.src.arm = overflow
+        self._fire()
+        self.src.arm = arm
+        self.assertIsNone(self.src._due)
+        self.depth[0] = 600
+        self.src._backstop(None)
+        self.assertIsNotNone(self.src._due)
         self._fire()
         self.assertEqual(len(self.wakes), 1)
 
@@ -733,19 +766,43 @@ class TestNrfStackRoom(TestNrfTimer):
         self.src._stack_use = stack_use
         self.assertEqual(self.src._find_stack_limit(), 7500)
 
-    def test_guard_starts_on_nrf(self):
+    def test_guard_starts_on_nrf_and_rp2(self):
         fake_mp = types.ModuleType("micropython")
         fake_mp.stack_use = lambda: 0
         saved = sys.modules.get("micropython")
         sys.modules["micropython"] = fake_mp
         try:
+            for platform in ("nrf", "rp2"):
+                self.src._stack_limit = None
+                self.src._hw = None
+                self.src._find_stack_limit = lambda: 1234
+                self.src._platform = platform
+                self.src.start(lambda safe=False: None)
+                self.assertEqual(self.src._stack_limit, 1234)
+        finally:
+            if saved is None:
+                sys.modules.pop("micropython", None)
+            else:
+                sys.modules["micropython"] = saved
+
+    def test_guard_waits_for_the_main_thread(self):
+        # A thread's stack is smaller than the one deliveries run on: a limit
+        # read there would hold back every timer in the program.
+        fake_mp = types.ModuleType("micropython")
+        fake_mp.stack_use = lambda: 0
+        saved = sys.modules.get("micropython")
+        on_main = self.src._dispatch._on_main_thread
+        sys.modules["micropython"] = fake_mp
+        try:
             self.src._stack_limit = None
             self.src._hw = None
             self.src._find_stack_limit = lambda: 1234
-            self.src._platform = "nrf"
+            self.src._platform = "rp2"
+            self.src._dispatch._on_main_thread = lambda: False
             self.src.start(lambda safe=False: None)
-            self.assertEqual(self.src._stack_limit, 1234)
+            self.assertIsNone(self.src._stack_limit)
         finally:
+            self.src._dispatch._on_main_thread = on_main
             if saved is None:
                 sys.modules.pop("micropython", None)
             else:
@@ -753,7 +810,7 @@ class TestNrfStackRoom(TestNrfTimer):
 
     def test_guard_stays_off_elsewhere(self):
         # Probing recurses until the port refuses; a port without the check
-        # would crash instead, so only nrf probes.
+        # would crash instead, and one with a large stack doesn't need it.
         fake_mp = types.ModuleType("micropython")
         fake_mp.stack_use = lambda: 0
         saved = sys.modules.get("micropython")
@@ -762,7 +819,7 @@ class TestNrfStackRoom(TestNrfTimer):
             self.src._stack_limit = None
             self.src._hw = None
             self.src._find_stack_limit = lambda: 1234
-            self.src._platform = "rp2"
+            self.src._platform = "esp32"
             self.src.start(lambda safe=False: None)
             self.assertIsNone(self.src._stack_limit)
         finally:
