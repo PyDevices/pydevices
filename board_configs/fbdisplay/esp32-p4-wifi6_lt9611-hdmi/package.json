@@ -1,0 +1,21 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/fbdisplay/esp32-p4-wifi6_lt9611-hdmi/board_config.py"
+    ],
+    [
+      "lt9611.py",
+      "github:PyDevices/pydevices/drivers/display/lt9611.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1.0",
+  "description": "Waveshare ESP32-P4-WIFI6 with an LT9611 HDMI add-on, 1080p30 - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
+}
