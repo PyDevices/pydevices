@@ -48,17 +48,20 @@ once, on the first ``arm()``, and never re-inited, so it never races its own
 fire. Where the port has no virtual timer (``Timer(-1)``) there is no
 backstop, rather than taking a second hardware timer.
 
-**On nrf a delivery waits for stack room.** The callback runs at whatever
-bytecode the program reached, on its stack. The nrf port's stack is about
-8 KB, a Python call takes about 300 bytes of it, and the port checks for
-overflow only 400 bytes from the end, so a timer that fires deep inside an
+**On nrf and rp2 a delivery waits for stack room.** The callback runs at
+whatever bytecode the program reached, on its stack. These ports' stacks are
+about 8 KB and a Python call takes 200 to 300 bytes of it (nrf also checks for
+overflow only 400 bytes from the end), so a timer that fires deep inside an
 import, and then reads I2C and draws, overflows it ("maximum recursion depth
-exceeded", or worse). When the stack in use leaves less than ``STACK_ROOM``
-bytes, the source delivers nothing and tries again ``_RETRY_MS`` later; the
-count is in ``deferred``. Idle points (``multimer.sleep_ms``, the REPL waiting
-for a key) are usually shallow, so the work runs there at the latest. A
-program whose loop itself runs that deep would never get a timer, so after
-``_WARN_MS`` of nothing but deferrals the source says so once on stderr.
+exceeded", or worse). An overflow in the dispatcher's own re-arm leaves no fire
+pending, and every timer in the program stops. When the stack in use leaves
+less than ``STACK_ROOM`` bytes, the source delivers nothing and tries again
+``_RETRY_MS`` later; the count is in ``deferred``. Idle points
+(``multimer.sleep_ms``, the REPL waiting for a key) are usually shallow, so the
+work runs there at the latest. A program whose loop itself runs that deep would
+never get a timer, so after ``_WARN_MS`` of nothing but deferrals the source
+says so once on stderr. A fire with too little stack even to arm the retry is
+picked up by the backstop, which holds back the same way.
 
 **On nrf the timer interrupt runs Python.** The port calls the timer's
 callback straight from the interrupt, without locking the heap or the
@@ -119,7 +122,9 @@ _m0 = None
 _u0 = None
 _us_ok = True  # the port's init() takes tick_hz
 
-# Bytes of stack a delivery needs left (the nrf guard, see the docstring):
+# Ports with a small stack and an overflow check to probe it with.
+_GUARDED = ("nrf", "rp2")
+# Bytes of stack a delivery needs left (the stack guard, see the docstring):
 # a service tick that reads a touch controller and redraws, with room to
 # print a traceback.
 STACK_ROOM = 4096
@@ -161,7 +166,10 @@ def _cb_body(gen):
                 _deferring = now
             elif not _warned and ticks_diff(now, _deferring) >= _WARN_MS:
                 _starved(_stack_limit - used)
-            arm(_RETRY_MS)
+            try:
+                arm(_RETRY_MS)
+            except RuntimeError:
+                pass  # no room even for this: the backstop arms it
             return
         _deferring = None
     w = _wake
@@ -199,7 +207,13 @@ def _backstop(_t):
 
 def _backstop_body():
     global _due, lost
-    if not _wanted or _due is None:
+    if not _wanted:
+        return
+    if _stack_limit is not None and _stack_use() > _stack_limit - STACK_ROOM:
+        return  # too deep to deliver; the next period looks again
+    if _due is None:
+        if _deferring is not None:
+            arm(_RETRY_MS)  # a deferral that overflowed arming its retry
         return
     if ticks_diff(ticks_ms(), _due) <= _BACKSTOP_MS:
         return  # late, perhaps queued behind a long delivery; not yet lost
@@ -311,7 +325,7 @@ def _deeper(probe):
 
 def _find_stack_limit():
     """The most ``stack_use()`` reads before the port raises its overflow
-    error. Only for ports that check (nrf always does); recursing on one that
+    error. Only for ports that check (nrf and rp2 do); recursing on one that
     doesn't would crash it."""
     probe = [0]
     try:
@@ -337,7 +351,9 @@ def start(wake):
     if _hw is None:
         last = None
         make = _HW if hasattr(_HW, "init") else _NrfTimer
-        if _platform == "nrf" and _stack_limit is None:
+        # On the main thread only: a thread's stack is smaller, and deliveries
+        # run on the main thread's.
+        if _platform in _GUARDED and _stack_limit is None and _dispatch._on_main_thread():
             _guard_stack()
         # -1 asks for a virtual timer where the port has them; ports that
         # number hardware timers take the first free id.
