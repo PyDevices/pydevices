@@ -1,0 +1,25 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/ili9341_eyespi_qtpy_esp32/board_config.py"
+    ],
+    [
+      "ili9341.py",
+      "github:PyDevices/pydevices/drivers/display/ili9341.py"
+    ],
+    [
+      "ft6x36.py",
+      "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1",
+  "description": "QT Py ESP32 Pico with EyeSPI and ILI9341 2.8\" display",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
+}
