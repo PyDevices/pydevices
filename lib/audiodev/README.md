@@ -300,7 +300,7 @@ the same fallback. Nothing an app did not ask for can raise at it.
 |---|---|---|
 | `RingDriver` | unix, and any port whose driver has no `i2s_start` | The pump fills a RAM ring and `service()` drains it into the existing push transport. |
 | `ServiceDriver` | WebAssembly, which has no threads | `audiopump.service()` runs the same C loop on the interpreter thread into the same ring. The ring is look-ahead rather than slack: a tick of T ms needs a ring longer than T. |
-| `BusioDriver` | esp32 | The graph goes to **`audiobusio.I2SOut`** — CircuitPython's own class, with the pump under it — built from the board's `I2SWire`. It owns the channel, converts what is not signed 16-bit, retunes the bus to the sample's rate and sizes the DMA descriptor in time. `audiodev` writes no PCM and never opens `machine.I2S`. |
+| `BusioDriver` | esp32, STM32H7 | The graph goes to **`audiobusio.I2SOut`** — CircuitPython's own class, with the pump under it — built from the board's `I2SWire`. It owns the channel, converts what is not signed 16-bit, retunes the bus to the sample's rate and sizes the DMA descriptor in time. `audiodev` writes no PCM and never opens `machine.I2S`. On a DAC board the board's `DACWire` builds `audioio.AudioOut` instead, the same object on a DAC, and a `pcm_out` there is `PumpPCMOutput`, a ring on the same pump. |
 
 **The output ring makes the pump wait, so the desktop pump gives the
 interpreter its time back.** A full ring is back-pressure now, as a DMA write

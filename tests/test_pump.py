@@ -1368,6 +1368,74 @@ class TheBoardPlaysThroughAudiobusio(PumpFixture):
         self.assertIsInstance(engine.refusal(), ValueError)
 
 
+class FakeAudioOut(FakeI2SOut):
+    """``audioio.AudioOut``: ``I2SOut``'s object, built on a DAC's pins."""
+
+    def __init__(self, left_channel, *, right_channel=None, sample_rate=22050):
+        super().__init__(None, None, left_channel, sample_rate=sample_rate)
+        self.right_channel = right_channel
+
+
+class FakeAudioio:
+    AudioOut = FakeAudioOut
+
+
+class ADACBoardPlaysThroughAudioio(PumpFixture):
+    """STM32H7: the output is ``audioio.AudioOut`` on the DAC's pins, and
+    `BusioDriver` drives it exactly as it drives ``I2SOut``."""
+
+    def setUp(self):
+        super().setUp()
+
+        class Driver:                     # the stm32 driver's own name
+            def dac_stats(self):
+                return (0, 0)
+
+        pump_mod._driver = Driver()
+        pump_mod._driver_looked = True
+        FakeI2SOut.built = []
+        FakeI2SOut.live = None
+        self._saved_dac = (pump_mod._dac, pump_mod._dac_looked)
+        pump_mod._dac = FakeAudioio()
+        pump_mod._dac_looked = True
+        self.addCleanup(self._put_dac_back)
+
+    def _put_dac_back(self):
+        pump_mod._dac, pump_mod._dac_looked = self._saved_dac
+        FakeI2SOut.live = None
+
+    def test_a_dac_driver_is_on_the_board(self):
+        self.assertTrue(pump_mod.on_board())
+
+    def test_the_graph_goes_to_AudioOut_on_the_wires_pins(self):
+        from audiodev import DACWire
+
+        transport = Recorder(wire=DACWire("PA4", "PA5"))
+        out = sample_out.AudioOut(transport, chunk_ms=10)
+        self.addCleanup(out.close)
+        out.play(FakeSample())
+        self.assertTrue(out.pumped, "the board fell back to the old path")
+        dac = FakeI2SOut.built[0]
+        self.assertIsInstance(dac, FakeAudioOut)
+        self.assertEqual(dac.pins[2], "PA4")
+        self.assertEqual(dac.right_channel, "PA5")
+        self.assertEqual(dac.sample_rate, RATE)
+        self.assertEqual(transport.opened, 0)
+
+    def test_pcm_written_to_the_stream_reaches_the_pump(self):
+        from audiodev import DACWire
+
+        pcm = pump_mod.PumpPCMOutput(FMT, wire=DACWire("PA4", "PA5"))
+        self.addCleanup(pcm.close)
+        frame = bytes(FMT.frame_size) * 64
+        self.assertEqual(pcm.try_write(frame), len(frame))
+        self.assertEqual(pcm.queued_size(), len(frame))
+        self.assertEqual(len(FakeI2SOut.built), 1)
+        self.assertEqual(pump_mod.owner().clients(), 1)
+        pcm.close()
+        self.assertEqual(pump_mod.owner().clients(), 0)
+
+
 class ASecondClientJoinsAPumpThatIsSTILLRUNNING(PumpFixture):
     """`Pump._retarget()`'s live branch, which had no test of its own.
 
