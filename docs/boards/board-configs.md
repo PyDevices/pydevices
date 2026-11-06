@@ -97,6 +97,7 @@ An exact match for all four is rare; bus + display controller is usually enough 
 | `busdisplay/spi/t-qt-pro` | LilyGO T-QT Pro |
 | `busdisplay/spi/m5stack-cores3` | M5Stack CoreS3 |
 | `busdisplay/spi/ili9341_eyespi_qtpy_esp32s3` | Adafruit ESP32-S3 QT Py + EyeSPI ILI9341 |
+| `busdisplay/spi/ili9341_eyespi_qtpy_esp32` | Adafruit QT Py ESP32 Pico + EyeSPI ILI9341 |
 | `busdisplay/spi/ili9341_eyespi_qtpy_rp2040` | QT Py RP2040 + EyeSPI ILI9341 |
 | `busdisplay/spi/ili9341_pico_uno` | Pico + UNO-style shield |
 | `busdisplay/spi/diy_esp32_ili9341_xpt2046` | DIY ESP32 + ILI9341 + XPT2046 |
@@ -183,6 +184,7 @@ Draw through `display_drv` only; `_pixel_framebuf` is an internal wiring detail.
 | `cp/busdisplay/spi/pitft_hx8357_featherwing` | 3.5" TFT FeatherWing (HX8357D) + STMPE610 |
 | `busdisplay/spi/pitft_ili9341_featherwing` | PiTFT FeatherWing (MP Feather + STMPE610) |
 | `busdisplay/spi/pitft_hx8357_featherwing` | 3.5" TFT FeatherWing, HX8357D (MP Feather + STMPE610) |
+| `busdisplay/spi/pitft_hx8357_featherwing_on_feather_esp32_v2` | 3.5" TFT FeatherWing, HX8357D + STMPE610 on an Adafruit Feather ESP32 V2 |
 | `cp/busdisplay/spi/funhouse` | FunHouse ST7789 + touch |
 | `cp/busdisplay/spi/pygamer` | PyGamer ST7789 |
 | `busdisplay/spi/pygamer` | PyGamer ST7789 (MP SAMD51) |
