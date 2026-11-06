@@ -129,6 +129,11 @@ version = "0.1.0"
 description = "GC9D01 display driver"
 modules = ["display/gc9d01.py"]
 
+[giga_display_shield_init]
+version = "0.1.0"
+description = "ST7701S start-up commands for the Arduino GIGA Display Shield (MIPI DSI)"
+modules = ["display/giga_display_shield_init.py"]
+
 [gpio_pin]
 version = "0.1.0"
 description = "Pin shim the i80bus fallback drives"

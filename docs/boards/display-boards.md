@@ -30,6 +30,7 @@ variant (`C6_WIFI`).
 | Product / nickname | `board_config` dir | Resolution | Panel / bus | Touch | Expander / IO |
 |---|---|---|---|---|---|
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `esp32-p4-wifi6-touch-lcd-4b` | 720×720 | ST7703 **MIPI DSI** (`mipidsi`) | GT911 | — |
+| Arduino GIGA R1 WiFi + GIGA Display Shield | `arduino-giga-display-shield` | 480×800 | ST7701S **MIPI DSI** (`mipidsi`, STM32H747 DSI host + LTDC) | GT911 @ `0x5D` | — |
 | Waveshare ESP32-P4-WIFI6-DEV-KIT + KeDei 5" DSI | `esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | 800×480 | ICN6211 bridge, **MIPI DSI** (`mipidsi`, `non_burst`, `continuous_clock`) | FocalTech (`ft6x36`) | — |
 | Adafruit Qualia S3 + TL040HDS20 | `qualia_tl040hds20` (+ CP under `cp/fbdisplay/qualia_tl040hds20`) | 720×720 | RGB-666→565 **DotClock** | FT6x36 @ `0x48` | PCA9554 @ `0x3f` |
 | Waveshare ESP32-S3-Touch-LCD-4.3 | `esp32-s3-touch-lcd-4_3` (+ CP under `cp/fbdisplay/esp32-s3-touch-lcd-4_3`) | 800×480 | ST7262 RGB **DotClock** | GT911 @ `0x5D` | CH422G |
@@ -45,6 +46,19 @@ variant (`C6_WIFI`).
 ---
 
 ## Per-board detail
+
+### Arduino GIGA R1 WiFi + GIGA Display Shield
+
+- **board_config title:** `Arduino GIGA R1 WiFi with the GIGA Display Shield - MicroPython`
+- **Dir:** `arduino-giga-display-shield`
+- **Resolution:** 480×800, portrait
+- **Display:** `mipidsi.Bus` + `mipidsi.Display`, ST7701S init sequence
+  (`giga_display_shield_init`), 2-lane DSI at 500 Mbit/s per lane, pixel clock
+  40 MHz, framebuffer in the GIGA's SDRAM. Panel power on PC6, backlight on PB12.
+- **Touch:** GT911 on I2C4 (SCL PB6, SDA PH12), reset PI2, interrupt PI1
+- **Firmware:** micropython-pydevices' `ARDUINO_GIGA` board with its
+  `DISPLAY_SHIELD` variant and `--modules displayif,lvgl`. PyDevices' Python
+  libraries go in the board's ROMFS: they don't fit in the firmware beside LVGL.
 
 ### Waveshare ESP32-P4-WIFI6-Touch-LCD-4B
 

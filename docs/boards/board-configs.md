@@ -124,6 +124,7 @@ An exact match for all four is rare; bus + display controller is usually enough 
 | Directory | Hardware |
 |-----------|----------|
 | `fbdisplay/qualia_tl040hds20` | MicroPython Qualia RGB |
+| `fbdisplay/arduino-giga-display-shield` | Arduino GIGA R1 WiFi with the GIGA Display Shield (MIPI-DSI, GT911 touch) |
 | `fbdisplay/esp32-p4-wifi6-touch-lcd-4b` | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B (MIPI-DSI, touch, ES8311) |
 | `fbdisplay/esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | Waveshare ESP32-P4-WIFI6-DEV-KIT with a KeDei 5" Raspberry Pi-style DSI display (ICN6211 bridge, FocalTech touch) |
 | `fbdisplay/t-rgb_480` | LilyGO T-RGB 480×480 ST7701 (ESP32-S3; RGB via pydevices/displayif) |
