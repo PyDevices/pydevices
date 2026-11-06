@@ -45,13 +45,15 @@ touch_spi = SPI(
     mosi=Pin(19),
     miso=Pin(20),
 )
-_CALIBRATION = ((357, 3_812), (390, 3_555))  # the 2.4" wing's; not yet measured on the 3.5"
+# The 3.5" wing's panel runs along the chip's y with the screen at rotation 90,
+# which is the driver's rotation 0 mapping; y is reversed in the calibration.
+_CALIBRATION = ((143, 3_964), (3_919, 354))
 touch = STMPE610(
     touch_spi,
     cs=8,
     width=480,
     height=320,
-    rotation=90,
+    rotation=0,
     calibration=_CALIBRATION,
 )
 
