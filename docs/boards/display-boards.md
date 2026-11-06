@@ -57,8 +57,26 @@ variant (`C6_WIFI`).
   40 MHz, framebuffer in the GIGA's SDRAM. Panel power on PC6, backlight on PB12.
 - **Touch:** GT911 on I2C4 (SCL PB6, SDA PH12), reset PI2, interrupt PI1
 - **Firmware:** micropython-pydevices' `ARDUINO_GIGA` board with its
-  `DISPLAY_SHIELD` variant and `--modules displayif,lvgl`. PyDevices' Python
-  libraries go in the board's ROMFS: they don't fit in the firmware beside LVGL.
+  `DISPLAY_SHIELD` variant and `--modules displayif,lvgl`
+  ([flashing it](https://github.com/PyDevices/micropython-pydevices/blob/main/docs/guides/flash-a-board.md)).
+- **Libraries:** the OmniPython libraries don't fit in the firmware beside
+  LVGL, so they go in the board's 4 MB ROMFS with the two drivers this board
+  needs. A ROMFS deploy replaces the whole partition, so put them in one folder
+  and deploy it once, from a clone of this repository:
+
+  ```bash
+  git clone --depth 1 https://github.com/PyDevices/pydevices.git
+  mkdir romfs
+  cp -r pydevices/lib/* pydevices/drivers/touch/gt911.py \
+      pydevices/drivers/display/giga_display_shield_init.py romfs/
+  mpremote romfs deploy romfs
+  cd pydevices/board_configs/fbdisplay/arduino-giga-display-shield
+  mpremote cp board_config.py board_peripherals.py :/flash/
+  ```
+
+  With the `mpy-cross` Python package installed, mpremote compiles the folder
+  to `.mpy` on the way; without it the board compiles the `.py` files as
+  they're imported. `/rom` comes before `/flash` on `sys.path`.
 
 ### Waveshare ESP32-P4-WIFI6-Touch-LCD-4B
 
