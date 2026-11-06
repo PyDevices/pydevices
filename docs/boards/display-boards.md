@@ -56,6 +56,9 @@ variant (`C6_WIFI`).
   (`giga_display_shield_init`), 2-lane DSI at 500 Mbit/s per lane, pixel clock
   40 MHz, framebuffer in the GIGA's SDRAM. Panel power on PC6, backlight on PB12.
 - **Touch:** GT911 on I2C4 (SCL PB6, SDA PH12), reset PI2, interrupt PI1
+  If `I2C(4).scan()` finds nothing (it should list the GT911, at `0x14` or
+  `0x5D`, beside `0x50` and `0x68`), the shield isn't fully seated on the
+  GIGA's headers: press it home or reseat it.
 - **Firmware:** micropython-pydevices' `ARDUINO_GIGA` board with its
   `DISPLAY_SHIELD` variant and `--modules displayif,lvgl`
   ([flashing it](https://github.com/PyDevices/micropython-pydevices/blob/main/docs/guides/flash-a-board.md)).
