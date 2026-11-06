@@ -1,0 +1,29 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/fbdisplay/arduino-giga-display-shield/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/fbdisplay/arduino-giga-display-shield/board_peripherals.py"
+    ],
+    [
+      "gt911.py",
+      "github:PyDevices/pydevices/drivers/touch/gt911.py"
+    ],
+    [
+      "giga_display_shield_init.py",
+      "github:PyDevices/pydevices/drivers/display/giga_display_shield_init.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1.0",
+  "description": "Arduino GIGA R1 WiFi + GIGA Display Shield: 480x800 MIPI DSI, GT911 touch - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
+}
