@@ -49,8 +49,8 @@ _CALIBRATION = ((357, 3_812), (390, 3_555))  # the 2.4" wing's; not yet measured
 touch = STMPE610(
     touch_spi,
     cs=8,
-    width=320,
-    height=480,
+    width=480,
+    height=320,
     rotation=90,
     calibration=_CALIBRATION,
 )

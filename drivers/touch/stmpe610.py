@@ -43,22 +43,29 @@ def _map_range(x, in_min, in_max, out_min, out_max):
 
 
 class STMPE610:
-    """STMPE610 on a dedicated SPI chip-select."""
+    """STMPE610 on a dedicated SPI chip-select.
 
-    def __init__(self, spi, cs, *, width=240, height=320, rotation=0, calibration=None):
+    The display usually shares this SPI bus and leaves it at its own speed and
+    mode after every draw, so each poll sets the bus back to ``baudrate`` in
+    SPI mode 1 before talking to the chip.
+    """
+
+    def __init__(self, spi, cs, *, width=240, height=320, rotation=0, calibration=None, baudrate=1_000_000):
         self._spi = spi
         self._cs = Pin(cs, Pin.OUT, value=1)
         self._width = width
         self._height = height
         self._rotation = rotation
         self._calib = calibration if calibration is not None else ((0, 4095), (0, 4095))
+        self._baudrate = baudrate
+        self._claim_bus()
         version = self._get_version()
         if version != _STMPE_VERSION:
-            self._spi.init(polarity=0, phase=1)
-            version = self._get_version()
-            if version != _STMPE_VERSION:
-                raise RuntimeError(f"STMPE610 not found (version 0x{version:04X})")
+            raise RuntimeError(f"STMPE610 not found (version 0x{version:04X})")
         self._init_chip()
+
+    def _claim_bus(self):
+        self._spi.init(baudrate=self._baudrate, polarity=0, phase=1)
 
     def _write_byte(self, register, value):
         self._cs(0)
@@ -98,22 +105,33 @@ class STMPE610:
 
     @property
     def touched(self):
-        return (self._read_byte(_STMPE_TSC_CTRL) & 0x80) == 0x80
+        # The touch-detect bit drops out for single polls during a press, so
+        # samples still waiting in the FIFO count as a touch too.
+        self._claim_bus()
+        return (self._read_byte(_STMPE_TSC_CTRL) & 0x80) == 0x80 or not self.buffer_empty
 
     @property
     def buffer_empty(self):
         return (self._read_byte(_STMPE_FIFO_STA) & _STMPE_FIFO_STA_EMPTY) != 0
 
-    def _read_raw(self):
+    def _read_sample(self):
         d1 = self._read_byte(0xD7)
         d2 = self._read_byte(0xD7)
         d3 = self._read_byte(0xD7)
         d4 = self._read_byte(0xD7)
-        x_loc = (d1 << 4) | (d2 >> 4)
-        y_loc = ((d2 & 0x0F) << 8) | d3
-        if self.buffer_empty:
-            self._write_byte(_STMPE_INT_STA, 0xFF)
-        return x_loc, y_loc, d4
+        return (d1 << 4) | (d2 >> 4), ((d2 & 0x0F) << 8) | d3, d4
+
+    def _read_raw(self):
+        # The chip queues samples far faster than a UI polls, and its FIFO
+        # holds 128: read them all and keep the newest, or each poll returns
+        # where the finger was seconds ago.
+        sample = self._read_sample()
+        for _ in range(128):
+            if self.buffer_empty:
+                break
+            sample = self._read_sample()
+        self._write_byte(_STMPE_INT_STA, 0xFF)
+        return sample
 
     @property
     def touch_point(self):
