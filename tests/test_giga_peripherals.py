@@ -209,6 +209,47 @@ class GigaPeripheralsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             bp._pcm_in(AudioFormat(22050, 1, 16))  # DFSDM can't divide to it exactly
 
+    def test_sdcard_is_the_usb_drive_in_the_hub(self):
+        events = []
+        modules = _fakes(events)
+        clock = modules["time"]
+        now = [0]
+        clock.ticks_ms = lambda: now[0]
+        clock.ticks_add = lambda a, b: a + b
+        clock.ticks_diff = lambda a, b: a - b
+        clock.sleep_ms = lambda ms: now.__setitem__(0, now[0] + ms)
+        drive_dev = object()
+        present = []
+
+        class Drive:
+            def __init__(self, dev):
+                self.dev = dev
+                self.readblocks = lambda n, buf, offset=0: events.append(("read", n))
+                self.writeblocks = lambda n, buf, offset=0: None
+                self.ioctl = lambda op, arg: 0
+
+            match = staticmethod(lambda dev: True)
+
+        core = types.ModuleType("usb.core")
+        core.start = lambda full_speed=False, **kw: events.append(("start", full_speed))
+        core.find = lambda custom_match=None: drive_dev if present else None
+        msc = types.ModuleType("usb.host.msc")
+        msc.Drive = Drive
+        usb, host = types.ModuleType("usb"), types.ModuleType("usb.host")
+        usb.core, usb.host, host.msc = core, host, msc
+        modules.update({"usb": usb, "usb.core": core, "usb.host": host, "usb.host.msc": msc})
+        bp = _load(modules)
+        self.assertIn("sdcard", bp.PERIPHERALS)
+        with mock.patch.dict(sys.modules, modules):
+            with self.assertRaises(OSError):  # no drive shows up
+                bp.sdcard(wait_ms=500)
+            present.append(1)
+            card = bp.sdcard()
+            card.readblocks(3, bytearray(512))
+            card.deinit()
+        self.assertIn(("start", True), events)  # the host runs at full speed, for the hub's keyboard
+        self.assertIn(("read", 3), events)
+
     def test_every_role_has_a_hook(self):
         bp = _load(_fakes([]))
         for role in bp.PERIPHERALS:

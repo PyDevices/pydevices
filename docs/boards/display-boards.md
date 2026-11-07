@@ -87,6 +87,13 @@ variant (`C6_WIFI`).
   power until `usb.core.start()`. Bus-powered devices that draw more than about
   500 mA may not run; use a powered hub. Needs firmware with the `usbhost`
   module ([what it supports](https://github.com/PyDevices/micropython-pydevices/blob/main/modules/usbhost/README.md)).
+- **USB flash drive as `/sd`:** the board has no card slot, so `sdcard` is the
+  flash drive in the USB-A hub, as a block device: `os.mount(board.sdcard, "/sd")`
+  and apps that read `/sd` (midiEngine's `/sd/midi` and `/sd/soundfonts`, the MP3
+  player) find the drive's files. It starts the USB host, so keep a keyboard or
+  MIDI device in the same hub, and give it a few seconds to show up. It needs
+  `usb-host-msc` in the ROMFS (below). Interrupting a transfer to the drive can leave
+  it timing out until the board resets.
 - **Bluetooth LE:** `ble` is a bledev adapter over the GIGA's Murata 1DX,
   which also answers every `bluetooth.BLE` method. Needs firmware with
   Bluetooth, and micropython-lib's `aioble`.
