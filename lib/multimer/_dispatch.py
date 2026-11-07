@@ -13,6 +13,9 @@ Rules the dispatcher keeps for every timer:
 
 * a callback never interrupts another callback (a wake that arrives while
   one runs is answered after it returns);
+* nothing is delivered while the check given to `defer_while` says so (a
+  UI library in the middle of one of its own callbacks); the wake source
+  asks again shortly;
 * a timer that is still running when its slot comes is not re-entered; the
   slot is skipped and counted in ``missed``;
 * after a callback runs longer than its period, its next slot is no sooner
@@ -42,6 +45,9 @@ _IS_MP = sys.implementation.name == "micropython"
 _timers = []
 _held = 0
 _in_deliver = False
+# defer_while()'s check, and how soon a delivery it put off is asked for again.
+_defer = None
+_DEFER_RETRY_MS = 10
 _source = None
 _source_error = None
 _keepalive = False
@@ -204,6 +210,11 @@ def deliver():
     if _in_deliver:
         return None
     if _held:
+        return None
+    if _defer is not None and _defer():
+        # Nothing is lost: the wake source comes back once the check clears.
+        if _source is not None:
+            _source.arm(_DEFER_RETRY_MS)
         return None
     _in_deliver = True
     try:
@@ -544,6 +555,24 @@ def _arm(timer):
     install = getattr(_hostloop, "ensure_installed", None)
     if install is not None:
         install()
+
+
+def defer_while(check):
+    """Put off every delivery while ``check()`` returns true.
+
+    For a library that calls back into Python from the middle of its own
+    work, where a timer callback must not reach it: LVGL halts the board
+    when a widget changes while it draws, and a callback could otherwise run
+    between the bytecodes of its flush callback. Due timers run as soon as
+    ``check()`` is false again. ``display_driver`` passes LVGL's nesting
+    count; pass None to remove the check.
+
+    Args:
+        check: A zero-argument callable, cheap enough to call on every
+            delivery, or None.
+    """
+    global _defer
+    _defer = check
 
 
 def hold():

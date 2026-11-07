@@ -27,6 +27,7 @@ from ._asyncio_loader import load_asyncio, loop_running
 from ._dispatch import (
     Timer,
     alive,
+    defer_while,
     hold,
     info,
     keepalive,
@@ -125,6 +126,7 @@ __all__ = [
     "after",
     "alive",
     "asleep_ms",
+    "defer_while",
     "every",
     "hold",
     "info",
