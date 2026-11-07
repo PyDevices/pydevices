@@ -134,6 +134,14 @@ class GigaPeripheralsTests(unittest.TestCase):
         with mock.patch.dict(sys.modules, modules):
             self.assertEqual(bp.usb_midi(), ("in", "out"))
 
+    def test_the_dac_ring_follows_what_the_caller_asks_for(self):
+        bp = _load(_fakes([]))
+        for kwargs, want in (({}, None), ({"latency": "low"}, None),
+                             ({"latency": "buffered"}, bp.BUFFERED_MS),
+                             ({"queue_ms": 40}, 40), ({"latency": "buffered", "queue_ms": 120}, 120)):
+            with self.subTest(**kwargs):
+                self.assertEqual(bp._pcm_out(**kwargs)._inner.buffer_ms, want)
+
     def test_every_role_has_a_hook(self):
         bp = _load(_fakes([]))
         for role in bp.PERIPHERALS:

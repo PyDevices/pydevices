@@ -1371,13 +1371,23 @@ class TheBoardPlaysThroughAudiobusio(PumpFixture):
 class FakeAudioOut(FakeI2SOut):
     """``audioio.AudioOut``: ``I2SOut``'s object, built on a DAC's pins."""
 
-    def __init__(self, left_channel, *, right_channel=None, sample_rate=22050):
+    def __init__(self, left_channel, *, right_channel=None, sample_rate=22050,
+                 buffer_ms=0):
         super().__init__(None, None, left_channel, sample_rate=sample_rate)
         self.right_channel = right_channel
+        self.buffer_ms = buffer_ms
 
 
 class FakeAudioio:
     AudioOut = FakeAudioOut
+
+
+class OldFirmwareAudioOut(FakeI2SOut):
+    """``audioio.AudioOut`` from before ``buffer_ms=``."""
+
+    def __init__(self, left_channel, *, right_channel=None, sample_rate=22050):
+        super().__init__(None, None, left_channel, sample_rate=sample_rate)
+        self.right_channel = right_channel
 
 
 class ADACBoardPlaysThroughAudioio(PumpFixture):
@@ -1421,6 +1431,35 @@ class ADACBoardPlaysThroughAudioio(PumpFixture):
         self.assertEqual(dac.right_channel, "PA5")
         self.assertEqual(dac.sample_rate, RATE)
         self.assertEqual(transport.opened, 0)
+
+    def test_the_ring_is_the_firmwares_default_unless_asked(self):
+        from audiodev import DACWire
+
+        pcm = pump_mod.PumpPCMOutput(FMT, wire=DACWire("PA4", "PA5"))
+        self.addCleanup(pcm.close)
+        pcm.try_write(bytes(FMT.frame_size) * 64)
+        self.assertEqual(FakeI2SOut.built[0].buffer_ms, 0)
+
+    def test_buffer_ms_reaches_the_dac(self):
+        from audiodev import DACWire
+
+        pcm = pump_mod.PumpPCMOutput(FMT, wire=DACWire("PA4", "PA5"), buffer_ms=250)
+        self.addCleanup(pcm.close)
+        pcm.try_write(bytes(FMT.frame_size) * 64)
+        self.assertEqual(FakeI2SOut.built[0].buffer_ms, 250)
+
+    def test_a_firmware_without_buffer_ms_still_plays(self):
+        from audiodev import DACWire
+
+        class OldAudioio:
+            AudioOut = OldFirmwareAudioOut
+
+        pump_mod._dac = OldAudioio()
+        pcm = pump_mod.PumpPCMOutput(FMT, wire=DACWire("PA4", "PA5"), buffer_ms=250)
+        self.addCleanup(pcm.close)
+        frame = bytes(FMT.frame_size) * 64
+        self.assertEqual(pcm.try_write(frame), len(frame))
+        self.assertIsInstance(FakeI2SOut.built[0], OldFirmwareAudioOut)
 
     def test_pcm_written_to_the_stream_reaches_the_pump(self):
         from audiodev import DACWire
