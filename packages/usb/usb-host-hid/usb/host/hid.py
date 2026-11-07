@@ -269,12 +269,16 @@ class Device:
         # report is one packet. In report protocol one can be longer (with a
         # report ID, a keyboard's 9 bytes), so after a full packet, a brief
         # look for the rest.
+        #
+        # A read that finds nothing returns 0 rather than raising, and leaves
+        # the transfer armed, so a report that lands between two reads waits
+        # for the next one instead of being lost with a cancelled transfer.
         p = self._packet
         n = 0
         try:
-            n = self.dev.read(self._in, self._first, timeout)
+            n = self.dev.read(self._in, self._first, timeout, raise_on_timeout=False)
             while not self.boot and n and n % p == 0 and n + p <= len(self._buf):
-                more = self.dev.read(self._in, self._mv[n:n + p], 2)
+                more = self.dev.read(self._in, self._mv[n:n + p], 2, raise_on_timeout=False)
                 n += more
                 if more < p:
                     break

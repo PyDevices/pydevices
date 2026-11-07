@@ -116,6 +116,7 @@ class FakeDevice:
         self.packet = packet
         self.packets = []
         self.control = []
+        self.reads = []     # raise_on_timeout of each read
 
     def configuration_descriptor(self):
         return self.cfg
@@ -129,8 +130,11 @@ class FakeDevice:
             return self.descriptor[:data]
         return b"\x00"
 
-    def read(self, ep, buf, timeout):
+    def read(self, ep, buf, timeout, raise_on_timeout=True):
+        self.reads.append(raise_on_timeout)
         if not self.packets:
+            if not raise_on_timeout:
+                return 0
             raise USBTimeoutError("timeout")
         pkt = self.packets.pop(0)
         buf[:len(pkt)] = pkt
@@ -228,6 +232,16 @@ class BootKeyboard(unittest.TestCase):
         kbd = boot_keyboard()
         self.assertIsNone(kbd.read())
         self.assertEqual(events(kbd, b"\0" * 8), [])
+
+    def test_a_read_that_finds_nothing_leaves_the_transfer_armed(self):
+        # Every read asks not to raise on a timeout, which on the board keeps
+        # the IN transfer armed rather than cancelling it, so a report that
+        # arrives between two reads isn't lost.
+        kbd = boot_keyboard()
+        kbd.read()
+        events(kbd, b"\0\0\x04\0\0\0\0\0")
+        self.assertTrue(kbd.dev.reads)
+        self.assertNotIn(True, kbd.dev.reads)
 
 
 class BootMouse(unittest.TestCase):
