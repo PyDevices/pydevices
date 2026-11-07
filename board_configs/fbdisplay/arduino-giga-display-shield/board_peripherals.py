@@ -171,21 +171,29 @@ def usb_midi():
     return usb_device.ports()
 
 
+# How much the DAC's ring holds for latency="buffered", in milliseconds. The
+# default, about 93 ms, suits an instrument; a player can ride out longer
+# stalls of the interpreter (a garbage collection over a screen redraw).
+BUFFERED_MS = 250
+
+
 def _pcm_out(format=None, *, latency=None, queue_ms=None):
     """The headphone jack's DAC: a raw ``PCMOutput``. Push bytes with ``write()``.
 
     ``format`` is the write() contract; ``None`` is 22.05 kHz stereo 16-bit.
-    ``latency`` and ``queue_ms`` are accepted for the role's call shape; the
-    pump's ring is fixed. A caller writing faster than realtime should gate
-    on ``space()``: what doesn't fit the stash is dropped rather than
-    blocking the interpreter.
+    The DAC's ring holds about 93 ms. ``queue_ms`` asks for another length,
+    and ``latency="buffered"`` for `BUFFERED_MS`. A caller writing faster than
+    realtime should gate on ``space()``: what doesn't fit the stash is
+    dropped rather than blocking the interpreter.
     """
     from audiodev import check_latency, pace_output
     from audiodev.pump import PumpPCMOutput
 
     check_latency(latency)
+    if queue_ms is None and latency == "buffered":
+        queue_ms = BUFFERED_MS
     wire, _source = negotiate(AUDIO_OUT, format)
-    return pace_output(PumpPCMOutput(wire, wire=AUDIO_OUT.wire))
+    return pace_output(PumpPCMOutput(wire, wire=AUDIO_OUT.wire, buffer_ms=queue_ms))
 
 
 def _audio_out(format=None, **kwargs):

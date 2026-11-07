@@ -1067,9 +1067,19 @@ class BusioDriver(_Driver):
             except TypeError:
                 self._power(True)
         if on_dac:
+            kwargs = {"right_channel": w.right, "sample_rate": self.fmt.rate}
+            ms = getattr(self.transport, "buffer_ms", None)
+            if ms:
+                kwargs["buffer_ms"] = int(ms)
             try:
-                self.out = mod.AudioOut(w.left, right_channel=w.right,
-                                        sample_rate=self.fmt.rate)
+                try:
+                    self.out = mod.AudioOut(w.left, **kwargs)
+                except TypeError:
+                    if "buffer_ms" not in kwargs:
+                        raise
+                    # A firmware from before buffer_ms=: its ring is fixed.
+                    del kwargs["buffer_ms"]
+                    self.out = mod.AudioOut(w.left, **kwargs)
             except Exception:
                 if self._power is not None:
                     self._power(False)
@@ -1425,9 +1435,13 @@ class PumpPCMOutput(PCMOutput):
     """
 
     def __init__(self, format, *, wire, audio_power=None, frames=256,
-                 capacity=6):
+                 capacity=6, buffer_ms=None):
         super().__init__(format)
         self.wire = wire
+        #: The audio the DAC's own ring should hold, in milliseconds, or None
+        #: for the firmware's default. `BusioDriver` hands it to
+        #: ``audioio.AudioOut(buffer_ms=)``.
+        self.buffer_ms = buffer_ms
         self.audio_power = audio_power
         self._frames = frames
         self._capacity = capacity
