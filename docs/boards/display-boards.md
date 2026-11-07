@@ -80,8 +80,9 @@ variant (`C6_WIFI`).
   `DISPLAY_SHIELD` variant and `--modules displayif,lvgl`
   ([flashing it](https://github.com/PyDevices/micropython-pydevices/blob/main/docs/guides/flash-a-board.md)).
 - **Libraries:** the OmniPython libraries don't fit in the firmware beside
-  LVGL, so they go in the board's 4 MB ROMFS with the two drivers this board
-  needs. A ROMFS deploy replaces the whole partition, so put them in one folder
+  LVGL, so they go in the board's 4 MB ROMFS with the drivers this board
+  needs: the two in this repository and micropython-lib's `bmi270` for the
+  IMU. A ROMFS deploy replaces the whole partition, so put them in one folder
   and deploy it once, from a clone of this repository:
 
   ```bash
@@ -89,6 +90,7 @@ variant (`C6_WIFI`).
   mkdir romfs
   cp -r pydevices/lib/* pydevices/drivers/touch/gt911.py \
       pydevices/drivers/display/giga_display_shield_init.py romfs/
+  curl -o romfs/bmi270.py https://raw.githubusercontent.com/micropython/micropython-lib/master/micropython/drivers/imu/bmi270/bmi270.py
   mpremote romfs deploy romfs
   cd pydevices/board_configs/fbdisplay/arduino-giga-display-shield
   mpremote cp board_config.py board_peripherals.py :/flash/
