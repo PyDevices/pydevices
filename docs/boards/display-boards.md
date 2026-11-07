@@ -87,14 +87,16 @@ variant (`C6_WIFI`).
   power until `usb.core.start()`. Bus-powered devices that draw more than about
   500 mA may not run; use a powered hub. Needs firmware with the `usbhost`
   module ([what it supports](https://github.com/PyDevices/micropython-pydevices/blob/main/modules/usbhost/README.md)).
+- **Bluetooth LE:** `ble` is a bledev adapter over the GIGA's Murata 1DX,
+  which also answers every `bluetooth.BLE` method. Needs firmware with
+  Bluetooth, and micropython-lib's `aioble`.
 - **IMU:** the shield's BMI270 on I2C4 at `0x68`, beside the touch
   controller, so `accelerometer` and `gyroscope` (one object) take
   `board_config.i2c`. Needs micropython-lib's `bmi270`.
 - **LED and button:** `led` is the GIGA's green LED (PJ13, active low, as a
   `machine.Signal`); `boot_button` is the BOOT0 button on PC13, reading 1
   while pressed.
-- **Not yet roles:** Bluetooth and the camera connector wait for firmware
-  support; the shield's RGB LED (IS31FL3197 at `0x50`) waits for a driver. CAN needs a
+- **Not yet roles:** the camera connector waits for firmware support; the shield's RGB LED (IS31FL3197 at `0x50`) waits for a driver. CAN needs a
   transceiver the board doesn't have, and the only RTC is the STM32's own
   (`machine.RTC`).
 - **Firmware:** micropython-pydevices' `ARDUINO_GIGA` board with its
@@ -102,8 +104,8 @@ variant (`C6_WIFI`).
   ([flashing it](https://github.com/PyDevices/micropython-pydevices/blob/main/docs/guides/flash-a-board.md)).
 - **Libraries:** the OmniPython libraries don't fit in the firmware beside
   LVGL, so they go in the board's 4 MB ROMFS with the drivers this board
-  needs: the two in this repository, micropython-lib's `bmi270` for the IMU,
-  and the USB host packages. A ROMFS deploy replaces the whole partition, so
+  needs: the two in this repository, micropython-lib's `bmi270` for the IMU
+  and `aioble` for Bluetooth, and the USB host packages. A ROMFS deploy replaces the whole partition, so
   put them in one folder and deploy it once, from a clone of this repository:
 
   ```bash
@@ -118,6 +120,10 @@ variant (`C6_WIFI`).
   cp pydevices/packages/usb/usb-host-hid/usb/host/*.py \
       pydevices/packages/usb/usb-host-msc/usb/host/*.py romfs/usb/host/
   curl -o romfs/bmi270.py https://raw.githubusercontent.com/micropython/micropython-lib/master/micropython/drivers/imu/bmi270/bmi270.py
+  mkdir romfs/aioble
+  for f in __init__ central client core device l2cap peripheral security server; do
+      curl -o romfs/aioble/$f.py https://raw.githubusercontent.com/micropython/micropython-lib/master/micropython/bluetooth/aioble/aioble/$f.py
+  done
   mpremote romfs deploy romfs
   cd pydevices/board_configs/fbdisplay/arduino-giga-display-shield
   mpremote cp board_config.py board_peripherals.py :/flash/

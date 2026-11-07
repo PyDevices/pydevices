@@ -27,6 +27,9 @@ BOOT0 button, which the board leaves free to read once it has started.
 
 The USB-C port has no host side, so it's free to be a device: ``usb_midi``
 makes the board a MIDI port the computer plays, beside the REPL's serial port.
+
+``ble`` is Bluetooth LE through the GIGA's Murata 1DX, on firmware built with
+Bluetooth, as a bledev adapter when bledev and aioble are installed.
 """
 import boarddev
 import sys
@@ -45,6 +48,7 @@ from audiodev import (
 PERIPHERALS = frozenset(
     {
         "wlan",
+        "ble",
         "audio_out",
         "pcm_out",
         "pcm_in",
@@ -58,7 +62,6 @@ PERIPHERALS = frozenset(
 )
 
 # What the two boards have that no role covers yet:
-#   ble: the Murata 1DX's Bluetooth waits for a firmware built with it.
 #   camera: the 20-pin camera connector (DCMI) waits for a camera module in
 #     the firmware.
 #   can: FDCAN pins only (CANTX PB13, CANRX PB5); a transceiver is not fitted.
@@ -132,6 +135,20 @@ def wlan():
     import network
 
     return network.WLAN(network.STA_IF)
+
+
+def ble():
+    # A bledev adapter (docs/guides/bluetooth-le.md) over the Murata 1DX's
+    # Bluetooth LE. It also answers every bluetooth.BLE method, so code written
+    # for the raw radio keeps working. Without bledev (or aioble) installed,
+    # the raw radio.
+    try:
+        import bledev.mpble
+    except ImportError:
+        import bluetooth
+
+        return bluetooth.BLE()
+    return bledev.mpble.get()
 
 
 def _i2c_bus():
