@@ -68,7 +68,10 @@ def _fakes(events):
             events.append(("BMI270", bus, address))
 
     bmi270.BMI270 = BMI270
-    return {"machine": machine, "bmi270": bmi270, "board_config": None}
+    # MicroPython's time, which has sleep_ms.
+    clock = types.ModuleType("time")
+    clock.sleep_ms = lambda ms: None
+    return {"machine": machine, "bmi270": bmi270, "time": clock, "board_config": None}
 
 
 def _load(modules):
