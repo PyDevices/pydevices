@@ -57,6 +57,7 @@ Omit the name entirely when the hardware is absent. Canonical symbols:
 | LoRa transceiver | `lora` | A LoRa radio chip (SX1262, …) driven by the board's own SPI: `configure(freq_mhz, …)`, `send(data)`, `receive(timeout_ms)`, `channel_active()`; omit when absent |
 | Sleep | `sleep` | `sleep(ms=None, *, deep=False, wake=(…))`: light or deep sleep until the time passes or a named wake source fires (the board lists them in `WAKE_SOURCES`); light sleep returns the source's name. A factory role: list it in `FACTORY_ROLES` |
 | Runtime USB device | `usb_device` | Non-tooling `machine.USBDevice`; omit tooling CDC bridge |
+| USB MIDI device | `usb_midi` | `(midi_in, midi_out)` from `midiports.usb_device.ports()`: the board's USB port as a MIDI device a computer plays, keeping the REPL's serial port. List it only where an app may re-enumerate that port as MIDI on its own (Synth Station does) |
 
 ### The three audio roles
 
