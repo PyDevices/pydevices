@@ -75,8 +75,10 @@ class Fake:
             return self.descriptor
         return b"\0"
 
-    def read(self, ep, buf, timeout):
+    def read(self, ep, buf, timeout, raise_on_timeout=True):
         if not self.reports:
+            if not raise_on_timeout:
+                return 0
             raise USBTimeoutError()
         r = self.reports.pop(0)
         for i in range(len(r)):     # no slice objects: the harness shouldn't allocate
