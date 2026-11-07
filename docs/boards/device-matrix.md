@@ -23,7 +23,7 @@ Boards whose display is the reason to buy them.
 
 | Product | `board_config` path | Eager UI | Lazy `PERIPHERALS` |
 |---|---|---|---|
-| Arduino GIGA R1 WiFi + GIGA Display Shield | `fbdisplay/arduino-giga-display-shield` | `touch` | `audio_out`, `pcm_out`, `accelerometer`, `gyroscope`, `led`, `boot_button`, `usb_device`, `usb_midi`, `wlan` |
+| Arduino GIGA R1 WiFi + GIGA Display Shield | `fbdisplay/arduino-giga-display-shield` | `touch` | `audio_out`, `pcm_out`, `pcm_in`, `accelerometer`, `gyroscope`, `led`, `boot_button`, `usb_device`, `usb_midi`, `wlan` |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `fbdisplay/esp32-p4-wifi6-touch-lcd-4b` | `touch` | `audio_out`, `pcm_out`, `pcm_in`, `audio_power`, `audio_in_power`, `sdcard`, `camera`, `radio`, `wlan`, `ble`, `usb_device`, `boot_button` |
 | Waveshare ESP32-P4-WIFI6-DEV-KIT + KeDei 5" DSI | `fbdisplay/esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | `touch` | `audio_out`, `pcm_out`, `pcm_in`, `audio_power`, `i2c`, `sdcard`, `camera`, `ethernet`, `radio`, `wlan`, `ble`, `boot_button`, `usb_device` (from the `nodisplay/esp32-p4-wifi6-dev-kit` package) |
 | Adafruit Qualia S3 + TL040HDS20 | `fbdisplay/qualia_tl040hds20` | `touch`, `keypad`, `io_expander` | `wlan`, `ble` |

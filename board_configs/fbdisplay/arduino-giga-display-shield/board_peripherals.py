@@ -13,6 +13,13 @@ anything playing on both at once is summed. The DAC has 12 bits, so each
 16-bit sample loses its low four, and there is no codec, so volume is
 scaled in software.
 
+``pcm_in`` records from either of the board's two microphones, mono
+16-bit. By default it's the Display Shield's MP34DT06J, a PDM microphone
+the STM32H747's DFSDM decimates in hardware; ``pcm_in(mic="jack")`` is a
+headset's microphone in the jack instead, on the ring the board wires to
+A7 (PA0) and sampled by the ADC. Neither shares a clock with the DAC, so
+either records while ``audio_out`` plays. One records at a time.
+
 The shield's BMI270 sits on I2C4 at 0x68, beside the touch controller, so
 ``accelerometer`` and ``gyroscope`` are handed the bus ``board_config``
 already opened. ``led`` is the GIGA's green LED and ``boot_button`` its
@@ -25,13 +32,22 @@ import boarddev
 import sys
 import time
 
-from audiodev import AudioCapability, AudioFactory, AudioFormat, DACWire, negotiate
+from audiodev import (
+    AnalogWire,
+    AudioCapability,
+    AudioFactory,
+    AudioFormat,
+    DACWire,
+    PDMWire,
+    negotiate,
+)
 
 PERIPHERALS = frozenset(
     {
         "wlan",
         "audio_out",
         "pcm_out",
+        "pcm_in",
         "accelerometer",
         "gyroscope",
         "led",
@@ -42,9 +58,6 @@ PERIPHERALS = frozenset(
 )
 
 # What the two boards have that no role covers yet:
-#   pcm_in: the jack's microphone ring (A7, PA0) and the shield's MP34DT06J
-#     PDM microphone (DFSDM1, clock PD3, data PC1) wait for capture in the
-#     firmware's audio driver.
 #   ble: the Murata 1DX's Bluetooth waits for a firmware built with it.
 #   camera: the 20-pin camera connector (DCMI) waits for a camera module in
 #     the firmware.
@@ -56,7 +69,7 @@ PERIPHERALS = frozenset(
 
 # Audio roles are factories: first attribute access must not construct, so a
 # caller can pass a format. See boarddev.bind_lazy.
-FACTORY_ROLES = frozenset({"audio_out", "pcm_out"})
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "pcm_in"})
 
 # TIM6 paces the DAC from the timer clock, so any rate opens. Both channels
 # are wired to the jack; a mono stream plays on both.
@@ -68,6 +81,32 @@ AUDIO_OUT = AudioCapability(
     bits=(16,),
     wire=DACWire("PA5", "PA4"),
 )
+
+# The shield's microphone: DFSDM1 clocks it from PD3 and reads PC1. Its
+# divider lands exactly on these rates from the 120 MHz APB2 clock; others
+# would run a fraction of a percent off.
+AUDIO_IN = AudioCapability(
+    AudioFormat(16000, 1, 16),
+    rates=(8000, 16000, 24000, 32000, 48000),
+    channels=(1,),
+    native_channels=1,
+    bits=(16,),
+    wire=PDMWire("PD3", "PC1"),
+)
+
+# The jack's microphone ring, on A7 (PA0): ADC1, triggered by TIM15.
+AUDIO_IN_JACK = AudioCapability(
+    AudioFormat(16000, 1, 16),
+    rates=None,
+    channels=(1,),
+    native_channels=1,
+    bits=(16,),
+    wire=AnalogWire("PA0"),
+)
+
+# What each input's samples are raised by, in dB, before the gain a caller
+# sets: enough that speech at arm's length reads well above the noise.
+_MIC_GAIN_DB = {"shield": 24, "jack": 0}
 
 _BMI270_ADDR = 0x68  # SDO tied to ground on the shield
 # The shield's I2C: the same bus as board_config.i2c (port 4, which the touch
@@ -216,5 +255,35 @@ def _audio_out(format=None, **kwargs):
     return AudioOut(_pcm_out(format, **kwargs), **pump)
 
 
+def _pcm_in(format=None, *, mic="shield", latency=None, queue_ms=None):
+    """A microphone: a raw ``PCMInput``, mono 16-bit. ``readinto()`` fills a buffer.
+
+    ``mic="shield"`` (the default) is the Display Shield's PDM microphone,
+    at 8, 16, 24, 32 or 48 kHz; ``mic="jack"`` is a headset's microphone in
+    the jack, at any rate. ``None`` is 16 kHz. The firmware keeps about a
+    quarter of a second at 16 kHz, so a reader may fall that far behind
+    before ``stats()["dropped"]`` counts what it lost. ``set_gain()``
+    lowers the level in software from where the board sets it.
+    """
+    from audiodev import check_latency
+    from audiodev.pump import PumpPCMInput, driver
+
+    check_latency(latency)
+    if mic not in _MIC_GAIN_DB:
+        raise ValueError('mic is "shield" or "jack"')
+    capability = AUDIO_IN if mic == "shield" else AUDIO_IN_JACK
+    wire, source = negotiate(capability, format)
+    if source is not wire:
+        raise ValueError("this board records one channel")
+
+    def before_open():
+        mod = driver()
+        if mod is not None and hasattr(mod, "rx_gain"):
+            mod.rx_gain(_MIC_GAIN_DB[mic])
+
+    return PumpPCMInput(wire, wire=capability.wire, before_open=before_open)
+
+
 pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
+pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
 audio_out = AudioFactory(_audio_out, AUDIO_OUT)
