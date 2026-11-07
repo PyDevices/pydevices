@@ -59,6 +59,11 @@ variant (`C6_WIFI`).
   If `I2C(4).scan()` finds nothing (it should list the GT911, at `0x14` or
   `0x5D`, beside `0x50` and `0x68`), the shield isn't fully seated on the
   GIGA's headers: press it home or reseat it.
+- **Audio:** the headphone jack, which the STM32H747's DAC drives directly
+  (left PA4, right PA5), through the firmware's `audioio.AudioOut`.
+  `audio_out` and `pcm_out` both play there, at any rate, mono or stereo, at
+  12 bits. There's no codec, so volume is scaled in software. Needs the
+  firmware's `audiodsp` and `audioif` modules.
 - **Firmware:** micropython-pydevices' `ARDUINO_GIGA` board with its
   `DISPLAY_SHIELD` variant and `--modules displayif,lvgl`
   ([flashing it](https://github.com/PyDevices/micropython-pydevices/blob/main/docs/guides/flash-a-board.md)).

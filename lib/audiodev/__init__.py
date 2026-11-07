@@ -159,6 +159,24 @@ class I2SWire:
         )
 
 
+class DACWire:
+    """A board's DAC output pins, published without opening them.
+
+    `I2SWire`'s counterpart for a board whose audio is a DAC, such as the
+    Arduino GIGA R1's headphone jack. The pump's `BusioDriver
+    <audiodev.pump.BusioDriver>` opens ``audioio.AudioOut`` on these pins,
+    so a pin is anything that takes: a ``Pin`` or its name, such as
+    ``"PA4"``. ``right`` is None on a board with one DAC channel.
+    """
+
+    def __init__(self, left, right=None):
+        self.left = left
+        self.right = right
+
+    def __repr__(self):
+        return "DACWire(left=%r, right=%r)" % (self.left, self.right)
+
+
 class AudioCapability:
     """What a board's audio role can actually do. Boards declare; we decide.
 
@@ -1373,6 +1391,7 @@ __all__ = (
     "AudioFactory",
     "AudioCapability",
     "I2SWire",
+    "DACWire",
     "negotiate",
     "AudioSession",
     "ChannelAdapter",

@@ -79,7 +79,7 @@ _FIRST_BLOCK_WAIT_US = 20000
 _FIRST_BLOCK_STEP_US = 100
 
 import struct
-from audiodev import PCMInput
+from audiodev import PCMInput, PCMOutput
 
 try:
     from time import sleep_ms as _sleep_ms
@@ -196,6 +196,8 @@ _driver = None
 _driver_looked = False
 _busio = None
 _busio_looked = False
+_dac = None
+_dac_looked = False
 
 
 def module():
@@ -266,6 +268,27 @@ def busio():
     return mod
 
 
+def dac():
+    """The ``audioio`` C module -- ``AudioOut`` -- or None.
+
+    CircuitPython's name for a DAC output, on a board whose audio is a DAC
+    rather than I2S (an STM32H7's, on the Arduino GIGA R1). It has
+    ``I2SOut``'s methods, so `BusioDriver` drives either one the same way.
+    """
+    global _dac, _dac_looked
+    if _dac_looked:
+        return _dac
+    _dac_looked = True
+    try:
+        import audioio as mod
+    except ImportError:
+        return None
+    if not hasattr(mod, "AudioOut"):
+        return None
+    _dac = mod
+    return mod
+
+
 def driver_name():
     """Which platform driver the engine bound: esp32, pthread, win32, none.
 
@@ -285,13 +308,15 @@ def available():
 
 
 def on_board():
-    """True when the pump owns an I2S peripheral (esp32), rather than a ring.
+    """True when the pump owns a peripheral, rather than a ring.
 
-    Asked of the DRIVER, not the engine: the engine is the same code on every
-    port and has no idea whether there is an I2S peripheral behind it.
+    That is an I2S channel on esp32 and a DAC on an STM32H7. Asked of the
+    DRIVER, not the engine: the engine is the same code on every port and
+    has no idea whether there is a peripheral behind it.
     """
     mod = driver()
-    return mod is not None and hasattr(mod, "i2s_start")
+    return mod is not None and (hasattr(mod, "i2s_start")
+                                or hasattr(mod, "dac_stats"))
 
 
 def duplex():
@@ -974,6 +999,10 @@ class ServiceDriver(RingDriver):
 class BusioDriver(_Driver):
     """esp32: the graph goes to ``audiobusio.I2SOut``, and it owns the bus.
 
+    On a board whose wire is a `DACWire <audiodev.DACWire>` it goes to
+    ``audioio.AudioOut`` instead, the same object built on a DAC, and
+    everything below holds for it too.
+
     **There is one way this firmware plays a sample**, and this is where
     `audiodev` joins it. ``I2SOut`` opens the channel, spawns the pump,
     converts anything that is not already signed 16-bit on the pump's thread,
@@ -1021,9 +1050,13 @@ class BusioDriver(_Driver):
     def open(self):
         if self.out is not None:
             return
-        mod = busio()
+        w = self.wire
+        # A DACWire names a left channel; an I2SWire never does.
+        on_dac = getattr(w, "left", None) is not None
+        mod = dac() if on_dac else busio()
         if mod is None:
-            raise RuntimeError("this firmware has no audiobusio.I2SOut")
+            raise RuntimeError("this firmware has no %s" % (
+                "audioio.AudioOut" if on_dac else "audiobusio.I2SOut"))
         if self._power is not None:
             # With the volume where the board will take it. Nothing opens the
             # transport on this path, so PCMOutput.open()'s "apply the
@@ -1033,7 +1066,16 @@ class BusioDriver(_Driver):
                 self._power(True, volume=self.volume)
             except TypeError:
                 self._power(True)
-        w = self.wire
+        if on_dac:
+            try:
+                self.out = mod.AudioOut(w.left, right_channel=w.right,
+                                        sample_rate=self.fmt.rate)
+            except Exception:
+                if self._power is not None:
+                    self._power(False)
+                raise
+            self._mark_transport(True)
+            return
         kwargs = {"sample_rate": self.fmt.rate}
         port = getattr(w, "port", -1)
         if port is not None and int(port) >= 0:
@@ -1364,6 +1406,60 @@ def attach_stream(fmt, *, driver=None, frames=256, capacity=6):
         stream.deinit()
         raise RuntimeError(owner().fault() or "the pump would not take it")
     return stream
+
+
+class PumpPCMOutput(PCMOutput):
+    """A `PCMOutput` that writes into the pump, for a board whose pump owns
+    the only output there is.
+
+    A DAC board has no ``machine.I2S`` to open beside the pump, so its
+    ``pcm_out`` is this: opening it puts a ring on the pump with
+    `attach_stream`, and ``write()`` fills the ring. A sample graph playing
+    at the same time is summed with it. The ring takes what it has room
+    for and returns 0 when full, so wrap it in `pace_output
+    <audiodev.pace_output>` the way an I2S board wraps ``machine.I2S``.
+
+    ``wire`` is published for `AudioOut <audiodev.sample_out.AudioOut>`,
+    which finds it on its transport and plays a graph straight through
+    `BusioDriver` without opening this stream at all.
+    """
+
+    def __init__(self, format, *, wire, audio_power=None, frames=256,
+                 capacity=6):
+        super().__init__(format)
+        self.wire = wire
+        self.audio_power = audio_power
+        self._frames = frames
+        self._capacity = capacity
+        self._stream = None
+
+    def _open(self):
+        driver = BusioDriver(self.wire, self.format, power=self.audio_power,
+                             transport=self)
+        self._stream = attach_stream(self.format, driver=driver,
+                                     frames=self._frames,
+                                     capacity=self._capacity)
+
+    def _close(self):
+        stream = self._stream
+        self._stream = None
+        if stream is not None:
+            stream.deinit()
+
+    def _write(self, buf):
+        stream = self._stream
+        return 0 if stream is None else stream.write(buf)
+
+    def space(self):
+        stream = self._stream
+        return 0 if stream is None else stream.space()
+
+    def queued_size(self):
+        stream = self._stream
+        return 0 if stream is None else stream.level()
+
+    def is_active(self):
+        return self.queued_size() > 0
 
 
 class _Client:
