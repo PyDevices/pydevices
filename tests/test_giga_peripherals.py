@@ -123,6 +123,17 @@ class GigaPeripheralsTests(unittest.TestCase):
             button = bp.boot_button()
         self.assertEqual((button.name, button.pull), ("PC13", modules["machine"].Pin.PULL_DOWN))
 
+    def test_usb_midi_starts_the_midi_device(self):
+        modules = _fakes([])
+        midiports = types.ModuleType("midiports")
+        usb_device = types.ModuleType("midiports.usb_device")
+        usb_device.ports = lambda: ("in", "out")
+        midiports.usb_device = usb_device
+        modules.update({"midiports": midiports, "midiports.usb_device": usb_device})
+        bp = _load(modules)
+        with mock.patch.dict(sys.modules, modules):
+            self.assertEqual(bp.usb_midi(), ("in", "out"))
+
     def test_every_role_has_a_hook(self):
         bp = _load(_fakes([]))
         for role in bp.PERIPHERALS:

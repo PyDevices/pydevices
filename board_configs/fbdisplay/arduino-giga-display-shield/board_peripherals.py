@@ -17,6 +17,9 @@ The shield's BMI270 sits on I2C4 at 0x68, beside the touch controller, so
 ``accelerometer`` and ``gyroscope`` are handed the bus ``board_config``
 already opened. ``led`` is the GIGA's green LED and ``boot_button`` its
 BOOT0 button, which the board leaves free to read once it has started.
+
+The USB-C port has no host side, so it's free to be a device: ``usb_midi``
+makes the board a MIDI port the computer plays, beside the REPL's serial port.
 """
 import boarddev
 import sys
@@ -25,7 +28,17 @@ import time
 from audiodev import AudioCapability, AudioFactory, AudioFormat, DACWire, negotiate
 
 PERIPHERALS = frozenset(
-    {"wlan", "audio_out", "pcm_out", "accelerometer", "gyroscope", "led", "boot_button"}
+    {
+        "wlan",
+        "audio_out",
+        "pcm_out",
+        "accelerometer",
+        "gyroscope",
+        "led",
+        "boot_button",
+        "usb_device",
+        "usb_midi",
+    }
 )
 
 # What the two boards have that no role covers yet:
@@ -33,8 +46,6 @@ PERIPHERALS = frozenset(
 #     PDM microphone (DFSDM1, clock PD3, data PC1) wait for capture in the
 #     firmware's audio driver.
 #   ble: the Murata 1DX's Bluetooth waits for a firmware built with it.
-#   usb_device: the USB-C port as a MIDI or HID device waits for the
-#     firmware's machine.USBDevice.
 #   camera: the 20-pin camera connector (DCMI) waits for a camera module in
 #     the firmware.
 #   can: FDCAN pins only (CANTX PB13, CANRX PB5); a transceiver is not fitted.
@@ -139,6 +150,25 @@ def boot_button():
     from machine import Pin
 
     return Pin("PC13", Pin.IN, Pin.PULL_DOWN)
+
+
+def usb_device():
+    """The USB-C port's ``machine.USBDevice``, for interfaces beyond the REPL's."""
+    from machine import USBDevice
+
+    return USBDevice()
+
+
+def usb_midi():
+    """The USB-C port as a MIDI device: ``(midi_in, midi_out)``.
+
+    The board re-enumerates on the computer as a MIDI port and keeps its
+    serial port, which may come back under a new name. Needs midiports and
+    micropython-lib's ``usb-device-midi``.
+    """
+    from midiports import usb_device
+
+    return usb_device.ports()
 
 
 def _pcm_out(format=None, *, latency=None, queue_ms=None):
