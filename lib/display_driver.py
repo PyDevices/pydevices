@@ -57,6 +57,14 @@ import keys
 import multimer
 from multimer import ticks_diff, ticks_ms
 
+# No timer callback runs while LVGL is inside a callback of its own (a flush,
+# a draw event). LVGL halts the board when a widget changes while it draws,
+# and a flush callback's bytecodes are where MicroPython delivers scheduled
+# work. The LVGL loop's own passes were already safe, since timers don't
+# nest; this covers lv.refr_now() called from anywhere else.
+if _LV_NESTING is not None:
+    multimer.defer_while(lambda: _LV_NESTING.value)
+
 app = appdev.App.current()
 if app is None:
     import board_config

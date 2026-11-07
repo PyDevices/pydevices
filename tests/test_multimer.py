@@ -80,7 +80,7 @@ class TestApiSurface(unittest.TestCase):
         self.assertEqual(Timer.PERIODIC, 1)
 
     def test_package_exports(self):
-        for name in ("Timer", "every", "after", "sleep_ms", "pump", "schedule", "hold",
+        for name in ("Timer", "every", "after", "sleep_ms", "pump", "schedule", "hold", "defer_while",
                      "keepalive", "run_until", "timers", "info", "report", "repl",
                      "ticks_ms", "ticks_us", "ticks_diff", "ticks_add", "ticks_less",
                      "monotonic", "asleep_ms", "loop_running", "strategy"):
@@ -287,6 +287,23 @@ class TestRulesThatKeepOldBugsDead(unittest.TestCase):
         tim.deinit()
         self.assertEqual(before, inside, "delivered inside a hold")
         self.assertEqual(inside + 1, after, "exactly one catch-up delivery at exit")
+
+    def test_defer_while_puts_delivery_off_until_the_check_clears(self):
+        # LVGL's flush callback: while the check says so, a wake that comes
+        # due delivers nothing, and the timer runs once the check clears.
+        hits = []
+        busy = [True]
+        multimer.defer_while(lambda: busy[0])
+        try:
+            tim = multimer.after(5, lambda t: hits.append(ticks_ms()))
+            multimer.sleep_ms(40)
+            self.assertEqual(hits, [], "delivered while the check was true")
+            busy[0] = False
+            multimer.sleep_ms(20)
+            self.assertEqual(len(hits), 1, "not delivered once the check cleared")
+            tim.deinit()
+        finally:
+            multimer.defer_while(None)
 
     def test_a_callback_is_never_interrupted_by_another(self):
         order = []
