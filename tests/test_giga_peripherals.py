@@ -32,6 +32,7 @@ def _fakes(events):
     class I2C:
         def __init__(self, port, **kwargs):
             self.port = port
+            self.timingr = kwargs.get("timingr")
             events.append(("I2C", port))
 
     class Pin:
@@ -106,6 +107,23 @@ class GigaPeripheralsTests(unittest.TestCase):
             bus = bp._i2c_bus()
         self.assertEqual([e for e in events if e[0] == "I2C"], [("I2C", 4)])
         self.assertEqual(bus.port, 4)
+        self.assertEqual(bus.timingr, bp.I2C_TIMINGR)
+
+    def test_i2c_timing_is_fast_mode_at_120_mhz(self):
+        # I2C(freq=400_000) on an H7 writes a 54 MHz value that runs this bus
+        # near 1 MHz; the board passes its own. Decoded per the STM32H7
+        # reference manual's TIMINGR fields, ignoring the sync delays (which
+        # only lengthen each phase).
+        bp = _load(_fakes([]))
+        t = bp.I2C_TIMINGR
+        tick = ((t >> 28) + 1) * 1000 / 120  # ns at 120 MHz
+        low = round(((t & 0xFF) + 1) * tick)
+        high = round((((t >> 8) & 0xFF) + 1) * tick)
+        setup = round((((t >> 20) & 0xF) + 1) * tick)
+        self.assertGreaterEqual(low, 1300)
+        self.assertGreaterEqual(high, 600)
+        self.assertGreaterEqual(setup, 100 + 300)  # tSU;DAT plus the slowest rise
+        self.assertGreaterEqual(low + high, 2500 - 150)  # at most 400 kHz with the sync delays
 
     def test_led_is_active_low_and_starts_off(self):
         modules = _fakes([])

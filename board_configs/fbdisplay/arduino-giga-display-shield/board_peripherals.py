@@ -63,6 +63,13 @@ _BMI270_ADDR = 0x68  # SDO tied to ground on the shield
 # controller uses). Hooks hand drivers that bus object; the port is only
 # opened here when board_config isn't loaded. See docs/boards/board-contract.md.
 _I2C_PORT = 4
+# 400 kHz Fast mode for an I2C kernel clock of 120 MHz (APB4). The stm32
+# port's I2C(freq=400_000) writes a value worked out for 54 MHz, which runs
+# this bus near 1 MHz (micropython-pydevices#278). With PRESC=2 a tick is
+# 25 ns: SCLL=59 holds SCL low 1.5 us (Fast mode needs 1.3), SCLH=33 high
+# 0.85 us (needs 0.6), SCLDEL=15 gives 400 ns of data setup, SDADEL=2 50 ns
+# of hold. The period is 2.35 us plus the rise, fall and sync delays.
+I2C_TIMINGR = 0x20F2213B
 _i2c_own = None
 _imu = None
 
@@ -93,7 +100,7 @@ def _i2c_bus():
     if _i2c_own is None:
         from machine import I2C
 
-        _i2c_own = I2C(_I2C_PORT, freq=400_000)
+        _i2c_own = I2C(_I2C_PORT, timingr=I2C_TIMINGR)
     return _i2c_own
 
 

@@ -17,6 +17,8 @@ from giga_display_shield_init import GIGA_ST7701_INIT
 from gt911 import GT911
 from machine import I2C, Pin
 
+from board_peripherals import I2C_TIMINGR
+
 from displaydev.fbdisplay import FBDisplay
 
 try:
@@ -58,7 +60,8 @@ backlight.value(1)
 
 display_drv = FBDisplay(fb)
 
-i2c = I2C(TOUCH_I2C, freq=400_000)
+# 400 kHz: I2C(freq=400_000) runs this bus near 1 MHz (micropython-pydevices#278).
+i2c = I2C(TOUCH_I2C, timingr=I2C_TIMINGR)
 touch = GT911(
     i2c,
     reset_pin=TOUCH_RESET,
