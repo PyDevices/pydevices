@@ -112,7 +112,8 @@ variant (`C6_WIFI`).
 - **Libraries:** the OmniPython libraries don't fit in the firmware beside
   LVGL, so they go in the board's 4 MB ROMFS with the drivers this board
   needs: the two in this repository, micropython-lib's `bmi270` for the IMU
-  and `aioble` for Bluetooth, and the USB host packages. A ROMFS deploy replaces the whole partition, so
+  and `aioble` for Bluetooth, the USB host packages, and the audio packages
+  `audioeffects` and `audioinstruments` that apps like midiEngine import. A ROMFS deploy replaces the whole partition, so
   put them in one folder and deploy it once, from a clone of this repository:
 
   ```bash
@@ -130,6 +131,11 @@ variant (`C6_WIFI`).
   mkdir romfs/aioble
   for f in __init__ central client core device l2cap peripheral security server; do
       curl -o romfs/aioble/$f.py https://raw.githubusercontent.com/micropython/micropython-lib/master/micropython/bluetooth/aioble/aioble/$f.py
+  done
+  for r in audioeffects audioinstruments; do
+      git clone --depth 1 --branch v0.5.1 https://github.com/PyDevices/$r.git
+      cp -r $r/lib/$r romfs/
+      rm -f romfs/$r/README.md
   done
   mpremote romfs deploy romfs
   cd pydevices/board_configs/fbdisplay/arduino-giga-display-shield
