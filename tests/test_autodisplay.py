@@ -4,6 +4,7 @@
 """Unit tests for ``displaydev.auto`` host selection."""
 
 import builtins
+import os
 import sys
 import types
 import unittest
@@ -115,6 +116,40 @@ class TestAutoDisplay(unittest.TestCase):
         self.assertEqual(kwargs["width"], 160)
         self.assertEqual(kwargs["height"], 120)
         self.assertEqual(kwargs["title"], "sdl")
+
+    def _sdl_kwargs(self, env):
+        """The SDLDisplay arguments AutoDisplay picks on Linux with ``env`` set
+        and the other of WAYLAND_DISPLAY and DISPLAY unset."""
+        sdl_mod = types.ModuleType("displaydev.sdldisplay")
+        sdl_mod.SDLDisplay = mock.Mock(return_value=mock.Mock(name="SDLDisplay"))
+        usdl2 = types.ModuleType("usdl2")
+        usdl2.SDL_WINDOW_FULLSCREEN_DESKTOP = 0x1001
+        usdl2.SDL_WINDOW_ALLOW_HIGHDPI = 0x2000
+        saved = {name: os.environ.pop(name, None) for name in ("WAYLAND_DISPLAY", "DISPLAY")}
+        try:
+            with mock.patch.object(ad, "host_kind", return_value="desktop"), mock.patch.object(
+                ad.sys, "platform", "linux"
+            ), mock.patch.dict(
+                sys.modules,
+                {"displaydev.pgdisplay": None, "displaydev.sdldisplay": sdl_mod, "usdl2": usdl2},
+            ), mock.patch.dict(os.environ, env):
+                AutoDisplay(width=800, height=480, title="sdl", scale=2.0, quiet=True)
+        finally:
+            for name, value in saved.items():
+                if value is not None:
+                    os.environ[name] = value
+        return sdl_mod.SDLDisplay.call_args.kwargs
+
+    def test_no_desktop_opens_fullscreen_on_the_screens_mode(self):
+        kwargs = self._sdl_kwargs({})
+        self.assertEqual(kwargs["window_flags"], 0x1001 | 0x2000)
+        self.assertEqual(kwargs["scale"], 1.0)
+
+    def test_a_desktop_keeps_a_window(self):
+        for env in ({"WAYLAND_DISPLAY": "wayland-0"}, {"DISPLAY": ":0"}):
+            kwargs = self._sdl_kwargs(env)
+            self.assertNotIn("window_flags", kwargs, env)
+            self.assertEqual(kwargs["scale"], 2.0, env)
 
     def test_win32_prefers_windisplay(self):
         display = mock.Mock(name="WinDisplay")
