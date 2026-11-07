@@ -103,6 +103,23 @@ class TestRotation(unittest.TestCase):
         panel, _drv, _scr = self.render(270)
         self.assertEqual((W - 4, 0, W - 1, 9), panel.red())
 
+    def test_the_rotation_buffer_holds_the_whole_draw_buffer(self):
+        _panel, drv, _scr = self.render(90)
+        self.assertGreaterEqual(len(drv._rot_buf), drv._draw_buf1.data_size)
+
+    def test_a_bigger_draw_buffer_never_overruns_the_rotation_buffer(self):
+        """A board that hands LVGL a bigger draw buffer later: a whole-screen
+        area must still rotate into room, not past the end."""
+        panel, drv, scr = self.render(90)
+        size = H * W * 2
+        drv._draw_buf1 = lv.draw_buf_create(H, W, lv.COLOR_FORMAT.RGB565, 0)
+        drv._draw_buf2 = lv.draw_buf_create(H, W, lv.COLOR_FORMAT.RGB565, 0)
+        drv.lv_display.set_draw_buffers(drv._draw_buf1, drv._draw_buf2)
+        scr.invalidate()
+        lv.refr_now(None)
+        self.assertGreaterEqual(len(drv._rot_buf), size)
+        self.assertEqual((0, H - 10, 3, H - 1), panel.red())
+
     def test_180_turns_it_over(self):
         panel, _drv, _scr = self.render(180)
         self.assertEqual((W - 10, H - 4, W - 1, H - 1), panel.red())

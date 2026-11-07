@@ -1613,9 +1613,9 @@ class DisplayDriver:
             self.lv_display.set_draw_buffers(self._draw_buf1, self._draw_buf2)
             self.lv_display.set_render_mode(lv.DISPLAY_RENDER_MODE.PARTIAL)
             if self._rotation:
-                self._rot_buf = bytearray(
-                    display_drv.width * (display_drv.height // 10) * self._color_size
-                )
+                # As many bytes as LVGL's draw buffer, stride padding and all:
+                # no flushed area, rotated, can need more.
+                self._rot_buf = bytearray(self._draw_buf1.data_size)
                 self._rot_area = lv.area_t()
                 self.lv_display.set_rotation(
                     {90: lv.DISPLAY_ROTATION._90, 180: lv.DISPLAY_ROTATION._180,
@@ -1796,17 +1796,22 @@ class DisplayDriver:
         cf = disp.get_color_format()
         dest_w = rotated.x2 - rotated.x1 + 1
         dest_h = rotated.y2 - rotated.y1 + 1
+        dest_stride = lv.draw_buf_width_to_stride(dest_w, cf)
+        if dest_stride * dest_h > len(self._rot_buf):
+            # A draw buffer replaced after this one was sized: grow rather
+            # than let the rotation write past the end.
+            self._rot_buf = bytearray(dest_stride * dest_h)
         lv.draw_sw_rotate(
             color_p,
             self._rot_buf,
             width,
             height,
             lv.draw_buf_width_to_stride(width, cf),
-            lv.draw_buf_width_to_stride(dest_w, cf),
+            dest_stride,
             disp.get_rotation(),
             cf,
         )
-        n = dest_w * dest_h * self._color_size
+        n = dest_stride * dest_h
         panel.blit_rect(memoryview(self._rot_buf)[:n], rotated.x1, rotated.y1, dest_w, dest_h)
 
 
