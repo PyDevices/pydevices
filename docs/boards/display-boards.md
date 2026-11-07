@@ -30,7 +30,7 @@ variant (`C6_WIFI`).
 | Product / nickname | `board_config` dir | Resolution | Panel / bus | Touch | Expander / IO |
 |---|---|---|---|---|---|
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-4B | `esp32-p4-wifi6-touch-lcd-4b` | 720×720 | ST7703 **MIPI DSI** (`mipidsi`) | GT911 | — |
-| Arduino GIGA R1 WiFi + GIGA Display Shield | `arduino-giga-display-shield` | 480×800 | ST7701S **MIPI DSI** (`mipidsi`, STM32H747 DSI host + LTDC) | GT911 @ `0x5D` | — |
+| Arduino GIGA R1 WiFi + GIGA Display Shield | `arduino-giga-display-shield` | 480×800 (800×480 in LVGL) | ST7701S **MIPI DSI** (`mipidsi`, STM32H747 DSI host + LTDC) | GT911 @ `0x5D` | — |
 | Waveshare ESP32-P4-WIFI6-DEV-KIT + KeDei 5" DSI | `esp32-p4-wifi6-dev-kit_kedei-5in-dsi` | 800×480 | ICN6211 bridge, **MIPI DSI** (`mipidsi`, `non_burst`, `continuous_clock`) | FocalTech (`ft6x36`) | — |
 | Adafruit Qualia S3 + TL040HDS20 | `qualia_tl040hds20` (+ CP under `cp/fbdisplay/qualia_tl040hds20`) | 720×720 | RGB-666→565 **DotClock** | FT6x36 @ `0x48` | PCA9554 @ `0x3f` |
 | Waveshare ESP32-S3-Touch-LCD-4.3 | `esp32-s3-touch-lcd-4_3` (+ CP under `cp/fbdisplay/esp32-s3-touch-lcd-4_3`) | 800×480 | ST7262 RGB **DotClock** | GT911 @ `0x5D` | CH422G |
@@ -51,7 +51,10 @@ variant (`C6_WIFI`).
 
 - **board_config title:** `Arduino GIGA R1 WiFi with the GIGA Display Shield - MicroPython`
 - **Dir:** `arduino-giga-display-shield`
-- **Resolution:** 480×800, portrait
+- **Resolution:** 480×800, portrait. LVGL programs see an 800×480 landscape
+  screen: `LVGL_ROTATION` in `board_config.py` sets which way up (0 keeps it
+  portrait), and LVGL rotates touch to match. Programs that draw without LVGL
+  see the panel as 480×800.
 - **Display:** `mipidsi.Bus` + `mipidsi.Display`, ST7701S init sequence
   (`giga_display_shield_init`), 2-lane DSI at 500 Mbit/s per lane, pixel clock
   40 MHz, framebuffer in the GIGA's SDRAM. Panel power on PC6, backlight on PB12.

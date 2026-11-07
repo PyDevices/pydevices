@@ -30,6 +30,12 @@ TOUCH_RESET = "PI2"
 TOUCH_IRQ = "PI1"
 TOUCH_I2C = 4  # SCL PB6, SDA PH12
 
+# LVGL shows the portrait panel as an 800x480 landscape screen, rotating each
+# frame in software and touch to match. At 90 the GIGA's USB-C port is on the
+# screen's left; 270 turns it over, and 0 keeps it portrait at 480x800.
+# Programs that draw without LVGL still see the panel as 480x800.
+LVGL_ROTATION = 90
+
 # The panel's power enable and its backlight, both active high. The backlight
 # comes on once the panel has its first frame.
 display_on = Pin(DISPLAY_ON, Pin.OUT, value=1)
@@ -57,6 +63,7 @@ fb = Display(
 backlight.value(1)
 
 display_drv = FBDisplay(fb)
+display_drv.lvgl_rotation = LVGL_ROTATION
 
 i2c = I2C(TOUCH_I2C, freq=400_000)
 touch = GT911(
