@@ -1,0 +1,21 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/fbdisplay/raspberry_pi_pitft28_capacitive/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/fbdisplay/raspberry_pi_pitft28_capacitive/board_peripherals.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices-desktop",
+      "latest"
+    ]
+  ],
+  "version": "0.1.0",
+  "description": "Raspberry Pi + Adafruit PiTFT Plus 2.8in capacitive: 320x240 framebuffer, touch, 4 buttons - CPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
+}
