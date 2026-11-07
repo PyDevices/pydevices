@@ -64,6 +64,18 @@ variant (`C6_WIFI`).
   `audio_out` and `pcm_out` both play there, at any rate, mono or stereo, at
   12 bits. There's no codec, so volume is scaled in software. Needs the
   firmware's `audiodsp` and `audioif` modules.
+- **IMU:** the shield's BMI270 on I2C4 at `0x68`, beside the touch
+  controller, so `accelerometer` and `gyroscope` (one object) take
+  `board_config.i2c`. Needs micropython-lib's `bmi270`.
+- **LED and button:** `led` is the GIGA's green LED (PJ13, active low, as a
+  `machine.Signal`); `boot_button` is the BOOT0 button on PC13, reading 1
+  while pressed.
+- **Not yet roles:** the jack's microphone ring (A7) and the shield's PDM
+  microphone wait for audio capture in the firmware; Bluetooth, the USB-C
+  port as a device, and the camera connector wait for firmware support; the
+  shield's RGB LED (IS31FL3197 at `0x50`) waits for a driver. CAN needs a
+  transceiver the board doesn't have, and the only RTC is the STM32's own
+  (`machine.RTC`).
 - **Firmware:** micropython-pydevices' `ARDUINO_GIGA` board with its
   `DISPLAY_SHIELD` variant and `--modules displayif,lvgl`
   ([flashing it](https://github.com/PyDevices/micropython-pydevices/blob/main/docs/guides/flash-a-board.md)).

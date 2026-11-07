@@ -11,6 +11,7 @@ metadata(
 require("pydevices")
 require("gt911")
 require("giga_display_shield_init")
+require("bmi270")  # micropython-lib's: frozen into OmniPython firmware, or mip.install("bmi270") first
 
 module("board_config.py")
 module("board_peripherals.py")

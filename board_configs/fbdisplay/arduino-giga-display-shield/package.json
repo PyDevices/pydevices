@@ -15,6 +15,10 @@
     [
       "giga_display_shield_init.py",
       "github:PyDevices/pydevices/drivers/display/giga_display_shield_init.py"
+    ],
+    [
+      "bmi270.py",
+      "github:micropython/micropython-lib/micropython/drivers/imu/bmi270/bmi270.py"
     ]
   ],
   "deps": [
