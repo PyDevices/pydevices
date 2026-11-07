@@ -1513,6 +1513,9 @@ class DisplayDriver:
     _async_present = False
     _present_pending = False  # a present started and not yet waited for
     _started_present = False  # this flush started one (skip flush_ready)
+    _rotation = 0  # lvgl_rotation: 0, 90, 180 or 270
+    _rot_buf = None
+    _rot_area = None
 
     def __init__(
         self,
@@ -1551,7 +1554,17 @@ class DisplayDriver:
         self.lv_display = lv.display_create(display_drv.width, display_drv.height)
         self.lv_display.set_color_format(color_format)
 
-        share = bool(getattr(display_drv, "share_framebuffer", False))
+        # A panel that scans in one orientation can be shown in another by
+        # LVGL itself: the board sets ``lvgl_rotation`` (90, 180 or 270) on
+        # its display, LVGL lays out the rotated screen and rotates touch
+        # input to match, and each flushed area is rotated here into the
+        # panel's own orientation. LVGL rotates in software only in PARTIAL
+        # mode, so a rotated display never shares the framebuffer.
+        self._rotation = int(getattr(display_drv, "lvgl_rotation", 0) or 0) % 360
+        self._rot_buf = None
+        self._rot_area = None
+
+        share = bool(getattr(display_drv, "share_framebuffer", False)) and not self._rotation
         # Byteswap + shared FB not supported yet — keep PARTIAL blit path.
         fbs = None
         if share and not self._needs_swap:
@@ -1599,6 +1612,15 @@ class DisplayDriver:
                 display_drv.display_bus.register_callback(self.lv_display.flush_ready)
             self.lv_display.set_draw_buffers(self._draw_buf1, self._draw_buf2)
             self.lv_display.set_render_mode(lv.DISPLAY_RENDER_MODE.PARTIAL)
+            if self._rotation:
+                self._rot_buf = bytearray(
+                    display_drv.width * (display_drv.height // 10) * self._color_size
+                )
+                self._rot_area = lv.area_t()
+                self.lv_display.set_rotation(
+                    {90: lv.DISPLAY_ROTATION._90, 180: lv.DISPLAY_ROTATION._180,
+                     270: lv.DISPLAY_ROTATION._270}[self._rotation]
+                )
 
         self._match_refresh_period()
         if not self._share_fb and callable(getattr(display_drv, "show", None)):
@@ -1750,8 +1772,11 @@ class DisplayDriver:
             if self._needs_swap:
                 lv.draw_sw_rgb565_swap(color_p, width * height)
 
-            data = color_p.__dereference__(width * height * self._color_size)
-            panel.blit_rect(data, area.x1, area.y1, width, height)
+            if self._rotation:
+                self._flush_rotated(panel, area, color_p, width, height)
+            else:
+                data = color_p.__dereference__(width * height * self._color_size)
+                panel.blit_rect(data, area.x1, area.y1, width, height)
             started = True
             self._dirty = True
         finally:
@@ -1760,6 +1785,29 @@ class DisplayDriver:
             # that started; one that never started is reported here.
             if self._blocking or not started:
                 self.lv_display.flush_ready()
+
+
+    def _flush_rotated(self, panel, area, color_p, width, height):
+        """Rotate one flushed area into the panel's orientation and blit it."""
+        disp = self.lv_display
+        rotated = self._rot_area
+        rotated.x1, rotated.y1, rotated.x2, rotated.y2 = area.x1, area.y1, area.x2, area.y2
+        disp.rotate_area(rotated)
+        cf = disp.get_color_format()
+        dest_w = rotated.x2 - rotated.x1 + 1
+        dest_h = rotated.y2 - rotated.y1 + 1
+        lv.draw_sw_rotate(
+            color_p,
+            self._rot_buf,
+            width,
+            height,
+            lv.draw_buf_width_to_stride(width, cf),
+            lv.draw_buf_width_to_stride(dest_w, cf),
+            disp.get_rotation(),
+            cf,
+        )
+        n = dest_w * dest_h * self._color_size
+        panel.blit_rect(memoryview(self._rot_buf)[:n], rotated.x1, rotated.y1, dest_w, dest_h)
 
 
 # Import-time bootstrap (same as before the probe split).
