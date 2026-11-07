@@ -81,16 +81,20 @@ variant (`C6_WIFI`).
 - **USB MIDI:** `usb_midi` makes the USB-C port a MIDI device the computer
   plays, beside the REPL's serial port. Needs firmware with
   `machine.USBDevice` and micropython-lib's `usb-device-midi`.
+- **USB host:** the USB-A port hosts keyboards, mice, flash drives and MIDI
+  controllers through `usb.core`, `usb.host.hid`, `usb.host.msc` and
+  `midiports.usb_host`, while the USB-C port stays the REPL. The port has no
+  power until `usb.core.start()`. Bus-powered devices that draw more than about
+  500 mA may not run; use a powered hub. Needs firmware with the `usbhost`
+  module ([what it supports](https://github.com/PyDevices/micropython-pydevices/blob/main/modules/usbhost/README.md)).
 - **IMU:** the shield's BMI270 on I2C4 at `0x68`, beside the touch
   controller, so `accelerometer` and `gyroscope` (one object) take
   `board_config.i2c`. Needs micropython-lib's `bmi270`.
 - **LED and button:** `led` is the GIGA's green LED (PJ13, active low, as a
   `machine.Signal`); `boot_button` is the BOOT0 button on PC13, reading 1
   while pressed.
-- **Not yet roles:** the jack's microphone ring (A7) and the shield's PDM
-  microphone wait for audio capture in the firmware; Bluetooth and the
-  camera connector wait for firmware support; the
-  shield's RGB LED (IS31FL3197 at `0x50`) waits for a driver. CAN needs a
+- **Not yet roles:** Bluetooth and the camera connector wait for firmware
+  support; the shield's RGB LED (IS31FL3197 at `0x50`) waits for a driver. CAN needs a
   transceiver the board doesn't have, and the only RTC is the STM32's own
   (`machine.RTC`).
 - **Firmware:** micropython-pydevices' `ARDUINO_GIGA` board with its
@@ -98,15 +102,21 @@ variant (`C6_WIFI`).
   ([flashing it](https://github.com/PyDevices/micropython-pydevices/blob/main/docs/guides/flash-a-board.md)).
 - **Libraries:** the OmniPython libraries don't fit in the firmware beside
   LVGL, so they go in the board's 4 MB ROMFS with the drivers this board
-  needs: the two in this repository and micropython-lib's `bmi270` for the
-  IMU. A ROMFS deploy replaces the whole partition, so put them in one folder
-  and deploy it once, from a clone of this repository:
+  needs: the two in this repository, micropython-lib's `bmi270` for the IMU,
+  and the USB host packages. A ROMFS deploy replaces the whole partition, so
+  put them in one folder and deploy it once, from a clone of this repository:
 
   ```bash
   git clone --depth 1 https://github.com/PyDevices/pydevices.git
   mkdir romfs
   cp -r pydevices/lib/* pydevices/drivers/touch/gt911.py \
       pydevices/drivers/display/giga_display_shield_init.py romfs/
+  cp -r pydevices/packages/midiports/midiports romfs/
+  mkdir -p romfs/usb/host
+  cp pydevices/packages/usb/usb-core/usb/*.py romfs/usb/
+  cp pydevices/packages/usb/usb-core/usb_host.py romfs/
+  cp pydevices/packages/usb/usb-host-hid/usb/host/*.py \
+      pydevices/packages/usb/usb-host-msc/usb/host/*.py romfs/usb/host/
   curl -o romfs/bmi270.py https://raw.githubusercontent.com/micropython/micropython-lib/master/micropython/drivers/imu/bmi270/bmi270.py
   mpremote romfs deploy romfs
   cd pydevices/board_configs/fbdisplay/arduino-giga-display-shield
