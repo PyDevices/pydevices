@@ -1183,6 +1183,18 @@ class BusioDriver(_Driver):
 
 
 _TAKES = {"left": 0, "right": 1, "mix": 2}
+_OPENERS = {"i2s": "rx_open", "pdm": "pdm_open", "adc": "adc_open"}
+_WHAT = {"i2s": "the pump's I2S channel", "pdm": "a PDM microphone",
+         "adc": "an analog microphone"}
+
+
+def _wire_kind(wire):
+    """``"pdm"`` for a `PDMWire`, ``"adc"`` for an `AnalogWire`, else ``"i2s"``."""
+    if getattr(wire, "clock", None) is not None:
+        return "pdm"
+    if getattr(wire, "pin", None) is not None:
+        return "adc"
+    return "i2s"
 
 
 class PumpPCMInput(PCMInput):
@@ -1211,6 +1223,14 @@ class PumpPCMInput(PCMInput):
     ``take`` picks what a one-channel recording hears from a two-slot
     wire: ``"left"``, ``"right"``, or ``"mix"``, their average, which is
     the right answer for a codec with a microphone in each slot.
+
+    A board with no I2S microphone hands it another wire. On a
+    `PDMWire <audiodev.PDMWire>` the firmware decimates a PDM microphone in
+    hardware, and on an `AnalogWire <audiodev.AnalogWire>` it samples an
+    ADC pin on a timer; both record mono, into the same kind of ring, and
+    neither shares a clock with the output, so they record at any rate the
+    board declares while anything plays. The Arduino GIGA R1 records this
+    way.
     """
 
     def __init__(self, format, *, wire, ring_bytes=20000, take="mix",
@@ -1220,8 +1240,11 @@ class PumpPCMInput(PCMInput):
             raise ValueError(
                 "the pump's I2S capture is signed 16-bit, one or two "
                 "channels")
-        if getattr(wire, "sd_in", None) is None:
+        self._kind = _wire_kind(wire)
+        if self._kind == "i2s" and getattr(wire, "sd_in", None) is None:
             raise ValueError("this wire has no microphone pin (sd_in)")
+        if self._kind != "i2s" and format.channels != 1:
+            raise ValueError("this microphone records one channel")
         if format.channels == 2:
             self._take = 3
         elif take in _TAKES:
@@ -1240,14 +1263,20 @@ class PumpPCMInput(PCMInput):
         if self._before_open is not None:
             self._before_open()
         mod = driver()
-        if mod is None or not hasattr(mod, "rx_open"):
-            raise OSError("this firmware cannot record from the pump's "
-                          "I2S channel")
+        opener = _OPENERS[self._kind]
+        if mod is None or not hasattr(mod, opener):
+            raise OSError("this firmware cannot record from %s"
+                          % _WHAT[self._kind])
         w = self.wire
-        mod.rx_open(w.port, w.sck, w.ws, w.sd, w.sd_in, self.format.rate,
-                    mclk=-1 if w.mck is None else w.mck,
-                    mclk_fs=w.mck_fs, ring=self.ring_bytes,
-                    take=self._take)
+        if self._kind == "pdm":
+            mod.pdm_open(w.clock, w.data, self.format.rate)
+        elif self._kind == "adc":
+            mod.adc_open(w.pin, self.format.rate)
+        else:
+            mod.rx_open(w.port, w.sck, w.ws, w.sd, w.sd_in, self.format.rate,
+                        mclk=-1 if w.mck is None else w.mck,
+                        mclk_fs=w.mck_fs, ring=self.ring_bytes,
+                        take=self._take)
         self._held = True
         try:
             super().open()

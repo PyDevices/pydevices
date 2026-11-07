@@ -160,6 +160,55 @@ class GigaPeripheralsTests(unittest.TestCase):
             with self.subTest(**kwargs):
                 self.assertEqual(bp._pcm_out(**kwargs)._inner.buffer_ms, want)
 
+    def _driver(self, events):
+        class Driver:
+            def rx_gain(self, db):
+                events.append(("gain", db))
+
+            def pdm_open(self, clock, data, rate):
+                events.append(("pdm", clock, data, rate))
+
+            def adc_open(self, pin, rate):
+                events.append(("adc", pin, rate))
+
+            def rx_close(self):
+                events.append(("close",))
+
+        return Driver()
+
+    def test_pcm_in_records_the_shield_microphone_by_default(self):
+        from audiodev import AudioFormat
+
+        events = []
+        bp = _load(_fakes([]))
+        with mock.patch("audiodev.pump.driver", return_value=self._driver(events)):
+            mic = bp._pcm_in()
+            mic.open()
+            mic.close()
+            bp._pcm_in(AudioFormat(48000, 1, 16)).open()
+        self.assertEqual(events[:3], [("gain", 24), ("pdm", "PD3", "PC1", 16000), ("close",)])
+        self.assertEqual(events[4], ("pdm", "PD3", "PC1", 48000))
+
+    def test_pcm_in_takes_the_jack_microphone_at_any_rate(self):
+        from audiodev import AudioFormat
+
+        events = []
+        bp = _load(_fakes([]))
+        with mock.patch("audiodev.pump.driver", return_value=self._driver(events)):
+            bp._pcm_in(AudioFormat(22050, 1, 16), mic="jack").open()
+        self.assertEqual(events, [("gain", 0), ("adc", "PA0", 22050)])
+
+    def test_pcm_in_refuses_what_the_microphones_cant_do(self):
+        from audiodev import AudioFormat
+
+        bp = _load(_fakes([]))
+        with self.assertRaises(ValueError):
+            bp._pcm_in(mic="usb")
+        with self.assertRaises(ValueError):
+            bp._pcm_in(AudioFormat(16000, 2, 16))
+        with self.assertRaises(ValueError):
+            bp._pcm_in(AudioFormat(22050, 1, 16))  # DFSDM can't divide to it exactly
+
     def test_every_role_has_a_hook(self):
         bp = _load(_fakes([]))
         for role in bp.PERIPHERALS:

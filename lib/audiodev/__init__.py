@@ -177,6 +177,40 @@ class DACWire:
         return "DACWire(left=%r, right=%r)" % (self.left, self.right)
 
 
+class PDMWire:
+    """A board's PDM microphone pins, published without opening them.
+
+    The microphone is clocked from ``clock`` and sends its bit stream on
+    ``data``; the board's firmware turns that into PCM in hardware (DFSDM on
+    an STM32H7, which the Arduino GIGA Display Shield's microphone uses).
+    `pump.PumpPCMInput <audiodev.pump.PumpPCMInput>` records from it. A pin
+    is a ``Pin`` or its name, such as ``"PD3"``.
+    """
+
+    def __init__(self, clock, data):
+        self.clock = clock
+        self.data = data
+
+    def __repr__(self):
+        return "PDMWire(clock=%r, data=%r)" % (self.clock, self.data)
+
+
+class AnalogWire:
+    """An analog microphone input, published without opening it.
+
+    A microphone whose signal reaches an ADC pin directly, such as the
+    Arduino GIGA R1's headphone jack's microphone ring on ``"PA0"``. The
+    firmware samples ``pin`` on a timer, and `pump.PumpPCMInput
+    <audiodev.pump.PumpPCMInput>` records from it.
+    """
+
+    def __init__(self, pin):
+        self.pin = pin
+
+    def __repr__(self):
+        return "AnalogWire(pin=%r)" % (self.pin,)
+
+
 class AudioCapability:
     """What a board's audio role can actually do. Boards declare; we decide.
 
@@ -1392,6 +1426,8 @@ __all__ = (
     "AudioCapability",
     "I2SWire",
     "DACWire",
+    "PDMWire",
+    "AnalogWire",
     "negotiate",
     "AudioSession",
     "ChannelAdapter",

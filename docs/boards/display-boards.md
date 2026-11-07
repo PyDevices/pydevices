@@ -70,6 +70,14 @@ variant (`C6_WIFI`).
   any length, which a player wants and an instrument doesn't. A write to
   `/flash` pauses the interpreter for 140-280 ms, so don't write files while
   audio plays. Needs the firmware's `audiodsp` and `audioif` modules.
+- **Microphones:** `pcm_in` records the Display Shield's MP34DT06J, a PDM
+  microphone that the STM32H747's DFSDM decimates in hardware (clock PD3,
+  data PC1), at 8, 16, 24, 32 or 48 kHz. `pcm_in(mic="jack")` records a
+  headset's microphone in the jack instead, from the ring on A7 (PA0), sampled
+  by the ADC at any rate; that path has been checked on the ADC's side, not yet
+  with a headset in the jack. Both are mono 16-bit and record while `audio_out`
+  plays; one records at a time. The firmware keeps about a quarter of a second
+  at 16 kHz, so a reader can fall that far behind without losing anything.
 - **USB MIDI:** `usb_midi` makes the USB-C port a MIDI device the computer
   plays, beside the REPL's serial port. Needs firmware with
   `machine.USBDevice` and micropython-lib's `usb-device-midi`.
