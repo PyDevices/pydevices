@@ -155,9 +155,28 @@ def _make_pygame(width, height, rotation, scale, title, canvas_id, quiet, maximi
     )
 
 
+def _no_desktop():
+    """True on Linux with no Wayland or X11 session, where SDL draws through KMS."""
+    if not sys.platform.startswith("linux"):
+        return False
+    from boarddev import env_get
+
+    return not (env_get("WAYLAND_DISPLAY") or env_get("DISPLAY"))
+
+
 def _make_sdl(width, height, rotation, scale, title, canvas_id, quiet, maximized):
     from displaydev.sdldisplay import SDLDisplay
 
+    kwargs = {}
+    if _no_desktop():
+        import usdl2
+
+        # With no desktop, a plain window makes SDL's KMS driver switch the
+        # screen to whatever mode fits it (a 720p TV went to 1152x864).
+        # Fullscreen-desktop keeps the screen's own mode and scales the panel
+        # to fill it, so the scale that sizes a desktop window doesn't apply.
+        kwargs["window_flags"] = usdl2.SDL_WINDOW_FULLSCREEN_DESKTOP | usdl2.SDL_WINDOW_ALLOW_HIGHDPI
+        scale = 1.0
     return SDLDisplay(
         width=width,
         height=height,
@@ -165,6 +184,7 @@ def _make_sdl(width, height, rotation, scale, title, canvas_id, quiet, maximized
         title=title,
         scale=scale,
         quiet=quiet,
+        **kwargs
     )
 
 
