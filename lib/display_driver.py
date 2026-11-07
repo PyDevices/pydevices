@@ -478,7 +478,9 @@ class VirtualDevices:
         if self._window_id is None:
             return True
         window = getattr(event, "window", None)
-        return window is None or window == self._window_id
+        # 0 is SDL's "no window": with no desktop (KMS/DRM), touches reach
+        # the program without one, and are this display's.
+        return window is None or window == 0 or window == self._window_id
 
     def poll_host_device(self):
         if self._peers and self._peers[0] is not self:

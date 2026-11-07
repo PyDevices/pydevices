@@ -706,6 +706,34 @@ class PointerHoverTest(unittest.TestCase):
         vd._route(moved)
         self.assertIn(moved, vd._vd_pointer._fifo)
 
+    def _router(self, window_id):
+        import events
+
+        import appdev
+
+        ns = {"events": events, "lv": types.SimpleNamespace(), "_wheel_navigate_cb": lambda e: None,
+              "HOST": appdev.HOST, "POINTER": appdev.POINTER, "ENCODER": appdev.ENCODER,
+              "KEYPAD": appdev.KEYPAD, "JOYSTICK": appdev.JOYSTICK}
+        cls = _exec_class("VirtualDevices", ns)
+        vd = cls.__new__(cls)
+        vd._window_id = window_id
+        vd._vd_pointer = cls.VirtualDevice(vd, "pointer")
+        return vd
+
+    def test_a_touch_with_no_window_presses_the_pointer(self):
+        # SDL with no desktop (KMS/DRM) gives touches window 0, "no window".
+        e = self.events
+        vd = self._router(window_id=1)
+        vd._route(e.Finger(e.FINGERDOWN, (660, 429), 85, 0))
+        presses = [ev for ev in vd._vd_pointer._fifo if ev.type == e.MOUSEBUTTONDOWN]
+        self.assertEqual([p.pos for p in presses], [(660, 429)])
+
+    def test_a_touch_on_another_window_is_ignored(self):
+        e = self.events
+        vd = self._router(window_id=1)
+        vd._route(e.Finger(e.FINGERDOWN, (10, 10), 3, 2))
+        self.assertEqual(list(vd._vd_pointer._fifo), [])
+
     def test_a_press_and_drag_still_press(self):
         e = self.events
         self.read(e.Button(e.MOUSEBUTTONDOWN, (10, 10), 1, False, None))
