@@ -5,7 +5,8 @@
 """Lazy constructors for the Arduino GIGA R1 WiFi with the GIGA Display Shield. PERIPHERALS = lazy roles only.
 
 Audio is the headphone jack, which the STM32H747's DAC drives directly:
-left on PA4 (A12), right on PA5 (A13). The firmware's ``audioio.AudioOut``
+left on PA5 (DAC1, A13), right on PA4 (DAC0, A12), as Arduino's schematic
+wires them. The firmware's ``audioio.AudioOut``
 plays it, with the audio pump under it. ``audio_out`` is a sample player
 over it and ``pcm_out`` takes raw PCM; both reach the same DAC, and
 anything playing on both at once is summed. The DAC has 12 bits, so each
@@ -31,7 +32,7 @@ AUDIO_OUT = AudioCapability(
     channels=(1, 2),
     native_channels=2,
     bits=(16,),
-    wire=DACWire("PA4", "PA5"),
+    wire=DACWire("PA5", "PA4"),
 )
 
 
