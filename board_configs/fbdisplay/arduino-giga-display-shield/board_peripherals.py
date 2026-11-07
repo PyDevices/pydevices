@@ -20,6 +20,7 @@ BOOT0 button, which the board leaves free to read once it has started.
 """
 import boarddev
 import sys
+import time
 
 from audiodev import AudioCapability, AudioFactory, AudioFormat, DACWire, negotiate
 
@@ -102,6 +103,9 @@ def _bmi270():
         from bmi270 import BMI270
 
         _imu = BMI270(_i2c_bus(), address=_BMI270_ADDR)
+        # The gyroscope takes about 45 ms to start once the configuration
+        # loads; reading before then returns zeros.
+        time.sleep_ms(50)
     return _imu
 
 
