@@ -28,6 +28,11 @@ BOOT0 button, which the board leaves free to read once it has started.
 The USB-C port has no host side, so it's free to be a device: ``usb_midi``
 makes the board a MIDI port the computer plays, beside the REPL's serial port.
 
+The board has no card slot. ``sdcard`` is the USB flash drive in the USB-A port's
+hub, as a block device you ``os.mount()`` at ``/sd`` the way a card is mounted, so
+apps that read ``/sd`` find the drive's files. Needs the firmware's ``usbhost`` and
+micropython-lib-style ``usb-host-msc``.
+
 ``ble`` is Bluetooth LE through the GIGA's Murata 1DX, on firmware built with
 Bluetooth, as a bledev adapter when bledev and aioble are installed.
 """
@@ -58,6 +63,7 @@ PERIPHERALS = frozenset(
         "boot_button",
         "usb_device",
         "usb_midi",
+        "sdcard",
     }
 )
 
@@ -232,6 +238,41 @@ def usb_midi():
     from midiports import usb_device
 
     return usb_device.ports()
+
+
+class _UsbDrive:
+    """A USB flash drive as ``os.mount()`` wants a card: block reads and writes,
+    plus the ``deinit()`` an SD card has."""
+
+    def __init__(self, drive):
+        self._drive = drive
+        self.readblocks = drive.readblocks
+        self.writeblocks = drive.writeblocks
+        self.ioctl = drive.ioctl
+
+    def deinit(self):
+        self._drive = None
+
+
+def sdcard(wait_ms=4000):
+    """The USB flash drive in the USB-A hub as a block device, or ``OSError``
+    (ENODEV) when none shows up within ``wait_ms``.
+
+    Starts the USB host at full speed, as a keyboard behind the hub needs, and
+    leaves it running: a later ``usb.core.start(full_speed=True)`` is a no-op.
+    """
+    import usb.core
+    from usb.host.msc import Drive
+
+    usb.core.start(full_speed=True)
+    deadline = time.ticks_add(time.ticks_ms(), wait_ms)
+    while True:
+        dev = usb.core.find(custom_match=Drive.match)
+        if dev is not None:
+            return _UsbDrive(Drive(dev))
+        if time.ticks_diff(deadline, time.ticks_ms()) <= 0:
+            raise OSError(19, "no USB drive in the hub")
+        time.sleep_ms(250)
 
 
 # How much the DAC's ring holds for latency="buffered", in milliseconds. The
