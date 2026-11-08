@@ -106,6 +106,15 @@ _COUNT = 0x0FFFFFFF
 _LEAD = 512
 
 
+def _log2(n):
+    bits = 0
+    while (1 << bits) < n:
+        bits += 1
+    if (1 << bits) != n:
+        raise ValueError("the ring must be a power of two")
+    return bits
+
+
 class _PIOStream:
     """Stereo 16-bit I2S out of a PIO state machine, with the write() of ``machine.I2S``.
 
@@ -149,9 +158,12 @@ class _PIOStream:
         self._zeros = bytes(1024)
         self._dma = DMA()
         self._ctrl = self._dma.pack_ctrl(
-            size=2, inc_read=True, inc_write=False, treq_sel=dreq, ring_size=ring.bit_length() - 1, ring_sel=False
+            size=2, inc_read=True, inc_write=False, treq_sel=dreq, ring_size=_log2(ring), ring_sel=False
         )
         self._txf = txf
+        # Times the ring ran dry. The first write usually counts one, since
+        # the DMA starts before there's anything to play.
+        self.underruns = 0
         self._start()
         self._sm.active(1)
 
@@ -190,6 +202,7 @@ class _PIOStream:
                 # plays as silence.
                 self._queued = _LEAD
                 self._write = (now + _LEAD) & (self._size - 1)
+                self.underruns += 1
         # One word stays empty, so a full ring and an empty one look different.
         return self._size - 16 - self._queued
 

@@ -107,6 +107,7 @@ An exact match for all four is rare; bus + display controller is usually enough 
 | `busdisplay/spi/seeed_gc9a01_on_qtpy_rp2040` | GC9A01 on QT Py RP2040 |
 | `busdisplay/spi/seeed_gc9a01_on_xiao_nrf52840` | Seeed Round Display for XIAO (GC9A01, CHSC6X touch, microSD, PCF8563 clock) on a XIAO nRF52840, stock MicroPython |
 | `busdisplay/spi/pico-lcd-1.8` | Pico LCD 1.8" |
+| `busdisplay/spi/pico-oled-2.23-audio` | Waveshare Pico-OLED-2.23 (128x32 SSD1305) and Pico-Audio (stereo I2S DAC, `pcm_out`) on a Pico |
 | `busdisplay/spi/rp2040-touch-lcd-1.28` | RP2040 1.28" round LCD |
 | `busdisplay/spi/odroid_go` | ODROID-GO |
 
