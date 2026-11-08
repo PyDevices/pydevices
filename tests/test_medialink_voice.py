@@ -138,6 +138,33 @@ class HandsFree(unittest.TestCase):
         # The tone arrived, from a little before it was first heard.
         self.assertIn(tone(8000)[:FRAME * 4], bytes(heard.got))
 
+    def test_voice_none_during_a_turn_ends_it(self):
+        # A doorbell stops listening hands-free while the visitor is still
+        # speaking: the turn ends as a quiet spell would end it.
+        fmt = Format(16000, 1)
+        sound = hiss(8000) + tone(32000)
+        network, a, b = pair()
+        mic = FakeMic(fmt, sound)
+        voice = medialink.VoiceActivity(detector="level", hold_ms=40)
+        intercom = medialink.Intercom(a, mic, FakeSpeaker(fmt), voice=voice, codec=codec.PCM16)
+        serve = Serve(b)
+        a.connect("b")
+        try:
+            while not intercom.stats["voice_turns"] and mic.at < len(sound):
+                intercom.service()
+            self.assertEqual(intercom.stats["voice_turns"], 1)
+            self.assertTrue(intercom.talking)
+            intercom.voice = None
+            for _ in range(20):
+                intercom.service()
+        finally:
+            serve.stop()
+        self.assertFalse(intercom.talking)
+        self.assertEqual(a.floor, medialink.IDLE)
+        # Nothing listens now, so the microphone is closed.
+        self.assertFalse(intercom._mic_open)
+        intercom.close()
+
     def listen_after_a_click(self, **kwargs):
         """A side that has heard the room for a while opens its microphone
         again, as it does after each of the peer's turns, and the first
