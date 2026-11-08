@@ -1,0 +1,33 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/ili9341_esp32_audio_kit/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/ili9341_esp32_audio_kit/board_peripherals.py"
+    ],
+    [
+      "ili9341.py",
+      "github:PyDevices/pydevices/drivers/display/ili9341.py"
+    ],
+    [
+      "ft6x36.py",
+      "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
+    ],
+    [
+      "es8388.py",
+      "github:PyDevices/pydevices/drivers/codec/es8388.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1",
+  "description": "Ai-Thinker ESP32-Audio-Kit V2.2 with a 2.8\" ILI9341 IPS touch module - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
+}
