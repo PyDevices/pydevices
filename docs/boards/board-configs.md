@@ -99,6 +99,7 @@ An exact match for all four is rare; bus + display controller is usually enough 
 | `busdisplay/spi/ili9341_eyespi_qtpy_esp32s3` | Adafruit ESP32-S3 QT Py + EyeSPI ILI9341 |
 | `busdisplay/spi/ili9341_eyespi_qtpy_esp32` | Adafruit QT Py ESP32 Pico + EyeSPI ILI9341 |
 | `busdisplay/spi/ili9341_eyespi_qtpy_rp2040` | QT Py RP2040 + EyeSPI ILI9341 |
+| `busdisplay/spi/ili9341_esp32_audio_kit` | Ai-Thinker ESP32-Audio-Kit V2.2 + 2.8" ILI9341 IPS touch module |
 | `busdisplay/spi/ili9341_pico_uno` | Pico + UNO-style shield |
 | `busdisplay/spi/diy_esp32_ili9341_xpt2046` | DIY ESP32 + ILI9341 + XPT2046 |
 | `busdisplay/spi/esp32_wrover_e_st7789_joystick` | ESP32 WROVER-E + ST7789 + joystick |
