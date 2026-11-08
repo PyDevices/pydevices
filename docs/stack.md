@@ -98,6 +98,8 @@ and Android.
   Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
 - [`keys`](https://github.com/PyDevices/pydevices/blob/main/docs/modules.md): Name keys with SDL-style key codes and modifier masks.\
   Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
+- [`orientation`](https://github.com/PyDevices/pydevices/blob/main/docs/modules.md): Turn a screen to 0, 90, 180 or 270 degrees from an accelerometer's tilt, steady against a shaky hand.\
+  Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop.
 - [`backends`](https://github.com/PyDevices/pydevices/blob/main/docs/modules.md): Add a display or audio backend of your own, so the automatic choosers can pick it.\
   Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
 - [`appkit`](https://github.com/PyDevices/apps/tree/main/lib/appkit): Run several apps in one program, switch between them, and get each app's memory back when it closes.\
@@ -249,6 +251,8 @@ and Android.
   Get it: firmware build. Runs on: MP on ESP32-P4.
 - [`h264enc`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/h264enc): Encode RGB565 frames as H.264 in hardware.\
   Get it: firmware build. Runs on: MP on ESP32-P4.
+- [`mp4mux`](https://github.com/PyDevices/pydevices/blob/main/packages/mp4mux/README.md): Record H.264 video and PCM sound into an MP4 file that plays everywhere.\
+  Get it: `mip mp4mux`. Runs on: MP, CP, Desktop.
 - [`tsmux`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/tsmux): Wrap H.264 in MPEG-TS and cut it into HLS segments, so anything that plays HLS can watch a board.\
   Get it: firmware build. Runs on: MP.
 - [`castif`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/castif): Stream what your app draws to a screen across the room.\
@@ -276,7 +280,7 @@ and Android.
   Get it: from source. Runs on: MP.
 - [`Haptics`](https://github.com/PyDevices/pydevices/tree/main/drivers/haptic): Buzz a DRV2605 motor driver.\
   Get it: `mip` for some chips, otherwise from source. Runs on: MP.
-- [`IMUs`](https://github.com/PyDevices/pydevices/tree/main/drivers/imu): Read motion from BMA423, LIS3DH and QMI8658.\
+- [`IMUs`](https://github.com/PyDevices/pydevices/tree/main/drivers/imu): Read motion from BMA423, LIS3DH, QMA6100P and QMI8658.\
   Get it: `mip` for some chips, otherwise from source. Runs on: MP.
 - [`Buttons and keypads`](https://github.com/PyDevices/pydevices/tree/main/drivers/input): Wire physical buttons, keypads and encoders into `appdev`.\
   Get it: `mip` for some chips, otherwise from source. Runs on: MP.
@@ -402,8 +406,8 @@ and Android.
 - **J:** [`Joysticks`](#drive-a-chip), [`jpegio`](#draw-on-a-screen), [`jpegio for CPython`](#draw-on-a-screen), [`jupyter.py`](#run-somewhere-other-than-a-board)
 - **K:** [`keys`](#write-an-app)
 - **L:** [`LEDs`](#drive-a-chip), [`lib`](#find-the-projects-own-sites), [`lite-assistant`](#connect-devices), [`lvgl`](#draw-on-a-screen)
-- **M:** [`mdns`](#connect-devices), [`mdns for CPython`](#connect-devices), [`medialink`](#connect-devices), [`micropython shim`](#run-somewhere-other-than-a-board), [`midiEngine`](#run-a-finished-app), [`midiports`](#play-and-sequence-music), [`mip`](#find-the-projects-own-sites), [`mip for hosts`](#run-somewhere-other-than-a-board), [`MP3 player`](#run-a-finished-app), [`mpftp`](#set-up-a-board), [`mpvst`](#make-and-shape-sound), [`multimer`](#write-an-app)
-- **O:** [`Object detection`](#run-a-finished-app), [`omip`](#set-up-a-board), [`OmniPython firmware`](#set-up-a-board), [`Ostinato`](#run-a-finished-app)
+- **M:** [`mdns`](#connect-devices), [`mdns for CPython`](#connect-devices), [`medialink`](#connect-devices), [`micropython shim`](#run-somewhere-other-than-a-board), [`midiEngine`](#run-a-finished-app), [`midiports`](#play-and-sequence-music), [`mip`](#find-the-projects-own-sites), [`mip for hosts`](#run-somewhere-other-than-a-board), [`MP3 player`](#run-a-finished-app), [`mp4mux`](#use-cameras-video-and-ai-on-a-board), [`mpftp`](#set-up-a-board), [`mpvst`](#make-and-shape-sound), [`multimer`](#write-an-app)
+- **O:** [`Object detection`](#run-a-finished-app), [`omip`](#set-up-a-board), [`OmniPython firmware`](#set-up-a-board), [`orientation`](#write-an-app), [`Ostinato`](#run-a-finished-app)
 - **P:** [`palettes`](#draw-on-a-screen), [`pdwidgets`](#draw-on-a-screen), [`picotts`](#make-and-shape-sound), [`pngio`](#draw-on-a-screen), [`pngio for CPython`](#draw-on-a-screen), [`Power`](#drive-a-chip), [`ppa`](#draw-on-a-screen), [`pydevices-desktop`](#run-somewhere-other-than-a-board), [`PyDevices.github.io`](#find-the-projects-own-sites), [`pygraphics`](#draw-on-a-screen), [`pyscript-template`](#run-somewhere-other-than-a-board), [`pyscript.py`](#run-somewhere-other-than-a-board)
 - **R:** [`Radios`](#drive-a-chip), [`Real-time clocks`](#drive-a-chip), [`Roku remote`](#run-a-finished-app)
 - **S:** [`sayso`](#connect-devices), [`Security camera`](#run-a-finished-app), [`songmodel`](#play-and-sequence-music), [`Sound card`](#run-a-finished-app), [`soundmodule`](#play-and-sequence-music), [`spectrum`](#draw-on-a-screen), [`Spotify`](#run-a-finished-app), [`Stompbox`](#run-a-finished-app), [`Storage`](#drive-a-chip), [`Surveillance camera`](#run-a-finished-app), [`Synth Station`](#run-a-finished-app), [`synthio`](#make-and-shape-sound), [`System`](#run-a-finished-app)
