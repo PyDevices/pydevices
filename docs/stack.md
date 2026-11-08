@@ -185,7 +185,7 @@ and Android.
 ## Play and sequence music
 
 - [`midiports`](https://github.com/PyDevices/pydevices/tree/main/packages/midiports): Connect `adafruit_midi` to USB, UART, Web MIDI or a computer's own MIDI ports.\
-  Get it: `mip midiports`, `pip pydevices-desktop`. Runs on: MP, Desktop, Web.
+  Get it: `mip midiports`. Runs on: MP, Desktop, Web.
 - [`soundmodule`](https://github.com/PyDevices/apps/blob/main/docs/guides/play-the-sound-module.md): Play MIDI through a sound engine, headless from a port or through files.\
   Get it: `mip soundmodule`, `pip omnipython-applibs`. Runs on: MP, Desktop.
 - [`songmodel`](https://github.com/PyDevices/apps/tree/main/lib/songmodel): Edit a groovebox's song as plain data, and carry it to a front panel.\
