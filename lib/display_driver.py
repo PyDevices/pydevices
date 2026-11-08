@@ -563,6 +563,33 @@ class VirtualDevices:
 
 
 
+_lv_deinit_pending = False
+
+
+def _deinit_lvgl():
+    """``lv.deinit()`` now, or once LVGL returns when called from inside it.
+
+    A quit asked for from an LVGL timer, an event or an input read (closing
+    the window arrives in one) runs inside ``lv.timer_handler()``. Freeing
+    LVGL there leaves the handler walking freed timers: an access violation
+    on Windows, a load access fault on an ESP32-P4. So it waits until the
+    pass is over: the event loop's own pass ends with it, and a multimer
+    timer, which never fires inside an LVGL callback, catches the rest.
+    """
+    global _lv_deinit_pending
+    if _LV_NESTING is not None and _LV_NESTING.value:
+        if not _lv_deinit_pending:
+            _lv_deinit_pending = True
+            multimer.after(0, lambda _t: _deinit_lvgl())
+        return
+    _lv_deinit_pending = False
+    try:
+        if lv.is_initialized():
+            lv.deinit()
+    except Exception:
+        pass
+
+
 class event_loop:
     """The LVGL loop: one ``multimer`` timer that runs ``lv.timer_handler``.
 
@@ -692,6 +719,8 @@ class event_loop:
                 self.exception_sink(e)
         finally:
             self._in_task = False
+            if _lv_deinit_pending:
+                _deinit_lvgl()  # the program quit during the pass
         return None
 
     def tick(self):
@@ -821,11 +850,7 @@ def main():
         inst = event_loop.current_instance()
         if inst is not None:
             inst.deinit()
-        try:
-            if lv.is_initialized():
-                lv.deinit()
-        except Exception:
-            pass
+        _deinit_lvgl()
 
     app.before_quit = _lvgl_shutdown_before_quit
 
