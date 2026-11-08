@@ -1,3 +1,17 @@
+## v0.8.0.dev4 (2026-11-08)
+
+- display_driver: one-finger swipes take 50 px on a touch panel, not 255 (#458)
+- display_driver: quitting from inside LVGL no longer crashes on exit (#457)
+- medialink: Intercom ends a hands-free turn when voice is set to None (#452)
+- Stack: midiports comes with pydevices-desktop (#456)
+- midiports: pip install pydevices-desktop brings midiports and adafruit_midi (#453)
+- audiodev: a stall no longer cuts the lookahead back to max_catchup_chunks (#450)
+- Publishing: medialink, sayso and midiports reach the mip index (#455)
+- medialink: MicroWakeWord reports the model's latest probability (#454)
+- pydevices-desktop: install Pillow, which jpegio and pngio need on a desktop (#451)
+- display_driver: no timer callback runs while LVGL is inside a callback (#449)
+- GIGA Display Shield: audioeffects and audioinstruments in the ROMFS recipe (#447)
+
 ## v0.8.0.dev3 (2026-11-07)
 
 - AutoDisplay: with no desktop, SDL keeps the screen's mode (#443)
