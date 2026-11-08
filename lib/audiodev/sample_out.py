@@ -783,7 +783,13 @@ class AudioOut:
         frame_size = fmt.frame_size
         rate = float(fmt.rate)
         chunk_frames = max(1, int(rate * self.chunk_ms / 1000))
-        max_frames = chunk_frames * self._max_catchup_chunks
+        # The catch-up allowance counts from the lookahead, not from zero:
+        # the lookahead is part of what every tick asks for, so a limit
+        # below it would cut the queue back to `max_catchup_chunks` on the
+        # first stall (or the first pull) and it would never grow back. The
+        # limit bounds only the burst on top of the lookahead.
+        max_frames = chunk_frames * (self._lookahead_chunks
+                                     + self._max_catchup_chunks)
 
         now = ticks_ms()
         if self._sched_start_ms is None:
