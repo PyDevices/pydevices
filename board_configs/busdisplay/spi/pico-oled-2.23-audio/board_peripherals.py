@@ -104,6 +104,8 @@ _TXF0 = 0x010
 _COUNT = 0x0FFFFFFF
 # Bytes between the DMA and the first write after the ring runs dry: 3 ms.
 _LEAD = 512
+# The least room write() offers: about 6 ms at 44.1 kHz.
+_BLOCK = 1024
 
 
 def _log2(n):
@@ -208,9 +210,13 @@ class _PIOStream:
 
     def write(self, buf):
         room = self._played()
-        n = min(len(buf), max(0, room)) & ~3
-        if n <= 0:
+        # Room is offered in blocks, as a DMA ring of buffers would. Offered
+        # a few samples at a time, a caller that writes until it's refused
+        # (audiodev's PaceOutput does) is never refused and waits out the
+        # whole queue.
+        if room < _BLOCK:
             return 0
+        n = min(len(buf), room) & ~3
         src = memoryview(buf)
         w = self._write
         first = min(n, self._size - w)
