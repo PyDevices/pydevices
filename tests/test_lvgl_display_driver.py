@@ -45,10 +45,10 @@ from displaydev import DisplayDriver
 DISPLAY_DRIVER = _env.ROOT / "lib" / "display_driver.py"
 
 
-def _class_source(name):
+def _class_source(name, kind=ast.ClassDef):
     source = DISPLAY_DRIVER.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(DISPLAY_DRIVER))
-    node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == name)
+    node = next(n for n in tree.body if isinstance(n, kind) and n.name == name)
     text = ast.get_source_segment(source, node)
     assert text, "could not extract %s" % name
     return text
@@ -135,6 +135,7 @@ def _event_loop_class(lv_module, clock, nesting=None):
             # The module resolves this once at import: the binding's counter
             # on MicroPython / CircuitPython, None on CPython.
             "_LV_NESTING": nesting,
+            "_lv_deinit_pending": False,
         },
     )
 
@@ -351,6 +352,50 @@ class TestNestingGate(unittest.TestCase):
         passes, errors = self._task_handler(None)
         self.assertEqual([], errors)
         self.assertEqual(1, passes)
+
+
+# -- quitting inside a pass -----------------------------------------------------
+
+
+class TestQuitInsidePass(unittest.TestCase):
+    """A quit from an LVGL timer, event or input read (a window closing) runs
+    inside ``lv.timer_handler()``: ``lv.deinit()`` waits until the pass ends."""
+
+    def test_deinit_waits_for_the_pass(self):
+        clock = _Clock()
+        lv, _calls = _mock_lv(clock, 1, wanted=10)
+        nesting = _NestingCounter(0)
+        state = {"initialized": True, "deinit": 0, "during": None}
+        lv.is_initialized = lambda: state["initialized"]
+
+        def deinit():
+            state["deinit"] += 1
+            state["initialized"] = False
+
+        lv.deinit = deinit
+        Loop = _event_loop_class(lv, clock, nesting=nesting)
+        ns = Loop.__init__.__globals__
+        deferred = []
+        ns["multimer"].after = lambda ms, cb: deferred.append(cb)
+        exec(compile(_class_source("_deinit_lvgl", ast.FunctionDef), str(DISPLAY_DRIVER), "exec"), ns)
+        loop = Loop(period_ms=10)
+        loop._pause = 0
+
+        def timer_handler():
+            nesting.value = 1  # inside an LVGL callback
+            ns["_deinit_lvgl"]()  # the program quits from it
+            state["during"] = state["deinit"]
+            nesting.value = 0
+            return 10
+
+        lv.timer_handler = timer_handler
+        loop.task_handler()
+        self.assertEqual(0, state["during"])
+        self.assertEqual(1, state["deinit"])
+        # The fallback timer finds it done.
+        for cb in deferred:
+            cb(None)
+        self.assertEqual(1, state["deinit"])
 
 
 # -- direct panels ------------------------------------------------------------
