@@ -74,6 +74,23 @@ EXPECTED = {
             "ble",
         },
     },
+    "esp32-p4x-eye": {
+        "path": "busdisplay/spi/esp32-p4x-eye",
+        "eager_encoder": True,
+        "eager_keypad": True,
+        "devices": {
+            "pcm_in",
+            "sdcard",
+            "camera",
+            "led",
+            "accelerometer",
+            "i2c",
+            "sleep",
+            "usb_device",
+            "wlan",
+            "ble",
+        },
+    },
     "t-hmi": {
         "path": "busdisplay/i80/t-hmi",
         "eager_touch": True,
