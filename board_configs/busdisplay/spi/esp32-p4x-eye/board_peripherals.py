@@ -111,12 +111,19 @@ def _i2c_bus():
 
     Nothing in board_config uses this bus, so this module owns it, and a
     non-graphics app importing only this module gets the same object.
+
+    The camera shares the bus, and while it is unpowered its I2C pads clamp
+    both lines low, so the accelerometer cannot answer. Powering the camera
+    here (GPIO 12 high) keeps the bus usable whether or not the app ever
+    opens the camera; ``camera()`` leaves it on and ``sleep(deep=True)``
+    holds it off.
     """
     global _i2c_own
 
     if _i2c_own is None:
         from machine import I2C, Pin
 
+        Pin(_CAM_EN, Pin.OUT, value=1, hold=False)
         _i2c_own = I2C(_I2C_PORT, scl=Pin(_I2C_SCL), sda=Pin(_I2C_SDA), freq=400_000)
     return _i2c_own
 
