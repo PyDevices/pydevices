@@ -754,6 +754,34 @@ class AudioOutTests(unittest.TestCase):
         self.assertEqual(written, len(transport.data),
                          "the pump pulled against a draining backlog")
 
+    def test_a_stall_keeps_a_lookahead_above_the_catchup_limit(self):
+        # pydevices#394: the catch-up limit counts from the lookahead, so a
+        # lookahead larger than `max_catchup_chunks` survives a stall. The
+        # device here plays its queue in real time, so what it holds after
+        # each tick is the latency the pump really keeps.
+        rate = 8000
+        fmt = AudioFormat(rate, 1, 16)
+        clock = self.clock
+
+        class Device(FakePCMOutput):
+            def queued_size(self):
+                consumed = clock.now * rate // 1000 * 2
+                return max(0, len(self.data) - consumed)
+
+        device = Device(fmt)
+        out = self.sample_out.AudioOut(device, chunk_ms=10, lookahead_chunks=12,
+                                       max_catchup_chunks=5)
+        out.play(FakeSample([bytes(160) for _ in range(2000)]))
+        chunk = 80 * 2
+        self.assertGreaterEqual(device.queued_size(), 12 * chunk,
+                                "the first pull stopped short of the lookahead")
+        # A tick every 10 ms, then one 70 ms stall, then ticks again.
+        for gap in [10] * 20 + [70] + [10] * 20:
+            clock.advance(gap)
+            out.service()
+        self.assertGreaterEqual(device.queued_size(), 12 * chunk,
+                                "a stall cut the lookahead back to the catch-up limit")
+
     def test_channel_adapter_forwards_the_priming_threshold(self):
         # `ChannelAdapter` is not hypothetical: this repository ships it and
         # calls it "the producer-facing PCMOutput". It is what a mono graph

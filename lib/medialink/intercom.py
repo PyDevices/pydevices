@@ -264,8 +264,9 @@ class Intercom:
             self._send(view, _p.START if self._first else 0)
             self._first = False
             self._filled = 0
-            if self._auto and not self.voice.feed(view):
-                # Quiet for long enough: hand the floor back, and listen.
+            if self._auto and (self.voice is None or not self.voice.feed(view)):
+                # Quiet for long enough, or hands-free switched off: hand
+                # the floor back.
                 self._talking = False
                 self._auto = False
                 self._send(b"", _p.END)

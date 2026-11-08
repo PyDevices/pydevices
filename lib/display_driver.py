@@ -563,6 +563,33 @@ class VirtualDevices:
 
 
 
+_lv_deinit_pending = False
+
+
+def _deinit_lvgl():
+    """``lv.deinit()`` now, or once LVGL returns when called from inside it.
+
+    A quit asked for from an LVGL timer, an event or an input read (closing
+    the window arrives in one) runs inside ``lv.timer_handler()``. Freeing
+    LVGL there leaves the handler walking freed timers: an access violation
+    on Windows, a load access fault on an ESP32-P4. So it waits until the
+    pass is over: the event loop's own pass ends with it, and a multimer
+    timer, which never fires inside an LVGL callback, catches the rest.
+    """
+    global _lv_deinit_pending
+    if _LV_NESTING is not None and _LV_NESTING.value:
+        if not _lv_deinit_pending:
+            _lv_deinit_pending = True
+            multimer.after(0, lambda _t: _deinit_lvgl())
+        return
+    _lv_deinit_pending = False
+    try:
+        if lv.is_initialized():
+            lv.deinit()
+    except Exception:
+        pass
+
+
 class event_loop:
     """The LVGL loop: one ``multimer`` timer that runs ``lv.timer_handler``.
 
@@ -692,6 +719,8 @@ class event_loop:
                 self.exception_sink(e)
         finally:
             self._in_task = False
+            if _lv_deinit_pending:
+                _deinit_lvgl()  # the program quit during the pass
         return None
 
     def tick(self):
@@ -821,11 +850,7 @@ def main():
         inst = event_loop.current_instance()
         if inst is not None:
             inst.deinit()
-        try:
-            if lv.is_initialized():
-                lv.deinit()
-        except Exception:
-            pass
+        _deinit_lvgl()
 
     app.before_quit = _lvgl_shutdown_before_quit
 
@@ -942,6 +967,12 @@ def _make_touch_cb(device):
     return _touch_cb
 
 
+#: How far one finger travels for LVGL's GESTURE (a swipe): LVGL's default.
+SWIPE_PX = 50
+#: How far two fingers' centre travels for a two-finger swipe, the most LVGL
+#: takes: lower, and a two-finger swipe steals a pinch.
+TWO_FINGER_SWIPE_PX = 255
+
 # CPython: module-level lv.indev_gesture_recognizers_*; MP/CP: indev methods.
 _GESTURE_UPDATE = hasattr(lv, "indev_touch_data_t")
 # LVGL ``LV_GESTURE_MAX_POINTS`` is 2; finger id is stored as int8_t (-1 = free).
@@ -1033,12 +1064,29 @@ def _gesture_track_slots(dev_key, points, now):
     return pressed, released
 
 
-def _gesture_recognizers_update(indev, touches, touch_cnt):
-    fn = getattr(lv, "indev_gesture_recognizers_update", None)
+def _set_gesture_min_distance(indev, distance):
+    fn = getattr(lv, "indev_set_gesture_min_distance", None)
     if fn is not None:
-        fn(indev, touches, touch_cnt)
-    else:
-        indev.gesture_recognizers_update(touches, touch_cnt)
+        fn(indev, distance)
+    elif hasattr(indev, "set_gesture_min_distance"):
+        indev.set_gesture_min_distance(distance)
+
+
+def _gesture_recognizers_update(indev, touches, touch_cnt, fingers=0):
+    # LVGL's two-finger swipe and its one-finger GESTURE read the same
+    # gesture_min_distance, but at different times: the recognizers here, in
+    # the read callback, and the one-finger check after the read. So the
+    # two-finger distance is in force for this call, and stays while two
+    # fingers are down, so a pinch's moving finger isn't taken for a swipe.
+    _set_gesture_min_distance(indev, TWO_FINGER_SWIPE_PX)
+    try:
+        fn = getattr(lv, "indev_gesture_recognizers_update", None)
+        if fn is not None:
+            fn(indev, touches, touch_cnt)
+        else:
+            indev.gesture_recognizers_update(touches, touch_cnt)
+    finally:
+        _set_gesture_min_distance(indev, TWO_FINGER_SWIPE_PX if fingers > 1 else SWIPE_PX)
 
 
 def _gesture_recognizers_set_data(indev, data):
@@ -1056,7 +1104,8 @@ def _configure_gesture_recognizers(indev):
     ``rotation_angle_rad_threshold == 0``, any tiny twist becomes RECOGNIZED
     and ``recognizers_update`` resets the still-ONGOING pinch. Two-finger
     swipe can steal the same way once the contact center moves
-    ``gesture_min_distance`` pixels.
+    ``gesture_min_distance`` pixels, so it gets ``TWO_FINGER_SWIPE_PX``, and
+    a one-finger swipe keeps ``SWIPE_PX``.
     """
     if not _GESTURE_UPDATE:
         return
@@ -1067,11 +1116,18 @@ def _configure_gesture_recognizers(indev):
     elif hasattr(indev, "set_rotation_rad_threshold"):
         indev.set_rotation_rad_threshold(3.5)
 
-    set_md = getattr(lv, "indev_set_gesture_min_distance", None)
-    if set_md is not None:
-        set_md(indev, 255)
-    elif hasattr(indev, "set_gesture_min_distance"):
-        indev.set_gesture_min_distance(255)
+    # One finger: LVGL's own distance. A two-finger swipe gets
+    # TWO_FINGER_SWIPE_PX while the recognizers run and two fingers are down (see
+    # _gesture_recognizers_update).
+    _set_gesture_min_distance(indev, SWIPE_PX)
+    # LVGL restarts a swipe's count whenever a read moves less than the
+    # minimum velocity, and touch chips repeat a position between reads, so
+    # a slow swipe never added up. 0 never restarts it.
+    set_mv = getattr(lv, "indev_set_gesture_min_velocity", None)
+    if set_mv is not None:
+        set_mv(indev, 0)
+    elif hasattr(indev, "set_gesture_min_velocity"):
+        indev.set_gesture_min_velocity(0)
 
     # Laptop touchscreens rarely hit the stock 0.75 / 1.5 pinch gates cleanly.
     set_down = getattr(lv, "indev_set_pinch_down_threshold", None)
@@ -1133,7 +1189,7 @@ def _gesture_feed(indev, data, device):
         t.timestamp = ts
         idx += 1
 
-    _gesture_recognizers_update(indev, _gesture_touches, idx)
+    _gesture_recognizers_update(indev, _gesture_touches, idx, len(pressed))
     _gesture_recognizers_set_data(indev, data)
     st = _touch_state_for(device)
     data.point = lv.point_t({"x": st["x"], "y": st["y"]})

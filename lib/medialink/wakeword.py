@@ -70,6 +70,11 @@ class MicroWakeWord:
         self._filled = 0
         self._newest = 0
 
+    @property
+    def probability(self):
+        """The model's latest output, 0.0 to 1.0, for a score meter."""
+        return self._newest / 255
+
     def _fill(self, buffer, shape, dtype):
         buffer[:] = self._group
 

@@ -176,6 +176,12 @@ class MicroWakeWord(unittest.TestCase):
         self.assertEqual(spotter.model.inputs[0], bytes([1]) * 40 + bytes([2]) * 40 + bytes([3]) * 40)
         self.assertEqual(spotter.model.inputs[1], bytes([4]) * 40 + bytes([5]) * 40 + bytes([6]) * 40)
 
+    def test_it_reports_the_latest_probability(self):
+        spotter, _ = self.spot([255, 0, 0], 6)
+        self.assertEqual(spotter.probability, 0.0)
+        spotter, _ = self.spot([0, 255], 3)
+        self.assertEqual(spotter.probability, 1.0)
+
     def test_one_high_probability_is_not_enough(self):
         _, fired = self.spot([0, 0, 255, 0, 0, 0], 12)
         self.assertEqual(fired, [])

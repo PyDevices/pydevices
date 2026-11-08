@@ -59,9 +59,15 @@ class TestTopLevelPackages(unittest.TestCase):
     def test_every_section_is_a_directory_with_a_manifest_and_no_other_keys(self):
         for package, section in top_level_sections(load_split()).items():
             with self.subTest(package=package):
-                self.assertEqual(set(section), {"top-level"}, "the manifest.py says everything else")
+                self.assertEqual(set(section) - {"pypi-desktop"}, {"top-level"}, "the manifest.py says everything else")
                 self.assertTrue((package_dir(package) / "manifest.py").is_file(), f"{package}/manifest.py")
                 self.assertFalse((ROOT / "lib" / package).exists(), f"lib/{package} would be ambiguous")
+
+    def test_a_package_for_the_desktop_wheel_lists_its_files(self):
+        for package, section in top_level_sections(load_split()).items():
+            if section.get("pypi-desktop"):
+                with self.subTest(package=package):
+                    self.assertTrue((package_dir(package) / "package.json").is_file(), f"{package}/package.json")
 
     def test_every_package_directory_is_listed(self):
         listed = set(top_level_sections(load_split()))

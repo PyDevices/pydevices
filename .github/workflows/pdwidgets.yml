@@ -67,7 +67,7 @@ jobs:
         run: sphinx-build -W --keep-going -b html packages/pdwidgets/docs _site/pdwidgets
 
   validate-pyscript-filesystem-toml:
-    uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v14
+    uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v22
     with:
       config-path: packages/pdwidgets/pdwidgets.toml
       source-mappings: packages/pdwidgets/lib=/lib

@@ -69,7 +69,7 @@ PYPI_DISTRIBUTIONS = frozenset({"pydevices", "pydevices-desktop"})
 
 #: Every key a mip-split.toml section may use. An unknown key fails the
 #: build, so a misspelt ``own-package`` can't quietly ship inside pydevices.
-MIP_SPLIT_KEYS = frozenset({"host-only", "own-package", "requires", "pypi-extras", "top-level"})
+MIP_SPLIT_KEYS = frozenset({"host-only", "own-package", "requires", "pypi-extras", "pypi-desktop", "top-level"})
 
 #: The desktop package ships utils/ plus this board config, whole.
 DESKTOP_BOARD_DIR = "board_configs/desktop"
@@ -290,7 +290,7 @@ def read_split(root: Path) -> dict[str, dict]:
         if unknown:
             raise BuildError(f"{MIP_SPLIT_FILE} [{package}] has unknown keys: {', '.join(unknown)}")
         if section.get("top-level"):
-            extra = sorted(set(section) - {"top-level"})
+            extra = sorted(set(section) - {"top-level", "pypi-desktop"})
             if extra:
                 raise BuildError(
                     f"{MIP_SPLIT_FILE} [{package}] is top-level, so it takes no other keys "

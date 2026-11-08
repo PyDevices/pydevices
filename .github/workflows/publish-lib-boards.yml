@@ -44,7 +44,7 @@ jobs:
 
   request-library-publication:
     needs: version
-    uses: PyDevices/.github/.github/workflows/reusable-request-mip-publication.yml@publishing-v15
+    uses: PyDevices/.github/.github/workflows/reusable-request-mip-publication.yml@publishing-v22
     with:
       release-ref: ${{ github.sha }}
       version: ${{ needs.version.outputs.version }}
