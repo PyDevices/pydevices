@@ -1288,6 +1288,12 @@ class PaceOutput(PCMOutput):
                 return
             self._r = (self._r + written) % n
             self._held -= written
+            if written < take:
+                # The device is full: it took only the room that freed up
+                # while it was called. Asking again would chase the DAC a
+                # few samples at a time until the stash ran out, so write()
+                # waited out the whole queue and space() never fell.
+                return
 
     def _drop_to_cap(self):
         if self._held <= self._cap:

@@ -1285,6 +1285,50 @@ class PaceOutputTests(unittest.TestCase):
         finally:
             module._pace_sleep_ms = old
 
+    def test_write_returns_when_the_device_frees_room_a_few_samples_at_a_time(self):
+        # A 16 KB ring draining at 44.1 kHz stereo, where each write costs
+        # 0.5 ms of DAC time: by the next call, 0.5 ms more has played, so a
+        # full ring always takes a few bytes. Before the fix, _flush chased
+        # that trickle until the stash was empty, so every write() waited out
+        # the queue in real time and space() never fell (pydevices#464).
+        class TrickleRing(FakePCMOutput):
+            COST_BYTES = 88  # 0.5 ms at 176400 B/s, whole frames
+
+            def __init__(self, fmt):
+                super().__init__(fmt)
+                self.queued = 0
+                self.calls = 0
+
+            def _write(self, buf):
+                self.calls += 1
+                self.queued = max(0, self.queued - self.COST_BYTES)
+                take = min(len(buf), 16384 - self.queued)
+                take -= take % self.format.frame_size
+                self.queued += take
+                self.data.extend(buf[:take])
+                return take
+
+        inner = TrickleRing(AudioFormat(44100, 2, 16))
+        pcm = pace_output(inner)
+        pcm.open()
+        chunk = bytes(2048)
+        spaces = []
+        # Write the way a player loop does: only while space() has room for
+        # another chunk. space() has to fall for the loop to get a turn.
+        for _ in range(24):
+            if pcm.space() < len(chunk):
+                break
+            before = inner.calls
+            pcm.write(chunk)
+            # Each call is 0.5 ms of DAC time, so a write that waits out the
+            # stash makes dozens of them; one that returns makes a handful.
+            self.assertLessEqual(inner.calls - before, 4)
+            spaces.append(pcm.space())
+        else:
+            self.fail("space() never fell below a chunk: %r" % spaces)
+        self.assertEqual(sorted(spaces, reverse=True), spaces)
+        self.assertEqual(0, pcm.lost_bytes)
+
     def test_space_is_zero_when_stash_is_at_cap(self):
         class Closed(FakePCMOutput):
             def _write(self, buf):
