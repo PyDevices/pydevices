@@ -11,6 +11,7 @@ metadata(
 require("pydevices")
 require("st7789")
 require("keypad_gpio")
+require("qma6100p")
 
 module("board_config.py")
 module("board_peripherals.py")

@@ -13,5 +13,7 @@ instead.
 
 .. automodule:: keys
 
+.. automodule:: orientation
+
 .. automodule:: wifi_manager
 ```

@@ -15,6 +15,10 @@
     [
       "keypad_gpio.py",
       "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
+    ],
+    [
+      "qma6100p.py",
+      "github:PyDevices/pydevices/drivers/imu/qma6100p.py"
     ]
   ],
   "deps": [

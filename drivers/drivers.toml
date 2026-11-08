@@ -230,6 +230,11 @@ version = "0.1.0"
 description = "PI4IOE5V6408 I2C GPIO expander (M5Stack Tab5 LCD reset path)"
 modules = ["io_expander/pi4ioe5v.py"]
 
+[qma6100p]
+version = "0.1.0"
+description = "QST QMA6100P accelerometer"
+modules = ["imu/qma6100p.py"]
+
 [qmi8658]
 version = "0.1.0"
 description = "QMI8658 6-axis IMU"
