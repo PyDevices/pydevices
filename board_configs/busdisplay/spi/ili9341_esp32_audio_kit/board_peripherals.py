@@ -190,6 +190,7 @@ audio_power = _audio_power
 def sdcard():
     """The kit's microSD slot in 1-bit mode (CLK IO14, CMD IO15, D0 IO2).
 
+    It has to stay 1-bit: IO12, the 4-bit D2, is the display's chip select.
     CMD reaches IO15 through DIP switch 3, which must be on.
     """
     from machine import SDCard
