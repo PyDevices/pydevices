@@ -70,7 +70,7 @@ jobs:
         run: sphinx-build -W --keep-going -b html packages/palettes/docs _site/palettes
 
   validate-pyscript-filesystem-toml:
-    uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v14
+    uses: PyDevices/.github/.github/workflows/reusable-validate-pyscript-filesystem-toml.yml@publishing-v22
     with:
       config-path: packages/palettes/palettes.toml
       source-mappings: packages/palettes/lib=/lib
