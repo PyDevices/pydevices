@@ -11,6 +11,10 @@
     [
       "ssd1305.py",
       "github:PyDevices/pydevices/drivers/display/ssd1305.py"
+    ],
+    [
+      "spibus.py",
+      "github:PyDevices/pydevices/drivers/bus/spibus.py"
     ]
   ],
   "deps": [

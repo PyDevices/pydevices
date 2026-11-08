@@ -10,6 +10,7 @@ metadata(
 
 require("pydevices")
 require("ssd1305")
+require("spibus")  # a firmware with its own spibus uses that one
 
 module("board_config.py")
 module("board_peripherals.py")
