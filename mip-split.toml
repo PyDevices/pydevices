@@ -123,9 +123,15 @@ own-package = true
 #
 # midiports reaches the index without Adafruit's adafruit_midi, which is not a
 # package in any mip index: install it as packages/midiports/README.md says.
+#
+# `pypi-desktop = true` also ships the package inside pydevices-desktop on PyPI,
+# for the people who have no mip: the wheel carries the files its package.json
+# lists, adafruit_midi at its pinned tag among them. The only key a top-level
+# section may add.
 
 [midiports]
 top-level = true
+pypi-desktop = true
 
 [hmilink]
 top-level = true

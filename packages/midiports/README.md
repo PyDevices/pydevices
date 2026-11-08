@@ -21,6 +21,9 @@ while True:
         print(msg)
 ```
 
+On a desktop, `pip install pydevices-desktop` installs `midiports` and
+`adafruit_midi` together; on a board, install with `mip`.
+
 To use another transport, change the line that opens the ports:
 
 | Transport | The ports line |
