@@ -77,6 +77,12 @@ with each kind of peripheral described honestly by its role.
 - A BLE transport, using ADPCM to fit its bandwidth, for boards with no
   Wi-Fi between them.
 
+## mp4mux
+
+- Fragmented MP4 as an option, so a recording cut off by a power loss still
+  plays up to its last fragment instead of needing a repair tool.
+- 64-bit chunk offsets, for recordings past 4 GB in one file.
+
 ## Backends
 
 - The backend registry leaves experimental. `backends.register()` and
