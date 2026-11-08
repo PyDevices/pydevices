@@ -10,6 +10,10 @@ headphone jack and two NS4150B speaker amplifiers, which IO21 switches on.
 Its ADC reads the kit's two microphones, or the line-in jack. None of these
 pins reach the kit's headers, so nothing the display uses can collide with
 them.
+
+Many of these kits ship with the microphones' two coupling capacitors on the
+wrong pads, and their microphones record only noise until those are moved.
+The line-in jack works either way.
 """
 
 import sys
@@ -186,12 +190,13 @@ def _duplex_pump():
 def _input_power(enable, which):
     codec = _output_codec()
     if enable:
-        from es8388 import INPUT1, INPUT2
+        from es8388 import DIFFERENTIAL, INPUT2
 
-        # The microphones want the amplifier's full 24 dB; a line is loud
-        # already, and clips with any.
+        # The two microphones are wired differentially into input 1 and need
+        # the mic bias, and the amplifier's full 24 dB. A line is loud
+        # already, and clips with any gain.
         codec.mic_gain = 24 if which == MIC else 0
-        codec.enable_input(True, INPUT1 if which == MIC else INPUT2)
+        codec.enable_input(True, DIFFERENTIAL if which == MIC else INPUT2)
     else:
         codec.enable_input(False)
 

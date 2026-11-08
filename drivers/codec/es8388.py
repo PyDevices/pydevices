@@ -25,6 +25,7 @@ I2C_ADDR = const(0x10)
 # ADC inputs: the pair of pins each side of the ADC reads.
 INPUT1 = const(1)  # LINPUT1/RINPUT1
 INPUT2 = const(2)  # LINPUT2/RINPUT2
+DIFFERENTIAL = const(3)  # LINPUT1 - RINPUT1 on both channels, mic bias on
 
 
 def _sleep_ms(milliseconds):
@@ -119,12 +120,14 @@ class ES8388:
 
         Args:
             enable: True records, False powers the ADC down.
-            input: `INPUT1` or `INPUT2`, the pins the ADC reads. Defaults
-                to the last one chosen, `INPUT1` at first.
+            input: `INPUT1` or `INPUT2`, the pins the ADC reads, or
+                `DIFFERENTIAL` for a microphone wired across both input 1
+                pins, which also turns the mic bias on. Defaults to the last
+                one chosen, `INPUT1` at first.
         """
         if input is not None:
-            if input not in (INPUT1, INPUT2):
-                raise ValueError("input is INPUT1 or INPUT2")
+            if input not in (INPUT1, INPUT2, DIFFERENTIAL):
+                raise ValueError("input is INPUT1, INPUT2 or DIFFERENTIAL")
             self.input = input
         if not enable:
             self._wr(0x03, 0xFF)  # ADC, its inputs and the mic bias off
@@ -135,13 +138,16 @@ class ES8388:
         # The ADC takes its frame clock from the DAC's LRCK pin: one clock
         # for both directions, as I2S full duplex has.
         self._wr(0x2B, 0x80)
-        self._wr(0x0A, 0x00 if self.input == INPUT1 else 0x50)
+        self._wr(0x0A, {INPUT1: 0x00, INPUT2: 0x50, DIFFERENTIAL: 0xF0}[self.input])
         self._wr(0x0B, 0x02)
         self._wr(0x0C, 0x0C)  # 16-bit I2S
         self._wr(0x0D, 0x02)  # single speed, MCLK = 256 fs
         self.set_mic_gain(self.mic_gain)
         self.set_adc_volume(self.input_volume)
-        self._wr(0x03, 0x09)  # ADC and both inputs on, mic bias off
+        if self.input == DIFFERENTIAL:
+            self._wr(0x03, 0x00)  # ADC, both inputs and the mic bias on
+        else:
+            self._wr(0x03, 0x09)  # ADC and both inputs on, mic bias off
         self.input_enabled = True
 
     def set_mic_gain(self, db):
