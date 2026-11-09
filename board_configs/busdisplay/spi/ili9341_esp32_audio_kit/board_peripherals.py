@@ -334,20 +334,22 @@ def wlan():
 def bt():
     """A Bluetooth audio receiver: the kit as a speaker for a phone or computer.
 
-    Needs firmware built with the btaudio module. Wi-Fi and Bluetooth share
+    Needs firmware built with the btclassic module. Wi-Fi and Bluetooth share
     the radio, so turn Wi-Fi off while playing.
     """
     try:
-        import btaudio
+        import btclassic
     except ImportError:
-        raise ImportError("bt needs firmware built with the btaudio module") from None
-    return btaudio.Receiver()
+        raise ImportError("bt needs firmware built with the btclassic module") from None
+    # A second of buffer rides out the phone's bursts; at the default half
+    # second a phone's tone came back with repeats every few seconds.
+    return btclassic.AudioSink(btclassic.Bluetooth(), buffer_ms=1000)
 
 
 def ble():
     # A bledev adapter (docs/guides/bluetooth-le.md). It also answers every
     # bluetooth.BLE method, so code written for the raw radio keeps working.
-    # Firmware built with btaudio has no BLE: one Bluetooth host at a time.
+    # Firmware built with btclassic has no BLE: one Bluetooth host at a time.
     try:
         import bledev.mpble
     except ImportError:
