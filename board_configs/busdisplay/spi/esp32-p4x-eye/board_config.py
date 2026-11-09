@@ -34,7 +34,9 @@ from machine import Encoder, Pin
 from spibus import SPIBus
 from st7789 import ST7789
 
-_bus_kw = dict(id=2, baudrate=40_000_000, sck=17, mosi=16, miso=-1, command=19, chip_select=18, reset=15)
+# 80 MHz, the clock the factory firmware drives this ST7789 at. A 240x240
+# frame takes 12.4 ms on the wire; at 40 MHz it took 23.9 ms.
+_bus_kw = dict(id=2, baudrate=80_000_000, sck=17, mosi=16, miso=-1, command=19, chip_select=18, reset=15)
 try:
     # The DMA bus: queue at most 32 KB. A 1080p H.264 encoder needs 155 KB of
     # this board's internal RAM in one piece, and the 128 KB default left none.
