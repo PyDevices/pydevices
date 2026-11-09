@@ -155,7 +155,7 @@ class MSCInterface(Interface):
         self._state = _IDLE
 
     def on_interface_control_xfer(self, stage, request):
-        bmRequestType, bRequest, _, _, _ = request
+        bmRequestType, bRequest, _, _, _ = struct.unpack("BBHHH", request)
         _, req_type, _ = split_bmRequestType(bmRequestType)
         if req_type != _REQ_TYPE_CLASS:
             return False
