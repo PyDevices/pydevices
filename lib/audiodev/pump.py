@@ -608,6 +608,11 @@ class Prefetch:
             frames=frames,
             capacity=int(capacity),
         )
+        # The most one service() call writes: one ring's worth. Without a
+        # bound, a source that decodes slower than the pump drains (an MP3
+        # decoder short of CPU) never fills the ring, so the call never
+        # returned and the app's own tick stopped with it.
+        self._room = int(capacity) * block
         audiocore.reset_buffer(sample)
 
     def service(self, limit=None):
@@ -620,6 +625,11 @@ class Prefetch:
         nothing counts, because ``wrote`` is only told about what reached the
         ring. A tick that finds this busy does nothing and the next one tops
         the ring up instead; the ring is deeper than a tick by construction.
+
+        It always comes back: when the ring is full, when the source has
+        nothing ready (a stream waiting on the network), or after one ring's
+        worth of bytes if *limit* is not given, so a source slower than real
+        time can't hold the caller here.
         """
         if self._feeding:
             return 0
@@ -630,6 +640,8 @@ class Prefetch:
             self._feeding = False
 
     def _service(self, limit=None):
+        if limit is None:
+            limit = self._room
         wrote = 0
         while True:
             if self._held is None:
@@ -645,9 +657,11 @@ class Prefetch:
                     else:
                         self.done = True
                 if not buf:
-                    if self.done:
+                    if self.done or result == GET_BUFFER_MORE_DATA:
+                        # Done, or a stream with nothing ready yet: spinning
+                        # here would hold the caller until data arrived.
                         return wrote
-                    continue
+                    continue       # a looping file just rewound
             view = memoryview(self._held)[self._at :]
             took = self.ring.write(view)
             self._at += took
@@ -658,7 +672,7 @@ class Prefetch:
                 self._at = 0
             if took == 0:
                 return wrote       # the ring is full; come back next tick
-            if limit is not None and wrote >= limit:
+            if wrote >= limit:
                 return wrote
 
     def _flush_tail(self):

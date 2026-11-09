@@ -2008,6 +2008,53 @@ class AFileGoesThroughPrefetch(PumpFixture):
         self.assertGreater(prefetch.wrote, 2 * 512,
                            "the loop never came round")
 
+    def test_a_stream_with_nothing_ready_hands_the_tick_back(self):
+        """A network stream answers "more to come, nothing yet" until its
+        bytes arrive. service() spun on that answer, so the app's tick
+        stopped until the network delivered."""
+        sample = self.wave(blocks=4, block=1024)
+        asked = []
+
+        def waiting():
+            asked.append(1)
+            if len(asked) > 100:
+                raise AssertionError("service() is still asking the stream")
+            return b""
+
+        sample.next_block = waiting
+        prefetch = pump_mod.Prefetch(sample, frames=256)
+        self.addCleanup(prefetch.deinit)
+        self.assertEqual(prefetch.service(), 0)
+        self.assertFalse(prefetch.done)
+
+    def test_a_source_slower_than_the_pump_hands_the_tick_back(self):
+        """An MP3 decoder short of CPU decodes slower than the pump drains,
+        so the ring never fills. service() waited for a full ring and never
+        came back to the app."""
+        sample = self.wave(blocks=4, block=1024)
+        prefetch = pump_mod.Prefetch(sample, frames=256, loop=True)
+        self.addCleanup(prefetch.deinit)
+        ring = prefetch.ring
+        pulled = []
+        real = sample.next_block
+
+        def counted():
+            pulled.append(1)
+            if len(pulled) > 100:
+                raise AssertionError("service() never handed the tick back")
+            return real()
+
+        sample.next_block = counted
+
+        def drained(view):
+            # The pump takes each block as soon as it lands.
+            return len(view)
+
+        ring.write = drained
+        wrote = prefetch.service()
+        self.assertGreater(wrote, 0)
+        self.assertLessEqual(len(pulled), ring.room // 1024 + 1)
+
     def test_a_build_with_no_ring_says_so(self):
         """An older pump, or one built without the ring: a file-backed source
         has nowhere to go and must say which name is missing."""
