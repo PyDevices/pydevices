@@ -54,6 +54,8 @@ class FakeDuplexDriver:
         if not self.holds & 2:
             raise OSError(19)
         self.reads += 1
+        # Like the C driver: raw bytes into whatever buffer it is handed.
+        buf = memoryview(buf).cast("B")
         n = min(len(buf), len(self.ring))
         n -= n % 2
         buf[:n] = self.ring[:n]
