@@ -8,6 +8,8 @@ Each one says in its docstring what it needs and where it has been run.
 | [appdev_simpletest.py](appdev_simpletest.py) | A timer, a tap and a key driving a box on the screen |
 | [appdev_touch_calibrate.py](appdev_touch_calibrate.py) | Finding the touch_rotation_table for a board_config by touching four corners |
 | [audiodev_simpletest.py](audiodev_simpletest.py) | Four notes from synthio through the board's speaker |
+| [audiodev_mp3_player.py](audiodev_mp3_player.py) | Every MP3 file in a folder on the microSD card, one after another |
+| [audiodev_voice_recorder.py](audiodev_voice_recorder.py) | The board's microphone recorded to a WAV file on the microSD card |
 | [bledev_simpletest.py](bledev_simpletest.py) | The Bluetooth LE devices advertising nearby, on a board or a laptop |
 | [bledev_central_simpletest.py](bledev_central_simpletest.py) | Reading a Bluetooth LE counter and writing it a message |
 | [bledev_hid_host_simpletest.py](bledev_hid_host_simpletest.py) | Reading the keys a Bluetooth keyboard sends |
