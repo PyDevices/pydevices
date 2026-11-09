@@ -5,8 +5,11 @@ A board config for Espressif's ESP32-P4X-EYE camera board: an ESP32-P4 with a
 microSD slot, a PDM microphone, a QMA6100P accelerometer, a flash LED and an
 ESP32-C6 for Wi-Fi.
 
-It needs MicroPython firmware with `spibus` and, for the camera, `cameraif`,
-built for this board so that ESP-Hosted uses the C6's own pins.
+It needs MicroPython firmware built for this board, so that ESP-Hosted uses
+the C6's own pins and the OV2710's driver is in: the `P4X_EYE` variant in
+[micropython-pydevices' boards table](https://github.com/PyDevices/micropython-pydevices/blob/main/docs/reference/boards.md),
+with `--modules all,vision` for the camera, the H.264 encoder and the
+detectors.
 
 ## Install
 
@@ -52,8 +55,7 @@ while True:
 
 ## Check it on your board
 
-This config has not yet been run on the board. These lines, one at a time on
-the REPL, check each part:
+These lines, one at a time on the REPL, check each part:
 
 ```python
 import board_config as b
