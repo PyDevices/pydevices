@@ -341,7 +341,9 @@ def bt():
         import btclassic
     except ImportError:
         raise ImportError("bt needs firmware built with the btclassic module") from None
-    return btclassic.AudioSink(btclassic.Bluetooth())
+    # A second of buffer rides out the phone's bursts; at the default half
+    # second a phone's tone came back with repeats every few seconds.
+    return btclassic.AudioSink(btclassic.Bluetooth(), buffer_ms=1000)
 
 
 def ble():
