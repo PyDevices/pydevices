@@ -1197,6 +1197,17 @@ def _wire_kind(wire):
     return "i2s"
 
 
+def _byte_span(buf):
+    """A view of ``buf``, its item size and its length in bytes.
+
+    The driver counts bytes, but a view of an ``array("h")`` counts items,
+    so the read offset is divided by the item size before slicing.
+    """
+    view = memoryview(buf)
+    size = len(bytes(view[:1])) if len(view) else 1
+    return view, size, len(view) * size
+
+
 class PumpPCMInput(PCMInput):
     """Capture from the RX half of the pump's own I2S channel.
 
@@ -1308,11 +1319,11 @@ class PumpPCMInput(PCMInput):
         return driver().rx_read(view)
 
     def _readinto(self, buf):
-        view = memoryview(buf)
+        view, size, total = _byte_span(buf)
         got = 0
         idle_ms = 0
-        while got < len(view):
-            n = self._read_some(view[got:])
+        while got < total:
+            n = self._read_some(view[got // size:])
             if n:
                 got += n
                 idle_ms = 0
@@ -1327,11 +1338,11 @@ class PumpPCMInput(PCMInput):
         return got
 
     async def _areadinto(self, buf):
-        view = memoryview(buf)
+        view, size, total = _byte_span(buf)
         got = 0
         idle_ms = 0
-        while got < len(view):
-            n = self._read_some(view[got:])
+        while got < total:
+            n = self._read_some(view[got // size:])
             if n:
                 got += n
                 idle_ms = 0

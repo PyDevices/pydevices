@@ -11,6 +11,7 @@ and lets Python read the RX half; these tests hold ``PumpPCMInput`` and
 """
 
 from pathlib import Path
+import array
 import sys
 import unittest
 
@@ -102,6 +103,27 @@ class ReadingTheRxHalf(DriverFixture):
         buf = bytearray(len(delivered))
         self.assertEqual(len(delivered), mic.readinto(buf))
         self.assertEqual(delivered, bytes(buf))
+
+    def test_readinto_fills_a_typed_array_in_order(self):
+        # An array("h") counts items, the driver bytes: every byte must
+        # land once, in order, with none left over.
+        mic = self.make()
+        mic.open()
+        delivered = bytes(range(200)) * 4
+        self.driver.deliver(delivered[:300])
+        later = [delivered[300:500], delivered[500:]]
+        real_read = self.driver.rx_read
+
+        def read(buf):
+            n = real_read(buf)
+            if n == 0 and later:
+                self.driver.deliver(later.pop(0))
+            return n
+
+        self.driver.rx_read = read
+        samples = array.array("h", bytes(len(delivered)))
+        self.assertEqual(len(delivered), mic.readinto(samples))
+        self.assertEqual(delivered, samples.tobytes())
 
     def test_a_channel_that_never_clocks_is_an_error_not_a_hang(self):
         mic = self.make(timeout_ms=20)
