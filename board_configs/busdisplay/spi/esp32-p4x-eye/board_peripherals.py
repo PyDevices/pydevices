@@ -97,7 +97,8 @@ def _release_sleep_holds():
     except ImportError:
         # Host structural import: no pins.
         return
-    if machine.reset_cause() != machine.DEEPSLEEP_RESET:
+    reset_cause = getattr(machine, "reset_cause", None)  # a host's stand-in machine has none
+    if reset_cause is None or reset_cause() != machine.DEEPSLEEP_RESET:
         return
     machine.Pin(_CAM_EN, machine.Pin.OUT, value=0, hold=False)
     machine.Pin(_C6_EN, hold=False)
