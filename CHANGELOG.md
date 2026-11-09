@@ -1,3 +1,20 @@
+## v0.8.0.dev5 (2026-11-09)
+
+- Library: audioeffects v0.5.2.dev0, which loads each effect on first use (#476)
+- esp32-p4x-eye README: which firmware to build, and the check lines as checks (#475)
+- esp32-p4x-eye: the display's SPI at 80 MHz, as the factory firmware runs it (#474)
+- esp32-p4x-eye: the knob counts up clockwise, two counts a click, and says so (#473)
+- audiodev: Prefetch.service() hands the tick back when the source is slow (#472)
+- Stack page: mp4mux is a clone until its release
+- ESP32-P4X-EYE: board config, QMA6100P and orientation, and an MP4 writer (#466)
+- ESP32 Audio Kit: the bt role is a btclassic AudioSink (#469)
+- Examples: play the MP3 files on a microSD card, and record the microphone to a WAV file (#468)
+- audiodev: a pump recorder fills an array("h") in order, counting bytes, not items (#467)
+- audiodev: PaceOutput.write returns once the device is full, so space() falls (#465)
+- Stack: btaudio is now btclassic (#462)
+- ESP32 Audio Kit: pcm_in records the microphones or line in, beside the output (#461)
+- Board config: Ai-Thinker ESP32-Audio-Kit V2.2 with a 2.8in ILI9341 IPS touch module (#459)
+
 ## v0.8.0.dev4 (2026-11-08)
 
 - display_driver: one-finger swipes take 50 px on a touch panel, not 255 (#458)
