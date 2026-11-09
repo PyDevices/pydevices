@@ -145,7 +145,7 @@ def sdcard_present():
 
 
 def sdcard():
-    """The microSD slot (``machine.SDCard``, SDMMC slot 0, 4 bits), with its
+    """The microSD slot (``machine.SDCard``, SDMMC slot 0, 4 bits, 40 MHz), with its
     power switched on first. Mount it yourself::
 
         import os
@@ -157,10 +157,9 @@ def sdcard():
 
     Pin(_SD_POWER, Pin.OUT, value=0)
     time.sleep_ms(10)
-    try:
-        return SDCard()
-    except TypeError:
-        return SDCard(slot=0)
+    # 40 MHz, as the factory firmware runs it. At the driver's 20 MHz default
+    # this board's writes fail with EIO while reads work; at 40 MHz both work.
+    return SDCard(slot=0, width=4, freq=40_000_000)
 
 
 def camera(**kwargs):
