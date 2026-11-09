@@ -64,12 +64,16 @@ display_drv = ST7789(
 )
 
 # machine.Encoder (MicroPython 1.26 and later): PCNT unit 0.
+# B before A so a click clockwise counts up; two phases, so a click is two
+# counts and the count rests between edges (one phase sat on an edge and
+# flickered; measured 2026-11-08).
 encoder = Encoder(
     0,
-    Pin(48, Pin.IN, Pin.PULL_UP),
     Pin(47, Pin.IN, Pin.PULL_UP),
+    Pin(48, Pin.IN, Pin.PULL_UP),
     phases=2,
 )
+encoder_counts_per_detent = 2
 encoder_read = encoder.value
 encoder_button = Pin(2, Pin.IN, Pin.PULL_UP)
 
