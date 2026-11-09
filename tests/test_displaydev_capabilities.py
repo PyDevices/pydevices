@@ -16,7 +16,7 @@ class TestDisplaydevCapabilities(unittest.TestCase):
         caps = capabilities()
         self.assertIsInstance(caps, dict)
         self.assertEqual(caps["dialect"], sys.implementation.name)
-        self.assertIn(caps["byteswap"], ("native", "pure_python"))
+        self.assertIn(caps["byteswap"], ("array", "native", "pure_python"))
 
     def test_modules_documented(self):
         modules = capabilities()["modules"]
