@@ -34,16 +34,13 @@ from machine import Encoder, Pin
 from spibus import SPIBus
 from st7789 import ST7789
 
-display_bus = SPIBus(
-    id=2,
-    baudrate=20_000_000,
-    sck=17,
-    mosi=16,
-    miso=-1,
-    command=19,
-    chip_select=18,
-    reset=15,
-)
+_bus_kw = dict(id=2, baudrate=40_000_000, sck=17, mosi=16, miso=-1, command=19, chip_select=18, reset=15)
+try:
+    # The DMA bus: queue at most 32 KB. A 1080p H.264 encoder needs 155 KB of
+    # this board's internal RAM in one piece, and the 128 KB default left none.
+    display_bus = SPIBus(dma=32768, **_bus_kw)
+except TypeError:
+    display_bus = SPIBus(**_bus_kw)  # the common bus has no dma keyword
 
 display_drv = ST7789(
     display_bus,
