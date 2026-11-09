@@ -252,7 +252,7 @@ and Android.
 - [`h264enc`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/h264enc): Encode RGB565 frames as H.264 in hardware.\
   Get it: firmware build. Runs on: MP on ESP32-P4.
 - [`mp4mux`](https://github.com/PyDevices/pydevices/blob/main/packages/mp4mux/README.md): Record H.264 video and PCM sound into an MP4 file that plays everywhere.\
-  Get it: from source. Runs on: MP, CP, Desktop.
+  Get it: `mip mp4mux`. Runs on: MP, CP, Desktop.
 - [`tsmux`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/tsmux): Wrap H.264 in MPEG-TS and cut it into HLS segments, so anything that plays HLS can watch a board.\
   Get it: firmware build. Runs on: MP.
 - [`castif`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/castif): Stream what your app draws to a screen across the room.\
