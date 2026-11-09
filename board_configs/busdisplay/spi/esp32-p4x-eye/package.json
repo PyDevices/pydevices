@@ -1,0 +1,33 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/esp32-p4x-eye/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/esp32-p4x-eye/board_peripherals.py"
+    ],
+    [
+      "st7789.py",
+      "github:PyDevices/pydevices/drivers/display/st7789.py"
+    ],
+    [
+      "keypad_gpio.py",
+      "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
+    ],
+    [
+      "qma6100p.py",
+      "github:PyDevices/pydevices/drivers/imu/qma6100p.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1.0",
+  "description": "Espressif ESP32-P4X-EYE: ST7789 240x240 SPI, rotary knob and three buttons (MicroPython)",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
+}

@@ -136,6 +136,9 @@ pypi-desktop = true
 [hmilink]
 top-level = true
 
+[mp4mux]
+top-level = true
+
 [usb-core]
 top-level = true
 
