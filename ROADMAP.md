@@ -59,8 +59,9 @@ with each kind of peripheral described honestly by its role.
   encryption on the transports that can carry it, for networks you don't fully
   trust.
 - Announce the device over mDNS, so a phone finds it without typing its address.
-- A TouchOSC/OSC codec at the edge, so those controllers can be panels. The
-  codec layer is already separate from the transports.
+- `hmilink.appkit`: an appkit launcher and its apps' models served over one
+  transport, so a phone can see and switch apps. An app set that serves no
+  panel loads none of it.
 
 ## medialink
 
@@ -91,8 +92,3 @@ with each kind of peripheral described honestly by its role.
 
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
-- **`hmilink.appkit`.** An adapter that serves an appkit launcher and its
-  apps' models over one transport, the foreground app included, so a phone
-  can see and switch apps. hmilink depends on appkit for this, never the
-  other way, so an app set that serves no panel loads none of it.
-
