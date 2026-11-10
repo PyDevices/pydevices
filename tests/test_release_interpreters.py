@@ -167,6 +167,24 @@ class TheSourcesRecord(Scratch):
         rec = self.record(self.lock(self.mpp, self.lvgl))
         self.assertEqual(rec["modules"], {"displayif": "2" * 40})
 
+    def test_reads_dependencies_lock_when_the_checkout_has_one(self):
+        mpp = make_repo(self.dir / "mpp2", {"DEPENDENCIES.lock": (
+            "# pins\n"
+            f"micropython https://example.com/micropython {'c' * 40}\n"
+            f"displayif https://example.com/displayif.git {'2' * 40}\n"
+            f"omnipython-lvgl https://example.com/lvgl.git {'4' * 40}\n"
+            f"omnipython-lib https://example.com/pydevices.git {'3' * 40}\n"
+            f"esp-vision https://example.com/esp-vision.git {'5' * 40}\n"
+            f"esp-idf https://example.com/idf.git {'6' * 40}  # tag v5.5.4\n"
+            f"circuitpython https://example.com/cp.git {'7' * 40}  # tag 11.0.0-alpha.2\n"
+            "SDL2 https://example.com/SDL2-2.30.10.tar.gz 2.30.10\n")})
+        rec = sources.record(self.dir / "mpp2", self.dir / "lvgl", self.dir / "pyd", "v1.2.3",
+                             self.lock(mpp, self.lvgl))
+        self.assertTrue(rec["pinned"])
+        self.assertEqual(rec["micropython"], {"commit": "c" * 40})
+        self.assertEqual(rec["circuitpython"], {"version": "11.0.0-alpha.2"})
+        self.assertEqual(rec["modules"], {"displayif": "2" * 40, "omnipython-lvgl": "4" * 40})
+
     def test_says_unpinned_when_a_checkout_is_not_the_pin(self):
         rec = self.record(self.lock(self.mpp, "d" * 40))
         self.assertFalse(rec["pinned"])

@@ -112,11 +112,37 @@ def verify(name, directory, path=LOCK):
     return 0
 
 
+def mpp_pins(mpp_dir):
+    """(MicroPython commit, CircuitPython version, {module: commit}) from
+    micropython-pydevices' pins: its DEPENDENCIES.lock, or in a checkout from
+    before that file, UPSTREAM, deps.lock and modules.lock.
+
+    In DEPENDENCIES.lock a toolchain's line ends in `# tag <tag>` and a
+    download is pinned by version, so the modules (with omnipython-lvgl and
+    omnipython-lib, as modules.lock had them) are the lines left once those,
+    MicroPython and esp-vision are set aside."""
+    mpp_dir = Path(mpp_dir)
+    lock = mpp_dir / "DEPENDENCIES.lock"
+    if not lock.is_file():
+        modules = {name: commit for name, (_, commit) in read_lock(mpp_dir / "modules.lock").items()}
+        deps = {name: version for name, (_, version) in read_lock(mpp_dir / "deps.lock").items()}
+        return (mpp_dir / "UPSTREAM").read_text().strip(), deps.get("circuitpython", ""), modules
+    tags = {}
+    for line in lock.read_text().splitlines():
+        m = re.match(r"\s*(\S+)\s+\S+\s+\S+\s*#\s*tag\s+(\S+)\s*$", line)
+        if m:
+            tags[m.group(1)] = m.group(2)
+    rows = read_lock(lock)
+    modules = {name: commit for name, (_, commit) in rows.items()
+               if FULL_SHA.fullmatch(commit) and name not in tags and name not in ("micropython", "esp-vision")}
+    return rows["micropython"][1], tags.get("circuitpython", ""), modules
+
+
 def record(mpp_dir, lvgl_dir, pydevices_dir, pydevices_ref, path=LOCK):
     """The "sources" object of interpreters.json: every commit the interpreters were built from.
 
     It reads the checkouts themselves. The MicroPython commit, the CircuitPython
-    version and the modules come from micropython-pydevices' own locks. "pinned"
+    version and the modules come from micropython-pydevices' own pins. "pinned"
     says whether both checkouts are the commits sources.lock names: a final's
     attachments always are, a hand-run build of another ref says false.
     """
@@ -126,12 +152,9 @@ def record(mpp_dir, lvgl_dir, pydevices_dir, pydevices_ref, path=LOCK):
     pydevices_commit = git_head(pydevices_dir)
     want = pins(path)
     pinned = (mpp_commit == want["micropython-pydevices"][1] and lvgl_commit == want["omnipython-lvgl"][1])
-    modules = {}
-    for name, (_, commit) in read_lock(mpp_dir / "modules.lock").items():
-        modules[name] = commit
-    deps = {name: version for name, (_, version) in read_lock(mpp_dir / "deps.lock").items()}
+    micropython, circuitpython, modules = mpp_pins(mpp_dir)
     # The release's own pydevices goes in as the library, not the commit
-    # modules.lock names for it ("omnipython-lib"; "pydevices" in older locks).
+    # the pins name for it ("omnipython-lib"; "pydevices" in older locks).
     modules.pop("omnipython-lib", None)
     modules.pop("pydevices", None)
     pydevices = {"commit": pydevices_commit}
@@ -142,8 +165,8 @@ def record(mpp_dir, lvgl_dir, pydevices_dir, pydevices_ref, path=LOCK):
         "pydevices": pydevices,
         "micropython-pydevices": {"commit": mpp_commit},
         "omnipython-lvgl": {"commit": lvgl_commit},
-        "micropython": {"commit": (mpp_dir / "UPSTREAM").read_text().strip()},
-        "circuitpython": {"version": deps.get("circuitpython", "")},
+        "micropython": {"commit": micropython},
+        "circuitpython": {"version": circuitpython},
         "modules": modules,
     }
 
