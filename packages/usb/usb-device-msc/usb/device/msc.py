@@ -16,7 +16,9 @@
 #
 # The computer then sees a drive. bdev needs readblocks(n, buf),
 # writeblocks(n, buf) and ioctl(4) (the block count); ioctl(5) gives the block
-# size when it isn't 512. Pass readonly=True to refuse writes.
+# size when it isn't 512. Pass readonly=True to refuse writes. A read or write
+# that raises OSError or returns anything but None or 0 fails its command with
+# a medium error, which the computer reports or retries.
 #
 # Don't mount the same block device on the board while the computer has it:
 # two filesystems caching one disk will corrupt it.
@@ -62,11 +64,14 @@ _MODE_SENSE_10 = const(0x5A)
 # Sense keys and additional sense codes.
 _SENSE_NONE = const(0x00)
 _SENSE_NOT_READY = const(0x02)
+_SENSE_MEDIUM_ERROR = const(0x03)
 _SENSE_ILLEGAL_REQUEST = const(0x05)
 _SENSE_DATA_PROTECT = const(0x07)
 _ASC_INVALID_COMMAND = const(0x20)
 _ASC_LBA_OUT_OF_RANGE = const(0x21)
 _ASC_WRITE_PROTECTED = const(0x27)
+_ASC_WRITE_ERROR = const(0x0C)
+_ASC_READ_ERROR = const(0x11)
 _ASC_MEDIUM_NOT_PRESENT = const(0x3A)
 
 _IDLE = const(0)
@@ -114,6 +119,7 @@ class MSCInterface(Interface):
         self._mv = memoryview(self._buf)
         self._sense = (_SENSE_NONE, 0)
         self._state = _IDLE
+        self._media_error = 0
         self.ep_in = self.ep_out = None
         #: Counts, for a test or a status display.
         self.blocks_read = 0
@@ -189,6 +195,7 @@ class MSCInterface(Interface):
         self._tag = tag
         self._dir_in = bool(flags & 0x80)
         self._done = 0
+        self._media_error = 0
         cb = memoryview(self._cbw)[15:31]
         try:
             self._dispatch(cb)
@@ -277,16 +284,23 @@ class MSCInterface(Interface):
             return
         self._state = _DATA_IN
         self._left = 0
-        self.submit_xfer(self.ep_in, memoryview(data)[:n], self._in_done)
+        self._submit(self.ep_in, memoryview(data)[:n], self._in_done)
 
     def _read_chunk(self):
         k = min(self._left, _CHUNK_BLOCKS)
         mv = self._mv[: k * self.block_size]
-        self.bdev.readblocks(self._lba, mv)
+        if not self._media_error and not _ok(self.bdev.readblocks, self._lba, mv):
+            self._media_error = _ASC_READ_ERROR
+        if self._media_error:
+            # The host still expects every byte it asked for: send zeros for
+            # the rest and fail the command in its status.
+            for i in range(len(mv)):
+                mv[i] = 0
+        else:
+            self.blocks_read += k
         self._lba += k
         self._left -= k
-        self.blocks_read += k
-        self.submit_xfer(self.ep_in, mv, self._in_done)
+        self._submit(self.ep_in, mv, self._in_done)
 
     def _in_done(self, ep, result, n):
         if result != 0:
@@ -295,24 +309,37 @@ class MSCInterface(Interface):
         if self._left:
             self._read_chunk()
         else:
-            self._status(_STATUS_PASSED)
+            self._data_status()
 
     def _write_chunk_arm(self):
         k = min(self._left, _CHUNK_BLOCKS)
         self._chunk = k
-        self.submit_xfer(self.ep_out, self._mv[: k * self.block_size], self._out_done)
+        self._submit(self.ep_out, self._mv[: k * self.block_size], self._out_done)
 
     def _out_done(self, ep, result, n):
         if result != 0:
             return
         k = self._chunk
         self._done += n
-        self.bdev.writeblocks(self._lba, self._mv[: k * self.block_size])
+        # After a failed write, take the rest of the data without writing it,
+        # so the command still ends on its status.
+        if not self._media_error:
+            if _ok(self.bdev.writeblocks, self._lba, self._mv[: k * self.block_size]):
+                self.blocks_written += k
+            else:
+                self._media_error = _ASC_WRITE_ERROR
         self._lba += k
         self._left -= k
-        self.blocks_written += k
         if self._left:
             self._write_chunk_arm()
+        else:
+            self._data_status()
+
+    def _data_status(self):
+        if self._media_error:
+            self._sense = (_SENSE_MEDIUM_ERROR, self._media_error)
+            self.errors += 1
+            self._status(_STATUS_FAILED)
         else:
             self._status(_STATUS_PASSED)
 
@@ -330,27 +357,33 @@ class MSCInterface(Interface):
             self._discard()
             return
         if self._dlen and self._dir_in:
-            # The host waits for data: give it zeros (a short transfer would
-            # need a stall the host must clear), then the failed status, after
-            # which it asks REQUEST SENSE why.
-            n = min(self._dlen, len(self._buf))
-            for i in range(n):
+            # The host waits for data: give it zeros, all it asked for (a short
+            # transfer would need a stall the host must clear), then the failed
+            # status, after which it asks REQUEST SENSE why.
+            for i in range(len(self._buf)):
                 self._buf[i] = 0
             self._state = _DATA_IN
             self._left = 0
-            self._fail_pending = True
-            self.submit_xfer(self.ep_in, self._mv[:n], self._fail_in_done)
+            self._zeros_in()
             return
         self._status(_STATUS_FAILED)
 
+    def _zeros_in(self):
+        n = min(self._dlen - self._done, len(self._buf))
+        self._submit(self.ep_in, self._mv[:n], self._fail_in_done)
+
     def _fail_in_done(self, ep, result, n):
-        if result == 0:
-            self._done += n
+        if result != 0:
+            return
+        self._done += n
+        if self._done < self._dlen and n:
+            self._zeros_in()
+        else:
             self._status(_STATUS_FAILED)
 
     def _discard(self):
         n = min(self._discard_left, len(self._buf))
-        self.submit_xfer(self.ep_out, self._mv[:n], self._discard_done)
+        self._submit(self.ep_out, self._mv[:n], self._discard_done)
 
     def _discard_done(self, ep, result, n):
         if result != 0:
@@ -366,12 +399,31 @@ class MSCInterface(Interface):
         residue = self._dlen - self._done if self._dlen > self._done else 0
         struct.pack_into("<IIIB", self._csw, 0, _CSW_SIGNATURE, self._tag, residue, status)
         self._state = _STATUS
-        self.submit_xfer(self.ep_in, self._csw, self._csw_done)
+        self._submit(self.ep_in, self._csw, self._csw_done)
 
     def _csw_done(self, ep, result, n):
         self._state = _IDLE
         if result == 0:
             self._arm_cbw()
+
+    def _submit(self, ep, buf, cb):
+        # A slow block device call can outlast the host's patience: it resets
+        # the bus, which closes the endpoints under us. on_open starts over
+        # with a fresh CBW once the host configures the device again.
+        try:
+            self.submit_xfer(ep, buf, cb)
+        except RuntimeError:
+            self._state = _IDLE
+
+
+def _ok(op, lba, buf):
+    # Block devices report failure differently: machine.SDCard returns a
+    # negative errno, or False when the card won't initialise; others raise.
+    try:
+        r = op(lba, buf)
+    except OSError:
+        return False
+    return r is None or (type(r) is int and r == 0)
 
 
 class RAMBlockDev:
