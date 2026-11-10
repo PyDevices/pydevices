@@ -113,7 +113,7 @@ build() {
     out=$(cd "$out" && pwd)
 
     # The release's own pydevices goes into the interpreter, not the commit
-    # modules.lock names for omnipython-lib: build_mp.py takes the library from
+    # micropython-pydevices pins for omnipython-lib: build_mp.py takes the library from
     # modules/.omnipython-lib when it is there, and a link wins. The packages
     # of the release (pydevices, palettes, pdwidgets) come out of this tree.
     if [[ ! -e "$mpp/modules/.omnipython-lib" ]]; then
