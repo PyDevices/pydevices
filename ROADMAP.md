@@ -36,9 +36,6 @@ with each kind of peripheral described honestly by its role.
 
 ## MIDI
 
-- SysEx on Windows in `midiports`: `midiInAddBuffer` and `midiOutLongMsg`, so a
-  device's Identity Reply and patch dumps work there as they do on other
-  ports. Today input drops SysEx and writing 0xF0 raises.
 - DIN MIDI on a Linux serial port in `midiports`, for boards whose MIDI jacks
   are wired to a UART rather than showing up as an ALSA raw MIDI device.
 

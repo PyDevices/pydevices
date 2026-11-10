@@ -188,8 +188,33 @@ class Uwin32MidiTests(unittest.TestCase):
             "midiOutShortMsg", "midiOutReset", "midiOutClose",
             "midiInGetNumDevs", "midiInGetDevName", "midiInOpen",
             "midiInStart", "midiInStop", "midiInReset", "midiInClose",
+            "midiOutPrepareHeader", "midiOutUnprepareHeader", "midiOutLongMsg",
+            "midiInPrepareHeader", "midiInUnprepareHeader", "midiInAddBuffer",
         ):
             self.assertTrue(hasattr(w, name), name)
+
+    @unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
+    def test_midihdr_fields_are_where_winmm_reads_them(self):
+        # Preparing a header sets MHDR_PREPARED in dwFlags; reading it back
+        # through midihdr_flags proves the offsets match winmm's MIDIHDR.
+        import uwin32 as w
+
+        if not w.midiOutGetNumDevs():
+            self.skipTest("no MIDI output device")
+        block = w.VirtualAlloc(w.MIDIHDR_SIZE + 16)
+        handle = w.midiOutOpen(0)
+        try:
+            w.midihdr_init(block, block + w.MIDIHDR_SIZE, 16)
+            self.assertEqual(int.from_bytes(bytes(w.buffer_at(block, w._PTR_SIZE)), "little"),
+                             block + w.MIDIHDR_SIZE)
+            self.assertEqual((w.midihdr_recorded(block), w.midihdr_flags(block)), (0, 0))
+            w.midiOutPrepareHeader(handle, block)
+            self.assertTrue(w.midihdr_flags(block) & w.MHDR_PREPARED)
+            w.midiOutUnprepareHeader(handle, block)
+            self.assertFalse(w.midihdr_flags(block) & w.MHDR_PREPARED)
+        finally:
+            w.midiOutClose(handle)
+            w.VirtualFree(block)
 
     @unittest.skipUnless(sys.platform == "win32", "uwin32 is Windows only")
     def test_enumeration_agrees_with_itself(self):

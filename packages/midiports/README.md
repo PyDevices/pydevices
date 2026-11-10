@@ -194,8 +194,8 @@ clock a worker's relayed times are on.
 
 ## Limits
 
-- Windows: no SysEx yet. Writing one raises `NotImplementedError` rather than
-  dropping it.
+- Windows: a write holds a SysEx until its 0xF7, then returns once the port
+  has sent it, so a long one blocks for as long as it takes to send.
 - Linux: MicroPython's unix port can list ports but not open them, since its
   `os` has no `open` or `read`. CPython opens them.
 - USB: if the host stops reading, messages that don't fit within a few
