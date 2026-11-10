@@ -1,3 +1,19 @@
+## v0.8.0.dev6 (2026-11-10)
+
+- Library: audioinstruments v0.5.2.dev3 and applibs v0.1.2.dev1 (#493)
+- omip: installs in a browser, and takes url_base= and name@version (#490)
+- Stack page: libraries the apps use get their own section (#488)
+- release interpreters: read micropython-pydevices' DEPENDENCIES.lock (#487)
+- Library: audioeffects v0.5.2.dev1, where AirSpace and ShimmerHall load on MicroPython (#486)
+- backends: a third-party display gets rotation (#485)
+- omip: skip packages the firmware has frozen in (#483)
+- midiports: SysEx both ways on Windows (#484)
+- Roadmap: hmilink.appkit under hmilink, OSC out (#482)
+- usb.device.msc: a failed block read or write fails its command (#481)
+- bledev: Windows pairs before the link comes up, so the passkey is asked for (#480)
+- Stack page: mp4mux installs with mip (#479)
+- Tests: displaydev reports the array byteswap when numpy is installed (#478)
+
 ## v0.8.0.dev5 (2026-11-09)
 
 - Library: audioeffects v0.5.2.dev0, which loads each effect on first use (#476)
