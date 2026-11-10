@@ -36,6 +36,7 @@ and Android.
 - [I want to drive a sensor, radio or other chip](#drive-a-chip)
 - [I want to run on a desktop, in a browser or on a phone](#run-somewhere-other-than-a-board)
 - [I want to run something finished](#run-a-finished-app)
+- [I want to reuse a library the apps share, such as the Spotify client](#libraries-the-apps-use)
 - [I want to find the project's sites](#find-the-projects-own-sites)
 
 ## Set up a board
@@ -106,10 +107,6 @@ and Android.
   Get it: `mip appkit`, `pip omnipython-applibs`. Runs on: MP, CP, Desktop.
 - [`applibs`](https://github.com/PyDevices/apps/tree/main/lib): Install every shared app library at once.\
   Get it: `mip applibs`, `pip omnipython-applibs`. Runs on: MP, CP, Desktop.
-- [`deskkit`](https://github.com/PyDevices/apps/blob/main/docs/guides/put-a-clock-on-your-desk.md): Put a clock and the weather on a screen on your desk, with swipes between them and the screen dark at night.\
-  Get it: from source. Runs on: MP on an LVGL touch board.
-- [`touchkit`](https://github.com/PyDevices/apps/tree/main/lib/touchkit): Reuse what the apps on an ESP32-P4 touch board share: the shell, settings, clock, network and camera helpers.\
-  Get it: `mip touchkit`, `pip omnipython-applibs`. Runs on: MP on an ESP32-P4 touch board.
 
 ## Make and shape sound
 
@@ -213,8 +210,6 @@ and Android.
   Get it: `mip bledev`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web.
 - [`bledev_hid`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/bluetooth-le.md): Use `adafruit_hid` over Bluetooth LE, as a keyboard, mouse or media remote.\
   Get it: from source. Runs on: MP.
-- [`sayso`](https://github.com/PyDevices/apps/tree/main/lib/sayso): Call the Spotify Web API from a small object layer, with sign-in helpers.\
-  Get it: `mip sayso`, `pip omnipython-applibs`. Runs on: MP, CP, Desktop.
 
 ## Use USB
 
@@ -383,6 +378,15 @@ and Android.
 - [`System`](https://github.com/PyDevices/apps/tree/main/apps/system): See the free heap, the last switches and what the apps left running.\
   Get it: from source. Runs on: ESP32-P4 touch board.
 
+## Libraries the apps use
+
+- [`deskkit`](https://github.com/PyDevices/apps/blob/main/docs/guides/put-a-clock-on-your-desk.md): Put a clock and the weather on a screen on your desk, with swipes between them and the screen dark at night.\
+  Get it: from source. Runs on: MP on an LVGL touch board.
+- [`touchkit`](https://github.com/PyDevices/apps/tree/main/lib/touchkit): Reuse what the apps on an ESP32-P4 touch board share: the shell, settings, clock, network and camera helpers.\
+  Get it: `mip touchkit`, `pip omnipython-applibs`. Runs on: MP on an ESP32-P4 touch board.
+- [`sayso`](https://github.com/PyDevices/apps/tree/main/lib/sayso): Call the Spotify Web API from a small object layer, with sign-in helpers.\
+  Get it: `mip sayso`, `pip omnipython-applibs`. Runs on: MP, CP, Desktop.
+
 ## Find the project's own sites
 
 - [`PyDevices.github.io`](https://pydevices.github.io/): Read the website: the front page, a page for each project and the live demos.\
@@ -397,7 +401,7 @@ and Android.
 - **A:** [`android-runner`](#run-somewhere-other-than-a-board), [`android-template`](#run-somewhere-other-than-a-board), [`android.py`](#run-somewhere-other-than-a-board), [`appdev`](#write-an-app), [`appkit`](#write-an-app), [`applibs`](#write-an-app), [`Audio codecs`](#drive-a-chip), [`audioairwindows`](#make-and-shape-sound), [`audiobiquad`](#make-and-shape-sound), [`audioconvolve`](#make-and-shape-sound), [`audiocore`](#make-and-shape-sound), [`audiodelays`](#make-and-shape-sound), [`audiodev`](#make-and-shape-sound), [`audiodsp_util`](#make-and-shape-sound), [`audiodynamics`](#make-and-shape-sound), [`audioecho`](#make-and-shape-sound), [`audioeffects`](#make-and-shape-sound), [`audiofeatures`](#make-and-shape-sound), [`audiofilters`](#make-and-shape-sound), [`audiofreeverb`](#make-and-shape-sound), [`audiograph`](#make-and-shape-sound), [`audioif`](#make-and-shape-sound), [`audioinstruments`](#make-and-shape-sound), [`audioladder`](#make-and-shape-sound), [`audiomath`](#make-and-shape-sound), [`audiometer`](#make-and-shape-sound), [`audiomixer`](#make-and-shape-sound), [`audiomodal`](#make-and-shape-sound), [`audiomp3`](#make-and-shape-sound), [`audiooscillator`](#make-and-shape-sound), [`audiopump`](#make-and-shape-sound), [`audiorender`](#make-and-shape-sound), [`audioroute`](#make-and-shape-sound), [`audiosampler`](#make-and-shape-sound), [`audioshaper`](#make-and-shape-sound), [`audiospeed`](#make-and-shape-sound), [`audioverb`](#make-and-shape-sound), [`audiovorbis`](#make-and-shape-sound)
 - **B:** [`Baby monitor`](#run-a-finished-app), [`backends`](#write-an-app), [`bledev`](#connect-devices), [`bledev_hid`](#connect-devices), [`Board configs`](#set-up-a-board), [`boarddev`](#set-up-a-board), [`btclassic`](#make-and-shape-sound), [`Bus drivers`](#drive-a-chip), [`Buttons and keypads`](#drive-a-chip)
 - **C:** [`Camera`](#run-a-finished-app), [`Camera sensors`](#drive-a-chip), [`cameraif`](#use-cameras-video-and-ai-on-a-board), [`Cast`](#run-a-finished-app), [`castif`](#use-cameras-video-and-ai-on-a-board), [`Clock`](#run-a-finished-app), [`controlkit`](#draw-on-a-screen)
-- **D:** [`deskkit`](#write-an-app), [`Display drivers`](#drive-a-chip), [`display_driver`](#draw-on-a-screen), [`displaydev`](#draw-on-a-screen), [`displayif`](#draw-on-a-screen), [`Doorbell`](#run-a-finished-app)
+- **D:** [`deskkit`](#libraries-the-apps-use), [`Display drivers`](#drive-a-chip), [`display_driver`](#draw-on-a-screen), [`displaydev`](#draw-on-a-screen), [`displayif`](#draw-on-a-screen), [`Doorbell`](#run-a-finished-app)
 - **E:** [`Environment sensors`](#drive-a-chip), [`events`](#write-an-app)
 - **F:** [`frame_recorder`](#draw-on-a-screen), [`fs_driver`](#draw-on-a-screen)
 - **G:** [`Gallery`](#run-a-finished-app)
@@ -410,8 +414,8 @@ and Android.
 - **O:** [`Object detection`](#run-a-finished-app), [`omip`](#set-up-a-board), [`OmniPython firmware`](#set-up-a-board), [`orientation`](#write-an-app), [`Ostinato`](#run-a-finished-app)
 - **P:** [`palettes`](#draw-on-a-screen), [`pdwidgets`](#draw-on-a-screen), [`picotts`](#make-and-shape-sound), [`pngio`](#draw-on-a-screen), [`pngio for CPython`](#draw-on-a-screen), [`Power`](#drive-a-chip), [`ppa`](#draw-on-a-screen), [`pydevices-desktop`](#run-somewhere-other-than-a-board), [`PyDevices.github.io`](#find-the-projects-own-sites), [`pygraphics`](#draw-on-a-screen), [`pyscript-template`](#run-somewhere-other-than-a-board), [`pyscript.py`](#run-somewhere-other-than-a-board)
 - **R:** [`Radios`](#drive-a-chip), [`Real-time clocks`](#drive-a-chip), [`Roku remote`](#run-a-finished-app)
-- **S:** [`sayso`](#connect-devices), [`Security camera`](#run-a-finished-app), [`songmodel`](#play-and-sequence-music), [`Sound card`](#run-a-finished-app), [`soundmodule`](#play-and-sequence-music), [`spectrum`](#draw-on-a-screen), [`Spotify`](#run-a-finished-app), [`Stompbox`](#run-a-finished-app), [`Storage`](#drive-a-chip), [`Surveillance camera`](#run-a-finished-app), [`Synth Station`](#run-a-finished-app), [`synthio`](#make-and-shape-sound), [`System`](#run-a-finished-app)
-- **T:** [`tflite`](#use-cameras-video-and-ai-on-a-board), [`Touch drivers`](#drive-a-chip), [`touchkit`](#write-an-app), [`tsmux`](#use-cameras-video-and-ai-on-a-board)
+- **S:** [`sayso`](#libraries-the-apps-use), [`Security camera`](#run-a-finished-app), [`songmodel`](#play-and-sequence-music), [`Sound card`](#run-a-finished-app), [`soundmodule`](#play-and-sequence-music), [`spectrum`](#draw-on-a-screen), [`Spotify`](#run-a-finished-app), [`Stompbox`](#run-a-finished-app), [`Storage`](#drive-a-chip), [`Surveillance camera`](#run-a-finished-app), [`Synth Station`](#run-a-finished-app), [`synthio`](#make-and-shape-sound), [`System`](#run-a-finished-app)
+- **T:** [`tflite`](#use-cameras-video-and-ai-on-a-board), [`Touch drivers`](#drive-a-chip), [`touchkit`](#libraries-the-apps-use), [`tsmux`](#use-cameras-video-and-ai-on-a-board)
 - **U:** [`ulab`](#use-cameras-video-and-ai-on-a-board), [`usb-core`](#use-usb), [`usb-device-audio`](#use-usb), [`usb-device-msc`](#use-usb), [`usb-device-video`](#use-usb), [`usb-hid`](#use-usb), [`usb-host-audio`](#use-usb), [`usb-host-cdc`](#use-usb), [`usb-host-hid`](#use-usb), [`usb-host-msc`](#use-usb), [`usb-host-mtp`](#use-usb), [`usb-host-net`](#use-usb), [`usb-host-video`](#use-usb), [`usbhost`](#use-usb), [`usdl2`](#run-somewhere-other-than-a-board), [`uwin32`](#run-somewhere-other-than-a-board)
 - **V:** [`Vamp`](#run-a-finished-app), [`Video doorbell`](#run-a-finished-app), [`Videophone`](#run-a-finished-app), [`vision`](#use-cameras-video-and-ai-on-a-board)
 - **W:** [`Wake word`](#run-a-finished-app), [`Walkie-talkie`](#run-a-finished-app), [`wasm.py`](#run-somewhere-other-than-a-board), [`Weather`](#run-a-finished-app), [`wifi`](#connect-devices), [`wifi_manager`](#connect-devices), [`Workbench`](#set-up-a-board)
