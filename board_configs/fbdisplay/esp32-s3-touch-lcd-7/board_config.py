@@ -9,7 +9,7 @@ Pin map / timings match ESP32_Display_Panel / Waveshare wiki for
 Backlight + LCD/touch reset via CH422G on I2C (SDA=8, SCL=9).
 
 Install it with ``mip.install("esp32-s3-touch-lcd-7",
-index="https://pydevices.github.io/lib")``.
+index="https://lib.omnipython.org")``.
 """
 
 import time

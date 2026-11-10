@@ -276,11 +276,11 @@ pre-release included, and a `palettes-vX.Y.Z` or `pdwidgets-vX.Y.Z` release
 each send [PyDevices/lib](https://github.com/PyDevices/lib) a request naming
 the tag. It records the tag, builds every package with [`tools/libbuild.py`](tools/libbuild.py)
 from the releases it has recorded, and serves the result from GitHub Pages at
-`https://pydevices.github.io/lib` (the address moves to `lib.omnipython.org`).
+`https://lib.omnipython.org`.
 Unlike the mip index at `PyDevices.github.io/mip`, which only takes finals,
 the library index takes pre-releases, so its `latest` can be a release
 candidate. A board installs from it with
-`mip.install("pydevices", index="https://pydevices.github.io/lib")`.
+`mip.install("pydevices", index="https://lib.omnipython.org")`.
 
 Boards and drivers don't wait for a release. A merge to `main` that touches
 `board_configs/` (a `tested.json` included) or `drivers/` runs
