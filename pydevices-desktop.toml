@@ -77,7 +77,6 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/medialink/voice.py" = "/lib/medialink/voice.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/medialink/wakeword.py" = "/lib/medialink/wakeword.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/micropython.py" = "/lib/micropython.py"
-"https://raw.githubusercontent.com/PyDevices/pydevices/main/utils/mip.py" = "/lib/mip.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/multimer/__init__.py" = "/lib/multimer/__init__.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/multimer/_asyncio_loader.py" = "/lib/multimer/_asyncio_loader.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/lib/multimer/_dispatch.py" = "/lib/multimer/_dispatch.py"

@@ -50,7 +50,7 @@ and Android.
 - [`Board configs`](https://github.com/PyDevices/pydevices/blob/main/docs/boards/board-configs.md): Describe one board's display, touch, audio and pins, so a program runs on it unchanged. There is one per board.\
   Get it: `mip`, from the board's folder. Runs on: MP, CP, Desktop.
 - [`omip`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/bring-up-a-board.md): Install a package on a board in one line, with what it needs from micropython-lib, after getting the board online if it isn't.\
-  Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop.
+  Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web.
 - [`boarddev`](https://github.com/PyDevices/pydevices/blob/main/docs/boards/board-contract.md): Bring up a board's extra devices, such as its camera or sensors, only when you ask for them.\
   Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
 
@@ -302,8 +302,6 @@ and Android.
   Get it: `pip pydevices-desktop`, `mip pydevices-desktop`. Runs on: Desktop.
 - [`micropython shim`](https://github.com/PyDevices/pydevices/blob/main/utils/micropython.py): Run code written for MicroPython under CPython without import errors.\
   Get it: `pip pydevices-desktop`. Runs on: Desktop.
-- [`mip for hosts`](https://github.com/PyDevices/pydevices/blob/main/utils/mip.py): Use `mip` on a host that doesn't have it.\
-  Get it: `pip pydevices-desktop`. Runs on: Desktop.
 - [`usdl2`](https://github.com/PyDevices/pydevices/blob/main/utils/usdl2.py): Call a subset of SDL2 from pure Python.\
   Get it: `pip pydevices-desktop`, firmware build. Runs on: MP, Desktop.
 - [`uwin32`](https://github.com/PyDevices/pydevices/blob/main/utils/uwin32.py): Call a subset of Win32 from pure Python.\
@@ -410,7 +408,7 @@ and Android.
 - **J:** [`Joysticks`](#drive-a-chip), [`jpegio`](#draw-on-a-screen), [`jpegio for CPython`](#draw-on-a-screen), [`jupyter.py`](#run-somewhere-other-than-a-board)
 - **K:** [`keys`](#write-an-app)
 - **L:** [`LEDs`](#drive-a-chip), [`lib`](#find-the-projects-own-sites), [`lite-assistant`](#connect-devices), [`lvgl`](#draw-on-a-screen)
-- **M:** [`mdns`](#connect-devices), [`mdns for CPython`](#connect-devices), [`medialink`](#connect-devices), [`micropython shim`](#run-somewhere-other-than-a-board), [`midiEngine`](#run-a-finished-app), [`midiports`](#play-and-sequence-music), [`mip`](#find-the-projects-own-sites), [`mip for hosts`](#run-somewhere-other-than-a-board), [`MP3 player`](#run-a-finished-app), [`mp4mux`](#use-cameras-video-and-ai-on-a-board), [`mpftp`](#set-up-a-board), [`mpvst`](#make-and-shape-sound), [`multimer`](#write-an-app)
+- **M:** [`mdns`](#connect-devices), [`mdns for CPython`](#connect-devices), [`medialink`](#connect-devices), [`micropython shim`](#run-somewhere-other-than-a-board), [`midiEngine`](#run-a-finished-app), [`midiports`](#play-and-sequence-music), [`mip`](#find-the-projects-own-sites), [`MP3 player`](#run-a-finished-app), [`mp4mux`](#use-cameras-video-and-ai-on-a-board), [`mpftp`](#set-up-a-board), [`mpvst`](#make-and-shape-sound), [`multimer`](#write-an-app)
 - **O:** [`Object detection`](#run-a-finished-app), [`omip`](#set-up-a-board), [`OmniPython firmware`](#set-up-a-board), [`orientation`](#write-an-app), [`Ostinato`](#run-a-finished-app)
 - **P:** [`palettes`](#draw-on-a-screen), [`pdwidgets`](#draw-on-a-screen), [`picotts`](#make-and-shape-sound), [`pngio`](#draw-on-a-screen), [`pngio for CPython`](#draw-on-a-screen), [`Power`](#drive-a-chip), [`ppa`](#draw-on-a-screen), [`pydevices-desktop`](#run-somewhere-other-than-a-board), [`PyDevices.github.io`](#find-the-projects-own-sites), [`pygraphics`](#draw-on-a-screen), [`pyscript-template`](#run-somewhere-other-than-a-board), [`pyscript.py`](#run-somewhere-other-than-a-board)
 - **R:** [`Radios`](#drive-a-chip), [`Real-time clocks`](#drive-a-chip), [`Roku remote`](#run-a-finished-app)
