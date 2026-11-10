@@ -10,8 +10,8 @@
 
 That gets the board online if it isn't, looks for the package on the OmniPython
 index and then on micropython-lib, and brings what it needs from both. It takes
-the arguments of `mip.install`, and works on MicroPython, CircuitPython and
-desktop Python. To get this one file onto a stock MicroPython board:
+the arguments of `mip.install`, and works on MicroPython, CircuitPython, desktop
+Python and Pyodide in a browser. To get this one file onto a stock MicroPython board:
 
     import mip
     mip.install("github:PyDevices/pydevices/lib/omip.py")
@@ -138,6 +138,25 @@ elif _CP:
         finally:
             sock.close()
 
+elif sys.platform == "emscripten":
+
+    def _get(url, write):
+        # A page in the browser has no sockets, so Pyodide asks the browser.
+        # A synchronous request only hands back text: asking for it as
+        # x-user-defined gives one character per byte, with the byte in the
+        # character's low eight bits.
+        from js import XMLHttpRequest
+
+        request = XMLHttpRequest.new()
+        request.open("GET", url, False)
+        request.overrideMimeType("text/plain; charset=x-user-defined")
+        request.send(None)
+        if not request.status:
+            raise OSError("the browser refused the request (offline, or the server doesn't allow this page)")
+        if request.status == 200:
+            write(request.responseText.encode("utf-16-le")[::2])
+        return request.status
+
 else:
 
     def _get(url, write):
@@ -190,10 +209,11 @@ def _rewrite_url(url, version):
 class _Plan:
     """What a walk found: which installs to ask for, and every file they should land."""
 
-    def __init__(self, channel, target, force):
+    def __init__(self, channel, target, force, url_base=None):
         self.channel = channel
         self.target = target
         self.force = force
+        self.url_base = url_base
         self.seen = []
         # [spec, index, version, pruned]: one mip.install each on MicroPython,
         # unless something under it was skipped as frozen (pruned)
@@ -294,7 +314,7 @@ def _walk(plan, spec, version, indexes, owner=None):
         body = _read_json(url)
         if body is None:
             raise OSError("Package not found: %s" % url)
-        base = url.rpartition("/")[0]
+        base = plan.url_base or url.rpartition("/")[0]
     else:
         for index in indexes:
             body = _read_json("%s/package/%s/%s/%s.json" % (index, plan.channel, spec, version or "latest"))
@@ -314,7 +334,7 @@ def _walk(plan, spec, version, indexes, owner=None):
         plan.files.append((path, entry[1], short, owner))
     for path, url in urls:
         if base and not _is_url(url):
-            url = "%s/%s" % (base, url)
+            url = "%s/%s" % (base.rstrip("/"), url[2:] if url.startswith("./") else url)
         plan.files.append((path, _rewrite_url(url, version), None, owner))
     first = True
     for dep, dep_version in body.get("deps", ()):
@@ -593,7 +613,7 @@ def search(*words, index=None, prompt=True):
         gc.collect()
 
 
-def install(package, index=None, target=None, version=None, mpy=True, prompt=True, force=False):
+def install(package, index=None, target=None, version=None, mpy=True, prompt=True, force=False, url_base=None):
     """Install a package and everything it needs.
 
     A package the firmware has frozen in is skipped, with a message, because a
@@ -603,7 +623,8 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
 
     Args:
         package (str): A name on an index, or a `github:`, `gitlab:`, `codeberg:`
-            or `http(s):` URL, as for `mip.install`.
+            or `http(s):` URL, as for `mip.install`. A name may end in
+            `@version`, as in `"pygraphics@0.3.1"`.
         index (str): The index to use for the package. By default it looks on
             the OmniPython index, then micropython-lib.
         target (str): The folder to install into. By default the `lib` folder on
@@ -613,6 +634,9 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
             always take `.py`.
         prompt (bool): Whether `connect` may ask for Wi-Fi details.
         force (bool): Install packages the firmware has frozen in too.
+        url_base (str): Where a package JSON given by URL finds the files its
+            `urls` name relatively, in place of the JSON's own folder. A web
+            page passes its own address when its package files sit beside it.
 
     Returns:
         bool: `True` once every file has landed.
@@ -622,12 +646,14 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
             be written, or files are missing afterwards. Unlike `mip.install`,
             which prints and returns, a failed install doesn't pass quietly.
     """
+    if version is None and "@" in package and not _is_url(package):
+        package, _, version = package.partition("@")
     target = (target or _default_target()).rstrip("/")
     _check_writable(target)
     connect(prompt)
 
     channel = sys.implementation._mpy & 0xFF if _MP and mpy and hasattr(sys.implementation, "_mpy") else "py"
-    plan = _Plan(channel, target, force)
+    plan = _Plan(channel, target, force, url_base)
     indexes = [index.rstrip("/")] if index else [INDEX, UPSTREAM]
     _walk(plan, package, version, indexes)
     gc.collect()
@@ -640,7 +666,8 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
         except ImportError:
             raise OSError("This firmware has no mip: install from a computer with mcuctl")
         for root in plan.roots:
-            if root[3]:
+            # mip has no url_base, so with one, every file is fetched here.
+            if root[3] or plan.url_base:
                 for path, source, short, owner in plan.files:
                     if owner is root:
                         _fetch(path, source, short, target)

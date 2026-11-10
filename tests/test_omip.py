@@ -26,6 +26,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 _TESTS = Path(__file__).resolve().parent
 if str(_TESTS) not in sys.path:
@@ -254,6 +255,100 @@ class CPythonInstall(Indexes):
             self.install("bledev")
         self.assertEqual(self.ours.requests, [])
 
+    def test_a_name_can_carry_its_version(self):
+        write_package(self.ours_dir, "versioned", {"versioned.py": "V = 2\n"})
+        folder = self.ours_dir / "package" / "py" / "versioned"
+        (folder / "latest.json").rename(folder / "2.0.json")
+        self.install("versioned@2.0")
+        self.assertEqual((self.target / "versioned.py").read_text(), "V = 2\n")
+
+    def test_url_base_is_where_relative_urls_are_found(self):
+        site = self.ours_dir / "site"
+        (site / "src").mkdir(parents=True)
+        (site / "src" / "hello.py").write_text("HELLO = True\n", encoding="utf-8")
+        (site / "packages").mkdir()
+        (site / "packages" / "demo.json").write_text(json.dumps({"urls": [["hello.py", "./src/hello.py"]]}), encoding="utf-8")
+        manifest = self.ours_url + "/site/packages/demo.json"
+        with self.assertRaisesRegex(OSError, "HTTP 404"):
+            self.install(manifest)
+        self.install(manifest, url_base=self.ours_url + "/site/")
+        self.assertEqual(self.landed(), ["hello.py"])
+
+
+# What a browser hands Pyodide for a request made as x-user-defined: one
+# character per byte, the bytes from 0x80 up moved to U+F780 and on.
+FAKE_JS = """
+from urllib.error import HTTPError
+from urllib.request import urlopen
+class XMLHttpRequest:
+    @classmethod
+    def new(cls):
+        return cls()
+    def open(self, method, url, asynchronous):
+        assert method == "GET" and asynchronous is False
+        self.url = url
+    def overrideMimeType(self, mime):
+        self.mime = mime
+    def send(self, body):
+        try:
+            with urlopen(self.url) as response:
+                data = response.read()
+                self.status = response.status
+        except HTTPError as exc:
+            data, self.status = b"", exc.code
+        if self.mime == "text/plain; charset=x-user-defined":
+            self.responseText = "".join(chr(b) if b < 0x80 else chr(0xF700 + b) for b in data)
+        else:
+            self.responseText = data.decode("utf-8", "replace")
+"""
+
+
+class BrowserInstall(Indexes):
+    """omip under Pyodide, where the browser makes the requests."""
+
+    def setUp(self):
+        super().setUp()
+        fake = Path(tempfile.mkdtemp(prefix="omip-js-"))
+        self.addCleanup(shutil.rmtree, fake, ignore_errors=True)
+        (fake / "js.py").write_text(FAKE_JS, encoding="utf-8")
+        sys.path.insert(0, str(fake))
+        self.addCleanup(sys.path.remove, str(fake))
+        self.addCleanup(sys.modules.pop, "js", None)
+        # The fake keeps the real urlopen; Pyodide's own can't open a socket.
+        importlib.import_module("js")
+        refuse = mock.patch("urllib.request.urlopen", side_effect=OSError("no sockets in a browser"))
+        refuse.start()
+        self.addCleanup(refuse.stop)
+        platform = sys.platform
+        sys.platform = "emscripten"
+        try:
+            spec = importlib.util.spec_from_file_location("omip_in_browser", LIB / "omip.py")
+            self.omip = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(self.omip)
+        finally:
+            sys.platform = platform
+        self.omip.INDEX = self.ours_url
+        self.omip.UPSTREAM = self.upstream_url
+
+    def test_every_byte_arrives_through_the_browser(self):
+        data = bytes(range(256)) * 4
+        short = hashlib.sha256(data).hexdigest()[:8]
+        (self.ours_dir / "file" / short[:2]).mkdir(parents=True, exist_ok=True)
+        (self.ours_dir / "file" / short[:2] / short).write_bytes(data)
+        folder = self.ours_dir / "package" / "py" / "blob"
+        folder.mkdir(parents=True)
+        (folder / "latest.json").write_text(json.dumps({"hashes": [["blob.bin", short]]}), encoding="utf-8")
+        self.omip.install("blob", target=str(self.target), prompt=False)
+        self.assertEqual((self.target / "blob.bin").read_bytes(), data)
+
+    def test_a_package_and_its_upstream_need(self):
+        self.omip.install("bledev", target=str(self.target), prompt=False)
+        self.assertEqual(self.landed(), ["aioble/__init__.py", "aioble/core.py", "bledev/__init__.py"])
+
+    def test_not_found_says_so(self):
+        with self.assertRaisesRegex(OSError, "Package not found: nothing-here"):
+            self.omip.install("nothing-here", target=str(self.target), prompt=False)
+
 
 MP_INSTALL = """
 import sys
@@ -341,6 +436,23 @@ class MicroPythonRun(Indexes):
         self.assertIn("RESULT True", out)
         self.assertIn("IMPORTED aioble", out)
         self.assertEqual(self.landed(), ["aioble/__init__.py", "aioble/core.py", "bledev/__init__.py"])
+
+    def test_a_version_and_a_url_base(self):
+        write_package(self.ours_dir, "versioned", {"versioned.py": "V = 2\n"})
+        folder = self.ours_dir / "package" / MPY_CHANNEL / "versioned"
+        (folder / "latest.json").rename(folder / "2.0.json")
+        site = self.ours_dir / "site"
+        (site / "src").mkdir(parents=True)
+        (site / "src" / "hello.py").write_text("HELLO = True\n", encoding="utf-8")
+        (self.ours_dir / "demo.json").write_text(json.dumps({"urls": [["hello.py", "./src/hello.py"]]}), encoding="utf-8")
+        out = self.run_mp(
+            "import omip\n"
+            "omip.install('versioned@2.0', index=%r, target=%r, prompt=False)\n"
+            "omip.install(%r, url_base=%r, target=%r, prompt=False)\n"
+            % (self.ours_url, str(self.target), self.ours_url + "/demo.json", self.ours_url + "/site", str(self.target))
+        )
+        self.assertNotIn("Traceback", out, out)
+        self.assertEqual(self.landed(), ["hello.py", "versioned.py"])
 
     def test_search_reads_both_indexes(self):
         out = self.run_mp(MP_SEARCH.format(ours=self.ours_url, upstream=self.upstream_url, words=("BLUETOOTH",)))
