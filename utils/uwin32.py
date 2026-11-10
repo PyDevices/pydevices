@@ -207,9 +207,19 @@ MM_MIM_CLOSE = 0x3C2
 MM_MIM_DATA = 0x3C3
 MM_MIM_LONGDATA = 0x3C4
 MM_MIM_ERROR = 0x3C5
+MM_MIM_LONGERROR = 0x3C6
 MM_MOM_OPEN = 0x3C7
 MM_MOM_CLOSE = 0x3C8
 MM_MOM_DONE = 0x3C9
+
+# SysEx goes through a MIDIHDR that describes a buffer the caller owns. winmm
+# reads or fills that buffer after the call returns, so it has to stay put
+# until the header's MHDR_DONE flag is set: VirtualAlloc'd memory, not a
+# bytearray the interpreter could free.
+MHDR_DONE = 0x00000001
+MHDR_PREPARED = 0x00000002
+MHDR_INQUEUE = 0x00000004
+MIDIERR_STILLPLAYING = 65
 
 # MIDIOUTCAPSW / MIDIINCAPSW. Read as raw buffers rather than declared as
 # structures in both backends: the only field either caller needs is the
@@ -260,6 +270,12 @@ if _use_ffi:
     _raw_midiInStop = winmm.func("I", "midiInStop", "P")
     _raw_midiInReset = winmm.func("I", "midiInReset", "P")
     _raw_midiInClose = winmm.func("I", "midiInClose", "P")
+    _raw_midiOutPrepareHeader = winmm.func("I", "midiOutPrepareHeader", "PPI")
+    _raw_midiOutUnprepareHeader = winmm.func("I", "midiOutUnprepareHeader", "PPI")
+    _raw_midiOutLongMsg = winmm.func("I", "midiOutLongMsg", "PPI")
+    _raw_midiInPrepareHeader = winmm.func("I", "midiInPrepareHeader", "PPI")
+    _raw_midiInUnprepareHeader = winmm.func("I", "midiInUnprepareHeader", "PPI")
+    _raw_midiInAddBuffer = winmm.func("I", "midiInAddBuffer", "PPI")
     _raw_RegisterClassExW = user32.func("H", "RegisterClassExW", "p")
     _raw_CreateWindowExW = user32.func("P", "CreateWindowExW", "IPPIiiiiPPPP")
     _raw_DestroyWindow = user32.func("i", "DestroyWindow", "P")
@@ -1138,6 +1154,10 @@ else:
     winmm.midiInReset.restype = UINT
     winmm.midiInClose.argtypes = [c_void_p]
     winmm.midiInClose.restype = UINT
+    for _name in ("midiOutPrepareHeader", "midiOutUnprepareHeader", "midiOutLongMsg",
+                  "midiInPrepareHeader", "midiInUnprepareHeader", "midiInAddBuffer"):
+        getattr(winmm, _name).argtypes = [c_void_p, c_void_p, UINT]
+        getattr(winmm, _name).restype = UINT
 
     user32.DefWindowProcW.argtypes = [HWND, UINT, WPARAM, LPARAM]
     user32.DefWindowProcW.restype = LRESULT
@@ -2731,3 +2751,75 @@ def midi_unpack(lparam):
     byte. Realtime bytes arrive as a status with both data bytes unused.
     """
     return (lparam & 0xFF, (lparam >> 8) & 0xFF, (lparam >> 16) & 0xFF)
+
+
+# MIDIHDR: lpData, dwBufferLength, dwBytesRecorded, dwUser, dwFlags, lpNext,
+# reserved, dwOffset, dwReserved[8]. Pointer-sized fields make it 120 bytes on
+# 64-bit Windows and 64 on 32-bit.
+MIDIHDR_SIZE = 120 if _IS_64 else 64
+_MIDIHDR_RECORDED = _PTR_SIZE + 4
+_MIDIHDR_FLAGS = 2 * _PTR_SIZE + 8
+
+
+def midihdr_init(hdr, data, length):
+    """Fill the MIDIHDR at address ``hdr`` to describe ``length`` bytes at ``data``.
+
+    Every other field is zeroed. For output, the bytes at ``data`` are the
+    message; for input, ``length`` is how much winmm may write there.
+    """
+    view = buffer_at(hdr, MIDIHDR_SIZE)
+    for i in range(MIDIHDR_SIZE):
+        view[i] = 0
+    view[0:_PTR_SIZE] = int(data).to_bytes(_PTR_SIZE, "little")
+    view[_PTR_SIZE:_PTR_SIZE + 4] = int(length).to_bytes(4, "little")
+
+
+def midihdr_recorded(hdr):
+    """dwBytesRecorded of the MIDIHDR at ``hdr``: how much an input buffer holds."""
+    return int.from_bytes(bytes(buffer_at(hdr + _MIDIHDR_RECORDED, 4)), "little")
+
+
+def midihdr_flags(hdr):
+    """dwFlags of the MIDIHDR at ``hdr`` (``MHDR_DONE`` and the rest)."""
+    return int.from_bytes(bytes(buffer_at(hdr + _MIDIHDR_FLAGS, 4)), "little")
+
+
+def _mm_header_call(raw, name, handle, hdr):
+    if _use_ffi:
+        return _mm_check(raw(handle, hdr, MIDIHDR_SIZE), name)
+    return _mm_check(getattr(winmm, name)(c_void_p(handle), c_void_p(hdr), MIDIHDR_SIZE), name)
+
+
+def midiOutPrepareHeader(handle, hdr):
+    return _mm_header_call(_raw_midiOutPrepareHeader if _use_ffi else None, "midiOutPrepareHeader", handle, hdr)
+
+
+def midiOutUnprepareHeader(handle, hdr):
+    """Fails with MIDIERR_STILLPLAYING until the header is ``MHDR_DONE``."""
+    return _mm_header_call(_raw_midiOutUnprepareHeader if _use_ffi else None, "midiOutUnprepareHeader", handle, hdr)
+
+
+def midiOutLongMsg(handle, hdr):
+    """Start sending the prepared header's bytes, a whole SysEx. Returns at once.
+
+    The send is done when `midihdr_flags` has ``MHDR_DONE``.
+    """
+    return _mm_header_call(_raw_midiOutLongMsg if _use_ffi else None, "midiOutLongMsg", handle, hdr)
+
+
+def midiInPrepareHeader(handle, hdr):
+    return _mm_header_call(_raw_midiInPrepareHeader if _use_ffi else None, "midiInPrepareHeader", handle, hdr)
+
+
+def midiInUnprepareHeader(handle, hdr):
+    """Fails with MIDIERR_STILLPLAYING while the buffer is queued; `midiInReset` returns them."""
+    return _mm_header_call(_raw_midiInUnprepareHeader if _use_ffi else None, "midiInUnprepareHeader", handle, hdr)
+
+
+def midiInAddBuffer(handle, hdr):
+    """Queue a prepared buffer for SysEx input.
+
+    Filled buffers come back as MM_MIM_LONGDATA to the window `midiInOpen`
+    was given, with the header's address in lParam. Queue it again to reuse it.
+    """
+    return _mm_header_call(_raw_midiInAddBuffer if _use_ffi else None, "midiInAddBuffer", handle, hdr)

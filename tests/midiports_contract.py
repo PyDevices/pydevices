@@ -757,11 +757,81 @@ class _Msg:
 
 class FakeWin:
     MM_MIM_DATA = 0x3C3
+    MM_MIM_LONGDATA = 0x3C4
+    MM_MIM_LONGERROR = 0x3C6
+    MIDIHDR_SIZE = 16
+    MHDR_DONE = 1
 
     def __init__(self):
         self.sent = []
         self.queue = []
         self.closed = []
+        self.long_sent = []       # each SysEx midiOutLongMsg was given
+        self.blocks = {}          # address -> bytearray, as VirtualAlloc hands out
+        self.headers = {}         # header address -> [data address, length, recorded, flags]
+        self.prepared = []
+        self.queued = []          # input headers midiInAddBuffer holds
+        self._next = 0x10000
+
+    # Memory and MIDIHDR, kept in Python: an address is a key, not a pointer.
+
+    def VirtualAlloc(self, size):
+        address = self._next
+        self._next += 0x10000
+        self.blocks[address] = bytearray(size)
+        return address
+
+    def VirtualFree(self, address):
+        del self.blocks[address]
+
+    def buffer_at(self, address, size):
+        for base, block in self.blocks.items():
+            if base <= address < base + len(block):
+                return memoryview(block)[address - base:address - base + size]
+        raise AssertionError("no block at %#x" % address)
+
+    def midihdr_init(self, hdr, data, length):
+        self.buffer_at(hdr, self.MIDIHDR_SIZE)  # the header lies in a block
+        self.headers[hdr] = [data, length, 0, 0]
+
+    def midihdr_recorded(self, hdr):
+        return self.headers[hdr][2]
+
+    def midihdr_flags(self, hdr):
+        return self.headers[hdr][3]
+
+    def midiOutPrepareHeader(self, handle, hdr):
+        self.prepared.append(hdr)
+
+    def midiOutUnprepareHeader(self, handle, hdr):
+        assert self.headers[hdr][3] & self.MHDR_DONE, "unprepared while still playing"
+        self.prepared.remove(hdr)
+
+    def midiOutLongMsg(self, handle, hdr):
+        data, length = self.headers[hdr][:2]
+        self.long_sent.append(bytes(self.buffer_at(data, length)))
+        self.headers[hdr][3] |= self.MHDR_DONE
+
+    def midiInPrepareHeader(self, handle, hdr):
+        self.prepared.append(hdr)
+
+    def midiInUnprepareHeader(self, handle, hdr):
+        assert hdr not in self.queued, "unprepared while queued"
+        self.prepared.remove(hdr)
+
+    def midiInAddBuffer(self, handle, hdr):
+        assert hdr in self.prepared and hdr not in self.queued, "added twice or unprepared"
+        self.headers[hdr][3] &= ~self.MHDR_DONE
+        self.queued.append(hdr)
+
+    def sysex_arrives(self, data):
+        """The driver fills the oldest queued buffer and posts it back."""
+        hdr = self.queued.pop(0)
+        entry = self.headers[hdr]
+        self.buffer_at(entry[0], len(data))[:] = data
+        entry[2] = len(data)
+        entry[3] |= self.MHDR_DONE
+        self.queue.append(_Msg(self.MM_MIM_LONGDATA, hdr))
 
     def midiOutGetNumDevs(self):
         return 2
@@ -797,7 +867,10 @@ class FakeWin:
         pass
 
     def midiInReset(self, handle):
-        pass
+        for hdr in self.queued:
+            self.headers[hdr][2] = 0
+            self.headers[hdr][3] |= self.MHDR_DONE
+        self.queued = []
 
     def midiInClose(self, handle):
         self.closed.append(handle)
@@ -838,16 +911,35 @@ def c_windows():
         n = midi_out.write(b"\x90\x3c\x64\x3e\x50\xf8\xc0\x05\x90\x40", 8)
         expect(n == 8 and fake.sent == [(0x90, 0x3C, 0x64), (0x90, 0x3E, 0x50), (0xF8, 0, 0),
                                         (0xC0, 0x05, 0)], "short messages %r" % (fake.sent,))
-        try:
-            midi_out.write(b"\xf0\x7d\x01\xf7")
-            raise AssertionError("sysex should raise")
-        except NotImplementedError:
-            pass
+        fake.sent = []
+        # A SysEx goes out whole; a clock inside it goes at once.
+        n = midi_out.write(b"\xf0\x7e\x7f\xf8\x06\x01\xf7\x90\x3c\x64")
+        expect(n == 10, "sysex write counted %r" % n)
+        expect(fake.long_sent == [b"\xf0\x7e\x7f\x06\x01\xf7"], "sysex sent %r" % (fake.long_sent,))
+        expect(fake.sent == [(0xF8, 0, 0), (0x90, 0x3C, 0x64)], "short beside sysex %r" % (fake.sent,))
+        # Split across writes, it waits for its 0xF7; another status ends it.
+        expect(midi_out.write(b"\xf0\x7d") == 2, "half a sysex is taken")
+        expect(len(fake.long_sent) == 1, "sent before its end")
+        midi_out.write(b"\x01\xf7\xf0\x7d\x02\x80\x3c\x00")
+        expect(fake.long_sent[1:] == [b"\xf0\x7d\x01\xf7", b"\xf0\x7d\x02\xf7"], "split and cut %r" % (fake.long_sent,))
+        expect(fake.sent[-1] == (0x80, 0x3C, 0), "status after a cut sysex %r" % (fake.sent,))
+        expect(fake.prepared == fake.queued and len(fake.queued) == 4, "input buffers queued")
         for status, d1, d2 in ((0x90, 0x3C, 0x64), (0xF8, 0, 0), (0xC0, 5, 0)):
             fake.queue.append(_Msg(FakeWin.MM_MIM_DATA, status | d1 << 8 | d2 << 16))
         fake.queue.append(_Msg(0x0F, 0))  # not MIDI: ignored
         expect(midi_in.read(64) == b"\x90\x3c\x64\xf8\xc0\x05", "drained in order")
         expect(midi_in.read(64) is None, "empty")
+        # SysEx in, between short messages, in two buffers; each goes back in the queue.
+        fake.queue.append(_Msg(FakeWin.MM_MIM_DATA, 0x90 | 0x3C << 8 | 0x64 << 16))
+        fake.sysex_arrives(b"\xf0\x7e\x00\x06\x02")
+        fake.queue.append(_Msg(FakeWin.MM_MIM_DATA, 0xF8))
+        fake.sysex_arrives(b"\x11\x22\xf7")
+        fake.queue.append(_Msg(FakeWin.MM_MIM_DATA, 0x80 | 0x3C << 8))
+        got = midi_in.read(64)
+        expect(got == b"\x90\x3c\x64\xf0\x7e\x00\x06\x02\xf8\x11\x22\xf7\x80\x3c\x00", "sysex in %r" % (got,))
+        expect(len(fake.queued) == 4, "buffers queued again: %d" % len(fake.queued))
+        fake.queue.append(_Msg(FakeWin.MM_MIM_LONGERROR, fake.queued.pop(0)))
+        expect(midi_in.read(64) is None and len(fake.queued) == 4, "a bad sysex is dropped, its buffer kept")
         for ref in ("in:x", "3", "sideways:1"):
             try:
                 windows._split_id(ref)
@@ -855,8 +947,10 @@ def c_windows():
             except ValueError:
                 pass
         midi_in.close()
+        expect(fake.prepared == [] and fake.queued == [], "input buffers handed back")
         midi_out.close()
         midi_out.close()
+        expect(fake.blocks == {}, "memory left: %r" % (list(fake.blocks),))
         try:
             midi_in.read(4)
             raise AssertionError("read after close")
@@ -1458,11 +1552,15 @@ def c_stamps_windows():
     try:
         use_fake_clock(windows)
         midi_in, _ = windows.ports("loopmidi")
-        chunks = list(WHOLE_ARRIVALS[:2] + WHOLE_ARRIVALS[3:])  # winmm: no SysEx in
+        chunks = list(WHOLE_ARRIVALS)
 
         def pump():
             if chunks and not fake.queue:
                 data = chunks.pop(0)
+                if data[0] == 0xF0:
+                    fake.sysex_arrives(data)
+                    _clock.t += 1000
+                    return
                 i = 0
                 while i < len(data):
                     n = 1 + midiports.message_length(data[i])
@@ -1472,8 +1570,7 @@ def c_stamps_windows():
                 _clock.t += 1000
 
         _clock.t = 0
-        want = STAMP_WANT[:4] + ((ControlChange, 3), (TimingClock, 4), (NoteOff, 4))
-        expect_stamps(stamps_per_message(midi_in, pump), want)
+        expect_stamps(stamps_per_message(midi_in, pump), WHOLE_WANT)
         midi_in.close()
     finally:
         sys.modules.pop("uwin32", None)
@@ -1584,7 +1681,7 @@ CHECKS = (
     ("usb_host: 200 of 200 over a fake usb.core, packets to whole messages", c_usb_host),
     ("usb_host all_ports: two devices merged whole, out to both, arrivals and departures", c_usb_host_all),
     ("usb_host all_ports: a SysEx that stops, or whose device leaves, is ended", c_usb_host_all_stalled_sysex),
-    ("windows: ports by name, short messages, drained input", c_windows),
+    ("windows: ports by name, short messages and SysEx both ways, drained input", c_windows),
     ("any(): counts without taking, allocates nothing, drives a loop", c_any),
     ("webmidi: a page MIDIAccess, 200 of 200, timestamps follow receive()", c_webmidi_page),
     ("webmidi: a worker relay, 200 of 200, whole messages posted", c_webmidi_relay),
