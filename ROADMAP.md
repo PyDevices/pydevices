@@ -9,8 +9,6 @@ with each kind of peripheral described honestly by its role.
   `asyncio` for `bledev`, so `circup` isn't a second step.
 - `omip` and the portable `mip` in `utils/` become one file, once measuring shows
   the browser loaders that use the portable one lose nothing.
-- `omip` skips what the firmware has already frozen, so a board doesn't keep an
-  unused copy in `/lib`.
 
 ## Audio
 
