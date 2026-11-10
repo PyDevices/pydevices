@@ -5,7 +5,8 @@
 
 Two small index trees are served from this machine: "ours", whose packages name
 what they need from the other under `upstream`, and a stand-in for
-micropython-lib. Nothing reaches the internet. CircuitPython's unix build has no
+micropython-lib. CircuitPython runs get a third, a stand-in for the copy of
+Adafruit's bundle. Nothing reaches the internet. CircuitPython's unix build has no
 sockets, so its run replaces socketpool, ssl and wifi with fakes that answer from
 the same trees: that proves omip's HTTP parsing and file handling, not a real TLS
 connection or a real radio.
@@ -37,8 +38,8 @@ LIB = _TESTS.parent / "lib"
 MPY_CHANNEL = "6"
 
 
-def write_package(root, name, files, **keys):
-    """Add a package to an index tree, on the py and bytecode channels."""
+def write_package(root, name, files, channels=("py", MPY_CHANNEL), **keys):
+    """Add a package to an index tree, on the py and bytecode channels unless told others."""
     hashes = []
     for path, text in files.items():
         data = text.encode()
@@ -48,7 +49,7 @@ def write_package(root, name, files, **keys):
         out.write_bytes(data)
         hashes.append([path, short])
     body = dict(v=1, version="1.0", hashes=hashes, **keys)
-    for channel in ("py", MPY_CHANNEL):
+    for channel in channels:
         folder = root / "package" / channel / name
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "latest.json").write_text(json.dumps(body), encoding="utf-8")
@@ -74,7 +75,13 @@ def build_indexes(scratch):
     )
     write_package(upstream, "sdcard", {"sdcard.py": "CARD = True\n"})
     write_package(upstream, "only-upstream", {"only_upstream.py": "HERE = True\n"})
-    write_package(ours, "bledev", {"bledev/__init__.py": "import aioble\n"}, upstream=[["aioble", "latest"]])
+    write_package(
+        ours,
+        "bledev",
+        {"bledev/__init__.py": "import aioble\n"},
+        upstream=[["aioble", "latest"]],
+        circuitpython=[["asyncio", "latest"]],
+    )
     write_package(ours, "gt911", {"gt911.py": "TOUCH = True\n"})
     write_package(ours, "core", {"core.py": "CORE = True\n"})
     write_package(
@@ -103,6 +110,37 @@ def build_indexes(scratch):
     write_index(ours, ("bledev", "Bluetooth for boards"), ("gt911", 'Touch, with {braces} and a "quote"'))
     write_index(upstream, ("aioble", "Asyncio Bluetooth"), ("sdcard", "SD cards"))
     return ours, upstream
+
+
+ADAFRUIT_MAJORS = ("9.x", "10.x", "11.x", "12.x")
+
+
+def build_adafruit(scratch):
+    """A stand-in for the copy of Adafruit's bundle: one channel per CircuitPython major version.
+
+    Each channel's adafruit_ticks says which channel it came from.
+    """
+    root = scratch / "adafruit"
+    for channel in ADAFRUIT_MAJORS:
+        write_package(root, "adafruit_ticks", {"adafruit_ticks.py": "CHANNEL = %r\n" % channel}, channels=[channel])
+    write_package(
+        root,
+        "asyncio",
+        {"asyncio/__init__.py": "from adafruit_ticks import CHANNEL\n"},
+        channels=ADAFRUIT_MAJORS,
+        deps=[["adafruit_ticks", "latest"]],
+    )
+    write_package(
+        root,
+        "adafruit_display_text",
+        {"adafruit_display_text/__init__.py": "from adafruit_ticks import CHANNEL\n"},
+        channels=ADAFRUIT_MAJORS,
+        deps=[["adafruit_ticks", "latest"]],
+    )
+    # A name both have: ours is the one a bare name gets.
+    write_package(root, "gt911", {"gt911.py": "ADAFRUITS = True\n"}, channels=ADAFRUIT_MAJORS)
+    write_index(root, ("adafruit_ticks", "Work with intervals and deadlines"), ("asyncio", "Cooperative multitasking"))
+    return root
 
 
 class _Quiet(http.server.SimpleHTTPRequestHandler):
@@ -623,12 +661,17 @@ class SocketPool:
 CP_INSTALL = """
 import omip
 omip.INDEX = "https://ours.test"
+omip.ADAFRUIT = "https://adafruit.test"
 omip.UPSTREAM = "https://upstream.test"
 print("RESULT", omip.install({package!r}, target={target!r}, prompt=False))
 """
 
 
 class CircuitPythonRun(Indexes):
+    def setUp(self):
+        super().setUp()
+        self.adafruit_dir = build_adafruit(self.scratch)
+
     def run_cp(self, script, *, stdin="", address='"10.0.0.1"', env=None):
         interpreter = os.environ.get("PYDEVICES_CIRCUITPYTHON") or shutil.which("circuitpython")
         if not interpreter:
@@ -636,7 +679,7 @@ class CircuitPythonRun(Indexes):
             interpreter = str(found[0]) if found else None
         if not interpreter:
             self.skipTest("no circuitpython binary: this check did NOT run on CircuitPython")
-        trees = {"ours.test": str(self.ours_dir), "upstream.test": str(self.upstream_dir)}
+        trees = {"ours.test": str(self.ours_dir), "upstream.test": str(self.upstream_dir), "adafruit.test": str(self.adafruit_dir)}
         (self.home / "wifi.py").write_text(FAKE_WIFI.format(address=address), encoding="utf-8")
         (self.home / "ssl.py").write_text(FAKE_SSL, encoding="utf-8")
         (self.home / "socketpool.py").write_text(FAKE_SOCKETPOOL.format(trees=repr(trees)), encoding="utf-8")
@@ -649,13 +692,37 @@ class CircuitPythonRun(Indexes):
     def script(self, package="bledev"):
         return CP_INSTALL.format(package=package, target=str(self.target))
 
-    def test_takes_the_py_channel_and_leaves_micropythons_upstream_alone(self):
+    def major(self):
+        out = self.run_cp('import sys\nprint("MAJOR %d.x" % sys.implementation.version[0])\n')
+        return out.split("MAJOR ")[1].split()[0]
+
+    def test_takes_the_py_channel_and_adafruits_libraries_in_place_of_micropythons(self):
         out = self.run_cp(self.script())
         self.assertIn("RESULT True", out, out)
         self.assertIn("TLS ours.test", out)
         self.assertIn("Skipping aioble", out)
-        self.assertEqual(self.landed(), ["bledev/__init__.py"])
+        self.assertEqual(self.landed(), ["adafruit_ticks.py", "asyncio/__init__.py", "bledev/__init__.py"])
         self.assertEqual((self.target / "bledev" / "__init__.py").read_text(), "import aioble\n")
+
+    def test_a_bare_name_ours_lacks_comes_from_adafruits_bundle_for_this_major(self):
+        out = self.run_cp(
+            self.script("adafruit_display_text")
+            + "import sys\nsys.path.insert(0, %r)\nimport adafruit_display_text\n"
+            "print('IMPORTED', adafruit_display_text.CHANNEL)\n" % str(self.target)
+        )
+        self.assertIn("RESULT True", out, out)
+        self.assertIn("IMPORTED %s" % self.major(), out)
+        self.assertEqual(self.landed(), ["adafruit_display_text/__init__.py", "adafruit_ticks.py"])
+
+    def test_ours_comes_first_for_a_name_both_have(self):
+        out = self.run_cp(self.script("gt911"))
+        self.assertIn("RESULT True", out, out)
+        self.assertEqual((self.target / "gt911.py").read_text(), "TOUCH = True\n")
+
+    def test_a_version_adafruits_bundle_lacks_says_where_it_looked(self):
+        out = self.run_cp(self.script("adafruit_ticks@0.1"))
+        self.assertIn("Package not found: adafruit_ticks (looked on https://ours.test, https://adafruit.test", out)
+        self.assertNotIn("RESULT", out)
 
     def test_deps_arrive_byte_for_byte_through_the_http_parser(self):
         big = "".join("line %d\n" % i for i in range(2000))
@@ -687,11 +754,12 @@ class CircuitPythonRun(Indexes):
     def test_search_through_the_http_parser(self):
         out = self.run_cp(
             'import omip\nomip.INDEX = "https://ours.test"\nomip.UPSTREAM = "https://upstream.test"\n'
-            'omip.search("bluetooth", prompt=False)\nprint("DONE")\n'
+            'omip.ADAFRUIT = "https://adafruit.test"\n'
+            'omip.search(prompt=False)\nprint("DONE")\n'
         )
-        self.assertIn("bledev 1.0  Bluetooth for boards", out)
-        self.assertIn("aioble 1.0  Asyncio Bluetooth", out)
-        self.assertIn("DONE", out)
+        self.assertIn("DONE", out, out)
+        names = [line.split()[0] for line in out.splitlines() if " 1.0  " in line]
+        self.assertEqual(names, ["bledev", "gt911", "adafruit_ticks", "asyncio", "aioble", "sdcard"])
 
     def test_not_found_says_so(self):
         out = self.run_cp(self.script("no-such"))

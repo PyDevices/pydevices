@@ -82,6 +82,22 @@ Each board installer includes its board-specific Python display, touch, and
 peripheral drivers. It does not pull optional Python bus fallbacks when the
 firmware is expected to provide the hardware interface.
 
+## CircuitPython board
+
+On CircuitPython, `omip` also finds Adafruit's libraries, the ones `circup`
+installs, compiled for the board's CircuitPython version:
+
+```python
+import omip
+
+omip.install("adafruit_display_text")
+```
+
+It brings what the library needs too. A name on both the OmniPython index and
+Adafruit's bundle comes from the OmniPython index; pass `index=omip.ADAFRUIT`
+for Adafruit's. The board can only write its own drive once `boot.py` has made
+it writable, and `omip` says how when it isn't.
+
 ## Desktop with MicroPython MIP
 
 Get the `micropython` (or `micropython.exe`) interpreter binary, either by

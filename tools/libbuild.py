@@ -382,6 +382,7 @@ class Tree:
     path: Path
     packages: dict[str, str] = field(default_factory=dict)  # name -> where it came from
     upstream: dict[str, tuple[str, ...]] = field(default_factory=dict)  # lib-lock.json's repo.<name>.upstream
+    circuitpython: dict[str, tuple[str, ...]] = field(default_factory=dict)  # lib-lock.json's repo.<name>.circuitpython
 
 
 def assemble_repo_packages(root: Path, lock: Lock, version: str, tree: Tree, library: str, local: frozenset[str]) -> None:
@@ -396,6 +397,8 @@ def assemble_repo_packages(root: Path, lock: Lock, version: str, tree: Tree, lib
             raise BuildError(f"{LOCKFILE} has no repo.{name} entry (its description)")
         if lock.repo[name].get("upstream"):
             tree.upstream[name] = tuple(lock.repo[name]["upstream"])
+        if lock.repo[name].get("circuitpython"):
+            tree.circuitpython[name] = tuple(lock.repo[name]["circuitpython"])
 
     def add(name: str, origin: str) -> Path:
         if name in tree.packages:
@@ -1123,6 +1126,10 @@ def compile_index(
                 needed = [*manifest.left_out, *(n for n in tree.upstream.get(name, ()) if n not in manifest.left_out)]
                 if needed:
                     body["upstream"] = [[dep, "latest"] for dep in needed]
+                # What it needs from Adafruit's bundle on CircuitPython, in
+                # place of those. Only omip on CircuitPython reads this key.
+                if tree.circuitpython.get(name):
+                    body["circuitpython"] = [[dep, "latest"] for dep in tree.circuitpython[name]]
                 for stem in ("latest", version):
                     _write_json(body, out / "package" / kind / name / f"{stem}.json", minify=True)
             entries.append(

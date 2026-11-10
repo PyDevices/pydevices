@@ -3,11 +3,6 @@
 pydevices is heading toward covering more of the hardware a board can carry,
 with each kind of peripheral described honestly by its role.
 
-## Installing
-
-- `omip` on CircuitPython brings Adafruit's libraries a package needs, such as
-  `asyncio` for `bledev`, so `circup` isn't a second step.
-
 ## Audio
 
 - A board role for encoded audio. Chips such as the VS1053 decode MP3, Ogg or

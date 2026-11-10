@@ -49,7 +49,7 @@ and Android.
   Get it: open in a browser. Runs on: Web.
 - [`Board configs`](https://github.com/PyDevices/pydevices/blob/main/docs/boards/board-configs.md): Describe one board's display, touch, audio and pins, so a program runs on it unchanged. There is one per board.\
   Get it: `mip`, from the board's folder. Runs on: MP, CP, Desktop.
-- [`omip`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/bring-up-a-board.md): Install a package on a board in one line, with what it needs from micropython-lib, after getting the board online if it isn't.\
+- [`omip`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/bring-up-a-board.md): Install a package on a board in one line, with what it needs from micropython-lib, or Adafruit's libraries on CircuitPython, after getting the board online if it isn't.\
   Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web.
 - [`boarddev`](https://github.com/PyDevices/pydevices/blob/main/docs/boards/board-contract.md): Bring up a board's extra devices, such as its camera or sensors, only when you ask for them.\
   Get it: `mip pydevices`, `pip pydevices`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
