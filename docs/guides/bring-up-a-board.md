@@ -101,6 +101,14 @@ the `sdcard` driver. Plain `mip` uses one index for a whole install, so with `mi
 you install those first, from its default index. If an install fails, `omip`
 raises `OSError`; `mip` prints a message and returns.
 
+`omip` also skips a package the firmware already has frozen in, and says so:
+`Skipping aioble: it's frozen into this firmware`. A frozen module runs ahead of
+`/lib`, so a copy there would only take up space. It skips even when the index
+has a newer version, because that copy still wouldn't run. To use a newer one,
+rebuild the firmware, or put `/lib` ahead of `.frozen` on `sys.path`, which
+`omip` notices and then installs as usual. `force=True` installs everything
+regardless.
+
 **Take both halves from the same place.** The pair above mixes the *released*
 `pydevices` (the index) with the board config from `main` (`github:`). That
 is fine when the two agree, and wrong the moment `main`'s board configs pass

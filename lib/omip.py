@@ -190,26 +190,104 @@ def _rewrite_url(url, version):
 class _Plan:
     """What a walk found: which installs to ask for, and every file they should land."""
 
-    def __init__(self, channel):
+    def __init__(self, channel, target, force):
         self.channel = channel
+        self.target = target
+        self.force = force
         self.seen = []
-        self.roots = []  # [spec, index, version]: one mip.install each on MicroPython
-        self.files = []  # (target path, index or URL, short hash or None)
+        # [spec, index, version, pruned]: one mip.install each on MicroPython,
+        # unless something under it was skipped as frozen (pruned)
+        self.roots = []
+        self.files = []  # (target path, index or URL, short hash or None, root)
 
 
-def _walk(plan, spec, version, indexes, root=False):
-    """Read spec's JSON and everything it needs into plan. Returns the index it was found on."""
+def _module_names(paths):
+    """The modules a package's files would be imported as, leaving out those inside another of them."""
+    names = []
+    for path in paths:
+        stem, dot, ext = path.rpartition(".")
+        if not dot or ext not in ("py", "mpy"):
+            continue
+        if stem.endswith("/__init__"):
+            stem = stem[: -len("/__init__")]
+        names.append(stem.replace("/", "."))
+    return [n for n in names if not any(n.startswith(other + ".") for other in names)]
+
+
+def _is_frozen(name):
+    """Whether module name is frozen into this firmware. Imports it from there alone, then forgets it."""
+    before = dict(sys.modules)
+    # A copy already imported, or a parent package, may have come from the filesystem.
+    for key in before:
+        if key == name or name.startswith(key + "."):
+            del sys.modules[key]
+    path = sys.path[:]
+    sys.path[:] = [".frozen"]
+    try:
+        module = __import__(name)
+        for part in name.split(".")[1:]:
+            module = getattr(module, part)
+        # A built-in module has no file; only what was frozen from Python source does.
+        return hasattr(module, "__file__")
+    except ImportError as exc:
+        message = str(exc)
+        if "named " not in message:
+            # A firmware with terse or translated messages: say not frozen, and install as before.
+            return False
+        missing = message.rpartition("named ")[2].strip("'\"")
+        # Not found itself means not frozen; anything else it imports failing means it was found.
+        return not (missing == name or name.startswith(missing + "."))
+    except Exception:
+        return True
+    finally:
+        sys.path[:] = path
+        for key in list(sys.modules):
+            if key not in before:
+                del sys.modules[key]
+        sys.modules.update(before)
+
+
+def _frozen_wins(plan):
+    """Whether a frozen module would run ahead of a copy in the target folder."""
+    if plan.force or ".frozen" not in sys.path:
+        return False
+    target = plan.target if plan.target in sys.path else None
+    return target is None or sys.path.index(".frozen") < sys.path.index(target)
+
+
+def _skip_frozen(plan, spec, paths):
+    """Whether every module a package installs is frozen in already, where it would win."""
+    names = _module_names(paths)
+    if not names or not _frozen_wins(plan):
+        return False
+    for name in names:
+        if not _is_frozen(name):
+            return False
+    print("Skipping %s: it's frozen into this firmware, and that copy is the one that runs" % spec)
+    return True
+
+
+def _walk(plan, spec, version, indexes, owner=None):
+    """Read spec's JSON and everything it needs into plan. Returns the index it was found on.
+
+    owner is the root whose mip.install brings spec along; with none, spec is a root.
+    """
     if spec in plan.seen:
         return None
     plan.seen.append(spec)
-    entry = [spec, indexes[0], version]
-    if root:
+    entry = [spec, indexes[0], version, False]
+    if owner is None:
+        owner = entry
         plan.roots.append(entry)
     base = None
     if _is_url(spec):
         url = _rewrite_url(spec, version)
         if spec.endswith(".py") or spec.endswith(".mpy"):
-            plan.files.append((spec.rsplit("/", 1)[-1], url, None))
+            name = spec.rsplit("/", 1)[-1]
+            if _skip_frozen(plan, spec, [name]):
+                owner[3] = True
+            else:
+                plan.files.append((name, url, None, owner))
             return indexes[0]
         if not spec.endswith(".json"):
             url = url.rstrip("/") + "/package.json"
@@ -226,15 +304,21 @@ def _walk(plan, spec, version, indexes, root=False):
         else:
             raise OSError("Package not found: %s (looked on %s)" % (spec, ", ".join(indexes)))
         indexes = [entry[1]]
-    for path, short in body.get("hashes", ()):
-        plan.files.append((path, entry[1], short))
-    for path, url in body.get("urls", ()):
+    hashes = body.get("hashes", ())
+    urls = body.get("urls", ())
+    if _skip_frozen(plan, spec, [path for path, _ in hashes] + [path for path, _ in urls]):
+        # mip.install would bring it anyway, so its root's files are fetched one by one.
+        owner[3] = True
+        hashes = urls = ()
+    for path, short in hashes:
+        plan.files.append((path, entry[1], short, owner))
+    for path, url in urls:
         if base and not _is_url(url):
             url = "%s/%s" % (base, url)
-        plan.files.append((path, _rewrite_url(url, version), None))
+        plan.files.append((path, _rewrite_url(url, version), None, owner))
     first = True
     for dep, dep_version in body.get("deps", ()):
-        found = _walk(plan, dep, dep_version, indexes)
+        found = _walk(plan, dep, dep_version, indexes, owner)
         # mip looks up all of a package.json's named deps on the one index it is given.
         if base and first and found and not _is_url(dep):
             entry[1] = found
@@ -245,7 +329,7 @@ def _walk(plan, spec, version, indexes, root=False):
         if _CP and not _is_url(dep):
             print("Skipping %s: it's for MicroPython. CircuitPython libraries come from circup." % dep)
         else:
-            _walk(plan, dep, dep_version, [UPSTREAM], root=True)
+            _walk(plan, dep, dep_version, [UPSTREAM])
     return entry[1]
 
 
@@ -509,8 +593,13 @@ def search(*words, index=None, prompt=True):
         gc.collect()
 
 
-def install(package, index=None, target=None, version=None, mpy=True, prompt=True):
+def install(package, index=None, target=None, version=None, mpy=True, prompt=True, force=False):
     """Install a package and everything it needs.
+
+    A package the firmware has frozen in is skipped, with a message, because a
+    frozen module runs ahead of a copy in `/lib`. What it needs is still checked
+    and installed. When the target folder comes before `.frozen` on `sys.path`,
+    the copy would run, so nothing is skipped.
 
     Args:
         package (str): A name on an index, or a `github:`, `gitlab:`, `codeberg:`
@@ -523,6 +612,7 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
         mpy (bool): Take compiled `.mpy` files on MicroPython. Other platforms
             always take `.py`.
         prompt (bool): Whether `connect` may ask for Wi-Fi details.
+        force (bool): Install packages the firmware has frozen in too.
 
     Returns:
         bool: `True` once every file has landed.
@@ -537,9 +627,9 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
     connect(prompt)
 
     channel = sys.implementation._mpy & 0xFF if _MP and mpy and hasattr(sys.implementation, "_mpy") else "py"
-    plan = _Plan(channel)
+    plan = _Plan(channel, target, force)
     indexes = [index.rstrip("/")] if index else [INDEX, UPSTREAM]
-    _walk(plan, package, version, indexes, root=True)
+    _walk(plan, package, version, indexes)
     gc.collect()
 
     if _MP:
@@ -549,19 +639,27 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
             import mip
         except ImportError:
             raise OSError("This firmware has no mip: install from a computer with mcuctl")
-        for spec, spec_index, spec_version in plan.roots:
-            mip.install(spec, index=spec_index, target=target, version=spec_version, mpy=mpy)
+        for root in plan.roots:
+            if root[3]:
+                for path, source, short, owner in plan.files:
+                    if owner is root:
+                        _fetch(path, source, short, target)
+            else:
+                mip.install(root[0], index=root[1], target=target, version=root[2], mpy=mpy)
     else:
-        for path, source, short in plan.files:
+        for path, source, short, _ in plan.files:
             _fetch(path, source, short, target)
 
     missing = []
-    for path, _, _ in plan.files:
+    for path, _, _, _ in plan.files:
         try:
             os.stat(target + "/" + path)
         except OSError:
             missing.append(path)
     if missing:
         raise OSError("%s is partly installed. Missing: %s" % (package, ", ".join(missing)))
-    print("Installed %s in %s" % (package, target))
+    if plan.files:
+        print("Installed %s in %s" % (package, target))
+    else:
+        print("Nothing to install: the firmware has %s frozen in" % package)
     return True

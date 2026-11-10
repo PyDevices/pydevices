@@ -85,6 +85,11 @@ def build_indexes(scratch):
     )
     # Its upstream need sits on a dep, not on the package you asked for.
     write_package(ours, "wrapper", {"wrapper.py": "W = True\n"}, deps=[["bledev", "latest"]])
+    # asyncio is frozen into every unix MicroPython, so these test skipping what the firmware froze.
+    write_package(upstream, "asyncio", {"asyncio/__init__.py": "COPY = True\n", "asyncio/core.py": "COPY = True\n"})
+    write_package(ours, "async-user", {"async_user.py": "import asyncio\n"}, upstream=[["asyncio", "latest"]])
+    write_package(ours, "frozen-core", {"asyncio/__init__.py": "COPY = True\n"})
+    write_package(ours, "on-frozen", {"on_frozen.py": "F = True\n"}, deps=[["frozen-core", "latest"], ["gt911", "latest"]])
     write_package(ours, "broken-dep", {"broken_dep.py": "B = True\n"}, deps=[["no-such-dep", "latest"]])
     write_package(ours, "broken-upstream", {"broken_up.py": "B = True\n"}, upstream=[["no-such-upstream", "latest"]])
     (ours / "repo" / "pkg").mkdir(parents=True)
@@ -158,6 +163,10 @@ class CPythonInstall(Indexes):
     def test_a_package_brings_what_it_needs_from_upstream(self):
         self.assertTrue(self.install("bledev"))
         self.assertEqual(self.landed(), ["aioble/__init__.py", "aioble/core.py", "bledev/__init__.py"])
+
+    def test_nothing_is_skipped_where_nothing_is_frozen(self):
+        self.assertTrue(self.install("async-user"))
+        self.assertEqual(self.landed(), ["async_user.py", "asyncio/__init__.py", "asyncio/core.py"])
 
     def search(self, *words, **kwargs):
         out = io.StringIO()
@@ -250,10 +259,21 @@ MP_INSTALL = """
 import sys
 import omip
 omip.UPSTREAM = {upstream!r}
-print("RESULT", omip.install({package!r}, index={index!r}, target={target!r}, prompt=False))
+# Ahead of .frozen, so a firmware that froze bledev or aioble still installs them here.
 sys.path.insert(0, {target!r})
+print("RESULT", omip.install({package!r}, index={index!r}, target={target!r}, prompt=False))
 import aioble
 print("IMPORTED", aioble.NAME)
+"""
+
+MP_FROZEN = """
+import sys
+import omip
+omip.UPSTREAM = {upstream!r}
+{before}
+print("RESULT", omip.install({package!r}, index={index!r}, target={target!r}, prompt=False{extra}))
+import asyncio
+print("ASYNCIO", getattr(asyncio, "COPY", "frozen"))
 """
 
 MP_STOCK = """
@@ -340,6 +360,44 @@ class MicroPythonRun(Indexes):
         self.assertNotIn("partially", out)
         self.assertEqual(self.landed(), ["bledev/__init__.py"])
         self.assertEqual(self.upstream.requests, [])
+
+    def frozen(self, package, before="", extra=""):
+        script = MP_FROZEN.format(
+            upstream=self.upstream_url, package=package, index=self.ours_url, target=str(self.target),
+            before=before, extra=extra,
+        )
+        return self.run_mp(script)
+
+    def test_an_upstream_need_the_firmware_froze_is_skipped(self):
+        out = self.frozen("async-user")
+        self.assertIn("Skipping asyncio: it's frozen into this firmware", out)
+        self.assertIn("RESULT True", out)
+        self.assertIn("ASYNCIO frozen", out)
+        self.assertEqual(self.landed(), ["async_user.py"])
+        self.assertNotIn("/package/%s/asyncio/latest.json" % MPY_CHANNEL, self.ours.requests)
+
+    def test_a_frozen_dep_is_skipped_and_the_rest_of_its_root_still_lands(self):
+        out = self.frozen("on-frozen")
+        self.assertIn("Skipping frozen-core", out)
+        self.assertIn("RESULT True", out)
+        self.assertEqual(self.landed(), ["gt911.py", "on_frozen.py"])
+
+    def test_a_package_wholly_frozen_installs_nothing_and_says_so(self):
+        out = self.frozen("frozen-core")
+        self.assertIn("Nothing to install: the firmware has frozen-core frozen in", out)
+        self.assertIn("RESULT True", out)
+        self.assertEqual(self.landed(), [])
+
+    def test_force_installs_it_anyway(self):
+        out = self.frozen("on-frozen", extra=", force=True")
+        self.assertNotIn("Skipping", out)
+        self.assertEqual(self.landed(), ["asyncio/__init__.py", "gt911.py", "on_frozen.py"])
+
+    def test_a_target_ahead_of_frozen_on_the_path_gets_the_copy(self):
+        out = self.frozen("async-user", before="sys.path.insert(0, %r)" % str(self.target))
+        self.assertNotIn("Skipping", out)
+        self.assertIn("ASYNCIO True", out)
+        self.assertEqual(self.landed(), ["async_user.py", "asyncio/__init__.py", "asyncio/core.py"])
 
     def test_a_missing_upstream_raises_on_micropython_too(self):
         out = self.run_mp(self.script(MP_INSTALL, package="broken-upstream"))
