@@ -126,7 +126,11 @@ async def login_and_use(ble, device, passkey):
     timings["first command"] = time.monotonic() - t
     check("56088" in out, "the REPL answers over the paired link", repr(out.strip()))
     # The file service, on the same paired connection and the same lock.
-    out = await repl.run(link, "import os, hashlib; f=open('/pair_blob.bin','wb'); [f.write(bytes((i*7+j) & 255 for j in range(1024))) for i in range(20)]; f.close()")
+    # In the board's working folder: on some boards (the GIGA) "/" holds only
+    # the mounts and can't take a file.
+    out = await repl.run(link, "import os; print(os.getcwd())")
+    blob = out.strip().splitlines()[-1].rstrip("/") + "/pair_blob.bin"
+    out = await repl.run(link, "f=open({!r},'wb'); [f.write(bytes((i*7+j) & 255 for j in range(1024))) for i in range(20)]; f.close()".format(blob))
     service = await conn.service(ft.SERVICE)
     transfer = await service.characteristic(ft.TRANSFER)
     version = await service.characteristic(ft.VERSION)
@@ -135,12 +139,12 @@ async def login_and_use(ble, device, passkey):
 
     client = ft.Client(conn, transfer, struct.unpack("<I", (await version.read())[:4])[0])
     t = time.monotonic()
-    data = await client.read("/pair_blob.bin")
+    data = await client.read(blob)
     timings["read 20 KB"] = time.monotonic() - t
     want = b"".join(bytes((i * 7 + j) & 255 for j in range(1024)) for i in range(20))
     check(data == want, "20 KB read through the file service, byte for byte",
           "{} bytes sha256 {}".format(len(data), hashlib.sha256(data).hexdigest()[:12]))
-    await repl.run(link, "os.remove('/pair_blob.bin')")
+    await repl.run(link, "os.remove({!r})".format(blob))
     await link.close()
     timings["_conn"] = conn
     return timings

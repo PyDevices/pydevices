@@ -27,6 +27,12 @@ translates:
 * bleak can't tell a notification from an indication. Data goes to
   ``indicated()`` when you subscribed with ``indicate=True`` alone, and to
   ``notified()`` otherwise.
+* On Windows, ``connect(pair=True, passkey=...)`` pairs before it connects,
+  on a link Windows opens for the pairing. A bledev board asks a host to pair
+  the moment it connects, and once a link is up Windows answers that on its
+  own, out of sight, so a later ``pair()`` fails without asking for the
+  passkey. `bledev.connect_and_set_up` (and so ``nus``, ``repl`` and
+  ``filetransfer`` with ``pair=True``) pairs this way.
 * On Windows, ``connect(priority="throughput")`` (or asking for a connection
   interval of 15 ms or less, as ``nus.connect()`` does on a board) asks WinRT
   for its throughput-optimized parameters, which roughly quarters the time a
@@ -80,6 +86,17 @@ _PROPERTIES = {
 
 # How long exchange_mtu() waits for the OS to finish its own negotiation.
 _MTU_SETTLE_MS = 1000
+
+# How long connect(pair=True) gives a pairing, which may wait on a person.
+_PAIR_MS = 30000
+# How many times connect(pair=True) tries a pairing that Windows fails at once,
+# without asking anything, and how long it waits between tries.
+_PAIR_TRIES = 3
+_PAIR_RETRY_MS = 1000
+
+
+class _Unasked(PairingError):
+    """Windows failed the pairing without asking for anything."""
 
 
 def _flags(properties):
@@ -136,6 +153,9 @@ class BleakBLE(BLE):
     """
 
     backend = "bleak"
+    #: ``connect()`` takes ``pair`` and ``passkey``, and pairs before the
+    #: link is up where the OS needs that (Windows).
+    pairs_on_connect = True
 
     def __init__(self, *, queue_limit=1024, mtu=MAX_MTU, scanner_args=None, client_args=None):
         self.queue_limit = queue_limit
@@ -190,9 +210,12 @@ class BleakBLE(BLE):
     def scan(self, duration_ms, *, active=False, interval_us=None, window_us=None):
         return _BleakScanner(self, duration_ms, active, interval_us, window_us)
 
-    async def _connect(self, device, timeout_ms, **options):
+    async def _connect(self, device, timeout_ms, pair=False, passkey=None, **options):
         target = device.native if device.native is not None else device.address
         connection = None
+        paired = None
+        if pair and sys.platform == "win32":
+            paired = await wait_ms(_pair_address(device.address, passkey), _PAIR_MS, "pair")
 
         def on_disconnect(client):
             if connection is not None:
@@ -210,6 +233,14 @@ class BleakBLE(BLE):
         self._connections.append(connection)
         if _wants_throughput(options):
             connection.request_throughput()
+        if paired is not None:
+            connection._adopt(*paired)
+        elif pair:
+            try:
+                await connection.pair(passkey=passkey)
+            except BaseException:
+                await connection.disconnect()
+                raise
         return connection
 
 
@@ -346,6 +377,11 @@ class _BleakConnection(Connection):
         protected characteristic is first used. Elsewhere it's bleak's
         ``pair()``, where the OS may ask for the passkey itself.
 
+        On Windows, pair a bledev board when you connect, with
+        ``device.connect(pair=True, passkey=...)``: the board asks to pair as
+        soon as the link is up, Windows answers that itself, and pairing here
+        then fails without asking for the passkey.
+
         Windows keeps the pairing until `unpair` (or Settings, Remove
         device). Never pair a board serving HID with the computer you test
         from: Windows then uses it as a keyboard.
@@ -354,84 +390,26 @@ class _BleakConnection(Connection):
         requester = getattr(getattr(self._client, "_backend", None), "_requester", None)
         try:
             if requester is not None:
-                await wait_ms(self._pair_winrt(requester, passkey), timeout_ms, "pair")
+                try:
+                    self._adopt(*await wait_ms(_pair_device(requester, passkey, self.device.address), timeout_ms, "pair"))
+                except _Unasked as e:
+                    raise PairingError("{}: Windows can't pair over a link that's already up; connect with pair=True".format(e))
             else:
                 await wait_ms(self._client.pair(), timeout_ms, "pair")
                 self._authenticated = passkey is not None
+                self._paired = True
         except (BleakError, OSError) as e:
             raise _translate(e, self, "pair")
+
+    def _adopt(self, reused, authenticated, result):
+        # What a Windows pairing found, from pair() or from connect(pair=True).
         self._paired = True
-
-    async def _pair_winrt(self, requester, passkey):
-        from winrt.windows.devices.enumeration import (
-            DeviceInformation,
-            DevicePairingKinds,
-            DevicePairingProtectionLevel,
-            DevicePairingResultStatus,
-        )
-
-        info = await DeviceInformation.create_from_id_async(requester.device_information.id)
-        pairing = info.pairing
-        if pairing.is_paired:
-            # Windows encrypts with the stored keys when a protected
-            # characteristic is first used; if the board lost its half, that
-            # fails and Windows drops the link (see connect_and_set_up).
-            self.reused_bond = True
-            self._authenticated = pairing.protection_level == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
-            return
-        if not pairing.can_pair:
-            raise PairingError("pair: Windows says {} can't pair".format(self.device.address))
-        loop = asyncio.get_running_loop()
-        asked = []
-
-        async def provide(args, deferral):
-            try:
-                value = await passkey_value(passkey)
-                if value is not None:
-                    args.accept_with_pin("{:06d}".format(value))
-            except Exception as e:  # a cancelled prompt: leave it unaccepted
-                asked.append(e)
-            finally:
-                deferral.complete()
-
-        def handler(sender, args):
-            # On a WinRT thread. Just works needs only a yes; a passkey waits
-            # on the provider, which may be slow (a person), behind a deferral.
-            kind = args.pairing_kind
-            asked.append(kind)
-            if kind == DevicePairingKinds.CONFIRM_ONLY:
-                args.accept()
-            elif kind == DevicePairingKinds.PROVIDE_PIN and passkey is not None:
-                deferral = args.get_deferral()
-                loop.call_soon_threadsafe(lambda: loop.create_task(provide(args, deferral)))
-
-        kinds = DevicePairingKinds.CONFIRM_ONLY
-        level = DevicePairingProtectionLevel.ENCRYPTION
-        if passkey is not None:
-            kinds |= DevicePairingKinds.PROVIDE_PIN
-            level = DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
-        custom = pairing.custom
-        token = custom.add_pairing_requested(handler)
-        try:
-            result = await custom.pair_with_protection_level_async(kinds, level)
-            if result.status == DevicePairingResultStatus.PROTECTION_LEVEL_COULD_NOT_BE_MET and passkey is not None:
-                # A board without a display pairs just works; the board, not
-                # this side, decides whether that's enough.
-                result = await custom.pair_with_protection_level_async(kinds, DevicePairingProtectionLevel.ENCRYPTION)
-        finally:
-            custom.remove_pairing_requested(token)
-        status = result.status
-        if status not in (DevicePairingResultStatus.PAIRED, DevicePairingResultStatus.ALREADY_PAIRED):
-            raise PairingError("pair: {} ({})".format(status.name, ", ".join(str(a) for a in asked) or "no ceremony"))
-        #: What Windows reported: the status, the protection level it used,
-        #: and the ceremonies it asked for.
-        self.pairing_result = (status.name, result.protection_level_used, [int(a) for a in asked if isinstance(a, int)])
-        # A passkey that was asked for and typed in is what authenticates;
-        # Windows' reported level is the second opinion.
-        self._authenticated = (
-            DevicePairingKinds.PROVIDE_PIN in asked
-            or result.protection_level_used == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
-        )
+        self.reused_bond = reused
+        self._authenticated = authenticated
+        if result is not None:
+            #: What Windows reported: the status, the protection level it
+            #: used, and the ceremonies it asked for.
+            self.pairing_result = result
 
     async def unpair(self):
         """Remove the OS's pairing with this board. Windows also drops the link."""
@@ -598,6 +576,109 @@ class _BleakClientDescriptor(ClientDescriptor):
             raise _translate(e, self.connection, "descriptor read")
 
 
+async def _pair_address(address, passkey):
+    """Pair Windows with ``address`` while no link to it is up.
+
+    With no link, the pairing opens one of its own and asks for the passkey
+    itself. Once bleak holds a link, a board that asked for security as it
+    connected has already started a pairing Windows answers out of sight; the
+    custom pairing then fails in milliseconds, and the link stays up until a
+    bledev board hangs up on a host that hasn't paired, 30 s later.
+    """
+    from winrt.windows.devices.bluetooth import BluetoothLEDevice
+
+    # Even with no link up, Windows now and then fails a pairing at once
+    # without asking anything (about one in four, on an Intel adapter), and
+    # the same pairing a second later goes through.
+    for attempt in range(_PAIR_TRIES):
+        device = await BluetoothLEDevice.from_bluetooth_address_async(int(address.replace(":", ""), 16))
+        if device is None:
+            raise PairingError("pair: Windows can't find {}".format(address))
+        try:
+            return await _pair_winrt(device.device_information, passkey, address)
+        except _Unasked:
+            if attempt == _PAIR_TRIES - 1:
+                raise
+        finally:
+            device.close()
+        await asyncio.sleep(_PAIR_RETRY_MS / 1000)
+
+
+async def _pair_device(requester, passkey, address):
+    from winrt.windows.devices.enumeration import DeviceInformation
+
+    info = await DeviceInformation.create_from_id_async(requester.device_information.id)
+    return await _pair_winrt(info, passkey, address)
+
+
+async def _pair_winrt(info, passkey, address):
+    """Pair through WinRT's custom pairing. Returns ``(reused, authenticated,
+    result)``; ``reused`` is True when Windows was already paired."""
+    from winrt.windows.devices.enumeration import (
+        DevicePairingKinds,
+        DevicePairingProtectionLevel,
+        DevicePairingResultStatus,
+    )
+
+    pairing = info.pairing
+    if pairing.is_paired:
+        # Windows encrypts with the stored keys when a protected
+        # characteristic is first used; if the board lost its half, that
+        # fails and Windows drops the link (see connect_and_set_up).
+        return True, pairing.protection_level == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION, None
+    if not pairing.can_pair:
+        raise PairingError("pair: Windows says {} can't pair".format(address))
+    loop = asyncio.get_running_loop()
+    asked = []
+
+    async def provide(args, deferral):
+        try:
+            value = await passkey_value(passkey)
+            if value is not None:
+                args.accept_with_pin("{:06d}".format(value))
+        except Exception as e:  # a cancelled prompt: leave it unaccepted
+            asked.append(e)
+        finally:
+            deferral.complete()
+
+    def handler(sender, args):
+        # On a WinRT thread. Just works needs only a yes; a passkey waits
+        # on the provider, which may be slow (a person), behind a deferral.
+        kind = args.pairing_kind
+        asked.append(kind)
+        if kind == DevicePairingKinds.CONFIRM_ONLY:
+            args.accept()
+        elif kind == DevicePairingKinds.PROVIDE_PIN and passkey is not None:
+            deferral = args.get_deferral()
+            loop.call_soon_threadsafe(lambda: loop.create_task(provide(args, deferral)))
+
+    kinds = DevicePairingKinds.CONFIRM_ONLY
+    level = DevicePairingProtectionLevel.ENCRYPTION
+    if passkey is not None:
+        kinds |= DevicePairingKinds.PROVIDE_PIN
+        level = DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+    custom = pairing.custom
+    token = custom.add_pairing_requested(handler)
+    try:
+        result = await custom.pair_with_protection_level_async(kinds, level)
+        if result.status == DevicePairingResultStatus.PROTECTION_LEVEL_COULD_NOT_BE_MET and passkey is not None:
+            # A board without a display pairs just works; the board, not
+            # this side, decides whether that's enough.
+            result = await custom.pair_with_protection_level_async(kinds, DevicePairingProtectionLevel.ENCRYPTION)
+    finally:
+        custom.remove_pairing_requested(token)
+    status = result.status
+    if status not in (DevicePairingResultStatus.PAIRED, DevicePairingResultStatus.ALREADY_PAIRED):
+        raise (PairingError if asked else _Unasked)("pair: {} ({})".format(status.name, ", ".join(str(a) for a in asked) or "no ceremony"))
+    # A passkey that was asked for and typed in is what authenticates;
+    # Windows' reported level is the second opinion.
+    authenticated = (
+        DevicePairingKinds.PROVIDE_PIN in asked
+        or result.protection_level_used == DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION
+    )
+    return False, authenticated, (status.name, result.protection_level_used, [int(a) for a in asked if isinstance(a, int)])
+
+
 async def unpair(address):
     """Remove the OS's pairing with ``address`` without connecting: the recovery
     step when a board has lost its bond (its keys were erased) and Windows
@@ -623,7 +704,6 @@ async def _main(argv):
             await unpair(device.address)
             print("unpaired", name, device.address)
             return 0
-        connection = await device.connect(timeout_ms=15000)
 
         async def ask():
             loop = asyncio.get_running_loop()
@@ -631,13 +711,11 @@ async def _main(argv):
             return int(text.replace(" ", "")) if text.strip() else None
 
         try:
-            await connection.pair(passkey=ask)
+            connection = await device.connect(timeout_ms=15000, pair=True, passkey=ask)
         except PairingError as e:
             print("not paired:", e)
             return 1
-        finally:
-            if connection.is_connected():
-                await connection.disconnect()
+        await connection.disconnect()
         print("paired", name, device.address, "(passkey)" if connection.authenticated else "(just works)")
         return 0
     finally:

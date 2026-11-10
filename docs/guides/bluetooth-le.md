@@ -345,7 +345,11 @@ link = await bledev.repl.connect(ble, name="rack", pair=True, passkey=lambda: in
 files = await bledev.filetransfer.connect(ble, name="rack", passkey=ask)    # pairs when the board asks it to
 ```
 
-On Windows that's WinRT's own pairing, with no system dialog. To pair a
+On Windows that's WinRT's own pairing, with no system dialog, and it pairs
+before the link comes up. Once a link is up, Windows answers the board's
+request to pair on its own, out of sight, and pairing then fails without asking
+for the passkey, so on Windows pass `pair=True` rather than waiting for the
+board to ask. To pair a
 computer once for tools that don't pair themselves (mpftp),
 `python -m bledev.bleak pair rack` asks for the passkey in the terminal, and
 `python -m bledev.bleak unpair rack` undoes it. Windows Settings, Add device,

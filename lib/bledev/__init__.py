@@ -1060,8 +1060,14 @@ async def connect_and_set_up(
         target = device
         if target is None:
             target = await ble.find(name=name, service=service, timeout_ms=timeout_ms)
-        connection = await target.connect(timeout_ms=timeout_ms, **options)
-        if pair:
+        if pair and getattr(ble, "pairs_on_connect", False):
+            # The backend pairs before the link is up (bleak on Windows,
+            # which can't pair a board that asked for security as it
+            # connected).
+            connection = await target.connect(timeout_ms=timeout_ms, pair=True, passkey=passkey, **options)
+            reused = getattr(connection, "reused_bond", False)
+        elif pair:
+            connection = await target.connect(timeout_ms=timeout_ms, **options)
             # Before discovery: a board that wants pairing refuses the
             # subscriptions setup makes. Pairing waits on a person typing a
             # passkey, so setup_timeout_ms doesn't bound it.
@@ -1073,6 +1079,7 @@ async def connect_and_set_up(
                 raise
             reused = getattr(connection, "reused_bond", False)
         else:
+            connection = await target.connect(timeout_ms=timeout_ms, **options)
             reused = False
         try:
             return connection, await wait_ms(setup(connection), setup_timeout_ms, "setting up the connection")
