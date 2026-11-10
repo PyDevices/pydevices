@@ -9,8 +9,8 @@ It carries everything in ``lib/`` at top level, so ``appdev``, ``audiodev``,
 ``bledev``, ``displaydev``, ``multimer``, ``boarddev``, ``events``, ``keys``
 and ``wifi`` import under their own names, exactly as they do after a ``mip``
 install. The list is read from ``lib/`` itself, so a new module there is
-included without anyone editing this file. ``utils/`` is not: its ``mip.py``
-must never sit in front of the firmware's own ``mip``.
+included without anyone editing this file. ``utils/`` is not: its modules
+are for desktop hosts.
 
 With micropython-pydevices, ``build_mp.py --modules pydevices`` (or ``all``)
 freezes it. From your own freeze manifest::
