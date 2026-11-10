@@ -292,30 +292,27 @@ class TestAutoDisplayRegistry(RegistryCase):
         ad.AutoDisplay(1280, 720, rotation=90)
         self.assertEqual(self.made, [{"width": 1280, "height": 720, "rotation": 90}])
 
-    def test_every_option_reaches_a_third_party_backend_when_changed(self):
+    def test_window_hints_do_not_reach_a_third_party_backend_but_rotation_does(self):
         backends.register("display", "fake", "bk_fake_display:Fake")
         backends.require("display", "fake")
         ad.AutoDisplay(10, 20, rotation=270, scale=2.0, title="t", quiet=True, maximized=True, tv="x")
-        self.assertEqual(
-            self.made,
-            [
-                {
-                    "width": 10,
-                    "height": 20,
-                    "tv": "x",
-                    "rotation": 270,
-                    "scale": 2.0,
-                    "title": "t",
-                    "quiet": True,
-                    "maximized": True,
-                }
-            ],
-        )
+        self.assertEqual(self.made, [{"width": 10, "height": 20, "tv": "x", "rotation": 270}])
 
-    def test_default_options_are_not_passed_to_a_third_party_backend(self):
+    def test_the_stock_desktop_config_call_constructs_a_width_height_backend(self):
+        class Narrow:
+            def __init__(self, width, height):
+                self.size = (width, height)
+
+        sys.modules["bk_fake_display"].Fake = Narrow
+        backends.register("display", "narrow", "bk_fake_display:Fake")
+        backends.require("display", "narrow")
+        result = ad.AutoDisplay(width=320, height=240, rotation=0, scale=2.0, maximized=False, title="x on y")
+        self.assertEqual(result.size, (320, 240))
+
+    def test_no_rotation_is_not_passed_to_a_third_party_backend(self):
         backends.register("display", "fake", "bk_fake_display:Fake")
         backends.require("display", "fake")
-        ad.AutoDisplay(10, 20, rotation=0, scale=1.0, title="displaydev", quiet=False, maximized=False)
+        ad.AutoDisplay(10, 20, rotation=0)
         self.assertEqual(self.made, [{"width": 10, "height": 20}])
 
     def test_backend_that_does_not_take_an_option_raises_a_typeerror_naming_it(self):

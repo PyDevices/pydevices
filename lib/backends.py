@@ -15,6 +15,11 @@ A board config says which registered backends it wants, in order::
     backends.require("display", "hls", module="hls_display")
     display_drv = AutoDisplay(1280, 720, tv=TV)   # extra keywords go to the winner
 
+A display backend's constructor takes ``width`` and ``height``, optionally
+``rotation`` (passed only when the caller asks for one), and any keywords of
+its own. ``AutoDisplay``'s window hints (``scale``, ``title``, ``quiet``,
+``maximized``) stay with the built-in window backends.
+
 ``kind`` is ``"display"`` or ``"audio"``. The search order is:
 
 1. the environment variable (``PYDEVICES_DISPLAY`` or ``PYDEVICES_AUDIO``),

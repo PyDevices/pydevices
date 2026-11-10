@@ -220,12 +220,13 @@ def AutoDisplay(
             only, for now; the other backends open at width x height.
         **kwargs: Passed on to the backend that wins, so a registered backend
             can take its own options (``tv=...``). A backend that isn't built
-            in also gets ``rotation``, ``scale``, ``title``, ``quiet`` and
-            ``maximized`` as keywords, but only the ones you set to something
-            other than their defaults.
+            in also gets ``rotation`` as a keyword when it isn't 0. ``scale``,
+            ``title``, ``quiet`` and ``maximized`` are window hints for the
+            built-in backends and never reach one that isn't.
 
     Raises:
-        TypeError: A backend was given a keyword it doesn't take. The message
+        TypeError: A backend was given a keyword it doesn't take, such as a
+            ``rotation`` it has no parameter for. The message
             names the backend.
 
     The search order is the ``PYDEVICES_DISPLAY`` environment
@@ -261,17 +262,11 @@ def AutoDisplay(
                     )
                 return factory(width, height, rotation, scale, title, canvas_id, quiet, maximized)
             # a backend from outside the box gets the size, what you added, and
-            # the options of AutoDisplay's own that you changed
+            # a rotation if you asked for one; the other options are window
+            # hints for the built-in backends
             options = dict(kwargs)
-            for key, value, default in (
-                ("rotation", rotation, 0),
-                ("scale", scale, 1.0),
-                ("title", title, "displaydev"),
-                ("quiet", quiet, False),
-                ("maximized", maximized, False),
-            ):
-                if value != default:
-                    options[key] = value
+            if rotation:
+                options["rotation"] = rotation
             try:
                 return factory(width=width, height=height, **options)
             except TypeError as exc:
