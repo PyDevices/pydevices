@@ -9,7 +9,9 @@
     omip.search("display")
 
 That gets the board online if it isn't, looks for the package on the OmniPython
-index and then on micropython-lib, and brings what it needs from both. It takes
+index and then on micropython-lib, and brings what it needs from both. On
+CircuitPython it looks on a copy of Adafruit's library bundle between the two,
+so `omip.install("adafruit_display_text")` works as `circup` would. It takes
 the arguments of `mip.install`, and works on MicroPython, CircuitPython, desktop
 Python and Pyodide in a browser. To get this one file onto a stock MicroPython board:
 
@@ -19,6 +21,8 @@ Python and Pyodide in a browser. To get this one file onto a stock MicroPython b
 A package names what it needs from micropython-lib under `upstream` in its JSON,
 beside `deps`. `mip` and `mpremote` ignore that key, so they behave as they
 always have: `mip` takes every file of a package from the one index it was given.
+What a package needs from Adafruit's bundle on CircuitPython goes under
+`circuitpython`, and only omip on CircuitPython reads it.
 """
 
 import gc
@@ -28,10 +32,15 @@ import sys
 import time
 
 INDEX = "https://lib.omnipython.org"
+# Adafruit's CircuitPython library bundle, refreshed from its releases, with a
+# folder of .mpy files for each CircuitPython major version.
+ADAFRUIT = "https://lib.omnipython.org/adafruit"
 UPSTREAM = "https://micropython.org/pi/v2"
 
 _MP = sys.implementation.name == "micropython"
 _CP = sys.implementation.name == "circuitpython"
+# CircuitPython's .mpy files change with its major version, so Adafruit's bundle has one per major.
+_ADAFRUIT_CHANNEL = "%d.x" % sys.implementation.version[0] if _CP else None
 _URL_PREFIXES = ("http://", "https://", "codeberg:", "github:", "gitlab:")
 _HOSTS = {
     "codeberg:": "codeberg.org/api/v1/repos/{}/{}/raw/{p}?ref={}",
@@ -317,7 +326,8 @@ def _walk(plan, spec, version, indexes, owner=None):
         base = plan.url_base or url.rpartition("/")[0]
     else:
         for index in indexes:
-            body = _read_json("%s/package/%s/%s/%s.json" % (index, plan.channel, spec, version or "latest"))
+            channel = _ADAFRUIT_CHANNEL if index == ADAFRUIT and _CP else plan.channel
+            body = _read_json("%s/package/%s/%s/%s.json" % (index, channel, spec, version or "latest"))
             if body is not None:
                 entry[1] = index
                 break
@@ -347,9 +357,13 @@ def _walk(plan, spec, version, indexes, owner=None):
         # micropython-lib is for MicroPython: CircuitPython's own libraries
         # come from Adafruit's bundle, so only a URL means anything there.
         if _CP and not _is_url(dep):
-            print("Skipping %s: it's for MicroPython. CircuitPython libraries come from circup." % dep)
+            print("Skipping %s: it's for MicroPython" % dep)
         else:
             _walk(plan, dep, dep_version, [UPSTREAM])
+    if _CP:
+        # What it needs from Adafruit's bundle in place of those.
+        for dep, dep_version in body.get("circuitpython", ()):
+            _walk(plan, dep, dep_version, [ADAFRUIT])
     return entry[1]
 
 
@@ -579,6 +593,11 @@ def _each_package(found):
     return write
 
 
+def _indexes():
+    """Where a bare name is looked for, in order."""
+    return [INDEX, ADAFRUIT, UPSTREAM] if _CP else [INDEX, UPSTREAM]
+
+
 def search(*words, index=None, prompt=True):
     """Print the packages whose name or description has every one of the words.
 
@@ -588,7 +607,7 @@ def search(*words, index=None, prompt=True):
     Args:
         words (str): What to look for, in any case.
         index (str): The index to search. By default the OmniPython index, then
-            micropython-lib.
+            Adafruit's bundle on CircuitPython, then micropython-lib.
         prompt (bool): Whether `connect` may ask for Wi-Fi details.
 
     Raises:
@@ -605,7 +624,7 @@ def search(*words, index=None, prompt=True):
                 return
         print("%s %s  %s" % (name, package.get("version", ""), description))
 
-    for source in [index.rstrip("/")] if index else [INDEX, UPSTREAM]:
+    for source in [index.rstrip("/")] if index else _indexes():
         url = source + "/index.json"
         status = _request(url, _each_package(found))
         if status != 200:
@@ -626,7 +645,8 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
             or `http(s):` URL, as for `mip.install`. A name may end in
             `@version`, as in `"pygraphics@0.3.1"`.
         index (str): The index to use for the package. By default it looks on
-            the OmniPython index, then micropython-lib.
+            the OmniPython index, then Adafruit's bundle on CircuitPython
+            (`omip.ADAFRUIT`), then micropython-lib.
         target (str): The folder to install into. By default the `lib` folder on
             `sys.path`.
         version (str): A version on an index, or a branch or tag for a URL.
@@ -654,7 +674,7 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
 
     channel = sys.implementation._mpy & 0xFF if _MP and mpy and hasattr(sys.implementation, "_mpy") else "py"
     plan = _Plan(channel, target, force, url_base)
-    indexes = [index.rstrip("/")] if index else [INDEX, UPSTREAM]
+    indexes = [index.rstrip("/")] if index else _indexes()
     _walk(plan, package, version, indexes)
     gc.collect()
 

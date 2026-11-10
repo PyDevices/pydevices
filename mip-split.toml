@@ -88,7 +88,8 @@ host-only = [
 # lib-lock.json names it as repo.bledev.upstream, which reaches the package JSON
 # under "upstream" for omip. mip ignores that key: with mip, install aioble from
 # micropython-lib first (bledev's docs show the line). Firmware that freezes
-# aioble needs no step.
+# aioble needs no step. On CircuitPython it needs Adafruit's asyncio instead,
+# named as repo.bledev.circuitpython for omip the same way.
 own-package = true
 # The central-only host backends go in pydevices-desktop, as for the other
 # packages here. A name listed before its file exists fails the sync.

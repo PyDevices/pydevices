@@ -8,7 +8,8 @@
     },
     "bledev": {
       "description": "Portable async Bluetooth Low Energy for PyDevices, over aioble on boards",
-      "upstream": ["aioble"]
+      "upstream": ["aioble"],
+      "circuitpython": ["asyncio"]
     },
     "medialink": {
       "description": "Live audio and video between boards and computers: a walkie-talkie, an intercom, a baby monitor"

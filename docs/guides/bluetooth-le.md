@@ -71,7 +71,8 @@ adds bleak, which the laptop backend needs.
 
 On CircuitPython with Wi-Fi, `omip.install("bledev")` runs on the board too, once
 `boot.py` has made the drive writable, and `omip` tells you how if it isn't. It
-leaves aioble out, because CircuitPython's Bluetooth is its own. At around -70 dBm
+leaves aioble out, because CircuitPython's Bluetooth is its own, and brings
+Adafruit's `asyncio` library and `adafruit_ticks` in its place. At around -70 dBm
 it usually loses the connection partway and raises `OSError`. Run it again: it
 keeps the files it already has. Or copy the files
 yourself: bledev isn't in a circup bundle. With the board's CIRCUITPY drive mounted, make a
@@ -88,7 +89,7 @@ won't load on CircuitPython):
 
 Leave out `mpble.py`, `bleak.py`, `webble.py` and `fake.py`; they're for other
 hosts. bledev also needs CircuitPython's `asyncio` library: `circup install
-asyncio`, which brings `adafruit_ticks`.
+asyncio`, which brings `adafruit_ticks`, or `omip.install("asyncio")` on the board.
 
 ## Getting an adapter
 

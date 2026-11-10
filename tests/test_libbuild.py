@@ -121,7 +121,7 @@ class BuiltRepository(unittest.TestCase):
                 for kind in ("py", "6"):
                     for stem in ("latest", version):
                         body = json.loads((self.untested / "package" / kind / name / f"{stem}.json").read_text())
-                        self.assertLessEqual(set(body), {"v", "hashes", "version", "deps", "upstream"})
+                        self.assertLessEqual(set(body), {"v", "hashes", "version", "deps", "upstream", "circuitpython"})
                         self.assertEqual(body["version"], version)
                 py = self.paths(name)
                 self.assertTrue(py or self.deps(name))
@@ -237,6 +237,11 @@ class BuiltRepository(unittest.TestCase):
         self.assertNotIn('require("aioble")', manifest)
         for kind in ("py", "6"):
             self.assertEqual(self.package("bledev", kind)["upstream"], [["aioble", "latest"]])
+
+    def test_bledev_names_adafruits_asyncio_for_omip_on_circuitpython(self):
+        for kind in ("py", "6"):
+            self.assertEqual(self.package("bledev", kind)["circuitpython"], [["asyncio", "latest"]])
+        self.assertNotIn("circuitpython", self.package("pydevices"))
 
     def test_the_upstream_key_reaches_the_main_index(self):
         body = json.loads((self.out / "index" / "package" / "py" / "bledev" / "latest.json").read_text(encoding="utf-8"))
