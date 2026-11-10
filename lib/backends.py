@@ -4,8 +4,6 @@
 
 """A registry of backends, so ``AutoDisplay`` and ``audiodev.auto`` can pick one you wrote.
 
-Experimental: the names and the calling convention may still change.
-
 A backend registers a name and a lazy ``"module:Class"`` string, so
 registering imports nothing::
 
@@ -16,6 +14,11 @@ A board config says which registered backends it wants, in order::
 
     backends.require("display", "hls", module="hls_display")
     display_drv = AutoDisplay(1280, 720, tv=TV)   # extra keywords go to the winner
+
+A display backend's constructor takes ``width`` and ``height``, optionally
+``rotation`` (passed only when the caller asks for one), and any keywords of
+its own. ``AutoDisplay``'s window hints (``scale``, ``title``, ``quiet``,
+``maximized``) stay with the built-in window backends.
 
 ``kind`` is ``"display"`` or ``"audio"``. The search order is:
 
@@ -36,7 +39,7 @@ importing registers it; a frozen module imports like any other.
 
 import sys
 
-__all__ = ["Decline", "register", "require", "names", "spec", "env", "candidates", "load"]
+__all__ = ["Decline", "register", "require", "names", "spec", "candidates", "load"]
 
 
 class Decline(Exception):
@@ -57,7 +60,7 @@ def _find(kind, name):
     return None
 
 
-def register(kind, name, spec, probe=None, builtin=False):
+def register(kind, name, spec, probe=None, _builtin=False):
     """Make *name* a backend of *kind*; imports nothing.
 
     *spec* is ``"module:Class"`` (``"module"`` alone for an audio backend, which
@@ -65,10 +68,12 @@ def register(kind, name, spec, probe=None, builtin=False):
     with no arguments and returns false when this machine can't run the
     backend. Registering a name again replaces it in place.
 
-    *builtin* is for backends that ship in the box: they are the ones the
-    third step of the search order considers, in the order they registered.
+    *_builtin* is for the backends that ship in the box; the underscore says
+    it isn't yours to pass. A backend with it is picked unasked by the third
+    step of the search order, and a display backend with it is called with
+    positional arguments instead of keywords.
     """
-    entry = [name, spec, probe, bool(builtin)]
+    entry = [name, spec, probe, bool(_builtin)]
     entries = _entries.setdefault(kind, [])
     for i in range(len(entries)):
         if entries[i][0] == name:
@@ -88,7 +93,7 @@ def spec(kind, name):
     return entry[1] if entry else None
 
 
-def env(name):
+def _env(name):
     """An environment variable's value or ``None``, through ``boarddev`` when it is there."""
     try:
         from boarddev import env_get
@@ -140,6 +145,10 @@ def _usable(entry):
 
 def candidates(kind, override=None):
     """Yield ``(name, spec, builtin)`` for each backend to try, in search order.
+
+    *name* and *spec* are what the backend registered with. *builtin* is true
+    for a backend that ships in the box. A consumer ``auto`` module unpacks all
+    three, so the tuple keeps this shape.
 
     *override* is a name the user gave (usually from the environment). It is
     the only candidate, its probe is not consulted, and an unregistered name

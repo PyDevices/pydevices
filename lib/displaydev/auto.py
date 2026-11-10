@@ -12,9 +12,8 @@ directly; this factory is convenience only.
 Returns the display driver directly. Desktop drivers expose ``get_events`` for
 ``appdev.App(host_read=...)``.
 
-The host backends are rows of the `backends` registry (experimental), so a
-backend of your own can join them. See "Experimental: your own backend" in
-docs/guides/displays.md.
+The host backends are rows of the `backends` registry, so a backend of your
+own can join them. See "Write your own backend" in docs/guides/displays.md.
 """
 
 import sys
@@ -74,7 +73,7 @@ _BUILTIN = (
 )
 
 for _name, _spec, _probe in _BUILTIN:
-    backends.register("display", _name, _spec, probe=_probe, builtin=True)
+    backends.register("display", _name, _spec, probe=_probe, _builtin=True)
 
 
 def _make_wasm(width, height, rotation, scale, title, canvas_id, quiet, maximized):
@@ -188,6 +187,15 @@ def _make_sdl(width, height, rotation, scale, title, canvas_id, quiet, maximized
     )
 
 
+def _skipped_note(skipped):
+    if not skipped:
+        return ""
+    return "; the required %s backend %s skipped because its probe said no" % (
+        ", ".join(skipped),
+        "was" if len(skipped) == 1 else "were",
+    )
+
+
 def AutoDisplay(
     width=320,
     height=240,
@@ -210,10 +218,18 @@ def AutoDisplay(
         maximized: Open maximised, the panel exactly the window's client area
             at scale 1 (width, height and scale are then ignored). WinDisplay
             only, for now; the other backends open at width x height.
-        **kwargs: Experimental. Passed on to the backend that wins, so a
-            registered backend can take its own options (``tv=...``).
+        **kwargs: Passed on to the backend that wins, so a registered backend
+            can take its own options (``tv=...``). A backend that isn't built
+            in also gets ``rotation`` as a keyword when it isn't 0. ``scale``,
+            ``title``, ``quiet`` and ``maximized`` are window hints for the
+            built-in backends and never reach one that isn't.
 
-    The search order (experimental) is the ``PYDEVICES_DISPLAY`` environment
+    Raises:
+        TypeError: A backend was given a keyword it doesn't take, such as a
+            ``rotation`` it has no parameter for. The message
+            names the backend.
+
+    The search order is the ``PYDEVICES_DISPLAY`` environment
     variable, then the backends a board config asked for with ``require``, then the ones in
     the box. See `backends`.
 
@@ -228,18 +244,33 @@ def AutoDisplay(
         canvas_id = env_get("PYDEVICES_CANVAS_ID", "display_canvas")
     override = env_get("PYDEVICES_DISPLAY")
 
+    seen = []
     for name, spec, builtin in backends.candidates("display", override):
+        seen.append(name)
         try:
             factory = backends.load(spec)
             if builtin:
                 if kwargs:
+                    skipped = [n for n in backends._required.get("display", ()) if n not in seen]
                     raise TypeError(
-                        "AutoDisplay() got %s, which the %s backend doesn't take"
-                        % (", ".join(sorted(kwargs)), name)
+                        "AutoDisplay() got %s, which the %s backend doesn't take%s"
+                        % (
+                            ", ".join(sorted(kwargs)),
+                            name,
+                            _skipped_note(skipped) if not override else "",
+                        )
                     )
                 return factory(width, height, rotation, scale, title, canvas_id, quiet, maximized)
-            # a backend from outside the box gets the size and what you added
-            return factory(width=width, height=height, **kwargs)
+            # a backend from outside the box gets the size, what you added, and
+            # a rotation if you asked for one; the other options are window
+            # hints for the built-in backends
+            options = dict(kwargs)
+            if rotation:
+                options["rotation"] = rotation
+            try:
+                return factory(width=width, height=height, **options)
+            except TypeError as exc:
+                raise TypeError("display backend %r: %s" % (name, exc))
         except backends.Decline:
             if override:
                 raise ImportError(

@@ -67,17 +67,17 @@ for _name, _spec, _probe in (
     ("sdl2_audio", "audiodev.sdl2_audio", lambda: _module_available("usdl2")),
     ("pygame_audio", "audiodev.pygame_audio", _pygame_probe),
 ):
-    backends.register("audio", _name, _spec, probe=_probe, builtin=True)
+    backends.register("audio", _name, _spec, probe=_probe, _builtin=True)
 
 
 def select_backend():
     """Return the name of the first usable output backend.
 
-    Experimental search order: ``PYDEVICES_AUDIO`` if set, then the backends a
+    Search order: ``PYDEVICES_AUDIO`` if set, then the backends a
     board config asked for with ``require`` (see `backends`), then the ones in the box
     in the documented probe order: wasm, Web Audio, Windows, SDL2, pygame.
     """
-    for name, _spec, _builtin in backends.candidates("audio", backends.env("PYDEVICES_AUDIO")):
+    for name, _spec, _builtin in backends.candidates("audio", backends._env("PYDEVICES_AUDIO")):
         return name
     raise ImportError(
         "no usable audio transport: install pygame-ce, install/provide usdl2, "

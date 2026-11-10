@@ -331,9 +331,9 @@ Pyodide Web Audio, Windows `uwin32`, `usdl2`, then pygame-ce, in that order.
 Constructing `AudioOut` without `audiocore` fails immediately with the install
 command above; direct raw `write()`/`readinto()` remains independent.
 
-### Experimental: your own transport
+### Write your own transport
 
-`audiodev.auto` looks its transport up in the same small registry as `AutoDisplay` ([`backends`](https://github.com/PyDevices/pydevices/blob/main/lib/backends.py), explained in [Displays](displays.md#experimental-your-own-backend)), and may still change. A transport is a module that provides `pcm_out` and `pcm_in`:
+`audiodev.auto` looks its transport up in the same small registry as `AutoDisplay` ([`backends`](https://github.com/PyDevices/pydevices/blob/main/lib/backends.py), explained in [Displays](displays.md#write-your-own-backend)). A transport is a module that provides `pcm_out` and `pcm_in`:
 
 ```python
 import backends

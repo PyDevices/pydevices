@@ -256,9 +256,9 @@ BusDisplay uses CircuitPython-style rotation degrees (`0`, `90`, `180`, `270`).
 
 Known issues: Unix SDL rotation clears the screen; scrolling while rotated has edge cases on desktop and MCU — track work on [GitHub Issues](https://github.com/PyDevices/pydevices-examples/issues).
 
-## Experimental: your own backend
+## Write your own backend
 
-`AutoDisplay` (what the desktop board config calls) looks its backend up in a small registry, [`backends`](https://github.com/PyDevices/pydevices/blob/main/lib/backends.py). You can register one of your own. This is experimental: its names and calling convention may change.
+`AutoDisplay` (what the desktop board config calls) looks its backend up in a small registry, [`backends`](https://github.com/PyDevices/pydevices/blob/main/lib/backends.py). You can register one of your own.
 
 ```python
 # in your backend's package
@@ -279,7 +279,7 @@ display_drv = AutoDisplay(1280, 720, tv=TV)      # extra keywords go to the winn
 2. the backends your config `require`d, in the order it asked, skipping any whose probe says no;
 3. the built-in backends for this host.
 
-A backend that isn't built in is never picked unless a config required it or you named it, so a backend that streams to a TV never chooses itself. A backend from outside the box is called as `Class(width=..., height=..., **extra)`, with whatever extra keywords you gave `AutoDisplay`; it can raise `backends.Decline` to hand the choice to the next one.
+A backend that isn't built in is never picked unless a config required it or you named it, so a backend that streams to a TV never chooses itself. A backend from outside the box is called as `Class(width=..., height=..., **extra)`, with whatever extra keywords you gave `AutoDisplay`. Its constructor takes `width` and `height`, optionally `rotation`, and whatever keywords of its own it documents. `AutoDisplay` passes `rotation` only when the caller asks for one: `AutoDisplay(1280, 720, rotation=90)` calls `Class(width=1280, height=720, rotation=90)`, and `AutoDisplay(1280, 720)` passes no rotation. A backend without a `rotation` parameter works until someone asks for a rotation; then Python raises a `TypeError` that names the backend. `scale`, `title`, `quiet` and `maximized` are window hints for the built-in window backends and are never passed to yours, so a config that sets them still works. It can raise `backends.Decline` to hand the choice to the next one.
 
 On MicroPython there is no scanning for installed backends: `require` is the only way in. A frozen module imports like any other, so what you freeze decides what is present and `require` decides what is used.
 
