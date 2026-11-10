@@ -7,9 +7,8 @@ with each kind of peripheral described honestly by its role.
 
 - `omip` on CircuitPython brings Adafruit's libraries a package needs, such as
   `asyncio` for `bledev`, so `circup` isn't a second step.
-- `omip` gains the portable `mip`'s Pyodide transport, `url_base=` and
-  `name@version` installs, which the browser loaders use. Then the two in
-  `utils/` become one file without the browser losing them.
+- The gallery's browser pages install through `omip`, and the portable
+  `utils/mip.py` goes: one installer for boards, desktops and the browser.
 
 ## Audio
 
