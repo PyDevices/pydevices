@@ -7,8 +7,9 @@ with each kind of peripheral described honestly by its role.
 
 - `omip` on CircuitPython brings Adafruit's libraries a package needs, such as
   `asyncio` for `bledev`, so `circup` isn't a second step.
-- `omip` and the portable `mip` in `utils/` become one file, once measuring shows
-  the browser loaders that use the portable one lose nothing.
+- `omip` gains the portable `mip`'s Pyodide transport, `url_base=` and
+  `name@version` installs, which the browser loaders use. Then the two in
+  `utils/` become one file without the browser losing them.
 
 ## Audio
 
@@ -78,12 +79,6 @@ with each kind of peripheral described honestly by its role.
 - Fragmented MP4 as an option, so a recording cut off by a power loss still
   plays up to its last fragment instead of needing a repair tool.
 - 64-bit chunk offsets, for recordings past 4 GB in one file.
-
-## Backends
-
-- The backend registry leaves experimental. `backends.register()` and
-  `require()` let `AutoDisplay` and `audiodev.auto` pick a backend you wrote;
-  their names and calling convention settle before they're called stable.
 
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).
