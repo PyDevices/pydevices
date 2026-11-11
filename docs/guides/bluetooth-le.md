@@ -162,6 +162,34 @@ peer, data = await command.written()          # capture=True: every write, in or
 everything at once, before you advertise. Call `advertise()` again to accept
 another connection.
 
+## Standard services
+
+Phones and fitness apps already know the Bluetooth SIG's services, so serving
+one gets you a screen in an app you didn't write. Each is a small class whose
+`service` you pass to `register_services()` with the rest:
+
+| Module | Service | What a phone sees |
+|---|---|---|
+| `bledev.battery` | Battery (0x180F) | A battery level it can read and watch |
+| `bledev.deviceinfo` | Device Information (0x180A) | Manufacturer, model, serial and revisions |
+
+```python
+from bledev.battery import Battery
+from bledev.deviceinfo import DeviceInformation
+
+battery = Battery(level=87)
+info = DeviceInformation(manufacturer="PyDevices", model="rack-1", firmware="0.3.0")
+ble.register_services(battery.service, info.service)
+connection = await ble.advertise(name="rack", services=[battery.SERVICE])
+battery.set_level(86)               # subscribed centrals are notified
+```
+
+Register your own service in the same call: `register_services()` replaces what
+came before. The [HID peripheral](#keyboards-mice-and-gamepads-hid) serves
+these two itself. They are plain GATT tables, so any backend that can be a
+peripheral serves them, and `examples/bledev_battery_info.py` shows them
+running.
+
 ## Connecting to one (central)
 
 ```python
