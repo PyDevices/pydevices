@@ -522,6 +522,44 @@ class TestCamera(unittest.TestCase):
             Camera(device(), max_size=(320, 240), in_limit=600)
         self.assertIn("640-byte packets, over in_limit=600", str(e.exception))
 
+    def test_mjpeg_the_host_cannot_carry_in_full_streams_on_the_largest_single_alt(self):
+        # A camera reserves for its worst MJPEG frame: 2688 bytes a microframe
+        # is three transactions, which the host does not take. It streams on
+        # the largest one-transaction alternate setting, and says so.
+        host.reset(_C920E, probe_payload=2688)
+        cam = Camera(device(), encoding="mjpeg", max_size=(320, 240))
+        self.assertEqual((cam._alt.max_packet, cam._alt.per_frame), (944, 1))
+        self.assertTrue(cam.best_effort)
+        cam.start()
+        stream = [c for c in host.calls if c[0] == "stream"][0]
+        self.assertEqual(stream[2], 944)
+        cam.stop()
+
+    def test_a_mode_that_fits_is_not_best_effort(self):
+        cam = self.camera(max_size=(320, 240), encoding="mjpeg")
+        self.assertFalse(cam.best_effort)
+
+    def test_uncompressed_the_host_cannot_carry_is_refused(self):
+        # Uncompressed bandwidth is what the camera says it is: no best effort.
+        host.reset(_C920E, probe_payload=2688)
+        with self.assertRaises(ValueError):
+            Camera(device(), encoding="yuy2", max_size=(320, 240))
+
+    def test_in_limit_still_skips_a_mode_over_it_instead_of_best_effort(self):
+        host.reset(_C920E, probe_payload=2688)
+        with self.assertRaises(ValueError):
+            Camera(device(), encoding="mjpeg", max_size=(320, 240), in_limit=1024)
+
+    def test_hold_frame_rate_turns_off_exposure_priority(self):
+        cam = self.camera(max_size=(320, 240))
+        host.ctrl.clear()
+        self.assertTrue(cam.hold_frame_rate())
+        # The camera terminal is entity 1 on video control interface 0.
+        self.assertEqual(host.ctrl, [(0x21, 0x01, 0x0300, 0x0100, b"\x00")])
+        host.ctrl.clear()
+        self.assertTrue(cam.hold_frame_rate(False))
+        self.assertEqual(host.ctrl[0][4], b"\x01")
+
     def test_start_claims_the_alt_and_opens_a_video_stream(self):
         cam = self.camera(max_size=(320, 240))
         host.ctrl.clear()
