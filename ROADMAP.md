@@ -26,7 +26,6 @@ with each kind of peripheral described honestly by its role.
 - Gamepads and joysticks on the USB host: `usb-host-hid` reads their report
   descriptor and gives axes, hats and buttons as events, as it does for a
   keyboard.
-- USB Ethernet adapters (CDC-ECM) in `usb-host-net`, beside phone tethering.
 - A DFU host package, to talk to a board's USB bootloader, and a USBTMC one
   for test equipment.
 - A USB gamepad and a touchscreen-style absolute pointer on the device side, in
