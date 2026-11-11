@@ -1583,6 +1583,14 @@ class DisplayDriver:
     _rot_buf = None
     _rot_area = None
 
+    # LVGL 9.6 renamed lv_draw_sw_rgb565_swap and lv_draw_sw_rotate, keeping
+    # the old names only as C macros, which the binding can't see. Take
+    # whichever this binding has, so the driver runs on 9.5 and 9.6 alike.
+    _rgb565_swap = staticmethod(
+        getattr(lv, "draw_rgb565_swap", None) or getattr(lv, "draw_sw_rgb565_swap", None)
+    )
+    _rotate = staticmethod(getattr(lv, "draw_rotate", None) or getattr(lv, "draw_sw_rotate", None))
+
     def __init__(
         self,
         display_drv,
@@ -1836,7 +1844,7 @@ class DisplayDriver:
             height = area.y2 - area.y1 + 1
 
             if self._needs_swap:
-                lv.draw_sw_rgb565_swap(color_p, width * height)
+                self._rgb565_swap(color_p, width * height)
 
             if self._rotation:
                 self._flush_rotated(panel, area, color_p, width, height)
@@ -1867,7 +1875,7 @@ class DisplayDriver:
             # A draw buffer replaced after this one was sized: grow rather
             # than let the rotation write past the end.
             self._rot_buf = bytearray(dest_stride * dest_h)
-        lv.draw_sw_rotate(
+        self._rotate(
             color_p,
             self._rot_buf,
             width,

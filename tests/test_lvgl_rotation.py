@@ -62,7 +62,10 @@ class _Panel:
         return (min(xs), min(ys), max(xs), max(ys))
 
 
-@unittest.skipIf(lv is None or not hasattr(lv, "draw_sw_rotate"), "needs the LVGL binding")
+@unittest.skipIf(
+    lv is None or not (hasattr(lv, "draw_rotate") or hasattr(lv, "draw_sw_rotate")),
+    "needs the LVGL binding",
+)
 class TestRotation(unittest.TestCase):
     def setUp(self):
         if lv.is_initialized():
