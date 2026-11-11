@@ -1,3 +1,22 @@
+## v0.8.0.dev7 (2026-11-11)
+
+- Stack: usb-device-audio is a speaker, microphone or headset; usb-hid adds gamepad and pointer (#514)
+- usb-host-dfu: read a microcontroller's flash through its DFU bootloader (#516)
+- usb-host-cdc: a CDC-ECM or NCM network device is no longer taken for a serial port (#503)
+- usb-hid: a gamepad and an absolute pointer, in CircuitPython's custom Device shape (#513)
+- usb-device-audio: a USB microphone, and a headset that plays and records at once (#512)
+- bledev: private addresses with config(addr_mode=) (#511)
+- bledev: Heart Rate, Cycling Speed and Cadence, Cycling Power, Running Speed and Cadence, Environmental Sensing (#510)
+- bledev: Battery and Device Information as services of their own (#505)
+- USB and Bluetooth LE support tables; the GIGA in the USB guide; _uac.py says it reads UAC 2.0 (#504)
+- Board config: ESP32-P4-WIFI6 with a Pico-LCD-1.8 and a Pico-Audio (#502)
+- display_driver: run on LVGL 9.6's renamed draw functions (#496)
+- QT Py Audio BFF: Boot button role, and a config with an SH1106 OLED (#498)
+- midiports: the mip install line names the package's folder (#497)
+- Library: audioinstruments v0.5.2.dev4 and audioeffects v0.5.2.dev2 (#495)
+- omip on CircuitPython brings Adafruit's libraries (#494)
+- pydevices-desktop: no portable mip; omip installs on every host (#492)
+
 ## v0.8.0.dev6 (2026-11-10)
 
 - Library: audioinstruments v0.5.2.dev3 and applibs v0.1.2.dev1 (#493)
