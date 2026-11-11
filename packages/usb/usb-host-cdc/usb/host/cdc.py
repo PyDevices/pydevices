@@ -12,7 +12,8 @@
 #     print(port.read(64))
 #
 # CDC-ACM, the class a USB serial adapter or a microcontroller's own USB
-# console uses. Serial finds the data interface's bulk pair, raises DTR and
+# console uses (not the network functions, ECM and NCM, which share its class).
+# Serial finds the data interface's bulk pair, raises DTR and
 # RTS (a MicroPython board's console stays silent until DTR says a terminal
 # is attached), and reads and writes the way machine.UART does. Line coding
 # (baud rate and framing) is sent when given, for a real adapter; a
@@ -26,25 +27,44 @@ _SET_CONTROL_LINE_STATE = 0x22
 
 
 def _find(dev):
-    """(control interface, data interface, bulk IN, bulk OUT, IN packet), or None."""
+    """(control interface, data interface, bulk IN, bulk OUT, IN packet), or None.
+
+    Only a CDC-ACM communication interface counts (class 2, subclass 2): a
+    network function (ECM, NCM) has the same class and a data interface of its
+    own, and isn't a serial port. Each ACM interface is paired with the data
+    interface its Union descriptor names, else the next one after it, so a
+    composite device with a network function ahead of its serial function
+    gives the serial function's interfaces.
+    """
     cfg = dev.configuration_descriptor()
-    i, comm, data, cur, ep_in, ep_out, mps = cfg[0], None, None, None, None, None, 64
+    i, cur, comm = cfg[0], None, None
+    comms = []      # [communication interface, union's data interface or None, datas met before it]
+    datas = []      # [data interface, bulk IN, bulk OUT, IN packet], in the order met
     while i + 2 <= len(cfg) and cfg[i] >= 2:
-        if cfg[i + 1] == 4:
+        kind = cfg[i + 1]
+        if kind == 4:
             cur = cfg[i + 2]
-            if cfg[i + 5] == 0x02 and comm is None:
-                comm = cur
-            if cfg[i + 5] == 0x0A and data is None:
-                data = cur
-        elif cfg[i + 1] == 5 and cur is not None and cur == data and cfg[i + 3] & 3 == 2:
-            if cfg[i + 2] & 0x80:
-                ep_in, mps = cfg[i + 2], cfg[i + 4] | cfg[i + 5] << 8
-            else:
-                ep_out = cfg[i + 2]
+            comm = None
+            if cfg[i + 5] == 0x02 and cfg[i + 6] == 0x02:
+                comm = [cur, None, len(datas)]
+                comms.append(comm)
+            elif cfg[i + 5] == 0x0A and not [d for d in datas if d[0] == cur]:
+                datas.append([cur, None, None, 64])
+        elif kind == 0x24 and comm is not None and cfg[i] >= 5 and cfg[i + 2] == 0x06:
+            comm[1] = cfg[i + 4]    # Union: the control interface, then its first subordinate
+        elif kind == 5 and cfg[i + 3] & 3 == 2:
+            for d in datas:
+                if d[0] == cur:
+                    if cfg[i + 2] & 0x80:
+                        d[1], d[3] = cfg[i + 2], cfg[i + 4] | cfg[i + 5] << 8
+                    else:
+                        d[2] = cfg[i + 2]
         i += cfg[i]
-    if data is None or ep_in is None or ep_out is None:
-        return None
-    return (comm if comm is not None else data), data, ep_in, ep_out, mps
+    for comm, union, before in comms:
+        for d in (datas if union is not None else datas[before:]):
+            if d[1] is not None and d[2] is not None and (union is None or d[0] == union):
+                return comm, d[0], d[1], d[2], d[3]
+    return None
 
 
 class Serial:
