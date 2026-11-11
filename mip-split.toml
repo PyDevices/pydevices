@@ -176,5 +176,8 @@ top-level = true
 [usb-device-msc]
 top-level = true
 
+[usb-device-net]
+top-level = true
+
 [usb-device-video]
 top-level = true

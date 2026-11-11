@@ -18,6 +18,7 @@ directory each, installed with `omip`:
 | [`usb-device-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-audio) | `usb.device.audio` | The board as a USB sound card, a microphone, or both as a headset |
 | [`usb-device-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-video) | `usb.device.video` | The board as a USB webcam, YUY2 or MJPEG |
 | [`usb-device-msc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-msc) | `usb.device.msc` | The board as a USB drive, from any block device |
+| [`usb-device-net`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-net) | `usb.device.net` | A network link to the computer over the cable, with no Wi-Fi |
 | [`usb-hid`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-hid) | `usb_hid` | CircuitPython's `usb_hid`, so `adafruit_hid` types and moves the mouse |
 
 MIDI is [`midiports`](https://github.com/PyDevices/pydevices/blob/main/packages/midiports/README.md): `midiports.usb_device` and
@@ -68,8 +69,16 @@ usb.device.get().init(spk, builtin_driver=True)  # the REPL stays on the cable
 `init()` re-enumerates the board, because a USB device can't change what it
 is in place. Put several interfaces in one `init()` to present them together.
 A controller has a fixed number of endpoints (the ESP32-S3 drives IN
-endpoints 1 to 4), and `machine.USBDevice` refuses a set that doesn't fit
-with a `ValueError` naming the endpoint.
+endpoints 1 to 4, and the REPL's serial port takes two), and `init()` refuses
+a set that doesn't fit before anything changes:
+
+```text
+ValueError: 2 IN endpoints left (4 on this chip, the REPL's serial port takes 2): NCMInterface needs 2, MIDIInterface needs 1
+```
+
+`builtin_driver=False` leaves out the REPL's serial port for that set, which
+frees its two endpoints. The REPL stays on the UART and WebREPL, and the next
+reset brings the serial port back.
 
 `usb-hid` also has a gamepad and a pointer that says where it is, as a touch
 screen does, in the shape of CircuitPython's custom `usb_hid.Device`s:
@@ -91,6 +100,26 @@ and
 [`usb_hid_absolute_pointer.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_hid_absolute_pointer.py)
 run each through its controls. Windows ignores a pointer report that is all
 zeros, so ask for 1, 1 where you mean the top-left corner.
+
+`usb-device-net` gives the computer a network link to the board over the
+cable. The board runs a DHCP server on the link, so the computer gets an
+address by itself, and sockets, WebREPL and web servers on the board work over
+it as over Wi-Fi:
+
+```python
+import usb.device
+from usb.device.net import NCMInterface
+
+net = NCMInterface()
+usb.device.get().init(net, builtin_driver=True)
+print(net.nic.ipconfig("addr4"))  # the board's address on the link
+```
+
+[`usb_device_net.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_device_net.py)
+serves a web page over it. To send more than a page, use asyncio or
+non-blocking sockets with `select`: USB is serviced between Python steps, and a
+blocking `send` holds it up. On an ESP32-P4, 200 KB took about 30 seconds
+through a blocking socket and 2 seconds through a non-blocking one.
 
 `usb-device-msc` serves a RAM disk, an SD card or a flash partition: anything
 with `readblocks`, `writeblocks` and `ioctl`. When the computer ejects it,

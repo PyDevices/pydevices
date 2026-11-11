@@ -239,6 +239,8 @@ and Android.
   Get it: `mip usb-device-video`. Runs on: MP.
 - [`usb-device-msc`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Make the board a USB drive, from any block device.\
   Get it: `mip usb-device-msc`. Runs on: MP.
+- [`usb-device-net`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Give the computer a network link to the board over its USB cable, with no driver to install.\
+  Get it: `mip usb-device-net`. Runs on: MP.
 - [`usb-hid`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Use CircuitPython's `usb_hid` on MicroPython, so `adafruit_hid` can type, move the mouse and be a gamepad or a touch pointer.\
   Get it: `mip usb-hid`. Runs on: MP.
 
@@ -424,7 +426,7 @@ and Android.
 - **R:** [`Radios`](#drive-a-chip), [`Real-time clocks`](#drive-a-chip), [`Roku remote`](#run-a-finished-app)
 - **S:** [`sayso`](#libraries-the-apps-use), [`Security camera`](#run-a-finished-app), [`songmodel`](#play-and-sequence-music), [`Sound card`](#run-a-finished-app), [`soundmodule`](#play-and-sequence-music), [`spectrum`](#draw-on-a-screen), [`Spotify`](#run-a-finished-app), [`Stompbox`](#run-a-finished-app), [`Storage`](#drive-a-chip), [`Surveillance camera`](#run-a-finished-app), [`Synth Station`](#run-a-finished-app), [`synthio`](#make-and-shape-sound), [`System`](#run-a-finished-app)
 - **T:** [`tflite`](#use-cameras-video-and-ai-on-a-board), [`Touch drivers`](#drive-a-chip), [`touchkit`](#libraries-the-apps-use), [`tsmux`](#use-cameras-video-and-ai-on-a-board)
-- **U:** [`ulab`](#use-cameras-video-and-ai-on-a-board), [`usb-core`](#use-usb), [`usb-device-audio`](#use-usb), [`usb-device-msc`](#use-usb), [`usb-device-video`](#use-usb), [`usb-hid`](#use-usb), [`usb-host-audio`](#use-usb), [`usb-host-cdc`](#use-usb), [`usb-host-dfu`](#use-usb), [`usb-host-hid`](#use-usb), [`usb-host-msc`](#use-usb), [`usb-host-mtp`](#use-usb), [`usb-host-net`](#use-usb), [`usb-host-video`](#use-usb), [`usbhost`](#use-usb), [`usdl2`](#run-somewhere-other-than-a-board), [`uwin32`](#run-somewhere-other-than-a-board)
+- **U:** [`ulab`](#use-cameras-video-and-ai-on-a-board), [`usb-core`](#use-usb), [`usb-device-audio`](#use-usb), [`usb-device-msc`](#use-usb), [`usb-device-net`](#use-usb), [`usb-device-video`](#use-usb), [`usb-hid`](#use-usb), [`usb-host-audio`](#use-usb), [`usb-host-cdc`](#use-usb), [`usb-host-dfu`](#use-usb), [`usb-host-hid`](#use-usb), [`usb-host-msc`](#use-usb), [`usb-host-mtp`](#use-usb), [`usb-host-net`](#use-usb), [`usb-host-video`](#use-usb), [`usbhost`](#use-usb), [`usdl2`](#run-somewhere-other-than-a-board), [`uwin32`](#run-somewhere-other-than-a-board)
 - **V:** [`Vamp`](#run-a-finished-app), [`Video doorbell`](#run-a-finished-app), [`Videophone`](#run-a-finished-app), [`vision`](#use-cameras-video-and-ai-on-a-board)
 - **W:** [`Wake word`](#run-a-finished-app), [`Walkie-talkie`](#run-a-finished-app), [`wasm.py`](#run-somewhere-other-than-a-board), [`Weather`](#run-a-finished-app), [`wifi`](#connect-devices), [`wifi_manager`](#connect-devices), [`Workbench`](#set-up-a-board)
 

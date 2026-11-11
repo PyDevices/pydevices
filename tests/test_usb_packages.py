@@ -41,10 +41,10 @@ _IMPORT = re.compile(r"^\s*(?:import\s+_usbhost|from\s+_usbhost\s+import)", re.M
 
 
 class PackageFileTests(unittest.TestCase):
-    def test_the_thirteen_packages_are_here(self):
+    def test_the_fourteen_packages_are_here(self):
         self.assertEqual(
             [p.name for p in PACKAGES],
-            ["usb-core", "usb-device-audio", "usb-device-msc", "usb-device-video", "usb-hid",
+            ["usb-core", "usb-device-audio", "usb-device-msc", "usb-device-net", "usb-device-video", "usb-hid",
              "usb-host-audio", "usb-host-cdc", "usb-host-dfu", "usb-host-hid", "usb-host-msc", "usb-host-mtp", "usb-host-net",
              "usb-host-video"])
 
