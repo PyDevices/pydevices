@@ -8,7 +8,7 @@ directory each, installed with `omip`:
 |---|---|---|
 | [`usb-core`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-core) | `usb.core`, `usb.util`, `usb_host` | Talk to USB devices from the board's host port, in PyUSB's and CircuitPython's shape |
 | [`usb-host-msc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-msc) | `usb.host.msc` | Mount a flash drive |
-| [`usb-host-hid`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-hid) | `usb.host.hid` | Read a keyboard or mouse: keys, buttons and movement named the way `adafruit_hid` names them |
+| [`usb-host-hid`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-hid) | `usb.host.hid` | Read a keyboard or mouse: keys, buttons and movement named the way `adafruit_hid` names them. `usb.host.hid_generic` reads a gamepad or joystick |
 | [`usb-host-cdc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-cdc) | `usb.host.cdc` | A USB serial device |
 | [`usb-host-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-audio) | `usb.host.audio` | Play to a USB speaker, record from a USB microphone |
 | [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-video) | `usb.host.video` | Frames from a USB webcam |
@@ -169,6 +169,30 @@ shapes (modifiers with a key array, buttons with `x`, `y` and wheel, a
 media-key array or one bit per key) and raises a `ValueError` for a device
 whose descriptor it can't, such as a keyboard that reports a bit per key; use
 boot protocol for that one.
+
+A gamepad or joystick comes back as events too, whatever its report layout, because
+`usb.host.hid_generic` reads the buttons, axes and hats from the device's own report
+descriptor:
+
+```python
+import usb.core
+from usb.host.hid_generic import Gamepad, BUTTON_DOWN, AXIS, HAT, Axis
+
+pad = Gamepad(usb.core.find(custom_match=Gamepad.match))
+while True:
+    ev = pad.read(50)                       # None if nothing happened
+    if ev and ev[0] == BUTTON_DOWN:
+        print("button", ev[1])
+    elif ev and ev[0] == AXIS and ev[1] == Axis.X:
+        print("left stick", pad.scaled(Axis.X))     # -1.0 to 1.0
+    elif ev and ev[0] == HAT:
+        print("hat", ev[2])                         # 0 up, clockwise, -1 centred
+```
+
+The first report gives an event for every axis and hat, so a program learns where each rests.
+It doesn't read a D-pad reported as four buttons, an array of buttons or a vendor-defined
+field, and a controller that needs a start-up message before it sends full reports (a
+DualShock 4, a Switch Pro controller) doesn't work.
 
 Up to 0.7.6, `read()` returned the report's raw bytes. It no longer
 does; the CHANGELOG has the details.
