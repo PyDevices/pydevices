@@ -48,7 +48,7 @@ class FakeUSBDevice:
     def speed(self):
         return type(self).link if type(self).mounted else type(self).fastest
 
-    def stream(self, ep, ring, packet, frame=0):
+    def stream(self, ep, ring, packet=None, frame=0):
         type(self).streams.append((ep, packet))
 
     def feedback(self, ep, value):

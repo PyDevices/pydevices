@@ -31,6 +31,8 @@ Each one says in its docstring what it needs and where it has been run.
 | [events_simpletest.py](events_simpletest.py) | Input events, told apart by type, and one of your own |
 | [keys_simpletest.py](keys_simpletest.py) | Key names, a Ctrl+S shortcut, and a USB keyboard's codes |
 | [multimer_simpletest.py](multimer_simpletest.py) | Two timers at once, stopped by a third |
+| [usb_device_audio_headset.py](usb_device_audio_headset.py) | Being a USB headset that plays back what the computer plays to it |
+| [usb_device_audio_microphone.py](usb_device_audio_microphone.py) | Being a USB microphone that sends a tone |
 | [wifi_ap_simpletest.py](wifi_ap_simpletest.py) | A Wi-Fi network of the board's own, with a page for visitors |
 | [wifi_simpletest.py](wifi_simpletest.py) | The networks in range, then joining yours |
 | [wifi_station_simpletest.py](wifi_station_simpletest.py) | Joining a board's own network and reading its page |

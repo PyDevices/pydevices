@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Brad Barnett
 #
 # SPDX-License-Identifier: MIT
-# MicroPython USB audio module: a UAC2 sound card the computer plays to.
+# MicroPython USB audio module: a UAC2 sound card the computer plays to, a
+# microphone it records from, or both at once as a headset.
 # MIT license; Copyright (c) 2026 Brad Barnett
 #
 #     import usb.device
@@ -26,6 +27,26 @@
 # only calls service() now and then.
 #
 # mute and volume (in 1/256 dB) are what the computer's volume control set.
+#
+# A microphone is the same stream the other way round:
+#
+#     from usb.device.audio import MicrophoneInterface
+#
+#     mic = MicrophoneInterface()
+#     usb.device.get().init(mic, builtin_driver=True)
+#     mic.mic.write(frames)                    # what the computer records
+#
+# The computer sees a microphone. Write 16-bit stereo frames into mic.mic
+# (a USBDevice.Ring) at the sample rate, and the streaming endpoint sends them
+# from the USB interrupt, one millisecond's worth (192 bytes at 48 kHz) a
+# frame. write() takes all of a buffer or none, so a 0 means the ring is full.
+# The computer's volume and mute for the microphone arrive as mic_volume and
+# mic_mute. HeadsetInterface is both in one device: spk.ring is what the
+# computer plays and spk.mic is what it records.
+#
+# Endpoints: the speaker takes one IN endpoint number (its feedback) and the
+# microphone one, so a headset takes two. An ESP32-S2 or S3, and a P4 at full
+# speed, have IN endpoints 1 to 4, and the REPL's serial port takes two.
 #
 # The packet size follows the link. A USB device can't tell which speed it will
 # run at until a computer has configured it, and the descriptor is read before
@@ -57,6 +78,9 @@ _CLOCK_ID = const(0x04)
 _INPUT_ID = const(0x01)
 _FEATURE_ID = const(0x02)
 _OUTPUT_ID = const(0x03)
+_MIC_INPUT_ID = const(0x05)
+_MIC_FEATURE_ID = const(0x06)
+_MIC_OUTPUT_ID = const(0x07)
 
 _SAM_FREQ = const(0x01)
 _CLOCK_VALID = const(0x02)
@@ -307,12 +331,15 @@ class SpeakerInterface(Interface):
             return False
         self._assumed = actual
         self._resize()
-        end = self._ep_off + 22
-        self._desc[self._ep_off : end] = self._endpoints()
+        self._rewrite_endpoints()
         # The control transfer that got us here can't tear the device down
         # underneath itself.
         schedule(self._reattach, None)
         return True
+
+    def _rewrite_endpoints(self):
+        end = self._ep_off + 22
+        self._desc[self._ep_off : end] = self._endpoints()
 
     def _reattach(self, _=None):
         from . import get
@@ -359,3 +386,214 @@ class SpeakerInterface(Interface):
         underflows), and the feedback value."""
         ring = self.sink.stats() if self.sink is not None else self.ring.stats()
         return self._usbd.stream_stats(self.ep_out), ring, self._fb
+
+
+class HeadsetInterface(SpeakerInterface):
+    """A UAC2 headset: the computer plays to the board (``ring``, as
+    `SpeakerInterface`) and records from it (``mic``, a USBDevice.Ring you
+    write 16-bit frames into). ``mic_ring_bytes`` sizes that ring; the default
+    holds about 20 ms at 48 kHz stereo.
+
+    The microphone streams one packet's worth every frame (192 bytes at
+    48 kHz full speed), so write at the sample rate: a ring that runs dry sends
+    short packets, and the computer hears a gap. ``mic_volume`` (1/256 dB) and
+    ``mic_mute`` are what the computer's input level set."""
+
+    _speaker = True
+
+    def __init__(self, *, mic_ring_bytes=4096, **kwargs):
+        if not self._speaker:
+            kwargs.setdefault("ring_bytes", 2)  # unused: nothing plays to a microphone
+            kwargs.pop("sink", None)
+        super().__init__(**kwargs)
+        if not self._speaker:
+            self.ring = None
+        self.mic = machine.USBDevice.Ring(mic_ring_bytes)
+        self.mic_mute = False
+        self.mic_volume = 0
+        self.mic_alt = 0
+        self.ep_in = None
+        self._mic_off = 0
+        self._mic_pending = None
+
+    @property
+    def recording(self):
+        """True while the computer is recording from the microphone."""
+        return self.mic_alt != 0
+
+    @property
+    def mic_packet(self):
+        """The bytes the microphone sends each frame: one frame's worth of
+        samples (the endpoint's packet size leaves one sample frame of slack)."""
+        return self.packet - (self.frame_bytes if self._want_packet is None else 0)
+
+    # -- descriptors
+
+    def num_itfs(self):
+        return 3 if self._speaker else 2
+
+    def num_eps(self):
+        return 2 if self._speaker else 1
+
+    def _mic_endpoints(self):
+        ep = struct.pack("<BBBBHB", 7, 0x05, self.ep_in, 0x05, self.packet, 1)  # iso IN, async
+        return ep + bytes((8, 0x25, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00))  # CS iso endpoint
+
+    def _chain(self, desc, input_id, feature_id, output_id, terminal_in, terminal_out):
+        # One signal path: input terminal, feature unit (mute and volume),
+        # output terminal.
+        desc.extend(struct.pack("<BBBBHBBBIBHB", 17, 0x24, 0x02, input_id, terminal_in, 0, _CLOCK_ID,
+                                self.channels, 0, 0, 0, 0))
+        desc.extend(struct.pack("<BBBBHBBBHB", 12, 0x24, 0x03, output_id, terminal_out, 0, feature_id,
+                                _CLOCK_ID, 0, 0))
+        fu = struct.pack("<BBBBB", 6 + 4 * (self.channels + 1), 0x24, 0x06, feature_id, input_id)
+        fu += struct.pack("<I", 0x0F) * (self.channels + 1) + b"\x00"
+        desc.extend(fu)
+
+    def desc_cfg(self, desc, itf_num, ep_num, strs):
+        if self.interface_str:
+            strs.append(self.interface_str)
+            istr = len(strs) - 1
+        else:
+            istr = 0
+        speaker = self._speaker
+        self.ep_out = ep_num if speaker else None
+        self.ep_fb = ep_num | _EP_IN_FLAG if speaker else None
+        self.ep_in = (ep_num + (1 if speaker else 0)) | _EP_IN_FLAG
+        if self._want_hs is None:
+            self._assumed = self._usbd.speed() == 2
+        self._resize()
+        chain = 17 + 12 + 6 + 4 * (self.channels + 1)
+        cs_ac_total = 9 + 8 + chain * (2 if speaker else 1)
+        mic_itf = itf_num + (2 if speaker else 1)
+        desc.extend(bytes((8, 0x0B, itf_num, self.num_itfs(), 0x01, 0x00, 0x20, 0)))  # IAD
+        desc.extend(bytes((9, 0x04, itf_num, 0, 0, 0x01, 0x01, 0x20, istr)))  # AC interface
+        desc.extend(struct.pack("<BBBHBHB", 9, 0x24, 0x01, 0x0200, 0x04 if speaker else 0x03, cs_ac_total, 0))
+        desc.extend(bytes((8, 0x24, 0x0A, _CLOCK_ID, 0x03, 0x07, _INPUT_ID if speaker else _MIC_OUTPUT_ID, 0)))
+        if speaker:
+            # The computer's output: USB streaming in, desktop speaker out.
+            self._chain(desc, _INPUT_ID, _FEATURE_ID, _OUTPUT_ID, 0x0101, 0x0304)
+        # The computer's input: microphone in, USB streaming out.
+        self._chain(desc, _MIC_INPUT_ID, _MIC_FEATURE_ID, _MIC_OUTPUT_ID, 0x0201, 0x0101)
+        if speaker:
+            desc.extend(bytes((9, 0x04, itf_num + 1, 0, 0, 0x01, 0x02, 0x20, 0)))  # AS alt 0
+            desc.extend(bytes((9, 0x04, itf_num + 1, 1, 2, 0x01, 0x02, 0x20, 0)))  # AS alt 1
+            desc.extend(struct.pack("<BBBBBBIBIB", 16, 0x24, 0x01, _INPUT_ID, 0, 0x01, 0x01, self.channels, 0, 0))
+            desc.extend(bytes((6, 0x24, 0x02, 0x01, self.sample_bytes, self.sample_bytes * 8)))
+            self._ep_off = desc.o
+            desc.extend(self._endpoints())
+        desc.extend(bytes((9, 0x04, mic_itf, 0, 0, 0x01, 0x02, 0x20, 0)))  # AS alt 0
+        desc.extend(bytes((9, 0x04, mic_itf, 1, 1, 0x01, 0x02, 0x20, 0)))  # AS alt 1
+        desc.extend(struct.pack("<BBBBBBIBIB", 16, 0x24, 0x01, _MIC_OUTPUT_ID, 0, 0x01, 0x01, self.channels, 0, 0))
+        desc.extend(bytes((6, 0x24, 0x02, 0x01, self.sample_bytes, self.sample_bytes * 8)))
+        self._mic_off = desc.o
+        desc.extend(self._mic_endpoints())
+        if desc.b:
+            self._desc = desc.b
+        self._itf = itf_num
+        self._mic_itf = mic_itf
+        from . import get
+
+        itfs = get()._itfs
+        entities = (_CLOCK_ID, _MIC_INPUT_ID, _MIC_FEATURE_ID, _MIC_OUTPUT_ID)
+        if speaker:
+            entities += (_INPUT_ID, _FEATURE_ID, _OUTPUT_ID)
+        for entity in entities:
+            itfs[(entity << 8) | itf_num] = self
+
+    def _rewrite_endpoints(self):
+        if self._speaker:
+            super()._rewrite_endpoints()
+        self._desc[self._mic_off : self._mic_off + 15] = self._mic_endpoints()
+
+    # -- control requests
+
+    def on_interface_control_xfer(self, stage, request):
+        bmRequestType, bRequest, wValue, wIndex, wLength = struct.unpack("BBHHH", request)
+        _, req_type, _ = split_bmRequestType(bmRequestType)
+        itf = wIndex & 0xFF
+        to_host = bmRequestType & 0x80
+        if req_type == _REQ_TYPE_STANDARD:
+            speaker_as = self._speaker and itf == self._itf + 1
+            if not speaker_as and itf != self._mic_itf:
+                return False
+            if bRequest == _SET_INTERFACE:
+                if stage == _STAGE_SETUP:
+                    if speaker_as:
+                        self._set_alt(wValue)
+                    else:
+                        self._set_mic_alt(wValue)
+                return True
+            if bRequest == _GET_INTERFACE:
+                if stage != _STAGE_SETUP:
+                    return True
+                return bytes((self.alt if speaker_as else self.mic_alt,))
+            return False
+        if req_type != _REQ_TYPE_CLASS:
+            return False
+        entity = wIndex >> 8
+        control = wValue >> 8
+        if stage == _STAGE_SETUP:
+            reply = self._class_request(entity, control, bRequest, to_host)
+            if reply is None:
+                return False
+            if not to_host:
+                self._pending = (entity, control, reply)
+            return reply
+        if stage == _STAGE_ACK and not to_host and self._pending is not None:
+            entity, control, data = self._pending
+            self._pending = None
+            if control == _MUTE and len(data) >= 1:
+                if entity == _FEATURE_ID:
+                    self.mute = bool(data[0])
+                elif entity == _MIC_FEATURE_ID:
+                    self.mic_mute = bool(data[0])
+            elif control == _VOLUME and len(data) >= 2:
+                if entity == _FEATURE_ID:
+                    self.volume = struct.unpack("<h", data)[0]
+                elif entity == _MIC_FEATURE_ID:
+                    self.mic_volume = struct.unpack("<h", data)[0]
+        return True
+
+    def _class_request(self, entity, control, bRequest, to_host):
+        if entity == _MIC_FEATURE_ID:
+            if control == _MUTE and bRequest == _CUR:
+                return bytes((1 if self.mic_mute else 0,)) if to_host else bytearray(1)
+            if control == _VOLUME and bRequest == _CUR:
+                return struct.pack("<h", self.mic_volume) if to_host else bytearray(2)
+            if control == _VOLUME and bRequest == _RANGE and to_host:
+                return struct.pack("<Hhhh", 1, _VOLUME_MIN, _VOLUME_MAX, _VOLUME_RES)
+            return None
+        if entity in (_MIC_INPUT_ID, _MIC_OUTPUT_ID):
+            return None
+        return super()._class_request(entity, control, bRequest, to_host)
+
+    def _set_mic_alt(self, alt):
+        self.mic_alt = alt
+        if alt:
+            if self._check_speed():
+                return  # re-enumerating; the computer selects this again
+            self._usbd.stream(self.ep_in, self.mic, self.mic_packet)
+        else:
+            self._usbd.stream(self.ep_in, None)
+
+    def on_reset(self):
+        super().on_reset()
+        self.mic_alt = 0
+
+    def mic_stats(self):
+        """(stream packets, bytes, drops) and the ring's (size, waiting,
+        overflows, underflows), for the microphone."""
+        return self._usbd.stream_stats(self.ep_in), self.mic.stats()
+
+    def stats(self):
+        if not self._speaker:
+            return self.mic_stats()
+        return super().stats()
+
+
+class MicrophoneInterface(HeadsetInterface):
+    """A stereo UAC2 microphone: write frames into ``mic`` and the computer
+    records them. See `HeadsetInterface`."""
+
+    _speaker = False
