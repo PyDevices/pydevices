@@ -19,11 +19,25 @@
 # (baud rate and framing) is sent when given, for a real adapter; a
 # microcontroller's console ignores it.
 import struct
+import time
 
 import usb.core
 
+from usb.host import _chips as cdc_chips
+
 _SET_LINE_CODING = 0x20
 _SET_CONTROL_LINE_STATE = 0x22
+
+
+def _strip_status(buf, n, packet, skip):
+    """Drop the ``skip`` status bytes each ``packet``-sized piece of an IN transfer
+    starts with (FTDI's), keeping the data in place; returns the data's length."""
+    kept = 0
+    for start in range(0, n, packet):
+        data = buf[start + skip:min(start + packet, n)]
+        buf[kept:kept + len(data)] = data
+        kept += len(data)
+    return kept
 
 
 def _find(dev):
@@ -70,43 +84,78 @@ def _find(dev):
 class Serial:
     @staticmethod
     def match(dev):
-        """For usb.core.find(custom_match=...): a CDC-ACM device."""
-        return _find(dev) is not None
+        """For usb.core.find(custom_match=...): a CDC-ACM device, or a vendor
+        USB-serial adapter (CH34x, CP210x, FTDI, PL2303)."""
+        return _find(dev) is not None or cdc_chips.find(dev) is not None
 
     def __init__(self, dev, *, baudrate=None, timeout=0, dtr=True):
         """``timeout`` in ms: how long a read waits for the first byte (0: a
-        poll that returns at once)."""
+        poll that returns at once). ``baudrate`` is sent as the line coding;
+        a vendor adapter always gets one (115200 if none is given), because
+        it has no other default."""
         found = _find(dev) if dev is not None else None
-        if found is None:
-            raise ValueError("not a CDC-ACM device")
+        self._chip = None
+        if found is not None:
+            self._comm, self._data, self._in, self._out, mps = found
+        else:
+            self._chip = cdc_chips.find(dev) if dev is not None else None
+            if self._chip is None:
+                raise ValueError("not a CDC-ACM device or a known USB-serial adapter")
+            chip = self._chip
+            self._comm = self._data = chip.interface
+            self._in, self._out, mps = chip.ep_in, chip.ep_out, chip.mps
         self.dev = dev
-        self._comm, self._data, self._in, self._out, mps = found
         self.timeout = timeout
         self._buf = bytearray(mps)
         self._pending = memoryview(self._buf)[:0]
-        if baudrate:
+        if self._chip is not None:
+            self._chip.open()
+            self.init(baudrate or 115200)
+        elif baudrate:
             self.init(baudrate)
         self.dtr(dtr)
+
+    @property
+    def chip(self):
+        """The adapter's chip, such as "CH34x" or "FT232R"; "CDC-ACM" for a
+        device that speaks the standard class."""
+        return self._chip.name if self._chip is not None else "CDC-ACM"
 
     def init(self, baudrate=115200, bits=8, parity=None, stop=1):
         stop_code = {1: 0, 1.5: 1, 2: 2}[stop]
         parity_code = {None: 0, 1: 1, 0: 2}.get(parity, 0)
+        if self._chip is not None:
+            self._chip.line(baudrate, bits, parity_code, stop_code)
+            return
         self.dev.ctrl_transfer(0x21, _SET_LINE_CODING, 0, self._comm,
                                struct.pack("<IBBB", baudrate, stop_code, parity_code, bits), 1000)
 
     def dtr(self, on=True, rts=True):
+        if self._chip is not None:
+            self._chip.modem(on, rts)
+            return
         self.dev.ctrl_transfer(0x21, _SET_CONTROL_LINE_STATE, (1 if on else 0) | (2 if rts else 0),
                                self._comm, None, 1000)
 
     def _fill(self, timeout):
         if self._pending:
             return True
-        try:
-            n = self.dev.read(self._in, self._buf, max(1, timeout))
-        except usb.core.USBTimeoutError:
-            return False
-        self._pending = memoryview(self._buf)[:n]
-        return n > 0
+        end = time.ticks_add(time.ticks_ms(), max(1, timeout))
+        while True:
+            left = time.ticks_diff(end, time.ticks_ms())
+            try:
+                n = self.dev.read(self._in, self._buf, max(1, left))
+            except usb.core.USBTimeoutError:
+                return False
+            skip = self._chip.strip if self._chip is not None else 0
+            if skip:
+                n = _strip_status(self._buf, n, len(self._buf), skip)
+            if n > 0:
+                self._pending = memoryview(self._buf)[:n]
+                return True
+            # A status-only packet, or an empty one: keep waiting out the timeout.
+            if left <= 1:
+                return False
 
     def any(self):
         """Bytes ready to read without waiting (what's arrived, at least)."""
