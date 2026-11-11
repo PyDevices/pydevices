@@ -72,6 +72,8 @@ def ecm(comm, data, ep_in, ep_out):
 class Device:
     def __init__(self, descriptor):
         self._cfg = descriptor
+        self.idVendor = 0x1234
+        self.idProduct = 0x5678
 
     def configuration_descriptor(self):
         return self._cfg

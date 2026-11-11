@@ -9,7 +9,7 @@ directory each, installed with `omip`:
 | [`usb-core`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-core) | `usb.core`, `usb.util`, `usb_host` | Talk to USB devices from the board's host port, in PyUSB's and CircuitPython's shape |
 | [`usb-host-msc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-msc) | `usb.host.msc` | Mount a flash drive |
 | [`usb-host-hid`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-hid) | `usb.host.hid` | Read a keyboard or mouse: keys, buttons and movement named the way `adafruit_hid` names them |
-| [`usb-host-cdc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-cdc) | `usb.host.cdc` | A USB serial device |
+| [`usb-host-cdc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-cdc) | `usb.host.cdc` | A USB serial device: a CDC-ACM port, or a CH340, CP210x, FTDI or PL2303 adapter |
 | [`usb-host-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-audio) | `usb.host.audio` | Play to a USB speaker, record from a USB microphone |
 | [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-video) | `usb.host.video` | Frames from a USB webcam |
 | [`usb-host-mtp`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-mtp) | `usb.host.mtp` | Photos and files off a phone or a camera, over MTP |
@@ -166,6 +166,23 @@ through a high-speed hub) or on an ESP32-S3, whose host port is full speed.
 It speaks RNDIS, which Samsung and
 many other Android phones use; CDC-ECM, CDC-NCM and iPhone tethering are not
 implemented.
+
+A USB-serial adapter reads and writes the same way whatever chip is inside it. `Serial` takes
+a CDC-ACM port, a microcontroller's own console say, or a CH340/CH341, CP210x, FTDI or PL2303
+adapter, and asks the chip for the baud rate and for DTR and RTS in the way that chip understands:
+
+```python
+import usb.core
+from usb.host.cdc import Serial
+
+port = Serial(usb.core.find(custom_match=Serial.match), baudrate=115200)
+print(port.chip)                     # "CH34x", "CP210x", "FT232R", "CDC-ACM", ...
+port.write(b"hello\r\n")
+print(port.read(64))
+```
+
+`Serial.match` doesn't take a CDC-ECM or NCM network device, which has the same class as a serial
+port but no serial requests.
 
 A keyboard or mouse plugged into the host port comes back as events, with
 the key and button names `adafruit_hid` uses, so code that reads a keyboard
