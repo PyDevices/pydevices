@@ -13,6 +13,7 @@ directory each, installed with `omip`:
 | [`usb-host-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-audio) | `usb.host.audio` | Play to a USB speaker, record from a USB microphone |
 | [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-video) | `usb.host.video` | Frames from a USB webcam |
 | [`usb-host-mtp`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-mtp) | `usb.host.mtp` | Photos and files off a phone or a camera, over MTP |
+| [`usb-host-dfu`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-dfu) | `usb.host.dfu` | Read the flash of a board sitting in its DFU bootloader |
 | [`usb-host-net`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-net) | `usb.host.net` | The internet through a phone's USB tethering |
 | [`usb-device-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-audio) | `usb.device.audio` | The board as a USB sound card, a microphone, or both as a headset |
 | [`usb-device-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-video) | `usb.device.video` | The board as a USB webcam, YUY2 or MJPEG |
@@ -215,6 +216,31 @@ boot protocol for that one.
 
 Up to 0.7.6, `read()` returned the report's raw bytes. It no longer
 does; the CHANGELOG has the details.
+
+A microcontroller sitting in its DFU bootloader (an Arduino GIGA after a double tap of reset, an STM32 held
+in its system bootloader) can be read the same way, a block at a time. Each alternate setting is one memory, and
+for an STM32 the address is a flash address:
+
+```python
+import hashlib
+import usb.core
+from usb.host.dfu import Dfu
+
+dfu = Dfu(usb.core.find(custom_match=Dfu.match))
+print(dfu.alternates())                         # [(0, "Internal Flash"), (1, "External Flash"), ...]
+digest = hashlib.sha256()
+for chunk in dfu.chunks(0x08000000, 0x1000):    # a multiple of dfu.transfer_size from the start
+    digest.update(chunk)
+print(digest.hexdigest())
+```
+
+`usb.host.dfu` only reads. It sends no download or erase and doesn't tell the bootloader to leave, so the
+board stays in its bootloader, and unchanged, until it's reset.
+
+A bootloader reads from its own address pointer, and only a download can move
+it. An STM32's ROM bootloader starts at the memory's first address. An Arduino
+GIGA's starts at its firmware, 0x08040000, so on a GIGA the read above returns
+the first bytes of firmware0.
 
 A USB speaker or microphone can also stand in for a board's own codec, as an
 audiodev output or input, so code written for `audio_out` and `pcm_in` runs
