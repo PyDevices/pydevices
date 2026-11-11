@@ -17,7 +17,7 @@ Run it:
     mpremote run bledev_private_address.py
 
 Tested on: ESP32-S3 board on MicroPython 1.30 preview, scanned by bleak 3.0
-on Windows.
+on Windows, and bonded with nRF Connect on Android.
 """
 
 import asyncio
@@ -38,6 +38,10 @@ async def main():
     except bledev.UnsupportedError as error:
         print("This board can't advertise a private address:", error)
         return
+
+    # Keep the keys when a phone pairs, so a bonded phone still knows the
+    # board after its address changes.
+    ble.enable_bonding()
     print("Address mode", ble.config("addr_mode"))
 
     # Advertise until someone connects, and begin again if nobody does.
