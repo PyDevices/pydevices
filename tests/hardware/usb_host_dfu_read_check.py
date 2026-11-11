@@ -16,8 +16,8 @@ Run it:
     mpftp run --follow tests/hardware/usb_host_dfu_read_check.py
 
 Expect: the alternates "Internal Flash" and others, then "match True". If the
-bootloader's pointer doesn't start at 0x08000000 the read returns other data
-and the check says so; don't fall back to a set-address command without asking.
+read doesn't match, the bootloader's pointer may not be where this assumes;
+don't fall back to a set-address command without asking.
 """
 
 import hashlib
@@ -27,7 +27,9 @@ import usb.core
 from usb.host.dfu import Dfu
 
 # Change these to match your setup.
-ADDRESS = 0x08040000
+# The GIGA's bootloader starts its address pointer at firmware0, so the first
+# block read is 0x08040000 even though the memory starts at 0x08000000.
+ADDRESS = 0x08000000
 LENGTH = 128 * 1024
 EXPECTED = "800a01b4e9bd719af7504db49db6ad30356868ec7b795f019637fc79aaafcbea"  # firmware0-406-on-410-5111a1e.bin
 

@@ -13,7 +13,7 @@
 #     dfu = Dfu(usb.core.find(custom_match=Dfu.match))
 #     print(dfu.alternates())               # [(0, "Internal Flash"), (1, "External Flash"), ...]
 #     digest = hashlib.sha256()
-#     for chunk in dfu.chunks(0x08040000, 0x1000):
+#     for chunk in dfu.chunks(0x08000000, 0x1000):
 #         digest.update(chunk)
 #
 # DFU is the standard way a bootloader takes new firmware over USB. Each
@@ -21,7 +21,12 @@
 # bytes, an external flash chip), and an upload request reads it a block at a
 # time. For an STM32's DfuSe variant (bcdDFUVersion 0x011A) block 2 is the
 # first address the alternate names and each block after it is `transfer_size`
-# bytes further on; for plain DFU 1.1 block 0 is the start.
+# bytes further on; for plain DFU 1.1 block 0 is the start. A bootloader reads
+# from its own address pointer, which only a set-address (a download) moves,
+# and this package never sends one. An STM32's ROM bootloader starts the pointer
+# at the memory's first address. An Arduino GIGA's bootloader starts it at the
+# firmware (0x08040000), so there `chunks(0x08000000, ...)` returns firmware0's
+# first bytes, not the bootloader's.
 #
 # This only reads. Nothing here sends a download request, erases, or tells the
 # bootloader to leave, so a board that is read stays in its bootloader and
@@ -86,7 +91,8 @@ class Dfu:
             return ""
         buf = bytearray(128)
         n = self.dev.ctrl_transfer(0x80, 6, 0x0300 | index, 0x0409, buf, 1000)
-        return bytes(buf[2:n:2]).decode()
+        # No slice step: MicroPython's bytearray doesn't take one.
+        return "".join(chr(buf[i] | buf[i + 1] << 8) for i in range(2, n - 1, 2))
 
     def alternates(self):
         """[(alternate setting, name)] for each memory the bootloader offers.

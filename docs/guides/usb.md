@@ -229,13 +229,18 @@ from usb.host.dfu import Dfu
 dfu = Dfu(usb.core.find(custom_match=Dfu.match))
 print(dfu.alternates())                         # [(0, "Internal Flash"), (1, "External Flash"), ...]
 digest = hashlib.sha256()
-for chunk in dfu.chunks(0x08040000, 0x1000):    # a multiple of dfu.transfer_size from the start
+for chunk in dfu.chunks(0x08000000, 0x1000):    # a multiple of dfu.transfer_size from the start
     digest.update(chunk)
 print(digest.hexdigest())
 ```
 
 `usb.host.dfu` only reads. It sends no download or erase and doesn't tell the bootloader to leave, so the
 board stays in its bootloader, and unchanged, until it's reset.
+
+A bootloader reads from its own address pointer, and only a download can move
+it. An STM32's ROM bootloader starts at the memory's first address. An Arduino
+GIGA's starts at its firmware, 0x08040000, so on a GIGA the read above returns
+the first bytes of firmware0.
 
 A USB speaker or microphone can also stand in for a board's own codec, as an
 audiodev output or input, so code written for `audio_out` and `pcm_in` runs
