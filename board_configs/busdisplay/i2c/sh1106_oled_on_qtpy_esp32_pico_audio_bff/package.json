@@ -1,0 +1,25 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/i2c/sh1106_oled_on_qtpy_esp32_pico_audio_bff/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/nodisplay/qtpy_esp32_pico_audio_bff/board_peripherals.py"
+    ],
+    [
+      "sh1106.py",
+      "github:PyDevices/pydevices/drivers/display/sh1106.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1",
+  "description": "SH1106 128x64 OLED on the STEMMA QT port of a QT Py ESP32 Pico carrying an Adafruit Audio BFF - MicroPython",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
+}

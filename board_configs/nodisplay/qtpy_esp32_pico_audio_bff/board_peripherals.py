@@ -49,11 +49,11 @@ from audiodev import (
 )
 from audiodev.i2s_audio import I2SPCMOutput
 
-PERIPHERALS = frozenset({"audio_out", "pcm_out", "audio_power"})
+PERIPHERALS = frozenset({"audio_out", "pcm_out", "audio_power", "boot_button"})
 
 # Audio roles are factories: first attribute access must not construct, so a
 # caller can pass a format. See boarddev.bind_lazy.
-FACTORY_ROLES = PERIPHERALS
+FACTORY_ROLES = frozenset({"audio_out", "pcm_out", "audio_power"})
 
 # Adafruit Audio BFF (product 5769) pads on the QT Py ESP32 Pico.
 #
@@ -219,3 +219,12 @@ def _audio_power(enable=True, *, volume=None):
 pcm_out = AudioFactory(_pcm_out, AUDIO_OUT)
 audio_out = AudioFactory(_audio_out, AUDIO_OUT)
 audio_power = _audio_power
+
+
+def boot_button():
+    """The Boot button (GPIO0, low while pressed): a strap at reset, a plain
+    input once the board is running. Holding it through a reset starts the
+    bootloader, so a program reads it only after boot."""
+    from machine import Pin
+
+    return Pin(0, Pin.IN, Pin.PULL_UP)

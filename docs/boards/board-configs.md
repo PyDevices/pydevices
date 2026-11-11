@@ -167,6 +167,7 @@ Draw through `display_drv` only; `_pixel_framebuf` is an internal wiring detail.
 | `cp/busdisplay/i2c/ssd1306_oled_featherwing` | FeatherWing OLED 128×32 |
 | `busdisplay/i2c/ssd1306_oled_featherwing` | FeatherWing OLED 128×32 (MP + `i2cbus`) |
 | `busdisplay/i2c/sh1107_oled_128x64` | SH1107 OLED 128×64 (MP + `i2cbus`) |
+| `busdisplay/i2c/sh1106_oled_on_qtpy_esp32_pico_audio_bff` | SH1106 OLED 128×64 on the STEMMA QT port of a QT Py ESP32 Pico with an Audio BFF (MP + `i2cbus`; audio and the Boot button from the BFF config) |
 
 ## Built-in Adafruit boards (SPI)
 
@@ -211,7 +212,7 @@ that also runs with a display treats `board_config` as optional.
 
 | Directory | Board |
 |-----------|-------|
-| `nodisplay/qtpy_esp32_pico_audio_bff` | QT Py ESP32 Pico + Adafruit Audio BFF (MicroPython; `audio_out` on I2S) |
+| `nodisplay/qtpy_esp32_pico_audio_bff` | QT Py ESP32 Pico + Adafruit Audio BFF (MicroPython; `audio_out` on I2S, `boot_button`) |
 | `cp/nodisplay/qtpy_esp32_pico_audio_bff` | the same, on CircuitPython (`audio_out` is `audiobusio.I2SOut`) |
 
 ## Desktop / browser configs
