@@ -233,13 +233,13 @@ and Android.
   Get it: `mip usb-host-mtp`. Runs on: MP.
 - [`usb-host-net`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Get internet through a phone's USB tethering.\
   Get it: `mip usb-host-net`. Runs on: MP.
-- [`usb-device-audio`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Make the board a USB sound card.\
+- [`usb-device-audio`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Make the board a USB speaker, microphone or headset.\
   Get it: `mip usb-device-audio`. Runs on: MP.
 - [`usb-device-video`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Make the board a USB webcam.\
   Get it: `mip usb-device-video`. Runs on: MP.
 - [`usb-device-msc`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Make the board a USB drive, from any block device.\
   Get it: `mip usb-device-msc`. Runs on: MP.
-- [`usb-hid`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Use CircuitPython's `usb_hid` on MicroPython, so `adafruit_hid` can type and move the mouse.\
+- [`usb-hid`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/usb.md): Use CircuitPython's `usb_hid` on MicroPython, so `adafruit_hid` can type, move the mouse and be a gamepad or a touch pointer.\
   Get it: `mip usb-hid`. Runs on: MP.
 
 ## Use cameras, video and AI on a board
