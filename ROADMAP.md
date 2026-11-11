@@ -23,9 +23,6 @@ with each kind of peripheral described honestly by its role.
   or a note on turning it on.
 - Vendor USB serial chips (CH34x, CP210x, FTDI, PL2303) in `usb-host-cdc`,
   behind the same `Serial`, so one program reads any adapter.
-- Gamepads and joysticks on the USB host: `usb-host-hid` reads their report
-  descriptor and gives axes, hats and buttons as events, as it does for a
-  keyboard.
 - USB Ethernet adapters (CDC-ECM) in `usb-host-net`, beside phone tethering.
 - A DFU host package, to talk to a board's USB bootloader, and a USBTMC one
   for test equipment.
