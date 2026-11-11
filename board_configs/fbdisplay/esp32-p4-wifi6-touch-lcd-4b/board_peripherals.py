@@ -570,6 +570,10 @@ def camera(**kwargs):
         )
     kwargs.setdefault("sda", _CAM_SDA)
     kwargs.setdefault("scl", _CAM_SCL)
+    # The module sits upside down in this panel: turn the sensor's picture a
+    # half turn (flip and mirror) so frames arrive upright.
+    kwargs.setdefault("flip", True)
+    kwargs.setdefault("mirror", True)
     if "i2c" not in kwargs:
         # Open the board's bus first, so cameraif attaches to it. If the
         # camera opened the port on its own, the next machine.I2C on it (the
