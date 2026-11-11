@@ -1,3 +1,14 @@
+## v0.8.0.dev8 (2026-11-11)
+
+- usb-device-net: a network link to the computer over the USB cable (#524)
+- bledev internals: what BLE costs Wi-Fi on the ESP32-S3, measured (#523)
+- ESP32-P4-WIFI6 Pico: microSD in 1-bit mode, so writes work (#522)
+- Roadmap: the NCM and USBTMC bullets come off (#521)
+- usb-host-cdc: CH34x, CP210x, FTDI and PL2303 USB-serial adapters behind the same Serial (#520)
+- bledev private address example: bond, so a paired phone keeps the board (#519)
+- Touch-LCD-4B: the camera opens upright (#517)
+- usb-host-video: MJPEG at 720p and 1080p on a high-speed host, and Camera.hold_frame_rate (#515)
+
 ## v0.8.0.dev7 (2026-11-11)
 
 - Stack: usb-device-audio is a speaker, microphone or headset; usb-hid adds gamepad and pointer (#514)
