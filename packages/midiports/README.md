@@ -62,7 +62,7 @@ On a board, with `mip`:
 
 ```python
 import mip
-mip.install("github:PyDevices/pydevices/midiports")
+mip.install("github:PyDevices/pydevices/packages/midiports")
 ```
 
 That fetches `midiports` and Adafruit's `adafruit_midi`, pinned to a release
