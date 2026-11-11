@@ -11,7 +11,7 @@ limits are in
 |---|---|---|
 | Keyboard, mouse, media keys | [`usb-host-hid`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-hid) | Key, button and movement events named as `adafruit_hid` names them. Boot protocol by default, report protocol with `boot=False` |
 | Flash drive | [`usb-host-msc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-msc) | Bulk-Only Transport, mounted with `vfs.VfsFat`, read and write. 512-byte blocks |
-| USB serial (CDC-ACM) | [`usb-host-cdc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-cdc) | A `Serial` that reads and writes like `machine.UART`, with DTR and RTS and line coding |
+| USB serial (CDC-ACM, CH340/CH341, CP210x, FTDI, PL2303) | [`usb-host-cdc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-cdc) | A `Serial` that reads and writes like `machine.UART`, with DTR and RTS and line coding. A CDC-ECM or NCM network device isn't taken for a serial port |
 | MIDI controller (MIDI 1.0) | [`midiports`](https://github.com/PyDevices/pydevices/blob/main/packages/midiports/README.md) | `midiports.usb_host`, the same port shape as `usb_midi` |
 | Speaker or microphone (USB Audio 1.0 and 2.0) | [`usb-host-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-audio) | `Speaker` and `Microphone`, and audiodev `audio_out()` and `pcm_in()` over them |
 | Webcam (UVC) | [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-video) | Whole MJPEG or YUY2 frames, negotiated with the camera |
