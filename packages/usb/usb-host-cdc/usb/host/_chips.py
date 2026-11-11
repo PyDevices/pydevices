@@ -235,6 +235,11 @@ class FTDI(_Chip):
         self._channel = self.interface + 1 if counted else 0
         self._out(_VENDOR_DEVICE, 0x00, 0, self._channel)              # reset
         self._out(_VENDOR_DEVICE, 0x02, 0, self._channel)              # no flow control
+        # An FT232R keeps its bulk OUT data toggle through CLEAR_FEATURE(HALT),
+        # so after a close the host's new pipe can be one toggle out, and the
+        # chip would drop the next write as a repeat. An empty packet puts the
+        # two back in step whichever way they stand, and sends no data.
+        self.dev.write(self.ep_out, b"", 1000)
 
     def line(self, baudrate, bits, parity, stop):
         divisor = ftdi_divisor(baudrate, self._fast)

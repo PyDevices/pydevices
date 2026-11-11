@@ -189,6 +189,8 @@ class SerialTests(unittest.TestCase):
             (0x40, 0x04, 0x0008, 0, None),
             (0x40, 0x01, 0x0303, 0, None),
         ])
+        # The empty packet that puts the bulk OUT toggles in step after a reopen.
+        self.assertEqual(dev.written, [(0x02, b"")])
 
     def test_ftdi_two_channel_chip_uses_its_channel(self):
         dev = FakeDevice(0x0403, 0x6010, bcd_device=0x700)
@@ -202,7 +204,7 @@ class SerialTests(unittest.TestCase):
         dev.reads = [bytes([0x01, 0x60]), bytes([0x01, 0x60]) + b"hello"]
         self.assertEqual(port.read(16), b"hello")
         self.assertEqual(port.write(b"x"), 1)
-        self.assertEqual(dev.written, [(0x02, b"x")])
+        self.assertEqual(dev.written, [(0x02, b""), (0x02, b"x")])
 
     def test_strip_status_across_packets(self):
         buf = bytearray(b"\x01\x60abc\x01\x60de")
