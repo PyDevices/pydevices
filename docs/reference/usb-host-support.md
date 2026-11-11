@@ -16,7 +16,7 @@ limits are in
 | Speaker or microphone (USB Audio 1.0 and 2.0) | [`usb-host-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-audio) | `Speaker` and `Microphone`, and audiodev `audio_out()` and `pcm_in()` over them |
 | Webcam (UVC) | [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-video) | Whole MJPEG or YUY2 frames, negotiated with the camera |
 | Phone or camera (MTP and PTP) | [`usb-host-mtp`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-mtp) | List, read and fetch photos and files, and thumbnails. Read only |
-| Android USB tethering (RNDIS) | [`usb-host-net`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-net) | `Tether`, a network interface with an address from the phone |
+| Android USB tethering (RNDIS), CDC-ECM Ethernet adapters | [`usb-host-net`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-net) | `Tether`, a network interface with an address from the phone or the adapter's network. CDC-NCM and vendor-specific adapters aren't supported |
 | Anything else | [`usb-core`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-core) | `usb.core.find`, `ctrl_transfer`, `read` and `write`, in PyUSB's shape |
 
 ## Where it runs
@@ -34,7 +34,7 @@ limits are in
 | What | Where | Because |
 |---|---|---|
 | Audio and video devices | GIGA | TinyUSB's host there has no isochronous transfers |
-| USB tethering (RNDIS) | GIGA, CircuitPython | The tethering adapter is built on ESP-IDF's host and lwIP; the GIGA runs TinyUSB's host, and CircuitPython's ESP32-P4 port has no network yet |
+| USB tethering and Ethernet adapters | GIGA, CircuitPython | The tethering adapter is built on ESP-IDF's host and lwIP; the GIGA runs TinyUSB's host, and CircuitPython's ESP32-P4 port has no network yet |
 | Any host at all | Boards other than the ESP32-S2, S3, P4 and the GIGA | `usbhost` builds only for those; the module is skipped on other chips, rp2 among them |
 | A high-speed link | ESP32-S2, S3, GIGA | Their host ports are full speed |
 | A webcam and a USB Audio 2.0 speaker in one session | ESP32 | The controller's FIFO split is fixed for each `usb.core.start()`, and a camera and a speaker need different splits |
