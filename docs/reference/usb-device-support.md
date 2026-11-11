@@ -14,7 +14,7 @@ each one.
 | A gamepad, or a pointer that says where it is | [`usb-hid`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-hid) | `Device.GAMEPAD` (16 buttons, a hat, four axes) and `Device.ABSOLUTE_POINTER` (X and Y across the screen, for a touch panel to drive), in the shape of CircuitPython's custom `usb_hid.Device`s |
 | Any other HID device | [`usb-device-hid`](https://github.com/micropython/micropython-lib/tree/master/micropython/usb/usb-device-hid) | `HIDInterface` takes any report descriptor you give it |
 | A flash drive | [`usb-device-msc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-msc) | Bulk-Only Transport over any block device: an SD card, a partition, RAM. `readonly=True` refuses writes |
-| A sound card (USB Audio 2.0 speaker) | [`usb-device-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-audio) | 48 kHz stereo 16-bit into a ring, with feedback so the clocks stay in step. The packet size follows the link's speed |
+| A sound card, a microphone, or both as a headset (USB Audio 2.0) | [`usb-device-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-audio) | `SpeakerInterface`, `MicrophoneInterface` and `HeadsetInterface`: 48 kHz stereo 16-bit through rings, with feedback on the speaker so the clocks stay in step. The packet size follows the link's speed. A speaker or a microphone takes one IN endpoint number and a headset takes two |
 | A webcam (UVC 1.1) | [`usb-device-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-video) | YUY2 or MJPEG, one size or a list for the computer to choose from |
 
 ## Where it runs

@@ -33,6 +33,8 @@ Each one says in its docstring what it needs and where it has been run.
 | [multimer_simpletest.py](multimer_simpletest.py) | Two timers at once, stopped by a third |
 | [usb_hid_absolute_pointer.py](usb_hid_absolute_pointer.py) | Moving your computer's pointer to the corners of the screen and around a circle |
 | [usb_hid_gamepad.py](usb_hid_gamepad.py) | Being a USB gamepad that works through its buttons, hat and axes |
+| [usb_device_audio_headset.py](usb_device_audio_headset.py) | Being a USB headset that plays back what the computer plays to it |
+| [usb_device_audio_microphone.py](usb_device_audio_microphone.py) | Being a USB microphone that sends a tone |
 | [wifi_ap_simpletest.py](wifi_ap_simpletest.py) | A Wi-Fi network of the board's own, with a page for visitors |
 | [wifi_simpletest.py](wifi_simpletest.py) | The networks in range, then joining yours |
 | [wifi_station_simpletest.py](wifi_station_simpletest.py) | Joining a board's own network and reading its page |
