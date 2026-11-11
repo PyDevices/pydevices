@@ -50,7 +50,9 @@ built on them.
 - `capabilities()`: start from `BLE.capabilities(self)` and set `central`,
   `peripheral`, `mtu`, `max_mtu`, `indicate`, `pairing`, `l2cap`.
 - `config(*names, **settings)`: at least `mtu`; raise `UnsupportedError` for
-  anything else you don't have.
+  anything else you don't have. `addr_mode` (`ADDR_MODE_*`) only where the stack
+  has private addresses: mpble passes it to NimBLE and says `UnsupportedError`
+  where the stack refuses it (BTstack).
 - `close()`.
 - Peripheral backends: `register_services(*services)`, which sets each
   `Characteristic._impl` (see below), and

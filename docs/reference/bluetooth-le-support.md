@@ -12,6 +12,7 @@ What `bledev` can do on each host, and what it can't. The
 | Indications sent by a peripheral | Yes, waits for the acknowledgement | Sent, but the acknowledgement isn't reported | No | No |
 | Indications received by a central | Yes | No | Yes | Yes |
 | Long reads, past one packet | No | No | Yes | Yes |
+| Resolvable private addresses | Yes on NimBLE (the ESP32 family), with `config(addr_mode=)` | No | No | No |
 | Pairing | Just Works, passkey, numeric comparison | Just Works only | The operating system's | The browser's |
 | Bonding | Yes, kept in NVS or a file | Always | The operating system's | The browser's |
 | ATT MTU | Set with `config(mtu=)` | Fixed at build time | Set with `config(mtu=)` | Recorded, not used: the browser never reports it |
@@ -47,4 +48,5 @@ What `bledev` can do on each host, and what it can't. The
 | Reading a value longer than one packet | MicroPython, CircuitPython | Neither `bluetooth` nor `_bleio` exposes a long read. A device with a report map past 246 bytes is cut off |
 | HID over GATT as a host | Laptop, browser | Windows keeps the HID service from apps, and Web Bluetooth's blocklist covers it. A board's HID characteristics are also served under a vendor UUID, so a laptop can inspect them |
 | Bluetooth 5 features: extended and periodic advertising, the 2M and Coded PHYs, LE Audio | MicroPython | The `bluetooth` module has no calls for them |
+| Resolvable and non-resolvable private addresses | Pico W on MicroPython; CircuitPython; laptop; browser | BTstack has no RPA or NRPA, `_bleio` has no call for them, and a laptop or browser leaves the address to the operating system |
 | A BLE radio | ESP32-P4 on CircuitPython | CircuitPython builds no Bluetooth for the P4 |

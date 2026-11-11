@@ -436,6 +436,31 @@ board (HID, say) changes it under the same address, and MicroPython doesn't tell
 bonded hosts, so a host that kept the old table may need the board unpaired and
 paired again.
 
+## A changing address
+
+A board that advertises with the same address every time can be followed from
+place to place by anyone who scans. Ask for a resolvable private address and
+it advertises under an address that changes about every fifteen minutes, which
+only a phone that bonded with the board can match to it:
+
+```python
+ble.config(addr_mode=bledev.ADDR_MODE_RPA)    # before advertise() or scan()
+connection = await ble.advertise(name="rack", services=[SENSOR])
+```
+
+`ADDR_MODE_NRPA` uses an address that rotates and that nobody can resolve,
+for a broadcaster that never connects. `ADDR_MODE_PUBLIC` is the board's own
+address, and `ADDR_MODE_RANDOM` a fixed random one. `ble.config("addr_mode")`
+reads the mode back. MicroPython on NimBLE (the ESP32 family)
+supports all four; the Pico W's BTstack has no RPA or NRPA, and
+`UnsupportedError` says so. CircuitPython, a laptop and a browser have no such
+setting. [`examples/bledev_private_address.py`](../../examples/bledev_private_address.py)
+shows it running.
+
+A scanner sees the new address each time the old one expires, so keep scans
+going for a quarter of an hour to watch it change. Closing the adapter puts the
+mode back to the stack's default.
+
 ## Wi-Fi setup with Improv
 
 `bledev.improv` speaks [Improv](https://www.improv-wifi.com/ble/), the BLE

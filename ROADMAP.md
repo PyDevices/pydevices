@@ -50,8 +50,6 @@ with each kind of peripheral described honestly by its role.
 - BLE MIDI through Windows MIDI Services' new Bluetooth transport: once it
   ships, a board running `bledev.midi.serve()` should open in any Windows MIDI
   app without pairing, and the BLE docs say so.
-- Resolvable private addresses, so a peripheral's address changes between
-  scans and a bonded phone still finds it.
 
 ## hmilink
 
