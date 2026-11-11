@@ -840,7 +840,16 @@ class _MPServerCharacteristic:
         return bytes(self._achar.read())
 
     def write(self, data, send_update):
-        self._achar.write(data, send_update)
+        try:
+            self._achar.write(data, send_update)
+        except OSError:
+            if not send_update:
+                raise
+            # A central that disconnects while an update is on its way can
+            # leave NimBLE refusing to notify it (EINVAL). The value is
+            # still this characteristic's value, and the subscriber is gone,
+            # so set it without sending.
+            self._achar.write(data, False)
 
     def _aconn(self, connection):
         aconn = getattr(connection, "_aconn", None)
