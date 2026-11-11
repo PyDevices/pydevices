@@ -152,6 +152,9 @@ top-level = true
 [usb-host-cdc]
 top-level = true
 
+[usb-host-dfu]
+top-level = true
+
 [usb-host-hid]
 top-level = true
 
