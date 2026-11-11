@@ -523,10 +523,15 @@ pcm_in = AudioFactory(_pcm_in, AUDIO_IN)
 
 
 def sdcard():
-    """The microSD slot over 4-bit SDMMC (``machine.SDCard``); mount it yourself."""
+    """The microSD slot over 1-bit SDMMC (``machine.SDCard``); mount it yourself.
+
+    In 4-bit mode a write hangs or resets the board with the cards tried here (reads
+    work). 1-bit writes and reads a megabyte cleanly at 40 MHz: about 3.4 MB/s
+    written and 2.6 MB/s read.
+    """
     from machine import SDCard
 
-    return SDCard(slot=0, width=4, sck=43, cmd=44, data=(39, 40, 41, 42))
+    return SDCard(slot=0, width=1, freq=40_000_000, sck=43, cmd=44, data=(39,))
 
 
 def camera(**kwargs):
