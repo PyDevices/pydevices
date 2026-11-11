@@ -16,6 +16,7 @@ Each one says in its docstring what it needs and where it has been run.
 | [bledev_cycling_speed.py](bledev_cycling_speed.py) | Being a cycling speed and cadence sensor for bike apps |
 | [bledev_environmental.py](bledev_environmental.py) | Being a weather sensor any Bluetooth LE app can read |
 | [bledev_heart_rate.py](bledev_heart_rate.py) | Being a heart rate monitor for fitness apps |
+| [bledev_private_address.py](bledev_private_address.py) | Advertising under an address that changes |
 | [bledev_running_speed.py](bledev_running_speed.py) | Being a running foot pod for fitness apps |
 | [bledev_central_simpletest.py](bledev_central_simpletest.py) | Reading a Bluetooth LE counter and writing it a message |
 | [bledev_hid_host_simpletest.py](bledev_hid_host_simpletest.py) | Reading the keys a Bluetooth keyboard sends |

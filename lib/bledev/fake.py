@@ -40,6 +40,12 @@ raises, so a bug shows up in a test rather than as corruption on a board:
 import asyncio
 
 from . import (
+    ADDR_MODE_NRPA,
+    ADDR_MODE_PUBLIC,
+    ADDR_MODE_RANDOM,
+    ADDR_MODE_RPA,
+    ADDR_PUBLIC,
+    ADDR_RANDOM,
     BLE,
     BLEError,
     BusyError,
@@ -98,8 +104,12 @@ def default_air():
 
 
 class _Advert:
-    def __init__(self, ble, adv_data, resp_data, connectable):
+    def __init__(self, ble, adv_data, resp_data, connectable, address, addr_type):
         self.ble = ble
+        # What a scanner sees: the adapter's own address, or a fresh private
+        # one for each advertise() while the adapter is in RPA or NRPA mode.
+        self.address = address
+        self.addr_type = addr_type
         self.adv_data = adv_data
         self.resp_data = resp_data
         self.connectable = connectable
@@ -182,6 +192,7 @@ class FakeBLE(BLE):
         self.notify_buffers = notify_buffers
         self.queue_limit = queue_limit
         self._gap_name = gap_name
+        self._addr_mode = ADDR_MODE_PUBLIC
         self._long_reads = long_reads
         #: Addresses of the peers this adapter has bonded with.
         self.bonds = set()
@@ -230,6 +241,10 @@ class FakeBLE(BLE):
                 self._mtu = value
             elif key == "gap_name":
                 self._gap_name = value
+            elif key == "addr_mode":
+                if value not in (ADDR_MODE_PUBLIC, ADDR_MODE_RANDOM, ADDR_MODE_RPA, ADDR_MODE_NRPA):
+                    raise ValueError("addr_mode is ADDR_MODE_PUBLIC, _RANDOM, _RPA or _NRPA")
+                self._addr_mode = value
             else:
                 raise UnsupportedError("fake has no setting {!r}".format(key))
         if names:
@@ -239,6 +254,8 @@ class FakeBLE(BLE):
                 return self._mtu
             if names[0] == "gap_name":
                 return self._gap_name
+            if names[0] == "addr_mode":
+                return self._addr_mode
             raise UnsupportedError("fake has no setting {!r}".format(names[0]))
         return None
 
@@ -277,7 +294,10 @@ class FakeBLE(BLE):
         if not self._peripheral:
             raise UnsupportedError("this fake adapter is central only; it cannot advertise")
         adv_data, resp_data = pack_advertisement(name, services, appearance, manufacturer, service_data)
-        advert = _Advert(self, adv_data, resp_data, connectable)
+        if self._addr_mode in (ADDR_MODE_RPA, ADDR_MODE_NRPA):
+            advert = _Advert(self, adv_data, resp_data, connectable, self._air._allocate(), ADDR_RANDOM)
+        else:
+            advert = _Advert(self, adv_data, resp_data, connectable, self.address, ADDR_PUBLIC)
         self._air.adverts.append(advert)
         self._adverts.append(advert)
         try:
@@ -304,7 +324,7 @@ class FakeBLE(BLE):
         async def attempt():
             while True:
                 for advert in self._air.adverts:
-                    if advert.ble.address == device.address and advert.connectable:
+                    if advert.address == device.address and advert.connectable:
                         return advert
                 await sleep_ms(SCAN_TICK_MS)
 
@@ -335,12 +355,12 @@ class _FakeScanner(Scanner):
                     if advert.ble is self._ble:
                         continue
                     payloads = (advert.adv_data, advert.resp_data) if self.active else (advert.adv_data,)
-                    key = advert.ble.address
+                    key = advert.address
                     if seen.get(key) == payloads:
                         continue
                     seen[key] = payloads
                     name, services, appearance, manufacturer = decode_advertisement(*payloads)
-                    device = Device(self._ble, advert.ble.address, name=name)
+                    device = Device(self._ble, advert.address, addr_type=advert.addr_type, name=name)
                     self._push(
                         ScanResult(
                             device,
