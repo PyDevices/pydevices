@@ -17,13 +17,10 @@ with each kind of peripheral described honestly by its role.
 
 ## USB
 
-- `network.USBD_NCM` (Ethernet over USB, MicroPython 1.29): a package for it,
-  or a note on turning it on.
 - Gamepads and joysticks on the USB host: `usb-host-hid` reads their report
   descriptor and gives axes, hats and buttons as events, as it does for a
   keyboard.
 - USB Ethernet adapters (CDC-ECM) in `usb-host-net`, beside phone tethering.
-- A USBTMC host package, for test equipment.
 - The HID, CDC and MSC host drivers on CircuitPython's own `usb.core` (RP2040,
   i.MX): they lack only `configuration_descriptor()` and the private
   `_release_all()` there. Audio, video and net need the usbhost engine.
