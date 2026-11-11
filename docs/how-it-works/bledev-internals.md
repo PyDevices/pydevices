@@ -758,21 +758,41 @@ read the LCD-7's TCP source with `tcp_pull.py`. The LCD-7's Wi-Fi was weak,
 Every byte arrived intact in every run. What the board receives (up) suffers
 most: an idle association alone halves it about two runs in three.
 
-**Wi-Fi throughput with BLE on is not measured, in the sense that matters.**
-The TCP stream from the board to the laptop, 10 s per run:
+**Advertising costs the S3 about two thirds of its Wi-Fi throughput.**
+This run, on 2026-11-11, had the LCD-7 at -34 to -39 dBm on Wi-Fi (read
+before and after every run) and the laptop's Bluetooth radio at -43 to -50 dBm
+from it. The board served a TCP stream of zeros from MicroPython and the laptop
+(Windows, bleak 3.0.2) read it for 10 s per run. Four conditions ran in
+rotation, five rounds, so a drift in the Wi-Fi would show in all of them:
 
-| BLE on the LCD-7 | KB/s |
-|---|---|
-| off (never activated) | 155.0, 49.2, 13.5, 86.1 |
-| active, not advertising | 43.5, 35.9, 36.8, 120.4 |
-| advertising every 100 ms | 39.7, (connection timed out at -82 dBm), 130.8, 112.5 |
-| carrying the nus gate (averaged over 26-29 s that include advertising) | 46.2, 43.4, 40.7 |
+| BLE on the LCD-7 | KB/s, five runs | Mean |
+|---|---|---|
+| off (`BLE.active(False)`) | 2248, 2214, 2181, 2143, 2203 | 2198 |
+| active, not advertising | 2262, 1510, 2208, 2202, 2093 | 2055 |
+| advertising every 100 ms | 698, 701, 747, 717, 879 | 748 |
+| carrying a nus stream (the board notifying, the laptop reading 29-39 KB/s) | 589, 654, 677, 860, 755 | 707 |
 
-With BLE off entirely the rate ran from 13.5 to 155 KB/s, so at this signal
-strength the run-to-run spread is wider than any difference BLE could make.
-One early run with BLE advertising read 8.1 KB/s, which looked like a finding
-until the repeats. Measuring BLE's cost to Wi-Fi needs the board at -60 dBm
-or better.
+Two earlier sets of the same rotation (six and five rounds, whose nus runs
+mostly failed to connect, so they are left out) gave 2056-2304 KB/s with BLE
+off or active and 658-1069 with it advertising. Across all three sets that is
+16 runs in each of those conditions, and not one advertising run reached the
+slowest run with BLE off. At -35 dBm the spread of Wi-Fi alone is about 5 percent, so
+the cost is not hidden by noise this time.
+
+What the numbers show: advertising every 100 ms takes about two thirds of the Wi-Fi throughput
+here, and a connection that is moving data costs about the same as advertising
+alone. An activated stack that is not advertising or connected costs nothing
+you can tell from the spread (one run in 16 read 1510, which could be either).
+The first row is a deactivated stack; the first run of the first set, with BLE
+never activated since boot, read 2304 and fits.
+
+What they don't show: how the cost moves with the advertising interval, the
+connection interval, the amount of traffic, or the Wi-Fi signal (the old table
+ran at -74 to -82 dBm, 13.5 to 155 KB/s, which was weak signal, not BLE).
+The nus rows come from one pair of devices, and the laptop's own Wi-Fi and
+Bluetooth share a chip, so its receive side may have lost some throughput in
+that row. The board also had no display app running and was driven over
+serial for setup; the figures are the board's Wi-Fi alone.
 
 ### BLE-MIDI
 
