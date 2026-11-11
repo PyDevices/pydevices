@@ -172,6 +172,11 @@ one gets you a screen in an app you didn't write. Each is a small class whose
 |---|---|---|
 | `bledev.battery` | Battery (0x180F) | A battery level it can read and watch |
 | `bledev.deviceinfo` | Device Information (0x180A) | Manufacturer, model, serial and revisions |
+| `bledev.heartrate` | Heart Rate (0x180D) | A heart rate monitor |
+| `bledev.cyclingspeed` | Cycling Speed and Cadence (0x1816) | A wheel and crank sensor |
+| `bledev.cyclingpower` | Cycling Power (0x1818) | A power meter |
+| `bledev.runningspeed` | Running Speed and Cadence (0x1814) | A foot pod |
+| `bledev.environmental` | Environmental Sensing (0x181A) | Temperature, humidity, pressure and UV index |
 
 ```python
 from bledev.battery import Battery
@@ -186,9 +191,18 @@ battery.set_level(86)               # subscribed centrals are notified
 
 Register your own service in the same call: `register_services()` replaces what
 came before. The [HID peripheral](#keyboards-mice-and-gamepads-hid) serves
-these two itself. They are plain GATT tables, so any backend that can be a
-peripheral serves them, and `examples/bledev_battery_info.py` shows them
-running.
+Battery and Device Information itself. These are plain GATT tables, so any
+backend that can be a peripheral serves them. `examples/bledev_battery_info.py`
+shows both running.
+
+The cycling and running services each have a control point that a central
+writes and the board answers by indication. Run `sensor.run()` as a task to
+answer it. MicroPython waits for the central's acknowledgement; CircuitPython
+sends the indication but `_bleio` doesn't report the acknowledgement, so
+`indicate()` returns once it's queued. Each module's docstring lists what the
+measurement carries and which flags it sets, and each has an example under
+`examples/` named `bledev_<service>.py` that a phone fitness or sensor app can
+read.
 
 ## Connecting to one (central)
 

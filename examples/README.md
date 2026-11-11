@@ -12,6 +12,11 @@ Each one says in its docstring what it needs and where it has been run.
 | [audiodev_voice_recorder.py](audiodev_voice_recorder.py) | The board's microphone recorded to a WAV file on the microSD card |
 | [bledev_simpletest.py](bledev_simpletest.py) | The Bluetooth LE devices advertising nearby, on a board or a laptop |
 | [bledev_battery_info.py](bledev_battery_info.py) | Showing a battery level and device details to any Bluetooth LE app |
+| [bledev_cycling_power.py](bledev_cycling_power.py) | Being a cycling power meter for bike apps |
+| [bledev_cycling_speed.py](bledev_cycling_speed.py) | Being a cycling speed and cadence sensor for bike apps |
+| [bledev_environmental.py](bledev_environmental.py) | Being a weather sensor any Bluetooth LE app can read |
+| [bledev_heart_rate.py](bledev_heart_rate.py) | Being a heart rate monitor for fitness apps |
+| [bledev_running_speed.py](bledev_running_speed.py) | Being a running foot pod for fitness apps |
 | [bledev_central_simpletest.py](bledev_central_simpletest.py) | Reading a Bluetooth LE counter and writing it a message |
 | [bledev_hid_host_simpletest.py](bledev_hid_host_simpletest.py) | Reading the keys a Bluetooth keyboard sends |
 | [bledev_hid_keyboard_simpletest.py](bledev_hid_keyboard_simpletest.py) | Being a Bluetooth keyboard, with Adafruit's adafruit_hid |

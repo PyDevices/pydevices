@@ -50,11 +50,6 @@ with each kind of peripheral described honestly by its role.
 - BLE MIDI through Windows MIDI Services' new Bluetooth transport: once it
   ships, a board running `bledev.midi.serve()` should open in any Windows MIDI
   app without pairing, and the BLE docs say so.
-- Battery and Device Information as services of their own, so any peripheral
-  can serve them, not only the HID peripheral.
-- Heart Rate, Cycling Speed and Cadence, Cycling Power, Running Speed and
-  Cadence and Environmental Sensing, each with an example a phone's fitness app
-  can read.
 - Resolvable private addresses, so a peripheral's address changes between
   scans and a bonded phone still finds it.
 

@@ -90,6 +90,29 @@ class TestLateConnect(unittest.TestCase):
         self.mpble._irq(2, (0xFFFF, 0xFF, bytes(6)))
         self.assertEqual(self.calls, [])
 
+    def test_update_to_a_central_that_just_left_still_sets_the_value(self):
+        class Achar:
+            value = None
+
+            def write(self, data, send_update=False):
+                if send_update:
+                    raise OSError(22)  # EINVAL: NimBLE won't notify a connection that's going
+                self.value = data
+
+        achar = Achar()
+        char = self.mpble._MPServerCharacteristic(None, types.SimpleNamespace(capture=False), achar)
+        char.write(b"\x07", True)
+        self.assertEqual(achar.value, b"\x07")
+
+    def test_a_failing_plain_write_still_raises(self):
+        class Achar:
+            def write(self, data, send_update=False):
+                raise OSError(22)
+
+        char = self.mpble._MPServerCharacteristic(None, types.SimpleNamespace(capture=False), Achar())
+        self.assertRaises(OSError, char.write, b"\x07", False)
+        self.assertRaises(OSError, char.write, b"\x07", True)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,7 @@ What `bledev` can do on each host, and what it can't. The
 |---|---|---|---|---|
 | Peripheral: advertise, serve a GATT table | Yes | Yes | No | No |
 | Central: scan, connect | Yes | Yes | Yes | The browser's chooser stands in for a scan |
+| Indications sent by a peripheral | Yes, waits for the acknowledgement | Sent, but the acknowledgement isn't reported | No | No |
 | Indications received by a central | Yes | No | Yes | Yes |
 | Long reads, past one packet | No | No | Yes | Yes |
 | Pairing | Just Works, passkey, numeric comparison | Just Works only | The operating system's | The browser's |
@@ -24,8 +25,15 @@ What `bledev` can do on each host, and what it can't. The
 | `bledev.improv` | Wi-Fi setup with Improv | `serve()` on a board, `provision()` from a laptop or another board |
 | `bledev.repl` | The REPL over Bluetooth, behind a password, with optional pairing | `start()` on MicroPython, `connect()` from any central |
 | `bledev.filetransfer` | CircuitPython's file transfer service (`0xFEBB`) | `start()` on MicroPython, `connect()` from any central; CircuitPython serves it itself |
+| `bledev.battery` | Battery Service (0x180F) | A peripheral: `Battery` |
+| `bledev.deviceinfo` | Device Information Service (0x180A) | A peripheral: `DeviceInformation` |
+| `bledev.heartrate` | Heart Rate Service (0x180D), with the energy-expended control point | A peripheral: `HeartRate` |
+| `bledev.cyclingspeed` | Cycling Speed and Cadence Service (0x1816), with its control point | A peripheral: `CyclingSpeedCadence` |
+| `bledev.cyclingpower` | Cycling Power Service (0x1818), with its control point | A peripheral: `CyclingPower` |
+| `bledev.runningspeed` | Running Speed and Cadence Service (0x1814), with its control point | A peripheral: `RunningSpeedCadence` |
+| `bledev.environmental` | Environmental Sensing Service (0x181A): temperature, humidity, pressure and UV index | A peripheral: `EnvironmentalSensing` |
 | `bledev.hid`, host | Keyboards, remotes and gamepads, as PyDevices events | `connect()` from a board or a laptop |
-| `bledev.hid`, device | A keyboard, mouse, media remote and gamepad, with Device Information and Battery inside it | `Peripheral.serve()` on a board |
+| `bledev.hid`, device | A keyboard, mouse, media remote and gamepad, with `battery` and `deviceinfo` inside it | `Peripheral.serve()` on a board |
 | `Service` and `Characteristic` | Your own GATT table, served or discovered | Each host, in the roles above |
 
 ## Not supported, and why
