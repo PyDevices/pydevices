@@ -22,8 +22,7 @@ Run it:
 The program prints the board's address on the link. Open
 ``http://<that address>/`` in a browser on the computer to see the page.
 
-Tested on: Waveshare ESP32-S3 Touch LCD 4.3 on MicroPython 1.30 preview,
-opened in a browser on Windows 11.
+Tested on: Waveshare ESP32-S3 Touch LCD 4.3 on MicroPython 1.30 preview.
 """
 
 import socket
