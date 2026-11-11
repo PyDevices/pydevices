@@ -29,8 +29,6 @@ with each kind of peripheral described honestly by its role.
 - USB Ethernet adapters (CDC-ECM) in `usb-host-net`, beside phone tethering.
 - A DFU host package, to talk to a board's USB bootloader, and a USBTMC one
   for test equipment.
-- A USB gamepad and a touchscreen-style absolute pointer on the device side, in
-  `usb-hid`, with report descriptors shaped like CircuitPython's custom devices.
 - The HID, CDC and MSC host drivers on CircuitPython's own `usb.core` (RP2040,
   i.MX): they lack only `configuration_descriptor()` and the private
   `_release_all()` there. Audio, video and net need the usbhost engine.

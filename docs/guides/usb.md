@@ -70,6 +70,27 @@ A controller has a fixed number of endpoints (the ESP32-S3 drives IN
 endpoints 1 to 4), and `machine.USBDevice` refuses a set that doesn't fit
 with a `ValueError` naming the endpoint.
 
+`usb-hid` also has a gamepad and a pointer that says where it is, as a touch
+screen does, in the shape of CircuitPython's custom `usb_hid.Device`s:
+
+```python
+import struct
+import usb_hid
+from usb_hid import Device
+
+usb_hid.enable((Device.GAMEPAD, Device.ABSOLUTE_POINTER))
+# Buttons 1 and 3, the hat pointing east, X at full left.
+Device.GAMEPAD.send_report(struct.pack("<HBbbbb", 0b101, 3, -127, 0, 0, 0))
+# X and Y run 0 to 32767 across the screen; this is the middle.
+Device.ABSOLUTE_POINTER.send_report(struct.pack("<BHH", 0, 16384, 16384))
+```
+
+[`usb_hid_gamepad.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_hid_gamepad.py)
+and
+[`usb_hid_absolute_pointer.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_hid_absolute_pointer.py)
+run each through its controls. Windows ignores a pointer report that is all
+zeros, so ask for 1, 1 where you mean the top-left corner.
+
 `usb-device-msc` serves a RAM disk, an SD card or a flash partition: anything
 with `readblocks`, `writeblocks` and `ioctl`. When the computer ejects it,
 the board can mount it again.
