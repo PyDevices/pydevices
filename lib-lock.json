@@ -33,12 +33,12 @@
     },
     "audioinstruments": {
       "repository": "PyDevices/audioinstruments",
-      "ref": "v0.5.2.dev3",
+      "ref": "v0.5.2.dev4",
       "description": "Playable synthesizers, organs, electric pianos and drum machines on audiodsp; import as audioinstruments"
     },
     "audioeffects": {
       "repository": "PyDevices/audioeffects",
-      "ref": "v0.5.2.dev1",
+      "ref": "v0.5.2.dev2",
       "description": "Studio and guitar-pedal effects on audiodsp (reverbs, delays, compressors, overdrive, EQs); import as audioeffects"
     },
     "applibs": {
