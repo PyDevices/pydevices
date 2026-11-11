@@ -17,6 +17,7 @@ limits are in
 | Webcam (UVC) | [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-video) | Whole MJPEG or YUY2 frames, negotiated with the camera |
 | Phone or camera (MTP and PTP) | [`usb-host-mtp`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-mtp) | List, read and fetch photos and files, and thumbnails. Read only |
 | Android USB tethering (RNDIS) | [`usb-host-net`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-net) | `Tether`, a network interface with an address from the phone |
+| Board in its DFU bootloader | [`usb-host-dfu`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-dfu) | Read a board's flash, a block at a time. Read only: nothing is downloaded or erased |
 | Anything else | [`usb-core`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-core) | `usb.core.find`, `ctrl_transfer`, `read` and `write`, in PyUSB's shape |
 
 ## Where it runs
