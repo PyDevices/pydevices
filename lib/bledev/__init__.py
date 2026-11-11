@@ -49,6 +49,14 @@ MAX_MTU = 517
 ADDR_PUBLIC = 0
 ADDR_RANDOM = 1
 
+#: Which address this radio uses on the air, for ``ble.config(addr_mode=...)``.
+#: ``ADDR_MODE_RPA`` is a resolvable private address: it changes every few
+#: minutes, and a phone that bonded with the board can still recognise it.
+ADDR_MODE_PUBLIC = 0
+ADDR_MODE_RANDOM = 1
+ADDR_MODE_RPA = 2
+ADDR_MODE_NRPA = 3
+
 
 # ---------------------------------------------------------------- errors
 
@@ -398,8 +406,11 @@ class BLE:
 
         ``config(mtu=247)`` sets the ATT MTU this side asks for;
         ``config("mtu")`` reads it. ``gap_name`` is the device name in the GAP
-        service. A setting the backend doesn't have raises
-        `UnsupportedError`.
+        service. ``addr_mode`` is the address the radio uses on the air:
+        `ADDR_MODE_PUBLIC`, `ADDR_MODE_RANDOM`, `ADDR_MODE_RPA` (a resolvable
+        private address that rotates, so a phone can't follow the board except
+        through a bond) or `ADDR_MODE_NRPA`. Set it before you advertise or
+        scan. A setting the backend doesn't have raises `UnsupportedError`.
         """
         raise UnsupportedError("{} has no settings".format(self.backend))
 

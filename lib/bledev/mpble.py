@@ -40,6 +40,10 @@ from aioble import core as _aioble_core
 from aioble.device import DeviceConnection as _AioConnection
 
 from . import (
+    ADDR_MODE_NRPA,
+    ADDR_MODE_PUBLIC,
+    ADDR_MODE_RANDOM,
+    ADDR_MODE_RPA,
     BLE,
     BLEError,
     BLETimeoutError,
@@ -304,6 +308,7 @@ class MPBLE(BLE):
         self.queue_limit = queue_limit
         self._connections = {}
         self._services = ()
+        self._addr_mode = ADDR_MODE_PUBLIC
         if not _irq_registered:
             _aioble_core.register_irq_handler(_irq, None)
             _irq_registered = True
@@ -353,17 +358,35 @@ class MPBLE(BLE):
             return DEFAULT_MTU
 
     def config(self, *names, **settings):
+        if "addr_mode" in settings:
+            self._set_addr_mode(settings.pop("addr_mode"))
         if settings:
             aioble.config(**settings)
         if names:
             if len(names) != 1:
                 raise ValueError("read one setting at a time")
+            if names[0] == "addr_mode":
+                return self._addr_mode
             return aioble.config(names[0])
         return None
+
+    def _set_addr_mode(self, mode):
+        if mode not in (ADDR_MODE_PUBLIC, ADDR_MODE_RANDOM, ADDR_MODE_RPA, ADDR_MODE_NRPA):
+            raise ValueError("addr_mode is ADDR_MODE_PUBLIC, _RANDOM, _RPA or _NRPA")
+        try:
+            aioble.config(addr_mode=mode)
+        except OSError as e:
+            # NimBLE refuses PUBLIC on a chip with no public address; BTstack
+            # (the Pico W) has no RPA or NRPA.
+            if _errno(e) == 22:  # EINVAL
+                raise UnsupportedError("this radio can't use address mode {}".format(mode))
+            raise
+        self._addr_mode = mode
 
     def close(self):
         aioble.stop()
         self._connections = {}
+        self._addr_mode = ADDR_MODE_PUBLIC  # the stack starts over with its own default
 
     # -- the raw bluetooth.BLE, for code written against it
 
