@@ -52,8 +52,6 @@ testing with the PC you are testing from, or it will type into it.
 
 import asyncio
 
-import struct
-
 try:
     from time import ticks_diff, ticks_us
 except ImportError:  # CPython and CircuitPython: monotonic_ns is on both
@@ -80,6 +78,8 @@ from . import (
     sleep_ms,
     wait_ms,
 )
+from .battery import Battery
+from .deviceinfo import SOURCE_BLUETOOTH_SIG, DeviceInformation
 from .hidreport import INPUT, OUTPUT, Decoder, HIDParseError, ReportMap
 
 # GATT numbers from the HID Service and HOGP specifications.
@@ -90,11 +90,6 @@ HID_CONTROL_POINT = UUID(0x2A4C)
 REPORT = UUID(0x2A4D)
 PROTOCOL_MODE = UUID(0x2A4E)
 REPORT_REFERENCE = UUID(0x2908)
-BATTERY_SERVICE = UUID(0x180F)
-BATTERY_LEVEL = UUID(0x2A19)
-DEVICE_INFORMATION = UUID(0x180A)
-PNP_ID = UUID(0x2A50)
-MANUFACTURER_NAME = UUID(0x2A29)
 
 #: The HID characteristics under a vendor UUID, for inspection from a laptop.
 #: Windows hides the HID service (0x1812) from apps entirely, and Chrome's
@@ -323,14 +318,14 @@ class Peripheral:
             devices.append(Device(self, self._report(hid, GAMEPAD_ID, 7, encrypted), GAMEPAD_ID, 0x01, 0x05, 7))
         #: One :class:`Device` per function, as ``usb_hid.devices`` lists them.
         self.devices = tuple(devices)
-        battery_svc = Service(BATTERY_SERVICE)
-        self.battery = Characteristic(battery_svc, BATTERY_LEVEL, read=True, notify=True, initial=bytes((battery,)))
-        info = Service(DEVICE_INFORMATION)
-        Characteristic(info, MANUFACTURER_NAME, read=True, initial=manufacturer.encode())
+        battery = Battery(battery)
         # PnP ID: vendor ID source 1 (Bluetooth SIG), company 0xFFFF (the
         # number the SIG reserves for testing), product from the function set.
-        Characteristic(info, PNP_ID, read=True, initial=struct.pack("<BHHH", 1, 0xFFFF, product, 0x0100))
-        self.services = (hid, battery_svc, info)
+        info = DeviceInformation(
+            manufacturer=manufacturer, pnp_id=(SOURCE_BLUETOOTH_SIG, 0xFFFF, product, 0x0100)
+        )
+        self.battery = battery.characteristic
+        self.services = (hid, battery.service, info.service)
         self._registered = False
         self._led_task = None
 

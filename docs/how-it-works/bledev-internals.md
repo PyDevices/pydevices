@@ -24,6 +24,7 @@ standalone module per backend, and an optional selector.
 | `midi.py` | BLE-MIDI as a usbif-style MIDI port, both sides, built only on the contract. |
 | `midi_codec.py` | The BLE-MIDI packet codec. Pure, no imports, shared by every host. |
 | `filetransfer.py` | CircuitPython's BLE file-transfer protocol: `FileServer` (pure, no radio), served on the board through `repl`'s server, and a client built on the contract. |
+| `battery.py`, `deviceinfo.py` | SIG services as classes over `Service` and `Characteristic`, built only on the contract. `hid.py` serves them too. |
 | `hidreport.py` | HID report descriptors and reports to `events`. No Bluetooth in it. |
 | `hid.py` | HID over GATT, host and device, built on the contract and `hidreport`. |
 | `auto.py` | Picks a backend. Nothing imports it, and backends must not. |
