@@ -42,11 +42,17 @@ omip.install("github:PyDevices/pydevices/packages/usb/usb-host-msc")
 ## What your firmware needs
 
 The host packages run on a PyDevices MicroPython firmware built with
-`usbhost`, the C module under `usb.core`, on an ESP32-S2, S3 or P4. The
-device packages run on MicroPython's own `machine.USBDevice`; audio and video
+`usbhost`, the C module under `usb.core`, on an ESP32-S2, S3 or P4, or on
+the Arduino GIGA R1 Display Shield's USB-A port, where it runs on TinyUSB's
+host with no isochronous transfers: a drive, keyboard or MIDI controller works
+there, and audio, video and tethering don't. The device packages run on MicroPython's own `machine.USBDevice`; audio and video
 also need the PyDevices overlay's streaming endpoints (`USBDevice.Ring`,
 `USBDevice.stream()`), which move their packets in C from the USB interrupt.
 Both come with micropython-pydevices' `build_mp.py`.
+
+Which classes each package drives, which boards run them and what a board
+can't do are in two tables: [USB host support](../reference/usb-host-support.md)
+and [USB device support](../reference/usb-device-support.md).
 
 ## The board as a USB device
 

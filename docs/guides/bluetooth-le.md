@@ -42,6 +42,8 @@ a board in the central role. `ble.capabilities()` tells you which roles you
 have, and anything a backend can't do raises `bledev.UnsupportedError` rather
 than doing nothing.
 
+[Bluetooth LE support](../reference/bluetooth-le-support.md) lists what each host can do and what it can't.
+
 ## Installing it
 
 On a board:

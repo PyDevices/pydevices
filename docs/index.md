@@ -35,6 +35,9 @@ boards, a desktop, a browser and an Android phone.
 ## Reference
 
 - [The stack: everything you can import or run](stack.md)
+- [USB host support](reference/usb-host-support.md)
+- [USB device support](reference/usb-device-support.md)
+- [Bluetooth LE support](reference/bluetooth-le-support.md)
 - [Other modules](modules.md)
 - [Board peripherals contract](boards/board-contract.md)
 - [Board configs](boards/board-configs.md)

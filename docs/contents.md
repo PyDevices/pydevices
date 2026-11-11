@@ -42,6 +42,9 @@ guides/troubleshooting
 
 stack
 reference/index
+reference/usb-host-support
+reference/usb-device-support
+reference/bluetooth-le-support
 modules
 boards/board-contract
 boards/board-configs

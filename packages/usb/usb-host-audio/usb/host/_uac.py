@@ -17,10 +17,10 @@ means a mis-parsed descriptor costs a re-run instead of a reflash, and means
 the same parser can be pointed at a descriptor captured from any host --
 including one from a machine that is not the board.
 
-Only UAC 1.0 is handled, which is what class-compliant devices that work
-without a driver actually implement, and what the ESP32's full-speed host can
-carry. UAC 2.0's descriptors differ enough to be a separate reader rather than
-a flag on this one.
+Both UAC 1.0 and UAC 2.0 are read. A 1.0 stream carries its formats in its
+own FORMAT_TYPE descriptor. A 2.0 stream names a clock source, and its rates
+come from asking that clock, so ``streams`` marks it and the caller fills the
+rates in. UAC 3.0 isn't handled.
 
 The shape of a configuration blob, for the reader who has not stared at one::
 

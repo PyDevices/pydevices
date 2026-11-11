@@ -21,6 +21,16 @@ with each kind of peripheral described honestly by its role.
   full-duplex sound card for a computer or another board.
 - `network.USBD_NCM` (Ethernet over USB, MicroPython 1.29): a package for it,
   or a note on turning it on.
+- Vendor USB serial chips (CH34x, CP210x, FTDI, PL2303) in `usb-host-cdc`,
+  behind the same `Serial`, so one program reads any adapter.
+- Gamepads and joysticks on the USB host: `usb-host-hid` reads their report
+  descriptor and gives axes, hats and buttons as events, as it does for a
+  keyboard.
+- USB Ethernet adapters (CDC-ECM) in `usb-host-net`, beside phone tethering.
+- A DFU host package, to talk to a board's USB bootloader, and a USBTMC one
+  for test equipment.
+- A USB gamepad and a touchscreen-style absolute pointer on the device side, in
+  `usb-hid`, with report descriptors shaped like CircuitPython's custom devices.
 - The HID, CDC and MSC host drivers on CircuitPython's own `usb.core` (RP2040,
   i.MX): they lack only `configuration_descriptor()` and the private
   `_release_all()` there. Audio, video and net need the usbhost engine.
@@ -40,6 +50,13 @@ with each kind of peripheral described honestly by its role.
 - BLE MIDI through Windows MIDI Services' new Bluetooth transport: once it
   ships, a board running `bledev.midi.serve()` should open in any Windows MIDI
   app without pairing, and the BLE docs say so.
+- Battery and Device Information as services of their own, so any peripheral
+  can serve them, not only the HID peripheral.
+- Heart Rate, Cycling Speed and Cadence, Cycling Power, Running Speed and
+  Cadence and Environmental Sensing, each with an example a phone's fitness app
+  can read.
+- Resolvable private addresses, so a peripheral's address changes between
+  scans and a bonded phone still finds it.
 
 ## hmilink
 
