@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 metadata(
-    description="Internet over USB: a phone's USB tethering on this board's host port, as a network interface.",
+    description="Internet over USB: a phone's USB tethering, or a CDC-ECM Ethernet adapter, on this board's host port, as a network interface.",
     version="0.1.0",
 )
 

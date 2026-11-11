@@ -120,8 +120,10 @@ net.active(True)        # the phone gives the board an address by DHCP
 Sockets, `requests` and `mip` then work over it, on an ESP32-P4 (directly or
 through a high-speed hub) or on an ESP32-S3, whose host port is full speed.
 It speaks RNDIS, which Samsung and
-many other Android phones use; CDC-ECM, CDC-NCM and iPhone tethering are not
-implemented.
+many other Android phones use, and CDC-ECM, which a USB Ethernet adapter or a board
+presenting one uses: `Tether.match` takes either, and `net.kind` says which it found.
+CDC-NCM and iPhone tethering are not implemented, nor are the adapters whose chips
+need a driver of their own.
 
 A keyboard or mouse plugged into the host port comes back as events, with
 the key and button names `adafruit_hid` uses, so code that reads a keyboard
