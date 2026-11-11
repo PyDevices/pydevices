@@ -14,7 +14,7 @@ directory each, installed with `omip`:
 | [`usb-host-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-video) | `usb.host.video` | Frames from a USB webcam |
 | [`usb-host-mtp`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-mtp) | `usb.host.mtp` | Photos and files off a phone or a camera, over MTP |
 | [`usb-host-net`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-host-net) | `usb.host.net` | The internet through a phone's USB tethering |
-| [`usb-device-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-audio) | `usb.device.audio` | The board as a USB sound card |
+| [`usb-device-audio`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-audio) | `usb.device.audio` | The board as a USB sound card, a microphone, or both as a headset |
 | [`usb-device-video`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-video) | `usb.device.video` | The board as a USB webcam, YUY2 or MJPEG |
 | [`usb-device-msc`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-device-msc) | `usb.device.msc` | The board as a USB drive, from any block device |
 | [`usb-hid`](https://github.com/PyDevices/pydevices/tree/main/packages/usb/usb-hid) | `usb_hid` | CircuitPython's `usb_hid`, so `adafruit_hid` types and moves the mouse |
@@ -73,6 +73,28 @@ with a `ValueError` naming the endpoint.
 `usb-device-msc` serves a RAM disk, an SD card or a flash partition: anything
 with `readblocks`, `writeblocks` and `ioctl`. When the computer ejects it,
 the board can mount it again.
+
+A microphone is the same stream the other way round. Write 16-bit stereo
+frames into `mic.mic`, a ring, at the sample rate, and the computer records
+them. A headset is both in one device, and `ring` and `mic` are the two
+directions:
+
+```python
+from usb.device.audio import HeadsetInterface, MicrophoneInterface
+
+mic = MicrophoneInterface()      # the computer records from the board
+headset = HeadsetInterface()     # it plays to the board and records from it
+```
+
+[`usb_device_audio_microphone.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_device_audio_microphone.py)
+sends a tone, and
+[`usb_device_audio_headset.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_device_audio_headset.py)
+plays back whatever the computer plays. The microphone sends one millisecond of
+sound a frame, so keep its ring a few milliseconds ahead and don't let a
+garbage collection stall the loop that feeds it: on a board with a big heap one
+takes about 20 ms. A speaker or a microphone takes one IN endpoint number and a
+headset takes two. The ESP32-S3 and the ESP32-P4 at full speed have IN
+endpoints 1 to 4 and the REPL takes two, so a headset fills what's left.
 
 The sound card sizes its packets from the link's speed: 196 bytes a
 millisecond at full speed, 28 bytes every 125 us at high speed. A board can't

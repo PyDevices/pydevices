@@ -3,5 +3,5 @@
     ["usb/device/audio.py", "github:PyDevices/pydevices/packages/usb/usb-device-audio/usb/device/audio.py"]
   ],
   "deps": [["usb-device", "latest"]],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

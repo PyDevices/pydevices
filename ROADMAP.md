@@ -17,8 +17,6 @@ with each kind of peripheral described honestly by its role.
 
 ## USB
 
-- A USB microphone on the device side, so a board can be a USB mic or a
-  full-duplex sound card for a computer or another board.
 - `network.USBD_NCM` (Ethernet over USB, MicroPython 1.29): a package for it,
   or a note on turning it on.
 - Vendor USB serial chips (CH34x, CP210x, FTDI, PL2303) in `usb-host-cdc`,
