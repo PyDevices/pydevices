@@ -25,6 +25,17 @@
 # All the devices share one HID interface, told apart by report ID, as on
 # CircuitPython. The keyboard's LED report arrives through SET_REPORT and is
 # kept for get_last_received_report().
+#
+# Two more devices are ours, in the shape of CircuitPython's custom Devices.
+# Device.GAMEPAD is sixteen buttons, a hat and four axes (X, Y, Z, Rz from -127
+# to 127), report ID 4, seven bytes: the button mask as a little-endian 16-bit
+# number, the hat (0 centred, 1 to 8 clockwise from north), then four signed
+# bytes. Device.ABSOLUTE_POINTER is a mouse that says where it is, report ID 5,
+# five bytes: three button bits, then X and Y as little-endian 16-bit numbers
+# from 0 to 32767 across the whole screen. Windows ignores a report that is
+# all zeros, so ask for 1, 1 where you mean the top-left corner. Their reports
+# are struct.pack("<HBbbbb", buttons, hat, x, y, z, rz) and
+# struct.pack("<BHH", buttons, x, y).
 import time
 
 from micropython import const
@@ -41,6 +52,34 @@ _MOUSE = bytes.fromhex(
     "05010902a1010901a1008502050919012905150025019505750181029501750381010501093009311581257f75089502810609381581257f750895018106c0c0"
 )
 _CONSUMER = bytes.fromhex("050c0901a1018503751095011501268c0219012a8c028100c0")
+# A gamepad: 16 buttons, a hat that reads 0 when centred, and X, Y, Z, Rz.
+_GAMEPAD = bytes(
+    (
+        0x05, 0x01, 0x09, 0x05, 0xA1, 0x01, 0x85, 0x04,
+        0x05, 0x09, 0x19, 0x01, 0x29, 0x10, 0x15, 0x00, 0x25, 0x01,
+        0x75, 0x01, 0x95, 0x10, 0x81, 0x02,  # 16 buttons
+        0x05, 0x01, 0x09, 0x39, 0x15, 0x01, 0x25, 0x08,
+        0x35, 0x00, 0x46, 0x3B, 0x01, 0x65, 0x14,
+        0x75, 0x04, 0x95, 0x01, 0x81, 0x42,  # the hat; null state is centred
+        0x35, 0x00, 0x45, 0x00, 0x65, 0x00, 0x81, 0x03,  # 4 bits of padding
+        0x09, 0x30, 0x09, 0x31, 0x09, 0x32, 0x09, 0x35,
+        0x15, 0x81, 0x25, 0x7F, 0x75, 0x08, 0x95, 0x04, 0x81, 0x02,  # X, Y, Z, Rz
+        0xC0,
+    )
+)
+# A pointer that says where it is: three buttons, then X and Y from 0 to 32767.
+_ABSOLUTE_POINTER = bytes(
+    (
+        0x05, 0x01, 0x09, 0x02, 0xA1, 0x01, 0x85, 0x05,
+        0x09, 0x01, 0xA1, 0x00,
+        0x05, 0x09, 0x19, 0x01, 0x29, 0x03, 0x15, 0x00, 0x25, 0x01,
+        0x95, 0x03, 0x75, 0x01, 0x81, 0x02,  # three buttons
+        0x95, 0x01, 0x75, 0x05, 0x81, 0x03,  # 5 bits of padding
+        0x05, 0x01, 0x09, 0x30, 0x09, 0x31,
+        0x15, 0x00, 0x26, 0xFF, 0x7F, 0x75, 0x10, 0x95, 0x02, 0x81, 0x02,  # X, Y, absolute
+        0xC0, 0xC0,
+    )
+)
 
 
 class Device:
@@ -112,6 +151,23 @@ Device.CONSUMER_CONTROL = Device(
     usage=0x01,
     report_ids=(3,),
     in_report_lengths=(2,),
+    out_report_lengths=(0,),
+)
+
+Device.GAMEPAD = Device(
+    report_descriptor=_GAMEPAD,
+    usage_page=0x01,
+    usage=0x05,
+    report_ids=(4,),
+    in_report_lengths=(7,),
+    out_report_lengths=(0,),
+)
+Device.ABSOLUTE_POINTER = Device(
+    report_descriptor=_ABSOLUTE_POINTER,
+    usage_page=0x01,
+    usage=0x02,
+    report_ids=(5,),
+    in_report_lengths=(5,),
     out_report_lengths=(0,),
 )
 
