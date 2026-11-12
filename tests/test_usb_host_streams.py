@@ -566,7 +566,9 @@ class TestCamera(unittest.TestCase):
         cam.start()
         a = cam._alt
         self.assertIn(("claim", cam._fmt.interface, a.alt), host.calls)
-        self.assertEqual(host.ctrl[0][:4], SET_INTERFACE + (a.alt, cam._fmt.interface))
+        # start() first lets go of a stream an earlier program left open (alt 0).
+        self.assertEqual(host.ctrl[0][:4], SET_INTERFACE + (0, cam._fmt.interface))
+        self.assertEqual(host.ctrl[-1][:4], SET_INTERFACE + (a.alt, cam._fmt.interface))
         stream = [c for c in host.calls if c[0] == "stream"][0]
         self.assertEqual(stream, ("stream", a.endpoint, a.max_packet,
                                   {"video": True, "max_frame": cam.frame_bytes}))
