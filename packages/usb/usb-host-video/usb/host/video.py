@@ -193,6 +193,15 @@ class Camera:
         if not self._open:
             a = self._alt
             itf = self._fmt.interface
+            # A program cut off mid-stream (Ctrl-C) leaves its stream and the
+            # interface's streaming alternate setting behind, and a second
+            # Camera started on top of them got EBUSY and left the camera in a
+            # state only an unplug cleared. Let go of what is there first.
+            try:
+                _usbhost.host_stream(self._id, a.endpoint, None)
+            except OSError:
+                pass
+            self._park()
             self.dev.set_interface_altsetting(itf, a.alt)
             # Room for a whole frame waiting while the next one builds, each
             # led by its length; the ring rounds up to a power of two.
