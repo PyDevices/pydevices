@@ -13,7 +13,7 @@ Needs: a board with Bluetooth LE and bledev: CircuitPython, or MicroPython
 with aioble too.
 
 Run it:
-    mpremote run bledev_running_speed.py
+    mpremote run bledev_runningspeed_simpletest.py
 On CircuitPython, copy it to the board as code.py. Look for "PyDevices Pod"
 in the app's scan list.
 

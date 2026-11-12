@@ -13,7 +13,7 @@ Needs: a board with Bluetooth LE and bledev: CircuitPython, or MicroPython
 with aioble too.
 
 Run it:
-    mpremote run bledev_cycling_power.py
+    mpremote run bledev_cyclingpower_simpletest.py
 On CircuitPython, copy it to the board as code.py. Look for "PyDevices Power"
 in the app's scan list.
 

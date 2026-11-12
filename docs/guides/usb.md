@@ -115,7 +115,7 @@ usb.device.get().init(net, builtin_driver=True)
 print(net.nic.ipconfig("addr4"))  # the board's address on the link
 ```
 
-[`usb_device_net.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_device_net.py)
+[`usb_device_net_simpletest.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_device_net_simpletest.py)
 serves a web page over it. To send more than a page, use asyncio or
 non-blocking sockets with `select`: USB is serviced between Python steps, and a
 blocking `send` holds it up. On an ESP32-P4, 200 KB took about 30 seconds
@@ -137,7 +137,7 @@ mic = MicrophoneInterface()      # the computer records from the board
 headset = HeadsetInterface()     # it plays to the board and records from it
 ```
 
-[`usb_device_audio_microphone.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_device_audio_microphone.py)
+[`usb_device_audio_simpletest.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_device_audio_simpletest.py)
 sends a tone, and
 [`usb_device_audio_headset.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_device_audio_headset.py)
 plays back whatever the computer plays. The microphone sends one millisecond of
@@ -332,3 +332,9 @@ are on the host's own page, in micropython-pydevices'
 
 One script per use, device and host, beside the C module in
 micropython-pydevices' `modules/usbhost/examples/`.
+
+The smallest program for each device package is in
+[`examples/`](https://github.com/PyDevices/pydevices/tree/main/examples):
+`usb_device_cdc_simpletest.py`, `usb_device_midi_simpletest.py`,
+`usb_device_net_simpletest.py`, `usb_device_audio_simpletest.py` and
+`usb_device_video_simpletest.py`.

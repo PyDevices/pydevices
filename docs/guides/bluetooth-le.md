@@ -192,7 +192,7 @@ battery.set_level(86)               # subscribed centrals are notified
 Register your own service in the same call: `register_services()` replaces what
 came before. The [HID peripheral](#keyboards-mice-and-gamepads-hid) serves
 Battery and Device Information itself. These are plain GATT tables, so any
-backend that can be a peripheral serves them. `examples/bledev_battery_info.py`
+backend that can be a peripheral serves them. `examples/bledev_battery_simpletest.py`
 shows both running.
 
 The cycling and running services each have a control point that a central
@@ -285,6 +285,8 @@ fifth and a file transfer by about half (see [the measurements](#measured-on-two
 
 ## A REPL over Bluetooth
 
+`examples/bledev_repl_simpletest.py` is the board's side in a few lines.
+
 A board can offer its REPL over nus, behind a password, the way WebREPL does
 over Wi-Fi. It's opt-in; put this in `main.py`:
 
@@ -319,6 +321,8 @@ advertises whenever nobody is connected. Call `bledev.repl.stop()` to give the
 radio back to your app.
 
 ## Files over Bluetooth
+
+`examples/bledev_filetransfer_simpletest.py` is the board's side in a few lines.
 
 `bledev.filetransfer` is the board side of CircuitPython's BLE file-transfer
 protocol, so a MicroPython board serves files the same way a CircuitPython one
@@ -462,6 +466,8 @@ going for a quarter of an hour to watch it change. Closing the adapter puts the
 mode back to the stack's default.
 
 ## Wi-Fi setup with Improv
+
+`examples/bledev_improv_simpletest.py` is the board's side in a few lines.
 
 `bledev.improv` speaks [Improv](https://www.improv-wifi.com/ble/), the BLE
 Wi-Fi setup standard ESPHome, WLED and Home Assistant use. A board without

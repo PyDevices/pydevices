@@ -11,13 +11,16 @@ Each one says in its docstring what it needs and where it has been run.
 | [audiodev_mp3_player.py](audiodev_mp3_player.py) | Every MP3 file in a folder on the microSD card, one after another |
 | [audiodev_voice_recorder.py](audiodev_voice_recorder.py) | The board's microphone recorded to a WAV file on the microSD card |
 | [bledev_simpletest.py](bledev_simpletest.py) | The Bluetooth LE devices advertising nearby, on a board or a laptop |
-| [bledev_battery_info.py](bledev_battery_info.py) | Showing a battery level and device details to any Bluetooth LE app |
-| [bledev_cycling_power.py](bledev_cycling_power.py) | Being a cycling power meter for bike apps |
-| [bledev_cycling_speed.py](bledev_cycling_speed.py) | Being a cycling speed and cadence sensor for bike apps |
-| [bledev_environmental.py](bledev_environmental.py) | Being a weather sensor any Bluetooth LE app can read |
-| [bledev_heart_rate.py](bledev_heart_rate.py) | Being a heart rate monitor for fitness apps |
+| [bledev_battery_simpletest.py](bledev_battery_simpletest.py) | Showing a battery level and device details to any Bluetooth LE app |
+| [bledev_cyclingpower_simpletest.py](bledev_cyclingpower_simpletest.py) | Being a cycling power meter for bike apps |
+| [bledev_cyclingspeed_simpletest.py](bledev_cyclingspeed_simpletest.py) | Being a cycling speed and cadence sensor for bike apps |
+| [bledev_environmental_simpletest.py](bledev_environmental_simpletest.py) | Being a weather sensor any Bluetooth LE app can read |
+| [bledev_heartrate_simpletest.py](bledev_heartrate_simpletest.py) | Being a heart rate monitor for fitness apps |
+| [bledev_improv_simpletest.py](bledev_improv_simpletest.py) | Letting a phone or computer set up the board's Wi-Fi over Bluetooth |
+| [bledev_repl_simpletest.py](bledev_repl_simpletest.py) | Reaching the board's REPL over Bluetooth, behind a password |
+| [bledev_filetransfer_simpletest.py](bledev_filetransfer_simpletest.py) | Copying files to and from the board over Bluetooth |
 | [bledev_private_address.py](bledev_private_address.py) | Advertising under an address that changes |
-| [bledev_running_speed.py](bledev_running_speed.py) | Being a running foot pod for fitness apps |
+| [bledev_runningspeed_simpletest.py](bledev_runningspeed_simpletest.py) | Being a running foot pod for fitness apps |
 | [bledev_central_simpletest.py](bledev_central_simpletest.py) | Reading a Bluetooth LE counter and writing it a message |
 | [bledev_hid_host_simpletest.py](bledev_hid_host_simpletest.py) | Reading the keys a Bluetooth keyboard sends |
 | [bledev_hid_keyboard_simpletest.py](bledev_hid_keyboard_simpletest.py) | Being a Bluetooth keyboard, with Adafruit's adafruit_hid |
@@ -32,7 +35,11 @@ Each one says in its docstring what it needs and where it has been run.
 | [keys_simpletest.py](keys_simpletest.py) | Key names, a Ctrl+S shortcut, and a USB keyboard's codes |
 | [multimer_simpletest.py](multimer_simpletest.py) | Two timers at once, stopped by a third |
 | [usb_device_audio_headset.py](usb_device_audio_headset.py) | Being a USB headset that plays back what the computer plays to it |
-| [usb_device_audio_microphone.py](usb_device_audio_microphone.py) | Being a USB microphone that sends a tone |
+| [usb_device_audio_simpletest.py](usb_device_audio_simpletest.py) | Being a USB microphone that sends a tone |
+| [usb_device_cdc_simpletest.py](usb_device_cdc_simpletest.py) | A second USB serial port that shouts back what you type |
+| [usb_device_midi_simpletest.py](usb_device_midi_simpletest.py) | Being a USB MIDI device that plays a scale and shows what it hears |
+| [usb_device_net_simpletest.py](usb_device_net_simpletest.py) | A network link to your computer over the USB cable |
+| [usb_device_video_simpletest.py](usb_device_video_simpletest.py) | Being a USB webcam that shows a moving grey ramp |
 | [usb_hid_absolute_pointer.py](usb_hid_absolute_pointer.py) | Moving your computer's pointer to the corners of the screen and around a circle |
 | [usb_hid_gamepad.py](usb_hid_gamepad.py) | Being a USB gamepad that works through its buttons, hat and axes |
 | [wifi_ap_simpletest.py](wifi_ap_simpletest.py) | A Wi-Fi network of the board's own, with a page for visitors |
