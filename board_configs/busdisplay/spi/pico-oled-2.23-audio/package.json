@@ -1,0 +1,29 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/pico-oled-2.23-audio/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/busdisplay/spi/pico-oled-2.23-audio/board_peripherals.py"
+    ],
+    [
+      "ssd1305.py",
+      "github:PyDevices/pydevices/drivers/display/ssd1305.py"
+    ],
+    [
+      "spibus.py",
+      "github:PyDevices/pydevices/drivers/bus/spibus.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "version": "0.1",
+  "description": "Waveshare Pico-OLED-2.23 128x32 SSD1305 and Pico-Audio I2S DAC on a Pico",
+  "generated": "from manifest.py by tools/libbuild.py installers; edit manifest.py, not this"
+}
