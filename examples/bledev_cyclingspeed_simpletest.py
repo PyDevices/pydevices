@@ -14,7 +14,7 @@ Needs: a board with Bluetooth LE and bledev: CircuitPython, or MicroPython
 with aioble too.
 
 Run it:
-    mpremote run bledev_cycling_speed.py
+    mpremote run bledev_cyclingspeed_simpletest.py
 On CircuitPython, copy it to the board as code.py. Look for "PyDevices CSC"
 in the app's scan list.
 

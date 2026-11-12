@@ -16,7 +16,7 @@ board's serial port, so the REPL stays on the same cable.
 
 Run it:
 
-    mpremote run usb_device_audio_microphone.py
+    mpremote run usb_device_audio_simpletest.py
 
 On the computer, record from "PyDevices Mic". The program prints when
 recording starts and stops, and one summary line at the end.

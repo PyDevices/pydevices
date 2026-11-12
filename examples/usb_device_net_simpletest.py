@@ -17,7 +17,7 @@ stays on the same cable.
 
 Run it:
 
-    mpremote run usb_device_net.py
+    mpremote run usb_device_net_simpletest.py
 
 The program prints the board's address on the link. Open
 ``http://<that address>/`` in a browser on the computer to see the page.

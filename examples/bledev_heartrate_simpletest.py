@@ -13,7 +13,7 @@ Needs: a board with Bluetooth LE and bledev: CircuitPython, or MicroPython
 with aioble too.
 
 Run it:
-    mpremote run bledev_heart_rate.py
+    mpremote run bledev_heartrate_simpletest.py
 On CircuitPython, copy it to the board as code.py. Look for "PyDevices HR"
 in the app's scan list.
 
