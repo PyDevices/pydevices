@@ -1,3 +1,12 @@
+## v0.8.0.dev9 (2026-11-12)
+
+- iconkit: Material icons for LVGL and pygraphics, as its own package (#531)
+- usb-host-video tests: start() resets the interface before it claims the stream (#532)
+- usb-host-video: Camera.start() lets go of a stream an interrupted program left open (#528)
+- IMX219: digital gain, pedestal, nine test patterns, RAW8, 15 and 53 fps (#529)
+- Examples: a simpletest for every bledev service and USB device package (#527)
+- camera_sensors: a simpletest that opens the fitted camera and reads a frame (#526)
+
 ## v0.8.0.dev8 (2026-11-11)
 
 - usb-device-net: a network link to the computer over the USB cable (#524)
