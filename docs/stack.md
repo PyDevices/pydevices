@@ -45,7 +45,7 @@ and Android.
   Get it: from source. Runs on: Boards, Desktop, Web.
 - [`mpftp`](https://github.com/PyDevices/mpftp/blob/main/README.md): Move files, run code, open the REPL, install packages and flash firmware, from VS Code, a browser tab or a terminal.\
   Get it: `pip pydevices-mpftp`. Runs on: Desktop, Web.
-- [`Workbench`](https://pydevices.github.io/workbench/): Edit and run MicroPython in a browser, in a built-in simulator or on a real board over USB, Bluetooth or WebREPL.\
+- [`Workbench`](https://workbench.pydevices.com/): Edit and run MicroPython in a browser, in a built-in simulator or on a real board over USB, Bluetooth or WebREPL.\
   Get it: open in a browser. Runs on: Web.
 - [`Board configs`](https://github.com/PyDevices/pydevices/blob/main/docs/boards/board-configs.md): Describe one board's display, touch, audio and pins, so a program runs on it unchanged. There is one per board.\
   Get it: `mip`, from the board's folder. Runs on: MP, CP, Desktop.
@@ -329,7 +329,7 @@ and Android.
 
 ## Run a finished app
 
-- [`Gallery`](https://pydevices.github.io/gallery/): Try a piano, a spectrum analyzer, games, dashboards, a TV remote and more, on any host.\
+- [`Gallery`](https://gallery.omnipython.org/): Try a piano, a spectrum analyzer, games, dashboards, a TV remote and more, on any host.\
   Get it: open in a browser. Runs on: MP, CP, Desktop, Web, Android.
 - [`Synth Station`](https://github.com/PyDevices/apps/tree/main/apps/synthstation): Pick an instrument and play it from a MIDI keyboard, with a front panel for its knobs and patches.\
   Get it: from source. Runs on: MP, Desktop, Web.

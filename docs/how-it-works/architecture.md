@@ -96,4 +96,4 @@ hardware is configured.
 - [Board Config Inventory](../boards/board-configs.md) — supported MCU & desktop boards
 - [Display Drivers](../guides/displays.md) — display interfaces and backends
 - [multimer](../guides/timers.md) — portable timers and async support
-- [Companion Demos](https://pydevices.github.io/gallery/) — sample applications
+- [Companion Demos](https://gallery.omnipython.org/) — sample applications
