@@ -1,6 +1,6 @@
-# The packages that keep a version of their own (palettes, pdwidgets,
-# ) release
-# apart from pydevices. A merged pull request that changes <name>/VERSION
+# The packages that keep a version of their own (palettes, pdwidgets and
+# iconkit) release apart from pydevices. A merged pull request that changes
+# packages/<name>/VERSION
 # becomes the <name>-vX.Y.Z tag and a GitHub Release, created with the App
 # token so that publish-package-release.yml runs. A VERSION file that is new
 # in the push (a package moving in) is not a release.
@@ -12,6 +12,7 @@ on:
     paths:
       - 'packages/palettes/VERSION'
       - 'packages/pdwidgets/VERSION'
+      - 'packages/iconkit/VERSION'
 
 permissions:
   contents: read
@@ -22,7 +23,7 @@ jobs:
     timeout-minutes: 10
     strategy:
       matrix:
-        package: [palettes, pdwidgets]
+        package: [palettes, pdwidgets, iconkit]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,15 +39,15 @@ jobs:
             echo "no previous commit to compare with; nothing to do"
             echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          if [[ -z "$(git diff --diff-filter=M --name-only "$BEFORE" HEAD -- "$PACKAGE/VERSION")" ]]; then
-            echo "$PACKAGE/VERSION did not change in this push"
+          if [[ -z "$(git diff --diff-filter=M --name-only "$BEFORE" HEAD -- "packages/$PACKAGE/VERSION")" ]]; then
+            echo "packages/$PACKAGE/VERSION did not change in this push"
             echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          V=$(tr -d '[:space:]' < "$PACKAGE/VERSION")
+          V=$(tr -d '[:space:]' < "packages/$PACKAGE/VERSION")
           # The grammar the build and the publish accept; anything else is
           # refused rather than burned into a tag.
           if [[ ! "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+|\.dev[0-9]+)?$ ]]; then
-            echo "::error::$PACKAGE/VERSION is '$V', not a release version X.Y.Z[{a|b|rc}N|.devN]; refusing to tag."
+            echo "::error::packages/$PACKAGE/VERSION is '$V', not a release version X.Y.Z[{a|b|rc}N|.devN]; refusing to tag."
             exit 1
           fi
           TAG="$PACKAGE-v$V"
@@ -58,7 +59,7 @@ jobs:
           awk -v v="$V" '
             /^## / { if (found) exit; if ($0 ~ "^## v?" v "( |$)") { found = 1; next } }
             found { print }
-          ' "$PACKAGE/CHANGELOG.md" > notes.md
+          ' "packages/$PACKAGE/CHANGELOG.md" > notes.md
           [[ -s notes.md ]] || echo "$PACKAGE $V" > notes.md
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "version=$V" >> "$GITHUB_OUTPUT"

@@ -1,4 +1,4 @@
-# Publish a palettes or pdwidgets release: build the distribution from the
+# Publish a palettes, pdwidgets or iconkit release: build the distribution from the
 # package's folder at the release tag, check the wheel installs and imports,
 # upload it to TestPyPI, and attach it to the GitHub Release. pydevices' own
 # releases (vX.Y.Z tags) go through publish-release-packages.yml instead.
@@ -27,6 +27,7 @@ jobs:
       github.event_name == 'workflow_dispatch'
       || startsWith(github.event.release.tag_name, 'palettes-v')
       || startsWith(github.event.release.tag_name, 'pdwidgets-v')
+      || startsWith(github.event.release.tag_name, 'iconkit-v')
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.release.outputs.tag }}
@@ -40,14 +41,20 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release-ref }}
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^(palettes|pdwidgets)-v([0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+|\.dev[0-9]+)?)$ ]]; then
-            echo "Release ref must be palettes-vX.Y.Z or pdwidgets-vX.Y.Z[{a|b|rc}N|.devN]: $RELEASE_TAG" >&2
+          if [[ ! "$RELEASE_TAG" =~ ^(palettes|pdwidgets|iconkit)-v([0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+|\.dev[0-9]+)?)$ ]]; then
+            echo "Release ref must be palettes-vX.Y.Z, pdwidgets-vX.Y.Z or iconkit-vX.Y.Z[{a|b|rc}N|.devN]: $RELEASE_TAG" >&2
             exit 1
           fi
           {
             echo "tag=$RELEASE_TAG"
             echo "package=${BASH_REMATCH[1]}"
-            echo "distribution=pydevices-${BASH_REMATCH[1]}"
+            # New libraries take the omnipython- prefix; palettes and pdwidgets
+            # keep the pydevices- names they were published under.
+            if [[ "${BASH_REMATCH[1]}" == iconkit ]]; then
+              echo "distribution=omnipython-iconkit"
+            else
+              echo "distribution=pydevices-${BASH_REMATCH[1]}"
+            fi
             echo "version=${BASH_REMATCH[2]}"
             if [[ -n "${BASH_REMATCH[3]}" ]]; then echo "prerelease=true"; else echo "prerelease=false"; fi
           } >> "$GITHUB_OUTPUT"
@@ -60,7 +67,7 @@ jobs:
       import-name: ${{ needs.resolve.outputs.package }}
       release-ref: ${{ needs.resolve.outputs.tag }}
       version: ${{ needs.resolve.outputs.version }}
-      working-directory: ${{ needs.resolve.outputs.package }}
+      working-directory: packages/${{ needs.resolve.outputs.package }}
       # pdwidgets' smoke test imports it, and it imports its dependencies.
       install-dependencies: ${{ needs.resolve.outputs.package == 'pdwidgets' }}
 

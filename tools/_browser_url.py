@@ -57,6 +57,7 @@ _WHEEL_REWRITE = {
     "displaydev": "pydevices",
     "lvgl": "pydevices-lvgl",
     "multimer": "pydevices",
+    "iconkit": "omnipython-iconkit",
     "palettes": "pydevices-palettes",
     "pdwidgets": "pydevices-pdwidgets",
     "pydevices-lvgl": "pydevices-lvgl",

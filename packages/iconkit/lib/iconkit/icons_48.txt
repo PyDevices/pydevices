@@ -1,0 +1,35 @@
+# App tile icons, 48 px. Every name here is also in icons_24.txt.
+# Current apps
+photo_camera
+speaker
+cast
+schedule
+image_search
+child_care
+doorbell
+phone_in_talk
+camera_outdoor
+videocam
+video_call
+record_voice_over
+library_music
+audio_file
+settings_remote
+security
+queue_music
+tune
+piano
+settings
+mic
+wb_sunny
+# Apps to come
+photo_library
+calculate
+timer
+alarm
+calendar_today
+thermostat
+folder
+terminal
+sports_esports
+language

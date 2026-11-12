@@ -9,7 +9,7 @@
 | [lib/](lib/) | The libraries that make up the `pydevices` package (`displaydev`, `audiodev`, `appdev`, `multimer`, `bledev` and the rest). |
 | [utils/](utils/) | Desktop helpers that ship in `pydevices-desktop` (`mdns`, `micropython`, `usdl2`, `uwin32` and more). |
 | `packages/usb/usb-core/`, `usb-host-*/`, `usb-device-*/`, `packages/usb/usb-hid/` | The USB packages ([docs/guides/usb.md](docs/guides/usb.md)). |
-| [packages/palettes/](packages/palettes/), [packages/pdwidgets/](packages/pdwidgets/), [packages/midiports/](packages/midiports/) | Packages that publish on their own, each with its own README. |
+| [packages/palettes/](packages/palettes/), [packages/pdwidgets/](packages/pdwidgets/), [packages/iconkit/](packages/iconkit/), [packages/midiports/](packages/midiports/) | Packages that publish on their own, each with its own README. |
 | [docs/](docs/) | The documentation site's source. |
 | [tests/](tests/) | Unit tests for the libraries. |
 
@@ -272,7 +272,7 @@ driver package.
 ### The library index
 
 Every release also asks the library index to rebuild. A `vX.Y.Z` release, a
-pre-release included, and a `palettes-vX.Y.Z` or `pdwidgets-vX.Y.Z` release
+pre-release included, and a `palettes-vX.Y.Z`, `pdwidgets-vX.Y.Z` or `iconkit-vX.Y.Z` release
 each send [PyDevices/lib](https://github.com/PyDevices/lib) a request naming
 the tag. It records the tag, builds every package with [`tools/libbuild.py`](tools/libbuild.py)
 from the releases it has recorded, and serves the result from GitHub Pages at

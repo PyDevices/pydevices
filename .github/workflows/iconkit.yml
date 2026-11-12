@@ -1,0 +1,71 @@
+# iconkit's own checks: ruff, the generator's tests and the icon contract on
+# CPython, and the same contract on a unix MicroPython built here. Only a
+# change under packages/iconkit/ runs them.
+name: iconkit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/iconkit/**'
+      - '.github/workflows/iconkit.yml'
+  pull_request:
+    paths:
+      - 'packages/iconkit/**'
+      - '.github/workflows/iconkit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: packages/iconkit
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      # Pillow is for the generator's tests; the package itself needs nothing.
+      - name: Install ruff and Pillow
+        run: pip install ruff pillow
+      - name: Ruff
+        run: ruff check lib tests tools
+
+      - uses: actions/checkout@v7
+        with:
+          repository: micropython/micropython
+          ref: v1.29.0
+          path: micropython
+      - name: Build the unix port
+        working-directory: micropython
+        run: |
+          make -C mpy-cross -j2
+          make -C ports/unix submodules
+          make -C ports/unix -j2
+
+      # PYDEVICES_REQUIRE_MICROPYTHON makes a missing interpreter a failure
+      # rather than a skip.
+      - name: Unit tests, and the contract on CPython and MicroPython
+        env:
+          PYTHONPATH: lib
+          PYDEVICES_MICROPYTHON: ${{ github.workspace }}/micropython/ports/unix/build-standard/micropython
+          PYDEVICES_REQUIRE_MICROPYTHON: '1'
+        run: python -m unittest discover -s tests -v
+
+      - name: Build the wheel and check what it holds
+        run: |
+          pip install build
+          python -m build --wheel --outdir dist
+          python - <<'PY'
+          import glob, zipfile
+          names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
+          for need in ("iconkit/__init__.py", "iconkit/_a8_24.py", "iconkit/_a8_48.py", "iconkit/icons_24.txt", "iconkit/icons_48.txt"):
+              assert need in names, need
+          print("wheel holds both icon sets and their lists")
+          PY

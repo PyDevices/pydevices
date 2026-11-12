@@ -13,7 +13,7 @@ From the repository root:
 ``build`` assembles every package this repository publishes (the ones
 ``mip-split.toml`` names, plus ``pydevices`` and ``pydevices-desktop``, all at
 the repository's version), the packages in their own folders here that
-``lib-lock.json`` lists under ``folders`` (palettes and pdwidgets, each
+``lib-lock.json`` lists under ``folders`` (palettes, pdwidgets and iconkit, each
 at the version in its folder's ``VERSION``), and every package
 ``lib-lock.json`` pins from another repository, into
 ``<out>/library``: one directory per package, each with a ``manifest.py``
@@ -132,6 +132,9 @@ class Pinned:
     # A repository whose lib/ holds several packages: each is published under
     # its own name with its own description, and this one requires them all.
     packages: dict[str, str] = field(default_factory=dict)
+    # What one of those packages requires beyond itself, by member name: appkit
+    # draws with iconkit, which is a package of its own in this repository.
+    member_requires: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def version(self) -> str:
@@ -177,13 +180,19 @@ def read_lock(root: Path) -> Lock:
             raise BuildError(f"{LOCKFILE} repo.{name} has no description")
     pinned = {}
     for name, entry in data.get("pinned", {}).items():
-        extra = sorted(set(entry) - {"repository", "ref", "description", "pypi", "packages"})
+        extra = sorted(set(entry) - {"repository", "ref", "description", "pypi", "packages", "requires"})
         if extra:
             raise BuildError(f"{LOCKFILE} pinned.{name} has unknown keys: {', '.join(extra)}")
         for key in ("repository", "ref", "description"):
             if not entry.get(key):
                 raise BuildError(f"{LOCKFILE} pinned.{name} has no {key}")
-        pinned[name] = Pinned(name, entry["repository"], entry["ref"], entry["description"], entry.get("pypi"), entry.get("packages", {}))
+        member_requires = {member: tuple(needed) for member, needed in entry.get("requires", {}).items()}
+        for member in member_requires:
+            if member not in entry.get("packages", {}):
+                raise BuildError(f"{LOCKFILE} pinned.{name}.requires names {member!r}, which is not one of its packages")
+        pinned[name] = Pinned(
+            name, entry["repository"], entry["ref"], entry["description"], entry.get("pypi"), entry.get("packages", {}), member_requires
+        )
     folders = {}
     for name, entry in data.get("folders", {}).items():
         extra = sorted(set(entry) - {"description", "pypi", "requires"})
@@ -534,7 +543,7 @@ def assemble_several(pinned: Pinned, source_root: Path, tree: Tree, library: str
                 description=description,
                 version=pinned.version,
                 pypi=None,
-                requires=(),
+                requires=pinned.member_requires.get(name, ()),
                 payloads=(f'package("{name}")',),
                 library=library,
                 local=local,
