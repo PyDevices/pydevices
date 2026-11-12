@@ -64,6 +64,8 @@ and Android.
   Get it: `mip pygraphics`, `pip pydevices-pygraphics`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
 - [`palettes`](https://github.com/PyDevices/pydevices/tree/main/packages/palettes): Turn a palette index into a color your display can show.\
   Get it: `mip palettes`, `pip pydevices-palettes`, firmware build. Runs on: MP, CP, Desktop.
+- [`iconkit`](https://github.com/PyDevices/pydevices/blob/main/packages/iconkit/docs/reference/icons.md): Draw Material icons in any colour, in LVGL or with pygraphics; frozen in, they cost no RAM.\
+  Get it: `mip iconkit`, `pip omnipython-iconkit`, firmware build. Runs on: MP, CP, Desktop.
 - [`pdwidgets`](https://github.com/PyDevices/pydevices/tree/main/packages/pdwidgets): Build a user interface from labels, buttons and other small widgets, without LVGL.\
   Get it: `mip pdwidgets`, `pip pydevices-pdwidgets`, firmware build. Runs on: MP, CP, Desktop.
 - [`lvgl`](https://github.com/PyDevices/omnipython-lvgl/blob/main/README.md): Use LVGL from Python with the same `import lvgl as lv` everywhere.\
@@ -416,7 +418,7 @@ and Android.
 - **F:** [`frame_recorder`](#draw-on-a-screen), [`fs_driver`](#draw-on-a-screen)
 - **G:** [`Gallery`](#run-a-finished-app)
 - **H:** [`h264enc`](#use-cameras-video-and-ai-on-a-board), [`Hands free`](#run-a-finished-app), [`Haptics`](#drive-a-chip), [`hmilink`](#connect-devices), [`Home`](#run-a-finished-app)
-- **I:** [`I/O expanders`](#drive-a-chip), [`IMUs`](#drive-a-chip), [`Infrared`](#drive-a-chip), [`Internet radio`](#run-a-finished-app)
+- **I:** [`I/O expanders`](#drive-a-chip), [`iconkit`](#draw-on-a-screen), [`IMUs`](#drive-a-chip), [`Infrared`](#drive-a-chip), [`Internet radio`](#run-a-finished-app)
 - **J:** [`Joysticks`](#drive-a-chip), [`jpegio`](#draw-on-a-screen), [`jpegio for CPython`](#draw-on-a-screen), [`jupyter.py`](#run-somewhere-other-than-a-board)
 - **K:** [`keys`](#write-an-app)
 - **L:** [`LEDs`](#drive-a-chip), [`lib`](#find-the-projects-own-sites), [`lite-assistant`](#connect-devices), [`lvgl`](#draw-on-a-screen)
