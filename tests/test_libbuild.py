@@ -426,6 +426,14 @@ class SeveralPackages(unittest.TestCase):
         self.assertIn('require("two", library="lib", opt=options.opt)', both)
         self.assertNotIn("package(", both)
 
+    def test_a_member_can_require_a_package_of_its_own_from_elsewhere(self):
+        pinned = libbuild.Pinned("both", "Org/repo", "v1.2.3", "Both", None, {"one": "First", "two": "Second"}, {"one": ("icons",)})
+        libbuild.assemble_pinned(pinned, self.scratch / "src", self.tree, "lib", self.local | {"icons"})
+        one = (self.tree.path / "one" / "manifest.py").read_text(encoding="utf-8")
+        self.assertIn('require("icons", library="lib", opt=options.opt)', one)
+        two = (self.tree.path / "two" / "manifest.py").read_text(encoding="utf-8")
+        self.assertNotIn("icons", two)
+
     def test_a_missing_folder_fails_the_build(self):
         shutil.rmtree(self.scratch / "src" / "lib" / "two")
         with self.assertRaisesRegex(libbuild.BuildError, "has no lib/two"):

@@ -23,6 +23,10 @@
     "pdwidgets": {
       "description": "Cross-platform widget toolkit for PyDevices",
       "pypi": "pydevices-pdwidgets"
+    },
+    "iconkit": {
+      "description": "Material Design icons as flash-resident alpha masks, drawn in LVGL or pygraphics",
+      "pypi": "omnipython-iconkit"
     }
   },
   "pinned": {
