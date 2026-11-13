@@ -1,3 +1,7 @@
+## v0.8.0.dev10 (2026-11-13)
+
+- lib-lock: pygraphics pinned at v0.1.3.dev1, with FrameBuffer.blit_alpha (#537)
+
 ## v0.8.0.dev9 (2026-11-12)
 
 - iconkit: Material icons for LVGL and pygraphics, as its own package (#531)
