@@ -338,28 +338,33 @@ def pcm_in(format=None, *, dev=None, ring_ms=_PCM_RING_MS, wait_ms=_WAIT_MS, ful
 
 
 _CHUNK_MS = 40               # what audio_out() renders per pull
-_LOOKAHEAD_MS = 300          # what audio_out() keeps queued: past a collection
+# What audio_out() keeps queued for each latency profile. "buffered" outlasts
+# a collection on an 8 MB PSRAM heap; the default suits an instrument.
+_LOOKAHEAD_MS = {None: 80, "low": 80, "buffered": 300}
 
 
-def audio_out(format=None, *, chunk_ms=_CHUNK_MS, lookahead_ms=_LOOKAHEAD_MS,
-              max_catchup_chunks=5, **kwargs):
+def audio_out(format=None, *, latency=None, **kwargs):
     """``pcm_out()`` wrapped in an ``audiodev.AudioOut``, the player a
     board's ``audio_out`` role returns: ``play()``, ``stop()``, ``playing``.
     Call its ``service()`` often, or ``attach()`` it to an app, to keep the
     speaker fed. The graph is pulled on the interpreter thread: the board's
     audio pump drives I2S, not this bus.
 
-    It keeps ``lookahead_ms`` of sound queued, rendered ``chunk_ms`` at a
-    time. Nothing is pulled while the interpreter collects garbage, and on a
-    board with an 8 MB PSRAM heap a collection takes 260 to 300 ms, so the
-    default 300 ms carries the speaker through one. A note plays that much
-    after it's struck; pass a smaller ``lookahead_ms`` on a board whose
-    collections are short. ``max_catchup_chunks`` is as for ``AudioOut``,
-    and the ring is sized to hold the lookahead and the catch-up. Other
-    keywords go to ``pcm_out()``."""
+    The default, and ``latency="low"``, keep 80 ms of sound queued, so a
+    note sounds soon after it's struck. Nothing is pulled while the
+    interpreter collects garbage, and on a board with an 8 MB PSRAM heap a
+    collection takes 260 to 300 ms, so the speaker runs dry through one.
+    ``latency="buffered"`` keeps 300 ms queued, which carries it through.
+    ``chunk_ms``, ``lookahead_chunks`` and ``max_catchup_chunks`` go to
+    ``AudioOut`` and override the profile, and the ring is sized to hold the
+    lookahead and the catch-up. Other keywords go to ``pcm_out()``."""
+    from audiodev import check_latency
     from audiodev.sample_out import AudioOut
 
-    lookahead_chunks = max(1, -(-lookahead_ms // chunk_ms))
+    check_latency(latency)
+    chunk_ms = kwargs.pop("chunk_ms", _CHUNK_MS)
+    lookahead_chunks = kwargs.pop("lookahead_chunks", max(1, -(-_LOOKAHEAD_MS[latency] // chunk_ms)))
+    max_catchup_chunks = kwargs.pop("max_catchup_chunks", 5)
     kwargs.setdefault("ring_ms", max(_PCM_RING_MS, chunk_ms * (lookahead_chunks + max_catchup_chunks + 2)))
     return AudioOut(pcm_out(format, **kwargs), pump=False, chunk_ms=chunk_ms,
                     lookahead_chunks=lookahead_chunks, max_catchup_chunks=max_catchup_chunks)
