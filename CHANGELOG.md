@@ -1,3 +1,9 @@
+## v0.8.0.dev14 (2026-11-13)
+
+- multimer: a slow timer runs back to back at a board's idle REPL (#549)
+- Library: pygraphics v0.1.5, blit_rect hands a driver the whole rectangle (#555)
+- Stack page: svgio, on firmware and on CPython (#551)
+
 ## v0.8.0.dev13 (2026-11-13)
 
 - svgio for CPython: SVG decode over resvg-py and Pillow, the same API as the firmware module (#548)
