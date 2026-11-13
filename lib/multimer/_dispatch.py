@@ -860,7 +860,9 @@ def _select_source():
     elif impl == "cpython":
         from ._asyncio_loader import loop_running
 
-        if _async_owned_host() or loop_running():
+        # A running loop means asyncio is imported already. Importing it only
+        # to find no loop held the first timer back by about 50 ms.
+        if _async_owned_host() or ("asyncio" in sys.modules and loop_running()):
             order.append("asyncio")
         if sys.platform in ("linux", "darwin") and sys.platform != "android":
             order.append("signal")

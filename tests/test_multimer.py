@@ -752,6 +752,38 @@ asyncio.run(main())
         self.assertEqual("asyncio", name)
         self.assertGreaterEqual(int(n), 17)
 
+    def test_a_running_loop_is_found_unasked(self):
+        if os.environ.get("MULTIMER_SOURCE"):
+            self.skipTest("MULTIMER_SOURCE chooses the source")
+        code = r"""
+import asyncio, multimer
+async def main():
+    tim = multimer.every(10, lambda t: None)
+    print(multimer.info()["source"])
+    tim.deinit()
+asyncio.run(main())
+"""
+        p = _child(code)
+        self.assertEqual(0, p.returncode, p.stderr)
+        self.assertEqual("asyncio", p.stdout.split()[0])
+
+    def test_the_first_timer_leaves_asyncio_unimported(self):
+        # Importing asyncio to look for a loop held the first timer back by
+        # about 50 ms on a host that has none.
+        if os.environ.get("MULTIMER_SOURCE"):
+            self.skipTest("MULTIMER_SOURCE chooses the source")
+        code = r"""
+import sys, multimer
+tim = multimer.every(1000, lambda t: None)
+print(multimer.info()["source"], "asyncio" in sys.modules)
+tim.deinit()
+"""
+        p = _child(code)
+        self.assertEqual(0, p.returncode, p.stderr)
+        name, imported = p.stdout.split()
+        self.assertNotEqual("asyncio", name)
+        self.assertEqual("False", imported)
+
     def test_unknown_source_fails_loud(self):
         p = _child("import multimer; multimer.every(10, lambda t: None); print(multimer.info()['source'], multimer.info().get('source_error'))", source="bogus")
         self.assertIn("none", p.stdout)
