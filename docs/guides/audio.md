@@ -103,6 +103,11 @@ AST, because the rule was broken once without anyone noticing.
 
 ## Playback: the audiosample contract
 
+On MicroPython, `play()` only starts the sample: something has to keep
+servicing the output, or you hear the first 512 frames and then silence. Call
+`out.attach(app)` once after you create the output, or call `out.service()`
+from your own loop (see [the audio pump](#the-audio-pump) for the details).
+
 `audio_out` returns an **`audiodev.sample_out.AudioOut`**: `play(sample,
 loop=False)`, `stop()`, `pause()`, `resume()`, `playing`. `sample` is anything
 satisfying CircuitPython's audiosample pull protocol — a

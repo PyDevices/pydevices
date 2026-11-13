@@ -101,6 +101,21 @@ because `SystemExit` cannot be raised usefully from an interpreter exit hook.
 
 `app.poll()` **always** returns a list (possibly empty). It never returns `None`.
 
+Once your own code calls `app.poll()`, even from inside an `app.every`
+callback, the app stops delivering events on its service tick: only your
+`poll()` calls deliver them from then on, so keep calling it.
+
+## Touch and mouse
+
+`Button`, `Motion` and `Wheel` events carry a `touch` field, so `event.touch`
+always exists. It is true when the pointer is a finger. On the desktop SDL and
+PyGame backends it is set by the host. In a browser, a finger down or up gives
+a `FINGERDOWN` or `FINGERUP` event and a `Button` with `touch=True`, but moving
+a finger gives only `FINGERMOTION`, with no `Motion` event. Drag code that
+reads only `Motion` therefore needs a `FINGERMOTION` handler too to work on a
+phone. `WinDisplay` always reports `touch=False` and sends no finger events.
+The [PyScript display](displays.md#psdisplay) section covers the `touch` flag there.
+
 ## Built-in devices
 
 | Device | Input contract |

@@ -361,7 +361,9 @@ class App:
     def every(self, ms=None, callback=None, *, period=None, name=None):
         """A periodic ``multimer.Timer`` calling ``callback(timer)`` every *ms*.
 
-        Usable as a decorator (``@app.every(1000)``). The App keeps the
+        The callback receives the timer, so a method needs the signature
+        ``def step(self, timer=None)``. Usable as a decorator
+        (``@app.every(1000)``). The App keeps the
         process alive while any subscription runs; ``timer.deinit()`` (or
         ``cancel()``) ends one.
         """

@@ -258,7 +258,19 @@ client area at scale 1 (WinDisplay, on Windows; see
 
 Set the env vars **before** `import board_config` (or any import that loads
 it). On a host with no environment, `boarddev.env_set("PYDEVICES_WIDTH", 800)`
-does the same from Python. Parsing lives in
+does the same from Python. A script that wants a default size but should respect the user's own
+environment sets it only when nothing else has:
+
+```python
+import boarddev
+
+if boarddev.env_get("PYDEVICES_WIDTH") is None:
+    boarddev.env_set("PYDEVICES_WIDTH", 800)
+import board_config
+```
+
+A value set with `env_set` wins over `os.environ`, so without the check it
+would override the user. Parsing lives in
 [`boarddev.env_int`](https://github.com/PyDevices/pydevices/blob/main/lib/boarddev.py)
 and friends (`env_get`, `env_float`, `env_bool`, `env_set`).
 

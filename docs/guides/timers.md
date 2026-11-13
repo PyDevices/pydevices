@@ -63,6 +63,13 @@ when the first timer is armed.
 
 ## What a callback can count on
 
+Every callback is called with the timer as its one argument, so a method
+written `def step(self):` raises `TypeError` on every tick. multimer prints
+that once and then counts the later failures without printing, which looks
+like a frozen or black screen with a single traceback above it. Write
+`def step(self, timer=None)`. `app.every` and `multimer.every` work the same
+way.
+
 A callback runs on the main thread, at a safe point: between two bytecodes
 where the host can interrupt (a board, a signal, a pending call), otherwise
 at the next idle point (`sleep_ms`, `pump()`, the REPL waiting for a key, an

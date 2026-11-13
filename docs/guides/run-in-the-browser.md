@@ -39,5 +39,31 @@ Audio and microphone use require the host page's Enable Audio/Microphone
 control. Backends raise a clear permission error until the relevant control
 has been used.
 
+## Audio in the browser
+
+A browser blocks sound until the person has used the page. Until then
+`play()` raises `RuntimeError("audio output is disabled; use the host Enable
+Audio control")`, and the output is left as it was, so you can try again. The
+gallery host page unlocks audio on the first click, tap or key press; a page
+of your own has to do the same with its Enable Audio control. Try at start,
+and retry on the next input event:
+
+```python
+import events
+
+def start_sound(out, sample, app):
+    def attempt(event=None):
+        try:
+            out.play(sample, loop=True)
+        except RuntimeError:
+            return              # still locked; wait for the next input
+        for kind in (events.MOUSEBUTTONDOWN, events.KEYDOWN):
+            app.off(kind, attempt)
+
+    attempt()
+    if not out.playing:
+        app.on([events.MOUSEBUTTONDOWN, events.KEYDOWN], attempt)
+```
+
 Execution stays on the browser main thread; running the VM in a worker is
 not part of this backend contract.
