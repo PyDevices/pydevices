@@ -315,6 +315,11 @@ up to three seconds for a device, and take an `audiodev.AudioFormat` to
 choose the stream (the device's best offer if you leave it out). Volume and
 gain are in software. They need audiodev, which PyDevices firmware carries.
 
+`audio_out()` keeps 300 ms of sound queued, because nothing is rendered while
+the interpreter collects garbage, and on a board with an 8 MB PSRAM heap a
+collection takes 260 to 300 ms. A note plays that much after it's struck. Pass
+a smaller `lookahead_ms` on a board whose collections are short.
+
 If you feed a hosted speaker from the interpreter while it also draws or
 talks to the network, open it with `Speaker(dev, ring_ms=2000)` and write
 what `space()` says fits. Audio made in C by another native module can skip
