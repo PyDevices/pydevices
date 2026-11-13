@@ -1,3 +1,7 @@
+## v0.8.0.dev11 (2026-11-13)
+
+- Library: applibs v0.1.2.dev2 (#539)
+
 ## v0.8.0.dev10 (2026-11-13)
 
 - lib-lock: pygraphics pinned at v0.1.3.dev1, with FrameBuffer.blit_alpha (#537)
