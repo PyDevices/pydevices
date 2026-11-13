@@ -554,21 +554,42 @@ class TestOverrunningTimers(unittest.TestCase):
         self.assertLessEqual(_median(_gaps(starts)), 45, starts)
         self.assertGreaterEqual(due_in, 25, (due_in, starts))
 
+    def test_a_board_repl_runs_back_to_back_until_input_comes(self):
+        # Firmware's REPL hook, faked: quiet, then a command arrives.
+        quiet = [True]
+        with mock.patch.object(_dispatch, "_repl_idle_ms", lambda: 10000 if quiet[0] else -1):
+            tim, starts, ends = _slow_timer(25, 30)
+            _spin(300)
+            n = len(starts)
+            quiet[0] = False
+            flip = ticks_ms()
+            _spin(400)
+            tim.deinit()
+        idle_gaps = _gaps(starts[:n])
+        busy_gaps = _gaps(starts[n:])
+        self.assertGreaterEqual(len(idle_gaps), 5, starts)
+        self.assertLessEqual(_median(idle_gaps), 38, idle_gaps)
+        self.assertGreaterEqual(len(busy_gaps), 3, starts)
+        self.assertGreaterEqual(_median(busy_gaps), 50, busy_gaps)
+        # The first pass after the input waits out the pause it skipped.
+        self.assertGreaterEqual(ticks_diff(starts[n], ends[n - 1]), 22, (flip, starts, ends))
+
 
 class TestNextSlot(unittest.TestCase):
     """Where a pass puts the next one, on a clock the test sets: the last
     pass was due at 1000."""
 
     def setUp(self):
-        saved = (_dispatch._idle_waits, _dispatch._idle_until, _dispatch._sleeping[0])
+        saved = (_dispatch._idle_waits, _dispatch._idle_until, _dispatch._sleeping[0], _dispatch._repl_idle_ms)
 
         def restore():
-            _dispatch._idle_waits, _dispatch._idle_until, _dispatch._sleeping[0] = saved
+            _dispatch._idle_waits, _dispatch._idle_until, _dispatch._sleeping[0], _dispatch._repl_idle_ms = saved
 
         self.addCleanup(restore)
         _dispatch._idle_waits = 0
         _dispatch._idle_until = None
         _dispatch._sleeping[0] = 0
+        _dispatch._repl_idle_ms = None
 
     def _slot(self, period, t0, end, cap=100):
         tim = Timer()
@@ -651,6 +672,60 @@ class TestNextSlot(unittest.TestCase):
             _dispatch._hand_back(0)  # a wait inside a callback marked nothing
         self.assertEqual(1060, tim._due)
         arm.assert_not_called()
+
+    def _deliver_at(self, tim, now):
+        with mock.patch.object(_dispatch, "_timers", [tim]), mock.patch.object(
+            _dispatch, "ticks_ms", lambda: now
+        ), mock.patch.object(_dispatch, "_arm_next"), mock.patch.dict(_dispatch._stats):
+            _dispatch.deliver()
+
+    def test_no_pause_at_a_quiet_board_repl(self):
+        # Firmware with micropython.repl_idle_ms: its REPL has waited for a
+        # command, with no input, for long enough.
+        _dispatch._repl_idle_ms = lambda: _dispatch._REPL_QUIET_MS
+        tim = self._slot(33, 1000, 1060)
+        self.assertEqual(1060, tim._due)
+        self.assertEqual(60, tim._owed)
+
+    def test_a_pause_while_a_board_repl_runs_a_command(self):
+        _dispatch._repl_idle_ms = lambda: -1
+        tim = self._slot(33, 1000, 1060)
+        self.assertEqual(1120, tim._due)
+        self.assertEqual(0, tim._owed)
+
+    def test_a_pause_until_the_board_repl_has_been_quiet_long_enough(self):
+        # A tool's commands come a little apart; the gaps keep the pause.
+        _dispatch._repl_idle_ms = lambda: _dispatch._REPL_QUIET_MS - 1
+        tim = self._slot(33, 1000, 1060)
+        self.assertEqual(1120, tim._due)
+
+    def test_input_at_the_board_repl_hands_the_pause_back(self):
+        # Input came after the pass ended: the command it starts gets the
+        # pause before the next pass runs.
+        quiet = [True]
+        _dispatch._repl_idle_ms = lambda: 10000 if quiet[0] else -1
+        tim = self._slot(33, 1000, 1060)
+        quiet[0] = False
+        self._deliver_at(tim, 1061)
+        self.assertEqual(1, tim.fired)
+        self.assertEqual(1120, tim._due)
+        self.assertEqual(0, tim._owed)
+
+    def test_input_after_the_pause_would_have_ended_runs_the_pass(self):
+        quiet = [True]
+        _dispatch._repl_idle_ms = lambda: 10000 if quiet[0] else -1
+        tim = self._slot(33, 1000, 1060)
+        quiet[0] = False
+        self._deliver_at(tim, 1130)
+        self.assertEqual(2, tim.fired)
+        self.assertEqual(0, tim._owed)
+
+    def test_a_board_repl_that_stays_quiet_runs_the_next_pass(self):
+        _dispatch._repl_idle_ms = lambda: 10000
+        tim = self._slot(33, 1000, 1060)
+        self._deliver_at(tim, 1061)
+        self.assertEqual(2, tim.fired)
+
 
 class TestWakeSources(unittest.TestCase):
     """Each source in its own interpreter."""

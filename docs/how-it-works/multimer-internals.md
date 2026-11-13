@@ -102,9 +102,19 @@ deadline first. A timer due again the moment it returns waits for the next
 delivery, so other due timers get a turn between its passes and a wait checks
 its condition between them.
 
-multimer only knows about waits inside itself. At a MicroPython board's own
-REPL, in an asyncio or browser loop, or in a program's own loop that calls
-`pump()`, it can't tell idle from busy, so the pause applies.
+A board's own REPL is outside multimer, but firmware with
+`micropython.repl_idle_ms()` says how long it has waited for a new command:
+-1 while one runs, otherwise the milliseconds since the prompt came back or
+input last arrived. A WebREPL file transfer counts as input, though it never
+reaches the REPL as characters. Once that reaches 500 ms, a few Wi-Fi round
+trips and longer than the gaps inside a tool's burst of commands, the REPL
+counts as a wait like the ones above. Input that comes before the next pass
+takes the pause back, as a returning wait does: the pass checks the REPL
+again when it comes due.
+
+In an asyncio or browser loop, at the REPL of firmware without that call, or
+in a program's own loop that calls `pump()`, multimer can't tell idle from
+busy, so the pause applies.
 
 ## `schedule()`
 
