@@ -1,3 +1,8 @@
+## v0.8.0.dev12 (2026-11-13)
+
+- Library: pygraphics v0.1.4, with the row-copy FrameBuffer.blit (#543)
+- docs: timer callbacks, audio servicing and browser unlock, touch, env guard, rotation (#542)
+
 ## v0.8.0.dev11 (2026-11-13)
 
 - Library: applibs v0.1.2.dev2 (#539)
