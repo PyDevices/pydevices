@@ -74,13 +74,37 @@ drain on the worker. None of those paths exists any more.
 ## The overrun rule
 
 After a callback ends, its next slot is `due += period`. If that slot has
-already passed (the callback overran), the grid is stepped past now (each
-skipped slot counts in `missed`), and if the callback took longer than a
-period, the next slot is pushed to at least `end + min(took, yield_cap)`.
-This is the LVGL frame gate of lvgl-bindings#15 and its cap from #19,
-applied to every timer: a slow pass halves its own rate rather than taking
-the thread, and a pass much longer than a period does not idle the thread
-for as long again. `yield_cap = 0` keeps the grid only.
+already passed but the pass took no longer than a period, the callback only
+started late, behind another one: the grid is stepped past now, each skipped
+slot counting in `missed`, so a late timer never bursts to catch up.
+
+A pass longer than its period has lost its grid, and where the next one goes
+depends on whether the program's own code may want the thread. While the
+main thread waits inside multimer, it can't: the next pass is due the moment
+this one ends. The waits that count are `run_until`, the exit-hook loop,
+CPython's input hook and `repl()` waiting for input, and a `sleep_ms` while
+more of it is left than the pause below would last, so running back to back
+never makes the sleep later than the pause would have. Anywhere else the
+next pass waits `min(took, yield_cap)` from the end of this one. That pause
+is the LVGL frame gate of lvgl-bindings#15 and its cap from #19, applied to
+every timer: a slow pass halves its own rate rather than taking the thread,
+and a pass much longer than a period does not idle the thread for as long
+again. `yield_cap = 0` waives the pause everywhere, which leaves the
+program's own code about a millisecond between passes.
+
+A timer that skipped its pause remembers it. When a wait returns to the
+program's code (the predicate came true, a key or a line arrived), it takes
+the pause from the end of its last pass, so the code the wait returns to has
+the thread first.
+
+A delivery is one round: every due timer fires at most once in it, earliest
+deadline first. A timer due again the moment it returns waits for the next
+delivery, so other due timers get a turn between its passes and a wait checks
+its condition between them.
+
+multimer only knows about waits inside itself. At a MicroPython board's own
+REPL, in an asyncio or browser loop, or in a program's own loop that calls
+`pump()`, it can't tell idle from busy, so the pause applies.
 
 ## `schedule()`
 

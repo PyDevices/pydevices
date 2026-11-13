@@ -54,7 +54,11 @@ def _win32_wait(fd):
 def _hook():
     from . import _dispatch
 
+    # Until a key comes the prompt wants nothing, so a timer that overruns
+    # its period may run back to back; the key is looked for between rounds.
+    mark = _dispatch._idle_mark()
     try:
+        _dispatch._idle_waits += mark
         while True:
             wait = _dispatch.deliver()
             if wait is None:
@@ -63,6 +67,9 @@ def _hook():
                 return 0
     except Exception:
         return 0
+    finally:
+        _dispatch._idle_waits -= mark
+        _dispatch._hand_back(mark)
 
 
 def install():

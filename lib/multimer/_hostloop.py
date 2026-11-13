@@ -344,11 +344,19 @@ def _run_loop():
     from . import _dispatch
 
     interrupted = _cp_break_watch()
-    while _dispatch.alive():
-        wait = _dispatch.next_delay_ms()
-        _dispatch.sleep_ms(50 if wait is None else min(wait, 50))
-        if interrupted is not None and interrupted():
-            break
+    # The script body has ended, so nothing of the program's own wants the
+    # thread: a timer that overruns its period may run back to back.
+    mark = _dispatch._idle_mark()
+    try:
+        _dispatch._idle_waits += mark
+        while _dispatch.alive():
+            wait = _dispatch.next_delay_ms()
+            _dispatch.sleep_ms(50 if wait is None else min(wait, 50))
+            if interrupted is not None and interrupted():
+                break
+    finally:
+        _dispatch._idle_waits -= mark
+        _dispatch._hand_back(mark)
 
 
 def _note(msg):
