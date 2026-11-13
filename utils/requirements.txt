@@ -1,4 +1,5 @@
 # What pydevices-desktop needs from PyPI for the modules in utils/. The
 # release adds each line to its dependencies.
 zeroconf>=0.132  # mdns.py
-Pillow>=9  # jpegio.py and pngio.py, over Pillow on CPython
+Pillow>=9  # jpegio.py, pngio.py and svgio.py, over Pillow on CPython
+resvg-py>=0.5  # svgio.py draws with resvg
