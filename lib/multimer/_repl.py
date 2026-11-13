@@ -94,10 +94,7 @@ def repl(namespace=None, prompt=">>> ", tick_ms=10):
     buf = ""
     block = []
     while True:
-        _dispatch.sleep_ms(tick_ms)
-        data = read()
-        if not data:
-            continue
+        data = _next_input(read, tick_ms)
         if "\x04" in data:
             sys.stdout.write("\n")
             return
@@ -122,6 +119,23 @@ def repl(namespace=None, prompt=">>> ", tick_ms=10):
                 return
             _run(src, namespace)
             sys.stdout.write(prompt)
+
+
+def _next_input(read, tick_ms):
+    """Wait for stdin text, delivering timers. Until it comes the main thread
+    wants nothing, so a timer that overruns its period may run back to back;
+    the line it brings runs as the program's own code."""
+    mark = _dispatch._idle_mark()
+    try:
+        _dispatch._idle_waits += mark
+        while True:
+            _dispatch.sleep_ms(tick_ms)
+            data = read()
+            if data:
+                return data
+    finally:
+        _dispatch._idle_waits -= mark
+        _dispatch._hand_back(mark)
 
 
 def _run(src, namespace):

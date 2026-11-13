@@ -18,11 +18,21 @@ Rules the dispatcher keeps for every timer:
   asks again shortly;
 * a timer that is still running when its slot comes is not re-entered; the
   slot is skipped and counted in ``missed``;
-* after a callback runs longer than its period, its next slot is no sooner
-  than ``min(overrun, yield_cap)`` later, so a slow pass lowers its rate
-  instead of taking the thread (lvgl-bindings#15 and #19, for every timer);
+* a delivery is one round: every due timer fires at most once in it, earliest
+  deadline first, so one that is due again the moment it returns waits until
+  the others, and whoever called, have had their turn;
+* a callback that runs longer than its period runs again in the next round
+  while the main thread waits inside multimer (a ``sleep_ms`` with more of
+  it left than the pause below, ``run_until``, the exit-hook loop, the
+  REPL's input); anywhere else the
+  program's own code may want the thread, so the next pass starts
+  ``min(took, yield_cap)`` after this one ended, and a slow pass lowers its
+  rate instead of taking the thread (lvgl-bindings#15 and #19, for every
+  timer); a wait that returns to the program's code gives it that pause
+  first;
 * deadlines are absolute (``due += period``), so delivery latency never
-  drifts into the schedule;
+  drifts into the schedule; only a pass longer than its period moves the
+  grid, to where that pass ended;
 * a raising callback is printed once and keeps its schedule;
 * a KeyboardInterrupt or SystemExit from a callback propagates, but the wake
   source is armed again first, so Ctrl-C at the REPL never stops the timers;
@@ -60,6 +70,21 @@ _exit_raised = False
 # How many sleep_ms() calls are under way; a callback the wake source delivers
 # during one has its KeyboardInterrupt or SystemExit raised as that returns.
 _sleeping = [0]
+# Whether the main thread is waiting inside multimer, where the program's own
+# code cannot want it back. _idle_waits counts the waits that return only on
+# something they check between deliveries (run_until's predicate, the
+# exit-hook loop, the REPL's input); _idle_until is when the main thread's
+# sleep_ms() returns. A timer that overruns its period runs back to back only
+# while they say the thread is free (Timer._next_slot), and a wait that ends
+# hands the skipped pause back (_hand_back). A wait adds to the count inside
+# its try and takes away first thing in its finally, so an exception that
+# lands between the two leaves the count low, which only holds off more.
+_idle_waits = 0
+_idle_until = None
+# The current delivery round; a timer remembers the last round it fired in.
+# Masked to stay a small int on MicroPython.
+_round = [0]
+_ROUND_MASK = 0x3FFFFFFF
 # Whether the kept exception has been printed, and when it was kept.
 _said = [False]
 _stashed_at = [0]
@@ -229,15 +254,21 @@ def deliver():
                 _stats["max_gap_ms"] = gap
         _stats["last_ms"] = now
         _stats["deliveries"] += 1
-        # Bounded: a callback that arms a zero-period timer must not spin here.
+        rnd = (_round[0] + 1) & _ROUND_MASK
+        _round[0] = rnd
+        # One round: a timer that is due again the moment it returns (a pass
+        # longer than its period, a reschedule(0)) waits for the next delivery,
+        # so the other due timers and the caller's own check come first.
+        # Bounded as well, for callbacks that keep arming new timers.
         for _ in range(64):
             due = None
             for t in _timers:
-                if not t._running and ticks_diff(t._due, now) <= 0:
+                if not t._running and t._round != rnd and ticks_diff(t._due, now) <= 0:
                     if due is None or ticks_diff(t._due, due._due) < 0:
                         due = t
             if due is None:
                 break
+            due._round = rnd
             due._fire(now)
             now = ticks_ms()
             _run_scheduled()
@@ -282,7 +313,12 @@ def _arm_next():
     if delay is None:
         src.cancel()
     else:
-        src.arm(delay)
+        # At least 1 ms, though a timer is due now (one round ended and it
+        # had fired in it): CPython runs a signal handler at the next bytecode,
+        # inside this very arm(), so 0 would start each round inside the last
+        # one until the stack ran out. A wait that delivers itself doesn't
+        # wait for the source anyway.
+        src.arm(delay if delay > 0 else 1)
     return delay
 
 
@@ -348,8 +384,9 @@ class Timer:
     ONE_SHOT = ONE_SHOT
     PERIODIC = PERIODIC
 
-    # The most a slow callback holds its own next slot back (ms). 0 keeps the
-    # absolute grid only.
+    # The most a callback that overran its period holds its next pass back
+    # (ms) while the program's own code may want the thread. 0 runs it back
+    # to back even then, and leaves that code almost nothing.
     yield_cap = 100
 
     def __init__(self, id=-1, **kwargs):
@@ -363,6 +400,9 @@ class Timer:
         self._armed = False
         self._running = False
         self._rescheduled = False
+        self._round = -1
+        # The pause skipped to run back to back while the main thread waited.
+        self._owed = 0
         self.fired = 0
         self.missed = 0
         self.late_max = 0
@@ -414,6 +454,7 @@ class Timer:
         self._callback = callback
         self._hard = bool(hard)
         self._due = ticks_add(ticks_ms(), period_ms)
+        self._owed = 0
         _arm(self)
 
     def deinit(self):
@@ -439,6 +480,7 @@ class Timer:
             ms = 0
         self._due = ticks_add(ticks_ms(), ms)
         self._rescheduled = True
+        self._owed = 0
         if not self._armed:
             _arm(self)
         else:
@@ -515,6 +557,7 @@ class Timer:
         end = ticks_ms()
         self.fired += 1
         self.last = end
+        self._owed = 0
         if not self._armed:
             # deinit() from inside the callback, or a ONE_SHOT already retired.
             return
@@ -525,18 +568,30 @@ class Timer:
             self._disarm()
             return
         period = self._period
-        nxt = ticks_add(self._due, period)
+        due = self._due
+        nxt = ticks_add(due, period)
         if ticks_diff(nxt, end) <= 0:
-            # Overran into the next slot. Never burst to catch up: step the
-            # grid past now, and after a pass longer than a period hold off
-            # for as long as the pass took, capped.
-            while ticks_diff(nxt, end) <= 0:
-                nxt = ticks_add(nxt, period)
-                self.missed += 1
             took = ticks_diff(end, t0)
-            if took > period and self.yield_cap > 0:
-                earliest = ticks_add(end, min(took, self.yield_cap))
-                while ticks_diff(nxt, earliest) < 0:
+            if took > period:
+                # The callback is slower than its period, so its grid is
+                # gone. Run again in the next round if the main thread is
+                # waiting in multimer for as long as a hold-off would last;
+                # otherwise the program's own code may want it, so hold off
+                # for as long as the pass took, capped (lvgl-bindings#15).
+                cap = self.yield_cap
+                rest = took if took < cap else cap
+                if rest <= 0:
+                    rest = 0
+                elif _main_idle_through(ticks_add(end, rest)):
+                    # Owed back if the wait ends before the next pass does.
+                    self._owed = rest
+                    rest = 0
+                nxt = ticks_add(end, rest)
+                self.missed += (ticks_diff(nxt, due) - 1) // period
+            else:
+                # Started late behind another callback: never burst to
+                # catch up, step the grid past now.
+                while ticks_diff(nxt, end) <= 0:
                     nxt = ticks_add(nxt, period)
                     self.missed += 1
         self._due = nxt
@@ -594,17 +649,62 @@ class _Hold:
         return False
 
 
+def _main_idle_through(t):
+    """True while the main thread waits inside multimer and cannot be handed
+    back to the program's own code before *t* (a `ticks_ms` value)."""
+    if _idle_waits > 0:
+        return True
+    u = _idle_until
+    return u is not None and _sleeping[0] > 0 and ticks_diff(u, t) >= 0
+
+
+def _idle_mark():
+    """What a wait adds to ``_idle_waits``: 1 for the main thread's own wait,
+    0 for one inside a callback (which cannot deliver) or on another thread
+    (the main thread may be busy meanwhile)."""
+    return 0 if _in_deliver or not _on_main_thread() else 1
+
+
+def _hand_back(mark):
+    """A wait that marked the main thread idle is returning to the program's
+    own code: a timer that skipped its pause to run back to back takes it now,
+    from the end of its last pass, so that code has the thread first."""
+    if not mark or _idle_waits > 0:
+        return
+    moved = False
+    for t in _timers:
+        owed = t._owed
+        if owed:
+            t._owed = 0
+            due = ticks_add(t.last, owed)
+            if ticks_diff(due, t._due) > 0:
+                t._due = due
+                t.missed += owed // t._period
+                moved = True
+    if moved:
+        _arm_next()
+
+
 def sleep_ms(ms):
     """Sleep for *ms*, delivering timers that come due on the way.
 
     Works on every host: a wake source that interrupts sleeps delivers
     during them, and a host without one is served between the slices this
-    loop sleeps in.
+    loop sleeps in. A timer whose callback outlasts its period runs back to
+    back during the sleep while more of it is left than the pause the timer
+    would take after a pass (see `Timer.yield_cap`).
     """
+    global _idle_until
     end = ticks_add(ticks_ms(), max(0, int(ms)))
+    # The main thread's own sleep; one inside a callback delivers nothing.
+    own = not _in_deliver and _on_main_thread()
     _sleeping[0] += 1
     try:
         while True:
+            if own:
+                # Every pass, so a value an interrupted finally left behind
+                # never outlives the next sleep.
+                _idle_until = end
             _raise_stashed()
             wait = deliver()
             _raise_stashed()
@@ -616,6 +716,8 @@ def sleep_ms(ms):
                 _host_sleep_ms(chunk)
     finally:
         _sleeping[0] -= 1
+        if own:
+            _idle_until = None
 
 
 def _host_sleep_ms(ms):
@@ -637,9 +739,23 @@ def pump():
 
 
 def run_until(pred, tick_ms=10):
-    """Block, delivering, until ``pred()`` is true."""
-    while not pred():
-        sleep_ms(tick_ms)
+    """Block, delivering, until ``pred()`` is true.
+
+    ``pred`` is checked between deliveries, and a delivery runs each timer
+    at most once, so a timer whose callback outlasts its period runs back to
+    back meanwhile without keeping ``pred`` from being checked. When ``pred``
+    comes true, that timer takes the pause it skipped (see `Timer.yield_cap`),
+    so the code after ``run_until`` has the thread first.
+    """
+    global _idle_waits
+    mark = _idle_mark()
+    try:
+        _idle_waits += mark
+        while not pred():
+            sleep_ms(tick_ms)
+    finally:
+        _idle_waits -= mark
+        _hand_back(mark)
     _raise_stashed()
 
 

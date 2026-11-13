@@ -77,12 +77,9 @@ at the next idle point (`sleep_ms`, `pump()`, the REPL waiting for a key, an
 
 A callback never interrupts another callback. A callback that is still
 running when its next slot comes is not re-entered; the slot is skipped and
-counted in `missed`. After a callback runs longer than its period, its next
-slot is no sooner than `min(overrun, yield_cap)` later (100 ms by default,
-per timer), so a slow pass lowers that timer's rate instead of taking the
-thread. Deadlines are absolute, so delivery latency never drifts the
-schedule. A callback that raises is printed once and keeps its schedule;
-the exception is on `tim.error`. A `KeyboardInterrupt` (Ctrl-C) or
+counted in `missed`. Deadlines are absolute, so delivery latency never
+drifts the schedule. A callback that raises is printed once and keeps its
+schedule; the exception is on `tim.error`. A `KeyboardInterrupt` (Ctrl-C) or
 `SystemExit` raised in a callback is not caught: it reaches your code or the
 REPL, and the timers keep running. Where the callback ran inside the
 interpreter's scheduler (MicroPython) or a C callback, which can't pass an
@@ -90,6 +87,18 @@ exception on, multimer raises it at the main thread's next idle point
 instead: `sleep_ms`, `pump`, `run_until`, or the loop that keeps a script
 running after its last line. So `sys.exit()` from a timer ends the program
 the same way on every host.
+
+A callback that takes longer than its period runs again as soon as it
+returns while your program waits in multimer: in `sleep_ms`, in `run_until`,
+at CPython's prompt or in `multimer.repl()` waiting for input, or in the loop
+that keeps a script running after its last line. While your own code runs,
+the timer pauses after each pass for as long as the pass took, up to
+`yield_cap` (100 ms by default, per timer), so a slow pass lowers its rate
+instead of taking the thread from your code. At a MicroPython board's own
+prompt multimer can't tell a waiting REPL from a running command, so the
+pause applies there; to run a slow timer back to back on a board, end the
+program in `run_until` or a `sleep_ms` loop. [How the overrun rule
+works](../how-it-works/multimer-internals.md#the-overrun-rule).
 
 On a board whose REPL is its native USB port (TinyUSB CDC, as on the ESP32-S3
 and ESP32-P4), Ctrl-C can't cut a long callback short: the port reads the

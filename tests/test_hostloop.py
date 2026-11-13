@@ -10,7 +10,7 @@ import unittest
 import _env  # noqa: F401
 
 import multimer
-from multimer import _dispatch, _hostloop
+from multimer import _dispatch, _hostloop, ticks_diff, ticks_ms
 
 
 class TestHostloop(unittest.TestCase):
@@ -60,6 +60,27 @@ class TestHostloop(unittest.TestCase):
         self.assertEqual(4, len(count))
         self.assertEqual(1, len(stopped))
         self.assertFalse(multimer.alive())
+
+    def test_exit_hook_loop_runs_an_overrunning_timer_back_to_back(self):
+        # The script body has ended, so nothing of the program's own wants
+        # the thread: a 33 ms timer's 40 ms passes follow each other.
+        starts = []
+
+        def pass_(t):
+            starts.append(ticks_ms())
+            t0 = ticks_ms()
+            while ticks_diff(ticks_ms(), t0) < 40:
+                pass
+            if len(starts) >= 6:
+                t.deinit()
+
+        multimer.keepalive()
+        multimer.every(33, pass_)
+        self._force(_hostloop.EXIT_HOOK)
+        _hostloop._exit_hook()
+        gaps = sorted(ticks_diff(b, a) for a, b in zip(starts, starts[1:]))
+        self.assertEqual(6, len(starts))
+        self.assertLessEqual(gaps[len(gaps) // 2], 45, gaps)
 
     def test_claim_suppresses_the_hook_loop(self):
         count = []
