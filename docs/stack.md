@@ -86,6 +86,10 @@ and Android.
   Get it: firmware build. Runs on: MP.
 - [`pngio for CPython`](https://github.com/PyDevices/pydevices/blob/main/utils/pngio.py): Use the `pngio` API on a desktop, over Pillow.\
   Get it: `pip pydevices-desktop`. Runs on: Desktop.
+- [`svgio`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/svgio): Draw an SVG at any size into RGB565 with alpha, for pygraphics or LVGL's `lv.image`.\
+  Get it: firmware build. Runs on: MP.
+- [`svgio for CPython`](https://github.com/PyDevices/pydevices/blob/main/utils/svgio.py): Use the `svgio` API on a desktop, over resvg-py and Pillow.\
+  Get it: `pip pydevices-desktop`. Runs on: Desktop.
 - [`ppa`](https://github.com/PyDevices/micropython-pydevices/tree/main/modules/ppa): Scale, rotate, mirror, crop, convert, fill and blend pictures in memory, in hardware on an ESP32-P4.\
   Get it: firmware build. Runs on: MP.
 - [`frame_recorder`](https://github.com/PyDevices/pydevices/blob/main/utils/frame_recorder.py): Record a desktop display to video.\
@@ -426,7 +430,7 @@ and Android.
 - **O:** [`Object detection`](#run-a-finished-app), [`omip`](#set-up-a-board), [`OmniPython firmware`](#set-up-a-board), [`orientation`](#write-an-app), [`Ostinato`](#run-a-finished-app)
 - **P:** [`palettes`](#draw-on-a-screen), [`pdwidgets`](#draw-on-a-screen), [`picotts`](#make-and-shape-sound), [`pngio`](#draw-on-a-screen), [`pngio for CPython`](#draw-on-a-screen), [`Power`](#drive-a-chip), [`ppa`](#draw-on-a-screen), [`programkit`](#libraries-the-apps-use), [`pydevices-desktop`](#run-somewhere-other-than-a-board), [`PyDevices.github.io`](#find-the-projects-own-sites), [`pygraphics`](#draw-on-a-screen), [`pyscript-template`](#run-somewhere-other-than-a-board), [`pyscript.py`](#run-somewhere-other-than-a-board)
 - **R:** [`Radios`](#drive-a-chip), [`Real-time clocks`](#drive-a-chip), [`Roku remote`](#run-a-finished-app)
-- **S:** [`sayso`](#libraries-the-apps-use), [`Security camera`](#run-a-finished-app), [`songmodel`](#play-and-sequence-music), [`Sound card`](#run-a-finished-app), [`soundmodule`](#play-and-sequence-music), [`spectrum`](#draw-on-a-screen), [`Spotify`](#run-a-finished-app), [`Stompbox`](#run-a-finished-app), [`Storage`](#drive-a-chip), [`Surveillance camera`](#run-a-finished-app), [`Synth Station`](#run-a-finished-app), [`synthio`](#make-and-shape-sound), [`System`](#run-a-finished-app)
+- **S:** [`sayso`](#libraries-the-apps-use), [`Security camera`](#run-a-finished-app), [`songmodel`](#play-and-sequence-music), [`Sound card`](#run-a-finished-app), [`soundmodule`](#play-and-sequence-music), [`spectrum`](#draw-on-a-screen), [`Spotify`](#run-a-finished-app), [`Stompbox`](#run-a-finished-app), [`Storage`](#drive-a-chip), [`Surveillance camera`](#run-a-finished-app), [`svgio`](#draw-on-a-screen), [`svgio for CPython`](#draw-on-a-screen), [`Synth Station`](#run-a-finished-app), [`synthio`](#make-and-shape-sound), [`System`](#run-a-finished-app)
 - **T:** [`tflite`](#use-cameras-video-and-ai-on-a-board), [`Touch drivers`](#drive-a-chip), [`touchkit`](#libraries-the-apps-use), [`tsmux`](#use-cameras-video-and-ai-on-a-board)
 - **U:** [`ulab`](#use-cameras-video-and-ai-on-a-board), [`usb-core`](#use-usb), [`usb-device-audio`](#use-usb), [`usb-device-msc`](#use-usb), [`usb-device-net`](#use-usb), [`usb-device-video`](#use-usb), [`usb-hid`](#use-usb), [`usb-host-audio`](#use-usb), [`usb-host-cdc`](#use-usb), [`usb-host-dfu`](#use-usb), [`usb-host-hid`](#use-usb), [`usb-host-msc`](#use-usb), [`usb-host-mtp`](#use-usb), [`usb-host-net`](#use-usb), [`usb-host-video`](#use-usb), [`usbhost`](#use-usb), [`usdl2`](#run-somewhere-other-than-a-board), [`uwin32`](#run-somewhere-other-than-a-board)
 - **V:** [`Vamp`](#run-a-finished-app), [`Video doorbell`](#run-a-finished-app), [`Videophone`](#run-a-finished-app), [`vision`](#use-cameras-video-and-ai-on-a-board)
