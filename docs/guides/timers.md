@@ -95,10 +95,14 @@ that keeps a script running after its last line. While your own code runs,
 the timer pauses after each pass for as long as the pass took, up to
 `yield_cap` (100 ms by default, per timer), so a slow pass lowers its rate
 instead of taking the thread from your code. At a MicroPython board's own
-prompt multimer can't tell a waiting REPL from a running command, so the
-pause applies there; to run a slow timer back to back on a board, end the
-program in `run_until` or a `sleep_ms` loop. [How the overrun rule
-works](../how-it-works/multimer-internals.md#the-overrun-rule).
+prompt it runs back to back too once the REPL has waited half a second with
+no input, on firmware that has `micropython.repl_idle_ms()`
+([OmniPython firmware](https://github.com/PyDevices/micropython-pydevices)
+for ESP32 boards); a command, a paste or a WebREPL file transfer
+gets the pause while it runs. Other firmware can't tell a waiting REPL from a
+running command, so the pause applies at its prompt; to run a slow timer back
+to back there, end the program in `run_until` or a `sleep_ms` loop. [How the
+overrun rule works](../how-it-works/multimer-internals.md#the-overrun-rule).
 
 On a board whose REPL is its native USB port (TinyUSB CDC, as on the ESP32-S3
 and ESP32-P4), Ctrl-C can't cut a long callback short: the port reads the

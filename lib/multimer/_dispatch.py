@@ -24,12 +24,14 @@ Rules the dispatcher keeps for every timer:
 * a callback that runs longer than its period runs again in the next round
   while the main thread waits inside multimer (a ``sleep_ms`` with more of
   it left than the pause below, ``run_until``, the exit-hook loop, the
-  REPL's input); anywhere else the
+  REPL's input), or at a board's own REPL that has waited for a command,
+  with no input, for ``_REPL_QUIET_MS`` (firmware with
+  ``micropython.repl_idle_ms``); anywhere else the
   program's own code may want the thread, so the next pass starts
   ``min(took, yield_cap)`` after this one ended, and a slow pass lowers its
   rate instead of taking the thread (lvgl-bindings#15 and #19, for every
   timer); a wait that returns to the program's code gives it that pause
-  first;
+  first, and so does a board's REPL that gets input before the next pass;
 * deadlines are absolute (``due += period``), so delivery latency never
   drifts into the schedule; only a pass longer than its period moves the
   grid, to where that pass ended;
@@ -81,6 +83,17 @@ _sleeping = [0]
 # lands between the two leaves the count low, which only holds off more.
 _idle_waits = 0
 _idle_until = None
+# A board's own REPL is outside multimer, but firmware that has
+# micropython.repl_idle_ms() says how long it has waited for a new command:
+# -1 while one runs (or the REPL isn't what runs), else the ms since the
+# prompt came back or input last arrived, a file transfer's included. The
+# REPL counts as idle once that reaches _REPL_QUIET_MS, longer than the
+# gaps inside a tool's burst of commands, so the burst keeps the pause.
+try:
+    from micropython import repl_idle_ms as _repl_idle_ms
+except ImportError:
+    _repl_idle_ms = None
+_REPL_QUIET_MS = 500
 # The current delivery round; a timer remembers the last round it fired in.
 # Masked to stay a small int on MicroPython.
 _round = [0]
@@ -269,6 +282,12 @@ def deliver():
             if due is None:
                 break
             due._round = rnd
+            if due._owed and not _main_idle_through(now):
+                # It skipped its pause while the main thread was idle, and
+                # the thread no longer is (a board's REPL got input, a sleep
+                # ended): what has the thread now gets the pause first.
+                if _take_owed(due) and ticks_diff(due._due, now) > 0:
+                    continue
             due._fire(now)
             now = ticks_ms()
             _run_scheduled()
@@ -651,11 +670,15 @@ class _Hold:
 
 def _main_idle_through(t):
     """True while the main thread waits inside multimer and cannot be handed
-    back to the program's own code before *t* (a `ticks_ms` value)."""
+    back to the program's own code before *t* (a `ticks_ms` value), or waits
+    at a board's REPL that has been quiet for `_REPL_QUIET_MS`."""
     if _idle_waits > 0:
         return True
     u = _idle_until
-    return u is not None and _sleeping[0] > 0 and ticks_diff(u, t) >= 0
+    if u is not None and _sleeping[0] > 0 and ticks_diff(u, t) >= 0:
+        return True
+    f = _repl_idle_ms
+    return f is not None and f() >= _REPL_QUIET_MS
 
 
 def _idle_mark():
@@ -673,16 +696,23 @@ def _hand_back(mark):
         return
     moved = False
     for t in _timers:
-        owed = t._owed
-        if owed:
-            t._owed = 0
-            due = ticks_add(t.last, owed)
-            if ticks_diff(due, t._due) > 0:
-                t._due = due
-                t.missed += owed // t._period
-                moved = True
+        if t._owed and _take_owed(t):
+            moved = True
     if moved:
         _arm_next()
+
+
+def _take_owed(t):
+    """The pause *t* skipped, from the end of its last pass; True if that
+    moved its deadline."""
+    owed = t._owed
+    t._owed = 0
+    due = ticks_add(t.last, owed)
+    if ticks_diff(due, t._due) > 0:
+        t._due = due
+        t.missed += owed // t._period
+        return True
+    return False
 
 
 def sleep_ms(ms):
