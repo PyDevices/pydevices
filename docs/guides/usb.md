@@ -315,10 +315,13 @@ up to three seconds for a device, and take an `audiodev.AudioFormat` to
 choose the stream (the device's best offer if you leave it out). Volume and
 gain are in software. They need audiodev, which PyDevices firmware carries.
 
-`audio_out()` keeps 300 ms of sound queued, because nothing is rendered while
-the interpreter collects garbage, and on a board with an 8 MB PSRAM heap a
-collection takes 260 to 300 ms. A note plays that much after it's struck. Pass
-a smaller `lookahead_ms` on a board whose collections are short.
+`audio_out()` keeps 80 ms of sound queued, so a note sounds soon after it's
+struck. Nothing is rendered while the interpreter collects garbage, though,
+and on a board with an 8 MB PSRAM heap a collection takes 260 to 300 ms, so
+the speaker goes quiet through each one. If your program draws a busy screen
+or makes a lot of garbage, and a moment's delay doesn't matter, as with music
+behind an animation, ask for `audio_out(latency="buffered")`: it keeps 300 ms
+queued, which carries the speaker through a collection.
 
 If you feed a hosted speaker from the interpreter while it also draws or
 talks to the network, open it with `Speaker(dev, ring_ms=2000)` and write

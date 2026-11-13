@@ -481,6 +481,11 @@ class TestAudiodev(unittest.TestCase):
 
             host.reset(_uac2_blob())
             out = audio.audio_out(dev=device())
+            host.reset(_uac2_blob())
+            buffered = audio.audio_out(dev=device(), latency="buffered")
+            host.reset(_uac2_blob())
+            with self.assertRaises(ValueError):
+                audio.audio_out(dev=device(), latency="lo")
         finally:
             if saved is None:
                 del sys.modules["audiocore"]
@@ -490,10 +495,12 @@ class TestAudiodev(unittest.TestCase):
         self.assertEqual(out.format.rate, 48000)
         self.assertFalse(out._want_pump)
         self.assertEqual(out.transport.speaker.dev.idVendor, 0x08BB)
-        # It queues past a collection, and its ring holds that and the catch-up.
-        self.assertGreaterEqual(out.chunk_ms * out._lookahead_chunks, 300)
-        self.assertGreaterEqual(out.transport.speaker._ring_bytes,
-                                out.format.rate * 4 * 600 // 1000)
+        # The default keeps 80 ms queued, for an instrument.
+        self.assertEqual(out.chunk_ms * out._lookahead_chunks, 80)
+        # "buffered" queues past a collection, and its ring holds that and the catch-up.
+        self.assertGreaterEqual(buffered.chunk_ms * buffered._lookahead_chunks, 300)
+        self.assertGreaterEqual(buffered.transport.speaker._ring_bytes,
+                                buffered.format.rate * 4 * 600 // 1000)
 
 
 class TestCamera(unittest.TestCase):
