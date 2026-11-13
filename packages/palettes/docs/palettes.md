@@ -1,6 +1,6 @@
 # Palette families
 
-The four palette families `get_palette` builds, with what each takes and what it holds. [Choose a palette](guides/choose-a-palette.md) says which to use.
+The five palette families `get_palette` builds, with what each takes and what it holds. [Choose a palette](guides/choose-a-palette.md) says which to use.
 
 | Family | Class | Key | Primary Use Case |
 |:---|:---|:---|:---|
@@ -8,6 +8,7 @@ The four palette families `get_palette` builds, with what each takes and what it
 | **Material Design** | `MDPalette` | `"material_design"` | Modern UI widget theming, semantic status colors, contrast shades |
 | **Color Cube** | `CubePalette` | `"cube"` | Quantized 8, 27, 64, or 125 color spaces for dithering and Retro UIs |
 | **Windows-16** | `Palette` | `"default"` | Standard named 16-color ANSI/Windows retro palette |
+| **ANSI** | `AnsiPalette` | `"ansi"` | Terminal colors, numbered as ANSI escape codes number them |
 
 ## Color Wheel (`"wheel"`)
 
@@ -95,3 +96,26 @@ white  = win16.WHITE    # 0xFFFF
 win16[0]              # integer indexing works too -> 0x0000
 win16.color_name(0)   # "Black"
 ```
+
+## ANSI (`"ansi"`)
+
+`AnsiPalette` holds the colors a terminal names with escape codes, in the order the codes number them: `ESC[31m` is index 1, red, and `ESC[38;5;208m` is index 208. Indices 0 to 15 are black, red, green, yellow, blue, magenta, cyan and white, then the bright eight. The 256-color palette adds the 6x6x6 color cube (16 to 231) and 24 greys (232 to 255). The values are xterm's defaults.
+
+```python
+from palettes import get_palette
+
+ansi = get_palette("ansi", color_depth=24)
+
+ansi.RED                  # 0xcd0000, the same as ansi[1]
+ansi.BRIGHT_RED           # 0xff0000, ansi[9]
+hex(ansi[208])            # '0xff8700'
+ansi.nearest(0xFF8700)    # 208: the closest index to any RGB color
+```
+
+`nearest(r, g, b)` (or one `0xRRGGBB` integer, or a tuple) fits a 24-bit color into one palette index, which is what a terminal does with `ESC[38;2;r;g;bm`.
+
+### Parameters
+* `length` (int): `16` for the ANSI colors alone, or `256` (default).
+* `cached` (bool): Memoize each computed color (default `True`).
+* `color_depth` (int): Bit depth, as for the other families.
+* `swapped` (bool): If `True`, swap bytes in 16-bit RGB565.

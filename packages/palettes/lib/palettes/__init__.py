@@ -59,7 +59,7 @@ def get_palette(name="default", **kwargs):
 
     Args:
         name (str): Palette type. One of ``"default"`` (Windows 16-color),
-            ``"wheel"``, ``"cube"``, or ``"material_design"``. Unknown names
+            ``"wheel"``, ``"cube"``, ``"material_design"`` or ``"ansi"``. Unknown names
             fall back to `Palette <palettes.Palette>`.
         **kwargs (Any): Forwarded to the palette constructor (for example
             ``color_depth``, ``length``, ``size``, ``saturation``, and
@@ -78,6 +78,8 @@ def get_palette(name="default", **kwargs):
         from .material_design import MDPalette as MyPalette
     elif name == "cube":
         from .cube import CubePalette as MyPalette
+    elif name == "ansi":
+        from .ansi import AnsiPalette as MyPalette
     else:
         MyPalette = Palette
     return MyPalette(name, **kwargs)
