@@ -254,6 +254,9 @@ Related examples: [`scroll_touch_test.py`](https://pydevices.github.io/gallery/p
 
 BusDisplay uses CircuitPython-style rotation degrees (`0`, `90`, `180`, `270`).
 
+Rotating swaps `width` and `height`, so read them after you set the rotation.
+On the desktop, `PYDEVICES_ROTATION` sets it from outside the program.
+
 Known issues: Unix SDL rotation clears the screen; scrolling while rotated has edge cases on desktop and MCU — track work on [GitHub Issues](https://github.com/PyDevices/pydevices-examples/issues).
 
 ## Write your own backend
