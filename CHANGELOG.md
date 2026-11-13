@@ -1,3 +1,9 @@
+## v0.8.0.dev13 (2026-11-13)
+
+- svgio for CPython: SVG decode over resvg-py and Pillow, the same API as the firmware module (#548)
+- multimer: the first timer on CPython no longer imports asyncio (#547)
+- multimer: a slow timer runs back to back while the program waits (#546)
+
 ## v0.8.0.dev12 (2026-11-13)
 
 - Library: pygraphics v0.1.4, with the row-copy FrameBuffer.blit (#543)
