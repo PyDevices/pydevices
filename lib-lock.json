@@ -47,7 +47,7 @@
     },
     "applibs": {
       "repository": "PyDevices/apps",
-      "ref": "v0.1.2.dev1",
+      "ref": "v0.1.2.dev2",
       "description": "The libraries apps share; installs each of them",
       "packages": {
         "appkit": "Apps you can switch between, and a launcher to run them",
