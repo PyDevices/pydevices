@@ -39,7 +39,7 @@ Audio and microphone use require the host page's Enable Audio/Microphone
 control. Backends raise a clear permission error until the relevant control
 has been used.
 
-### Audio in the browser
+## Audio in the browser
 
 A browser blocks sound until the person has used the page. Until then
 `play()` raises `RuntimeError("audio output is disabled; use the host Enable
