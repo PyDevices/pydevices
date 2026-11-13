@@ -490,6 +490,10 @@ class TestAudiodev(unittest.TestCase):
         self.assertEqual(out.format.rate, 48000)
         self.assertFalse(out._want_pump)
         self.assertEqual(out.transport.speaker.dev.idVendor, 0x08BB)
+        # It queues past a collection, and its ring holds that and the catch-up.
+        self.assertGreaterEqual(out.chunk_ms * out._lookahead_chunks, 300)
+        self.assertGreaterEqual(out.transport.speaker._ring_bytes,
+                                out.format.rate * 4 * 600 // 1000)
 
 
 class TestCamera(unittest.TestCase):
