@@ -1,3 +1,8 @@
+## v0.8.0.dev16 (2026-11-14)
+
+- castdisplay: cast an app to a TV, a laptop or VLC; installs with mip (#574)
+- Stack page: vtterm, deskkit and programkit install with mip (#575)
+
 ## v0.8.0.dev15 (2026-11-14)
 
 - Library index: applibs 0.1.2.dev3 with deskkit and programkit; each requires what it imports (#572)
