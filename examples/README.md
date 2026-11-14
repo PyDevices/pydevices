@@ -42,6 +42,7 @@ Each one says in its docstring what it needs and where it has been run.
 | [usb_device_video_simpletest.py](usb_device_video_simpletest.py) | Being a USB webcam that shows a moving grey ramp |
 | [usb_hid_absolute_pointer.py](usb_hid_absolute_pointer.py) | Moving your computer's pointer to the corners of the screen and around a circle |
 | [usb_hid_gamepad.py](usb_hid_gamepad.py) | Being a USB gamepad that works through its buttons, hat and axes |
+| [vtterm_simpletest.py](vtterm_simpletest.py) | The board's REPL on its display, in color |
 | [wifi_ap_simpletest.py](wifi_ap_simpletest.py) | A Wi-Fi network of the board's own, with a page for visitors |
 | [wifi_simpletest.py](wifi_simpletest.py) | The networks in range, then joining yours |
 | [wifi_station_simpletest.py](wifi_station_simpletest.py) | Joining a board's own network and reading its page |

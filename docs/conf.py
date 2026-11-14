@@ -13,10 +13,12 @@ from pydevices_docs import configure
 globals().update(configure(
     "pydevices", __file__,
     repo="PyDevices/pydevices", edit_path="docs",
-    source_dirs=["../lib", "../utils"],
-    api_packages=["displaydev", "audiodev", "appdev", "multimer", "bledev"],
+    source_dirs=["../lib", "../utils", "../packages/vtterm"],
+    api_packages=["displaydev", "audiodev", "appdev", "multimer", "bledev", "vtterm"],
     mock_imports=["bleak", "_bleio", "bluetooth", "IPython", "pygame", "js",
-                  "pyodide", "_wasm_bridge", "uwin32", "aioble", "PIL", "lvgl"],
+                  "pyodide", "_wasm_bridge", "uwin32", "aioble", "PIL", "lvgl",
+                  # vtterm draws with pygraphics and colors from palettes.
+                  "pygraphics", "palettes", "usb"],
     # windisplay builds window styles from uwin32 constants at import time,
     # which a mock cannot stand in for.
     api_skip=["windisplay"],

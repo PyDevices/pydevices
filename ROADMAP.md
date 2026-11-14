@@ -73,5 +73,19 @@ with each kind of peripheral described honestly by its role.
   plays up to its last fragment instead of needing a repair tool.
 - 64-bit chunk offsets, for recordings past 4 GB in one file.
 
+## vtterm
+
+- Scrollback: page back through what scrolled off the top, within a memory
+  budget you set, so a long traceback stays readable on a small panel.
+- An alternate screen, so full-screen programs (an editor, a pager) leave the
+  prompt as it was when they exit.
+- The DEC line-drawing characters, so boxes and tables drawn by remote
+  programs show as lines rather than letters.
+- Mouse and touch reporting: a touch on the display reaches the program as a
+  mouse click, for programs that ask for one.
+- CircuitPython's own console on the display. CircuitPython has no
+  `os.dupterm`, so vtterm shows a session with another device there, not the
+  board's own REPL.
+
 Bugs, and things you need that don't work yet, go to
 [issues](https://github.com/PyDevices/pydevices/issues).

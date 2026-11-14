@@ -24,6 +24,7 @@ on:
       # left the TOML stale, and the fix could not trigger its own test.
       - 'pydevices-desktop.toml'
       - 'tests/**'
+      - 'packages/vtterm/**'
       # The interpreters' pins and recipe, which tests/test_release_interpreters.py runs.
       - 'scripts/release_interpreters.sh'
       - 'scripts/release_interpreters/**'
@@ -50,6 +51,7 @@ on:
       # left the TOML stale, and the fix could not trigger its own test.
       - 'pydevices-desktop.toml'
       - 'tests/**'
+      - 'packages/vtterm/**'
       # The interpreters' pins and recipe, which tests/test_release_interpreters.py runs.
       - 'scripts/release_interpreters.sh'
       - 'scripts/release_interpreters/**'
@@ -71,8 +73,8 @@ jobs:
       - name: Install SDL runtime
         run: sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0
 
-      - name: Install zeroconf, for mdns.py's network test, and resvg-py and Pillow for svgio.py
-        run: python -m pip install zeroconf resvg-py pillow
+      - name: Install zeroconf, for mdns.py's network test, resvg-py and Pillow for svgio.py, and pygraphics and pyte for vtterm
+        run: python -m pip install zeroconf resvg-py pillow pydevices-pygraphics pyte
 
       - name: Run stdlib unittest suite
         env:
