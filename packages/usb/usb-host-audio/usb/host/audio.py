@@ -51,6 +51,7 @@ _SAM_FREQ = 0x0100          # SAMPLING_FREQ_CONTROL << 8, both versions
 _CTRL_MS = 3000
 _MAX_SUBRANGES = 8
 _DEFAULT_RING = 8192        # about 43 ms of 48 kHz stereo
+_E2BIG = 7                  # the host refused an endpoint too big for its FIFO
 
 
 def _clock_ranges(dev, control, clock):
@@ -163,6 +164,10 @@ class _Stream:
         try:
             self.dev.set_interface_altsetting(s.interface, s.alt)
         except OSError as e:
+            if e.errno == _E2BIG:
+                raise OSError(_E2BIG, "endpoint 0x%02x declares %d-byte packets, more than this board's "
+                              "USB host can buffer (its sizes are printed above)"
+                              % (s.endpoint, s.max_packet & 0x7FF))
             raise OSError("the interface claim was refused (%s); for a speaker, start the host with "
                           "usb.core.start(classes=(\"uac\",))" % e)
         self._set_rate()
