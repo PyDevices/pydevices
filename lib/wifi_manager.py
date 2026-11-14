@@ -9,7 +9,8 @@ Call it once near the top of ``main.py``, before the app touches the network::
     import wifi_manager
     ip = wifi_manager.connect()
 
-``connect()`` scans and joins the strongest network it already knows.  It
+``connect()`` joins the strongest network it already knows, scanning first
+when it knows more than one.  It
 knows the network in ``secrets.py`` (``WIFI_SSID`` / ``WIFI_PASSWORD``), the
 one in CircuitPython's ``settings.toml`` (``CIRCUITPY_WIFI_SSID`` /
 ``CIRCUITPY_WIFI_PASSWORD``), and every network it has joined before.  Every
@@ -391,11 +392,15 @@ def _join_known(radio, timeout):
     if not known:
         print("wifi_manager: no networks known yet")
         return None
-    try:
-        seen = radio.scan()
-    except Exception as exc:
-        print("wifi_manager: scan failed:", exc)
-        seen = None
+    seen = None
+    if len(known) > 1:
+        # A scan only chooses among networks, and it holds the interpreter for
+        # seconds, so one known network is joined without it.  A join finds a
+        # hidden network or a missed one either way.
+        try:
+            seen = radio.scan()
+        except Exception as exc:
+            print("wifi_manager: scan failed:", exc)
     if seen is None:
         order = known
     else:

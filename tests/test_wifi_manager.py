@@ -27,10 +27,12 @@ class FakeRadio:
         self.seen = seen
         self.script = {k: list(v) for k, v in (script or {}).items()}
         self.joins = []
+        self.scans = 0
         self.address = None
         self.ap = None
 
     def scan(self):
+        self.scans += 1
         if self.seen is None:
             raise OSError("scan failed")
         return dict(self.seen)
@@ -191,6 +193,27 @@ class JoinKnownTest(_Patched):
         radio = FakeRadio(seen=None, script={"b": [None]})
         self.assertEqual(wm._join_known(radio, 5), "10.0.0.5")
         self.assertEqual(radio.joins, ["a", "b"])
+
+    def test_one_known_network_is_joined_without_a_scan(self):
+        self.known = [_net("home")]
+        radio = FakeRadio(seen={"home": -50}, script={"home": [None]})
+        self.assertEqual(wm._join_known(radio, 5), "10.0.0.5")
+        self.assertEqual(radio.scans, 0)
+        self.assertEqual(radio.joins, ["home"])
+
+    def test_one_known_network_out_of_range_is_tried_twice_without_a_scan(self):
+        self.known = [_net("home")]
+        radio = FakeRadio(seen={})
+        self.assertIsNone(wm._join_known(radio, 5))
+        self.assertEqual(radio.scans, 0)
+        self.assertEqual(radio.joins, ["home", "home"])
+
+    def test_several_known_networks_are_scanned_for(self):
+        self.known = [_net("a"), _net("b")]
+        radio = FakeRadio(seen={"b": -50}, script={"b": [None]})
+        self.assertEqual(wm._join_known(radio, 5), "10.0.0.5")
+        self.assertEqual(radio.scans, 1)
+        self.assertEqual(radio.joins, ["b"])
 
     def test_nothing_known_tries_nothing(self):
         radio = FakeRadio(seen={"home": -50})
