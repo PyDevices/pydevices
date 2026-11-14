@@ -276,8 +276,11 @@ def _module_names(paths):
     return [n for n in names if not any(n.startswith(other + ".") for other in names)]
 
 
-def _is_frozen(name):
-    """Whether module name is frozen into this firmware. Imports it from there alone, then forgets it."""
+def _in_firmware(name):
+    """Whether module name is "frozen" into this firmware, "built-in", or not there (None).
+
+    Imports it from the firmware alone, then forgets it.
+    """
     before = dict(sys.modules)
     # A copy already imported, or a parent package, may have come from the filesystem.
     for key in before:
@@ -290,17 +293,17 @@ def _is_frozen(name):
         for part in name.split(".")[1:]:
             module = getattr(module, part)
         # A built-in module has no file; only what was frozen from Python source does.
-        return hasattr(module, "__file__")
+        return "frozen" if hasattr(module, "__file__") else "built-in"
     except ImportError as exc:
         message = str(exc)
         if "named " not in message:
             # A firmware with terse or translated messages: say not frozen, and install as before.
-            return False
+            return None
         missing = message.rpartition("named ")[2].strip("'\"")
         # Not found itself means not frozen; anything else it imports failing means it was found.
-        return not (missing == name or name.startswith(missing + "."))
+        return None if missing == name or name.startswith(missing + ".") else "frozen"
     except Exception:
-        return True
+        return "frozen"
     finally:
         sys.path[:] = path
         for key in list(sys.modules):
@@ -346,9 +349,11 @@ def _skip_frozen(plan, spec, paths):
     names = _module_names(paths)
     if not names or not _frozen_wins(plan):
         return False
-    for name in names:
-        if not _is_frozen(name):
-            return False
+    found = [_in_firmware(name) for name in names]
+    # A module the firmware has built in counts when the rest is frozen: CircuitPython's own
+    # wifi, say, beside a frozen library. Built in alone doesn't, as a package may extend one.
+    if None in found or "frozen" not in found:
+        return False
     print("Skipping %s: it's frozen into this firmware, and that copy runs ahead of one in %s." % (spec, plan.target))
     print(_how_to_replace())
     return True

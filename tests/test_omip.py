@@ -97,6 +97,9 @@ def build_indexes(scratch):
     write_package(upstream, "asyncio", {"asyncio/__init__.py": "COPY = True\n", "asyncio/core.py": "COPY = True\n"})
     write_package(ours, "async-user", {"async_user.py": "import asyncio\n"}, upstream=[["asyncio", "latest"]])
     write_package(ours, "frozen-core", {"asyncio/__init__.py": "COPY = True\n"})
+    # micropython is built into every unix MicroPython: beside a frozen module it counts, alone it doesn't.
+    write_package(ours, "frozen-and-built-in", {"asyncio/__init__.py": "COPY = True\n", "micropython.py": "COPY = True\n"})
+    write_package(ours, "built-in-only", {"micropython.py": "COPY = True\n"})
     write_package(ours, "on-frozen", {"on_frozen.py": "F = True\n"}, deps=[["frozen-core", "latest"], ["gt911", "latest"]])
     # An app that needs a frozen package twice over: once itself, once through another of its needs.
     write_package(
@@ -688,6 +691,18 @@ class MicroPythonRun(Indexes):
         self.assertIn("Nothing to install: the firmware has frozen-core frozen in", out)
         self.assertIn("RESULT True", out)
         self.assertEqual(self.landed(), [])
+
+    def test_a_module_built_in_beside_frozen_ones_counts_as_frozen_in(self):
+        # As CircuitPython's own wifi beside a frozen library that has a wifi.py.
+        out = self.frozen("frozen-and-built-in")
+        self.assertIn("Nothing to install: the firmware has frozen-and-built-in frozen in", out)
+        self.assertEqual(self.landed(), [])
+
+    def test_a_package_of_built_in_modules_alone_still_installs(self):
+        # A package may extend a built-in module, as micropython-lib's time does.
+        out = self.frozen("built-in-only")
+        self.assertNotIn("Skipping", out)
+        self.assertEqual(self.landed(), ["micropython.py"])
 
     def test_force_installs_it_anyway(self):
         out = self.frozen("on-frozen", extra=", force=True")
