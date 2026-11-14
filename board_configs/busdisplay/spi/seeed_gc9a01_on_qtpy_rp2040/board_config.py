@@ -32,7 +32,10 @@ display_drv = GC9A01(
     colstart=0,
     rowstart=0,
     rotation=0,
-    mirrored=False,
+    # The default table's rotation 0 sets MADCTL MX, which draws this panel
+    # mirrored left to right against its touch controller; mirrored=True
+    # clears it, so display and touch agree with no touch rotation.
+    mirrored=True,
     color_depth=16,
     bgr=True,
     reverse_bytes_in_word=True,
@@ -47,9 +50,7 @@ display_drv = GC9A01(
 )
 i2c = I2C(0, sda=Pin(24), scl=Pin(25), freq=100_000)
 touch = CHSC6X(i2c, irq_pin=5)
-# The CHSC6X reads x mirrored on this display: a tap at the right edge reads
-# x = 1. Each entry reverses x before rotating.
-touch_rotation_table = (2, 1, 4, 7)
+touch_rotation_table = (0, 5, 6, 3)
 
 
 def touch_read():
