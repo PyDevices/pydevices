@@ -1,3 +1,10 @@
+## v0.8.1 (2026-11-14)
+
+- Index: touchkit requires deskkit (#582)
+- usb_host_audio_main: start the app when no sound card is plugged in (#578)
+- Stack: Camera for the ESP32-P4, installed with omip (#579)
+- omip: a frozen package stays out of /lib when two needs share it (#577)
+
 ## v0.8.0.dev16 (2026-11-14)
 
 - castdisplay: cast an app to a TV, a laptop or VLC; installs with mip (#574)
