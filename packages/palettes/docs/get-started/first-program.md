@@ -29,9 +29,10 @@ Amber 500 is 0xFFC107
 
 What each part does:
 
-- `get_palette(name=...)` picks one of four palette families and returns an
+- `get_palette(name=...)` picks one of five palette families and returns an
   object you index. `"wheel"` is a hue ramp, `"default"` the sixteen Windows
-  colors, `"cube"` an RGB cube and `"material_design"` the Material swatches.
+  colors, `"cube"` an RGB cube, `"material_design"` the Material swatches and
+  `"ansi"` a terminal's colors.
   [Palette families](../palettes.md) has each one's arguments.
 - `color_depth` says what indexing returns: `16` is RGB565 for most small
   displays, `24` is `0xRRGGBB`. [Color formats](../color-formats.md) lists all

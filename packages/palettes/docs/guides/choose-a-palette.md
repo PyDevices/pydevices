@@ -1,6 +1,6 @@
 # Choose a palette
 
-`get_palette(name)` returns one of four families. Pick by what you are
+`get_palette(name)` returns one of five families. Pick by what you are
 coloring, then pass that family's arguments.
 
 | You are coloring | Use | Call |
@@ -9,6 +9,7 @@ coloring, then pass that family's arguments.
 | Widgets, status colors, themes | Material Design | `get_palette("material_design")` |
 | A small fixed set for dithering or a picker | the cube | `get_palette("cube", size=4)` |
 | Named colors such as `RED` and `NAVY` | the Windows 16 | `get_palette("default")` |
+| Text from a terminal, by ANSI color number | ANSI | `get_palette("ansi")` |
 
 An unknown name returns the Windows 16, so check the spelling when a palette
 has sixteen colors and you expected more.
