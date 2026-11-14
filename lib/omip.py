@@ -229,6 +229,7 @@ class _Plan:
         self.force = force
         self.url_base = url_base
         self.seen = []
+        self.frozen = []  # specs skipped as frozen
         # [spec, index, version, pruned, folder]: one mip.install each on
         # MicroPython, unless something under it was skipped as frozen
         # (pruned) or it names its own folder; folder is None for the target.
@@ -321,6 +322,10 @@ def _walk(plan, spec, version, indexes, owner=None):
     owner is the root whose mip.install brings spec along; with none, spec is a root.
     """
     if spec in plan.seen:
+        if owner is not None and spec in plan.frozen:
+            # Skipped as frozen under another root: mip.install would bring it
+            # with this one, so this root's files are fetched one by one too.
+            owner[3] = True
         return None
     plan.seen.append(spec)
     entry = [spec, indexes[0], version, False, None]
@@ -333,6 +338,7 @@ def _walk(plan, spec, version, indexes, owner=None):
         if spec.endswith(".py") or spec.endswith(".mpy"):
             name = spec.rsplit("/", 1)[-1]
             if _skip_frozen(plan, spec, [name]):
+                plan.frozen.append(spec)
                 owner[3] = True
             else:
                 plan.files.append((name, url, None, owner))
@@ -367,6 +373,7 @@ def _walk(plan, spec, version, indexes, owner=None):
         entry[4] = _beside(plan.target, folder)
     elif _skip_frozen(plan, spec, [path for path, _ in hashes] + [path for path, _ in urls]):
         # mip.install would bring it anyway, so its root's files are fetched one by one.
+        plan.frozen.append(spec)
         owner[3] = True
         hashes = urls = ()
     for path, short in hashes:
