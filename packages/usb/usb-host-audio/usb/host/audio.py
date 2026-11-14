@@ -52,6 +52,18 @@ _CTRL_MS = 3000
 _MAX_SUBRANGES = 8
 _DEFAULT_RING = 8192        # about 43 ms of 48 kHz stereo
 _E2BIG = 7                  # the host refused an endpoint too big for its FIFO
+# What the host answers for a stream whose device has gone: ENOENT once the
+# stream is torn down, ENODEV while it is going.
+_GONE = (2, 19)
+
+
+def _gone(e, what):
+    # Name an unplugged device in the error, keeping its errno; anything
+    # else goes up as it came.
+    code = e.errno if getattr(e, "errno", None) is not None else (e.args[0] if e.args else None)
+    if code in _GONE:
+        raise OSError(code, "the USB %s was disconnected" % what) from e
+    raise e
 
 
 def _clock_ranges(dev, control, clock):
@@ -230,11 +242,18 @@ class Speaker(_Stream):
     def write(self, buf):
         """Queue PCM; returns the bytes taken, whole frames, maybe fewer
         than given when the ring is full."""
-        return _usbhost.host_stream_write(self._id, self.stream.endpoint, buf)
+        try:
+            return _usbhost.host_stream_write(self._id, self.stream.endpoint, buf)
+        except OSError as e:
+            _gone(e, "speaker")
 
     def space(self):
-        """Bytes a write can take right now."""
-        return _usbhost.host_stream_space(self._id, self.stream.endpoint)
+        """Bytes a write can take right now. Both raise ``OSError``, with
+        the host's errno, once the speaker is unplugged."""
+        try:
+            return _usbhost.host_stream_space(self._id, self.stream.endpoint)
+        except OSError as e:
+            _gone(e, "speaker")
 
     def queued(self):
         """Bytes written and not yet sent."""
