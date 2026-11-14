@@ -32,9 +32,13 @@ See the canonical commands and verification steps in
 mark one tested, see [CONTRIBUTING.md](https://github.com/PyDevices/pydevices/blob/main/CONTRIBUTING.md).
 
 CircuitPython configs live under [`board_configs/cp/`](https://github.com/PyDevices/pydevices/tree/main/board_configs/cp) with the same bus layout and
-directory names as MicroPython (no `cp_` prefix, no package / MIP; a
-`board_peripherals.py` is optional and only a few configs have one). MicroPython configs stay at the top level of
-`board_configs/` (not under an `mp/` folder).
+directory names as MicroPython (no `cp_` prefix; a `board_peripherals.py` is
+optional and only a few configs have one). They have no `manifest.py`, but each
+folder has a `package.json`, written from what its files import, so one
+`omip.install("github:PyDevices/pydevices/board_configs/cp/<folder>")` brings
+the config, the drivers it uses and the Adafruit libraries it imports.
+MicroPython configs stay at the top level of `board_configs/` (not under an
+`mp/` folder).
 
 ## The CircuitPython console
 

@@ -1,0 +1,20 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/seeed_gc9a01_on_qtpy_esp32s3/board_config.py"
+    ],
+    [
+      "chsc6x.py",
+      "github:PyDevices/pydevices/drivers/touch/chsc6x.py"
+    ],
+    [
+      "gc9a01.py",
+      "github:PyDevices/pydevices/drivers/display/gc9a01.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "Seeed GC9A01 round display on QT Py ESP32-S3 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

@@ -1,0 +1,21 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/i80/ili9341_i80_rp2040/board_config.py"
+    ],
+    [
+      "ili9341.py",
+      "github:PyDevices/pydevices/drivers/display/ili9341.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [
+    [
+      "adafruit_focaltouch",
+      "latest"
+    ]
+  ],
+  "description": "Pico + ILI9341 I80 shield — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

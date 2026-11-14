@@ -41,6 +41,8 @@ INDEX = "https://lib.omnipython.org"
 # folder of .mpy files for each CircuitPython major version.
 ADAFRUIT = "https://lib.omnipython.org/adafruit"
 UPSTREAM = "https://micropython.org/pi/v2"
+# Seconds a connection may stay silent before a download gives up.
+TIMEOUT = 30
 
 _MP = sys.implementation.name == "micropython"
 _CP = sys.implementation.name == "circuitpython"
@@ -69,15 +71,22 @@ if _MP:
             import requests
         except ImportError:
             raise OSError("This firmware has no network libraries: install from a computer with mcuctl")
-        response = requests.get(url)
+        response = requests.get(url, timeout=TIMEOUT)
         try:
             if response.status_code == 200:
+                left = -1  # -1: read until the server closes
+                for key, value in (getattr(response, "headers", None) or {}).items():
+                    if key.lower() == "content-length":
+                        left = int(value)
                 # In pieces, so an index larger than the free heap can still be searched.
-                while True:
+                while left:
                     chunk = response.raw.read(512)
                     if not chunk:
                         break
                     write(chunk)
+                    left -= len(chunk)
+                if left > 0:
+                    raise OSError("connection closed with %d bytes to come" % left)
             return response.status_code
         finally:
             response.close()
@@ -111,7 +120,7 @@ elif _CP:
         port = int(port) if port else (443 if scheme == "https" else 80)
         sock = _pool.socket(_pool.AF_INET, _pool.SOCK_STREAM)
         try:
-            sock.settimeout(30)
+            sock.settimeout(TIMEOUT)
             if scheme == "https":
                 sock = ssl.create_default_context().wrap_socket(sock, server_hostname=host)
             sock.connect((host, port))
@@ -179,7 +188,7 @@ else:
 
         try:
             # Some hosts refuse urllib's own user agent.
-            with urlopen(Request(url, headers={"User-Agent": "omip"}), timeout=30) as response:
+            with urlopen(Request(url, headers={"User-Agent": "omip"}), timeout=TIMEOUT) as response:
                 while True:
                     chunk = response.read(4096)
                     if not chunk:
@@ -194,6 +203,9 @@ def _request(url, write):
     try:
         return _get(url, write)
     except OSError as exc:
+        # ETIMEDOUT is 110 on Linux and 116 in lwIP; CPython says "timed out".
+        if (exc.args and exc.args[0] in (110, 116)) or "timed out" in str(exc):
+            raise OSError("Couldn't get %s: nothing came for %d seconds" % (url, TIMEOUT))
         raise OSError("Couldn't get %s: %s" % (url, exc))
 
 
@@ -221,7 +233,7 @@ def _rewrite_url(url, version):
 
 
 class _Plan:
-    """What a walk found: which installs to ask for, and every file they should land."""
+    """What a walk found: every file to fetch, and the package each one is for."""
 
     def __init__(self, channel, target, force, url_base=None):
         self.channel = channel
@@ -229,16 +241,14 @@ class _Plan:
         self.force = force
         self.url_base = url_base
         self.seen = []
-        self.frozen = []  # specs skipped as frozen
-        # [spec, index, version, pruned, folder]: one mip.install each on
-        # MicroPython, unless something under it was skipped as frozen
-        # (pruned) or it names its own folder; folder is None for the target.
+        # [spec, index, version, folder]: the package asked for, and each one
+        # that names its own folder; folder is None for the target.
         self.roots = []
         self.files = []  # (target path, index or URL, short hash or None, root)
 
     def folder(self, root):
         """The folder root's files land in."""
-        return root[4] or self.target
+        return root[3] or self.target
 
 
 def _beside(target, folder):
@@ -296,12 +306,32 @@ def _is_frozen(name):
         sys.modules.update(before)
 
 
+def _ahead_of_frozen(folder):
+    """Whether a module in folder would be imported ahead of a frozen one."""
+    if ".frozen" not in sys.path:
+        return True
+    names = [folder]
+    if folder == "/":
+        # The board's root is on the path as "", the folder it starts in.
+        try:
+            if os.getcwd() == "/":
+                names.append("")
+        except (AttributeError, OSError):
+            pass
+    frozen = sys.path.index(".frozen")
+    return any(name in sys.path and sys.path.index(name) < frozen for name in names)
+
+
 def _frozen_wins(plan):
     """Whether a frozen module would run ahead of a copy in the target folder."""
-    if plan.force or ".frozen" not in sys.path:
-        return False
-    target = plan.target if plan.target in sys.path else None
-    return target is None or sys.path.index(".frozen") < sys.path.index(target)
+    return not plan.force and not _ahead_of_frozen(plan.target)
+
+
+def _how_to_replace():
+    """What to do to run a newer copy of a frozen module, said as advice."""
+    if _ahead_of_frozen("/"):
+        return 'To run a newer copy, install it again with target="/": the root comes ahead of the frozen one'
+    return "To run a newer copy, rebuild the firmware with it"
 
 
 def _skip_frozen(plan, spec, paths):
@@ -312,23 +342,20 @@ def _skip_frozen(plan, spec, paths):
     for name in names:
         if not _is_frozen(name):
             return False
-    print("Skipping %s: it's frozen into this firmware, and that copy is the one that runs" % spec)
+    print("Skipping %s: it's frozen into this firmware, and that copy runs ahead of one in %s." % (spec, plan.target))
+    print(_how_to_replace())
     return True
 
 
 def _walk(plan, spec, version, indexes, owner=None):
     """Read spec's JSON and everything it needs into plan. Returns the index it was found on.
 
-    owner is the root whose mip.install brings spec along; with none, spec is a root.
+    owner is the root whose folder spec's files land in; with none, spec is a root.
     """
     if spec in plan.seen:
-        if owner is not None and spec in plan.frozen:
-            # Skipped as frozen under another root: mip.install would bring it
-            # with this one, so this root's files are fetched one by one too.
-            owner[3] = True
         return None
     plan.seen.append(spec)
-    entry = [spec, indexes[0], version, False, None]
+    entry = [spec, indexes[0], version, None]
     if owner is None:
         owner = entry
         plan.roots.append(entry)
@@ -337,10 +364,7 @@ def _walk(plan, spec, version, indexes, owner=None):
         url = _rewrite_url(spec, version)
         if spec.endswith(".py") or spec.endswith(".mpy"):
             name = spec.rsplit("/", 1)[-1]
-            if _skip_frozen(plan, spec, [name]):
-                plan.frozen.append(spec)
-                owner[3] = True
-            else:
+            if not _skip_frozen(plan, spec, [name]):
                 plan.files.append((name, url, None, owner))
             return indexes[0]
         if not spec.endswith(".json"):
@@ -363,18 +387,12 @@ def _walk(plan, spec, version, indexes, owner=None):
     urls = body.get("urls", ())
     folder = body.get("target")
     if folder:
-        # Its own folder: its files are fetched one by one into it, since
-        # mip.install would put what it needs there too, and each thing it
-        # needs is a root of its own, bound for the library folder.
+        # Its own folder: what it needs is a root of its own, bound for the library folder.
         if entry is not owner:
             plan.roots.append(entry)
             owner = entry
-        entry[3] = True
-        entry[4] = _beside(plan.target, folder)
+        entry[3] = _beside(plan.target, folder)
     elif _skip_frozen(plan, spec, [path for path, _ in hashes] + [path for path, _ in urls]):
-        # mip.install would bring it anyway, so its root's files are fetched one by one.
-        plan.frozen.append(spec)
-        owner[3] = True
         hashes = urls = ()
     for path, short in hashes:
         plan.files.append((path, entry[1], short, owner))
@@ -437,8 +455,30 @@ def _matches(path, short):
         return False
 
 
+def _remove(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def _replace(part, dest):
+    """Put part in dest's place, over any file already there."""
+    try:
+        os.rename(part, dest)
+    except OSError:
+        # Some filesystems won't rename over a file that exists.
+        os.remove(dest)
+        os.rename(part, dest)
+
+
 def _fetch(path, source, short, target):
-    """Download one file into target, unless it is already there."""
+    """Download one file into target, unless it is already there.
+
+    It lands under a temporary name and takes the real one only once it's
+    whole, so a failed download leaves no empty or partial file behind, and a
+    file it was replacing stays as it was.
+    """
     dest = _in(target, path)
     if short and _matches(dest, short):
         print("Exists:", dest)
@@ -446,16 +486,17 @@ def _fetch(path, source, short, target):
     url = source if short is None else "%s/file/%s/%s" % (source, short[:2], short)
     print("Copying:", dest)
     _ensure_parent(dest)
+    part = dest + ".part"
     try:
-        with open(dest, "wb") as f:
+        with open(part, "wb") as f:
             status = _request(url, f.write)
-    except OSError:
-        # A partial file would pass for the real one where there's no hash to check.
-        os.remove(dest)
+        if status != 200:
+            raise OSError("HTTP %d from %s" % (status, url))
+        _replace(part, dest)
+    except BaseException:
+        # KeyboardInterrupt too: a Ctrl-C mid-download leaves nothing behind.
+        _remove(part)
         raise
-    if status != 200:
-        os.remove(dest)
-        raise OSError("HTTP %d from %s" % (status, url))
 
 
 def _default_target():
@@ -720,27 +761,13 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
     _walk(plan, package, version, indexes)
     gc.collect()
     for root in plan.roots:
-        if root[4]:
-            _check_writable(root[4])
+        if root[3]:
+            _check_writable(root[3])
 
-    if _MP:
-        # Public mip, once per root: it fetches hashed files from the index it
-        # is given, and brings each root's own deps from there.
-        try:
-            import mip
-        except ImportError:
-            raise OSError("This firmware has no mip: install from a computer with mcuctl")
-        for root in plan.roots:
-            # mip has no url_base, so with one, every file is fetched here.
-            if root[3] or plan.url_base:
-                for path, source, short, owner in plan.files:
-                    if owner is root:
-                        _fetch(path, source, short, plan.folder(root))
-            else:
-                mip.install(root[0], index=root[1], target=target, version=root[2], mpy=mpy)
-    else:
-        for path, source, short, owner in plan.files:
-            _fetch(path, source, short, plan.folder(owner))
+    # Every file is fetched here rather than by mip.install, which has no
+    # timeout and leaves an empty file behind when it fails.
+    for path, source, short, owner in plan.files:
+        _fetch(path, source, short, plan.folder(owner))
 
     missing = []
     for path, _, _, owner in plan.files:
@@ -753,5 +780,5 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
     if plan.files:
         print("Installed %s in %s" % (package, plan.folder(plan.roots[0])))
     else:
-        print("Nothing to install: the firmware has %s frozen in" % package)
+        print("Nothing to install: the firmware has %s frozen in. %s" % (package, _how_to_replace()))
     return True

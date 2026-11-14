@@ -1,0 +1,16 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/i80/bpi-centi-s3/board_config.py"
+    ],
+    [
+      "st7789.py",
+      "github:PyDevices/pydevices/drivers/display/st7789.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "BPI Centi-S3 170x320 ST7789 I80 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

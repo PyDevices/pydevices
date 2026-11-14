@@ -1,0 +1,16 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/pico-lcd-1.8/board_config.py"
+    ],
+    [
+      "st7735r_1.py",
+      "github:PyDevices/pydevices/drivers/display/st7735r_1.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "Waveshare Pico-LCD-1.8 128x160 ST7735R — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

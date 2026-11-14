@@ -1,0 +1,53 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/t-watch-s3/board_config.py"
+    ],
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/t-watch-s3/board_peripherals.py"
+    ],
+    [
+      "axp2101.py",
+      "github:PyDevices/pydevices/drivers/power/axp2101.py"
+    ],
+    [
+      "bma423.py",
+      "github:PyDevices/pydevices/drivers/imu/bma423.py"
+    ],
+    [
+      "bma423_config.py",
+      "github:PyDevices/pydevices/drivers/imu/bma423_config.py"
+    ],
+    [
+      "drv2605.py",
+      "github:PyDevices/pydevices/drivers/haptic/drv2605.py"
+    ],
+    [
+      "ft6x36.py",
+      "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
+    ],
+    [
+      "keypad_gpio.py",
+      "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
+    ],
+    [
+      "pcf8563.py",
+      "github:PyDevices/pydevices/drivers/rtc/pcf8563.py"
+    ],
+    [
+      "st7789.py",
+      "github:PyDevices/pydevices/drivers/display/st7789.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "LILYGO T-Watch S3: ST7789 240x240 SPI, FT6336 touch, AXP2101 power (CircuitPython)",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

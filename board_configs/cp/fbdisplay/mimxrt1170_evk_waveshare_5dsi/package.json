@@ -1,0 +1,21 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/mimxrt1170_evk_waveshare_5dsi/board_config.py"
+    ],
+    [
+      "gt911.py",
+      "github:PyDevices/pydevices/drivers/touch/gt911.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "NXP MIMXRT1170-EVK + Waveshare 50H-800480-IPS DSI (800x480) on J84 - CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

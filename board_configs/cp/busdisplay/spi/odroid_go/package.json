@@ -1,0 +1,29 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/odroid_go/board_config.py"
+    ],
+    [
+      "gpiojoystick.py",
+      "github:PyDevices/pydevices/drivers/joystick/gpiojoystick.py"
+    ],
+    [
+      "ili9341.py",
+      "github:PyDevices/pydevices/drivers/display/ili9341.py"
+    ],
+    [
+      "keypad_gpio.py",
+      "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "ODROID-GO ILI9341 2.4\" — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

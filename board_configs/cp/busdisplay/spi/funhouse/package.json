@@ -1,0 +1,25 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/funhouse/board_config.py"
+    ],
+    [
+      "keypad_gpio.py",
+      "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
+    ],
+    [
+      "st7789.py",
+      "github:PyDevices/pydevices/drivers/display/st7789.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "Adafruit FunHouse ST7789 + three buttons — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

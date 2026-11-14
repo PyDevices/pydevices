@@ -1,0 +1,17 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/rgb_matrix_featherwing_teensy41_64x32/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "Adafruit RGB Matrix FeatherWing 64x32 - CircuitPython (Teensy 4.1)",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

@@ -177,6 +177,35 @@ def serve(directory):
     return server, "http://127.0.0.1:%d" % server.server_address[1]
 
 
+class _Stall(http.server.BaseHTTPRequestHandler):
+    """Sends the start of a file, then nothing, as a download that stalls."""
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Length", "1000")
+        self.end_headers()
+        self.wfile.write(b"PART = 1\n")
+        self.wfile.flush()
+        self.server.release.wait(10)
+
+    def log_message(self, *args):
+        pass
+
+
+def serve_stall(test):
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Stall)
+    server.release = threading.Event()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    def stop():
+        server.release.set()
+        server.shutdown()
+        server.server_close()
+
+    test.addCleanup(stop)
+    return "http://127.0.0.1:%d/stalled.py" % server.server_address[1]
+
+
 class Indexes(unittest.TestCase):
     def setUp(self):
         self.scratch = Path(tempfile.mkdtemp(prefix="omip-test-"))
@@ -257,6 +286,28 @@ class CPythonInstall(Indexes):
     def test_upstream_on_a_dep_is_found_too(self):
         self.install("wrapper")
         self.assertIn("aioble/core.py", self.landed())
+
+    def test_a_stalled_download_times_out_and_keeps_the_old_file(self):
+        self.target.mkdir()
+        (self.target / "stalled.py").write_text("OLD = 1\n")
+        self.omip.TIMEOUT = 1
+        with self.assertRaisesRegex(OSError, "nothing came for 1 seconds"):
+            self.install(serve_stall(self))
+        self.assertEqual(self.landed(), ["stalled.py"])
+        self.assertEqual((self.target / "stalled.py").read_text(), "OLD = 1\n")
+
+    def test_a_missing_file_leaves_nothing_behind(self):
+        with self.assertRaisesRegex(OSError, "HTTP 404"):
+            self.install(self.ours_url + "/repo/not-there.py")
+        self.assertEqual(self.landed(), [])
+
+    def test_a_failed_update_keeps_the_file_it_was_replacing(self):
+        self.target.mkdir()
+        (self.target / "not-there.py").write_text("OLD = 1\n")
+        with self.assertRaises(OSError):
+            self.install(self.ours_url + "/repo/not-there.py")
+        self.assertEqual(self.landed(), ["not-there.py"])
+        self.assertEqual((self.target / "not-there.py").read_text(), "OLD = 1\n")
 
     def test_deps_stay_on_the_index_and_upstream_goes_upstream(self):
         self.install("board", index=self.ours_url)
@@ -444,6 +495,18 @@ import asyncio
 print("ASYNCIO", getattr(asyncio, "COPY", "frozen"))
 """
 
+# The board's root as the folder it started in: os itself can't be patched on MicroPython.
+MP_AT_ROOT = """
+sys.path.insert(0, "")
+class AtRoot:
+    def __getattr__(self, name):
+        return getattr(omip_os, name)
+    def getcwd(self):
+        return "/"
+omip_os = omip.os
+omip.os = AtRoot()
+"""
+
 MP_STOCK = """
 import mip
 mip.install({package!r}, index={index!r}, target={target!r})
@@ -541,15 +604,28 @@ class MicroPythonRun(Indexes):
         self.assertEqual(landed, ["app/__init__.py", "app/app.json"])
         self.assertEqual(self.landed(), ["aioble/__init__.py", "aioble/core.py", "bledev/__init__.py", "gt911.py"])
 
-    def test_the_root_folder_stays_the_root_for_mip(self):
-        # mip reads an empty target as its default, /lib: "/" has to reach it as "/".
+    def test_the_root_folder_stays_the_root(self):
+        # An empty target would read as the default, /lib: "/" has to stay "/".
         out = self.run_mp(
-            "import omip, mip\nomip._check_writable = lambda folder: None\n"
-            "mip.install = lambda *args, **kw: print('MIP', kw['target'])\n"
+            "import omip\nomip._check_writable = lambda folder: None\n"
+            "omip._fetch = lambda path, source, short, target: print('FETCH', target, path)\n"
             "try:\n    omip.install(%r, target='/', prompt=False)\nexcept OSError as exc:\n    print('NOT THERE', exc)\n"
             % (self.ours_url + "/repo/single.py")
         )
-        self.assertIn("MIP /\n", out)
+        self.assertIn("FETCH / single.py\n", out)
+
+    def test_a_stalled_download_times_out_on_micropython(self):
+        self.target.mkdir()
+        (self.target / "stalled.py").write_text("OLD = 1\n")
+        out = self.run_mp(
+            "import omip\nomip.TIMEOUT = 1\n"
+            "try:\n    omip.install(%r, target=%r, prompt=False)\nexcept OSError as exc:\n    print('FAILED', exc)\n"
+            % (serve_stall(self), str(self.target))
+        )
+        self.assertIn("FAILED Couldn't get", out)
+        self.assertIn("nothing came for 1 seconds", out)
+        self.assertEqual(self.landed(), ["stalled.py"])
+        self.assertEqual((self.target / "stalled.py").read_text(), "OLD = 1\n")
 
     def test_search_reads_both_indexes(self):
         out = self.run_mp(MP_SEARCH.format(ours=self.ours_url, upstream=self.upstream_url, words=("BLUETOOTH",)))
@@ -584,6 +660,13 @@ class MicroPythonRun(Indexes):
         self.assertIn("ASYNCIO frozen", out)
         self.assertEqual(self.landed(), ["async_user.py"])
         self.assertNotIn("/package/%s/asyncio/latest.json" % MPY_CHANNEL, self.ours.requests)
+
+    def test_a_frozen_package_says_how_to_run_a_newer_copy(self):
+        # The board's root, on the path as "" ahead of .frozen, takes a newer copy.
+        out = self.frozen("frozen-core", before=MP_AT_ROOT)
+        self.assertIn('install it again with target="/"', out)
+        out = self.frozen("frozen-core")
+        self.assertIn("rebuild the firmware with it", out)
 
     def test_a_frozen_dep_is_skipped_and_the_rest_of_its_root_still_lands(self):
         out = self.frozen("on-frozen")

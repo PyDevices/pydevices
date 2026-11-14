@@ -1297,6 +1297,12 @@ UPSTREAM_GITHUB = {
 }
 #: Packages an installer names in "deps" (from mip's index), not by file.
 INSTALLER_DEPS = frozenset({"pydevices", "pydevices-desktop", "pygraphics"})
+#: Driver modules that stand in on MicroPython for a CircuitPython core module,
+#: so a CircuitPython config's installer leaves them out.
+CIRCUITPYTHON_CORE_SHIMS = frozenset({"digitalio"})
+#: Libraries from Adafruit's bundle that a CircuitPython config may import
+#: without the adafruit_ prefix.
+ADAFRUIT_UNPREFIXED = frozenset({"neopixel"})
 
 
 def _board_requires(manifest_path: Path) -> tuple[list[str], list[str]]:
@@ -1378,6 +1384,85 @@ def render_installers(root: Path) -> dict[Path, str]:
             "generated": "by tools/libbuild.py installers",
         }
         out[desktop / "package.json"] = json.dumps(body, indent=2, ensure_ascii=False) + "\n"
+    out.update(render_cp_installers(root, drivers))
+    return out
+
+
+def _docstring_summary(path: Path) -> str:
+    import ast
+
+    doc = ast.get_docstring(ast.parse(path.read_text(encoding="utf-8"), str(path))) or ""
+    return doc.strip().split("\n", 1)[0].strip()
+
+
+#: Calls that import a module named by a string, as `_driver("axp2101")` does in
+#: a config that has to put /lib ahead of .frozen for the import.
+_IMPORTING_CALLS = frozenset({"__import__", "import_module", "_driver"})
+
+
+def _cp_imports(path: Path) -> set[str]:
+    """What a CircuitPython config file imports, by statement or by a call naming the module."""
+    import ast
+
+    names = _imports(path)
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), str(path))):
+        if isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant):
+            func = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, "id", None)
+            if func in _IMPORTING_CALLS and isinstance(node.args[0].value, str):
+                names.add(node.args[0].value.split(".")[0])
+    return names
+
+
+def render_cp_installers(root: Path, drivers: dict[str, Driver]) -> dict[Path, str]:
+    """{package.json path: contents} for every CircuitPython config folder.
+
+    A CircuitPython config has no manifest.py, so its installer is read from
+    what its files import: the drivers in drivers/ by file, Adafruit's
+    libraries under "circuitpython" (only omip on CircuitPython reads it), and
+    pydevices as a dep when it imports a library from lib/.
+    """
+    base = root / BOARD_ROOT / "cp"
+    if not base.is_dir():
+        return {}
+    by_module = {Path(module).stem: name for name, driver in drivers.items() for module in driver.modules}
+    library = {p.stem for p in (root / "lib").iterdir() if p.suffix == ".py" or p.is_dir()} if (root / "lib").is_dir() else set()
+    out: dict[Path, str] = {}
+    for folder in sorted({p.parent for p in base.rglob("board_*.py")}):
+        files = sorted(p for p in folder.iterdir() if p.is_file() and p.suffix == ".py" and _publishable(p))
+        own = {p.stem for p in files}
+        folder_url = folder.relative_to(root).as_posix()
+        urls = [[p.name, f"github:{GITHUB_REPO}/{folder_url}/{p.name}"] for p in files]
+        seen_files = {p.name for p in files}
+        deps: list[list[str]] = []
+        adafruit: list[list[str]] = []
+
+        def add_driver(driver: str) -> None:
+            if driver in CIRCUITPYTHON_CORE_SHIMS:
+                return
+            for module in drivers[driver].modules:
+                name = Path(module).name
+                if name not in seen_files:
+                    seen_files.add(name)
+                    urls.append([name, f"github:{GITHUB_REPO}/{DRIVERS_DIR}/{module}"])
+            for required in drivers[driver].requires:
+                add_driver(required)
+
+        for name in sorted(set().union(*(_cp_imports(p) for p in files)) - own):
+            if name in by_module:
+                add_driver(by_module[name])
+            elif name.startswith("adafruit_") or name in ADAFRUIT_UNPREFIXED:
+                adafruit.append([name, "latest"])
+            elif name in library and not deps:
+                deps.append(["pydevices", "latest"])
+        main = folder / "board_config.py"
+        body = {
+            "urls": urls,
+            "deps": deps,
+            "circuitpython": adafruit,
+            "description": _docstring_summary(main if main.is_file() else files[0]),
+            "generated": "from the folder's imports by tools/libbuild.py installers",
+        }
+        out[folder / "package.json"] = json.dumps(body, indent=2, ensure_ascii=False) + "\n"
     return out
 
 
@@ -1668,7 +1753,7 @@ def cmd_installers(args) -> int:
     rendered = render_installers(root)
     stale = [path for path, text in rendered.items() if not path.is_file() or path.read_text(encoding="utf-8") != text]
     known = set(rendered)
-    orphans = [p for p in sorted((root / BOARD_ROOT).rglob("package.json")) if p not in known and BOARD_ROOT + "/cp/" not in p.as_posix()]
+    orphans = [p for p in sorted((root / BOARD_ROOT).rglob("package.json")) if p not in known]
     if args.check:
         for path in stale:
             print(f"stale: {path.relative_to(root)} (run: python tools/libbuild.py installers)")

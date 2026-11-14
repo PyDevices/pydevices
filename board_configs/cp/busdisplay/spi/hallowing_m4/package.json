@@ -1,0 +1,16 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/hallowing_m4/board_config.py"
+    ],
+    [
+      "st7735.py",
+      "github:PyDevices/pydevices/drivers/display/st7735.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "Adafruit HalloWing M4 ST7735 240x240 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

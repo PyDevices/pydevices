@@ -1,0 +1,25 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/m5stack_tab5_ili9881c/board_config.py"
+    ],
+    [
+      "gt911.py",
+      "github:PyDevices/pydevices/drivers/touch/gt911.py"
+    ],
+    [
+      "tab5_ili9881c_init.py",
+      "github:PyDevices/pydevices/drivers/display/tab5_ili9881c_init.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "M5Stack Tab5 (ILI9881C + GT911) — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

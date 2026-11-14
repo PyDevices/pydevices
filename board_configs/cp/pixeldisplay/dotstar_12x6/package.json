@@ -1,0 +1,26 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/pixeldisplay/dotstar_12x6/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [
+    [
+      "adafruit_dotstar",
+      "latest"
+    ],
+    [
+      "adafruit_pixel_framebuf",
+      "latest"
+    ]
+  ],
+  "description": "DotStar 12x6 grid — CircuitPython DotStar grid",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

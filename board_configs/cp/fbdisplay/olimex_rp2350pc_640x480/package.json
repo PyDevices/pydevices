@@ -1,0 +1,17 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/olimex_rp2350pc_640x480/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "Olimex RP2350pc onboard mini-HDMI (HSTX) — CircuitPython.",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

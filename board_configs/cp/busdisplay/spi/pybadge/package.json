@@ -1,0 +1,20 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/pybadge/board_config.py"
+    ],
+    [
+      "keypad_gpio.py",
+      "github:PyDevices/pydevices/drivers/input/keypad_gpio.py"
+    ],
+    [
+      "st7789.py",
+      "github:PyDevices/pydevices/drivers/display/st7789.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "Adafruit PyBadge LC ST7789 320x240 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

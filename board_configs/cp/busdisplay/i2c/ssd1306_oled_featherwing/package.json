@@ -1,0 +1,20 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/i2c/ssd1306_oled_featherwing/board_config.py"
+    ],
+    [
+      "i2cbus.py",
+      "github:PyDevices/pydevices/drivers/bus/i2cbus.py"
+    ],
+    [
+      "ssd1306_bus.py",
+      "github:PyDevices/pydevices/drivers/display/ssd1306_bus.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "Adafruit FeatherWing OLED 128x32 SSD1306 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

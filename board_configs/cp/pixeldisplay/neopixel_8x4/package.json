@@ -1,0 +1,26 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/pixeldisplay/neopixel_8x4/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [
+    [
+      "adafruit_pixel_framebuf",
+      "latest"
+    ],
+    [
+      "neopixel",
+      "latest"
+    ]
+  ],
+  "description": "NeoPixel 8x4 grid — CircuitPython NeoPixel grid",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

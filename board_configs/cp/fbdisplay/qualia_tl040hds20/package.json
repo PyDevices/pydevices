@@ -1,0 +1,22 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/qualia_tl040hds20/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [
+    [
+      "adafruit_focaltouch",
+      "latest"
+    ]
+  ],
+  "description": "Qualia S3 RGB-666 with TL040HDS20 4.0\" 720x720 Square Display",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

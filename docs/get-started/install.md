@@ -152,7 +152,20 @@ A `board_config.py` beside your script still wins over the frozen one. For a
 board image, freeze `lib/` only and install the board's own config.
 
 Frozen modules come before `lib` on `sys.path`, so a frozen PyDevices shadows
-any copy installed with `mip`, and updating it means rebuilding.
+any copy installed with `mip`, and updating it means rebuilding. The board's
+root comes before them, though, so one module can be replaced without a
+rebuild by installing it there. That's how to get a newer `omip` onto firmware
+that has one frozen in:
+
+```python
+import mip
+
+mip.install("github:PyDevices/pydevices/lib/omip.py", target="/")
+```
+
+From then on `import omip` finds the copy in the root. Asking a frozen `omip`
+to install itself skips it, since the copy it would put in `lib` would never
+run.
 
 ## Connected-device installation
 
