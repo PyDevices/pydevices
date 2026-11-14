@@ -63,7 +63,7 @@ and Android.
 - [`pygraphics`](https://github.com/PyDevices/pygraphics/blob/main/docs/index.md): Draw shapes, text and images into a framebuffer.\
   Get it: `mip pygraphics`, `pip pydevices-pygraphics`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
 - [`vtterm`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/vtterm.md): Turn a display into a color terminal, for the board's own REPL or another device's.\
-  Get it: `mip vtterm`. Runs on: MP, CP, Desktop.
+  Get it: from source. Runs on: MP, CP, Desktop.
 - [`palettes`](https://github.com/PyDevices/pydevices/tree/main/packages/palettes): Turn a palette index into a color your display can show.\
   Get it: `mip palettes`, `pip pydevices-palettes`, firmware build. Runs on: MP, CP, Desktop.
 - [`iconkit`](https://github.com/PyDevices/pydevices/blob/main/packages/iconkit/docs/reference/icons.md): Draw Material icons in any colour, in LVGL or with pygraphics; frozen in, they cost no RAM.\
