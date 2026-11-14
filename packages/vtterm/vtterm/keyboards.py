@@ -12,19 +12,20 @@ find it again after it's unplugged or switched off.
 import events
 import keys
 
+# Imported once here: on MicroPython, importing a built-in module such as
+# time inside a function looks for a file of that name on every call, which
+# took 77 ms a time on an ESP32-S3 and starved the REPL.
+from .console import ticks_diff, ticks_ms
+
 #: How often a source with no keyboard looks for one, in ms.
 LOOK_MS = 1000
 
 
 def _now():
-    from time import ticks_ms
-
     return ticks_ms()
 
 
 def _due(last, ms):
-    from time import ticks_diff, ticks_ms
-
     return last is None or ticks_diff(ticks_ms(), last) >= ms
 
 
@@ -37,26 +38,26 @@ class UsbKeyboard:
 
     def __init__(self):
         import usb.core
+        from usb.host import hid
 
         self._core = usb.core
+        self._hid = hid
         usb.core.start(classes=("hid",))
         self.kbd = None
         self.status = "USB: no keyboard yet"
         self._looked = None
 
     def _look(self):
-        from usb.host.hid import KEYBOARD, Device
-
+        hid = self._hid
         self._looked = _now()
-        dev = self._core.find(custom_match=Device.match(KEYBOARD))
+        dev = self._core.find(custom_match=hid.Device.match(hid.KEYBOARD))
         if dev is None:
             return
-        self.kbd = Device(dev, protocol=KEYBOARD, boot=True)
+        self.kbd = hid.Device(dev, protocol=hid.KEYBOARD, boot=True)
         self.status = "USB: %s %s" % (dev.manufacturer or "%04x" % dev.idVendor, dev.product or "%04x" % dev.idProduct)
 
     def poll(self):
-        from usb.host.hid import KEY_DOWN, KEY_UP
-
+        KEY_DOWN, KEY_UP = self._hid.KEY_DOWN, self._hid.KEY_UP
         if self.kbd is None:
             if _due(self._looked, LOOK_MS):
                 self._look()
