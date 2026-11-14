@@ -1,3 +1,8 @@
+## v0.0.16.dev0 (2026-11-14)
+
+- An ANSI palette, 16 or 256 colors, with `nearest()` to pick the closest entry for any color (#552)
+- Docstrings in Google style with cross-references, and licence headers on every file
+
 ## v0.0.15 (2026-10-22)
 
 - The release candidate, promoted to a final: palettes now lives in the pydevices repository, in its `palettes/` folder, and releases from there with tags named `palettes-vX.Y.Z`. The package, its import name and its version numbers are unchanged.
