@@ -26,7 +26,9 @@ and starts your app anyway.
 
 Tested on: Waveshare ESP32-S3-Touch-LCD-7 on MicroPython
 v1.30.0-preview.160.gb70ae1aca6 (built 2026-11-13), with a USB-C headphone
-dongle (USB Audio 1.0, full speed, 48 kHz stereo 16-bit) on its USB port.
+dongle (USB Audio 1.0, full speed, 48 kHz stereo 16-bit) on its USB port,
+and with nothing on its USB port on v1.30.0-preview.160.gb70ae1aca6 (built
+2026-11-14).
 """
 
 import time
