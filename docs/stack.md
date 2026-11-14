@@ -338,9 +338,9 @@ and Android.
 - [`Gallery`](https://pydevices.github.io/gallery/): Try a piano, a spectrum analyzer, games, dashboards, a TV remote and more, on any host.\
   Get it: open in a browser. Runs on: MP, CP, Desktop, Web, Android.
 - [`Synth Station`](https://github.com/PyDevices/apps/tree/main/apps/synthstation): Pick an instrument and play it from a MIDI keyboard, with a front panel for its knobs and patches.\
-  Get it: from source. Runs on: MP, Desktop, Web.
+  Get it: `omip`, from the app's folder, from source. Runs on: MP, Desktop, Web.
 - [`Bit World`](https://github.com/PyDevices/apps/tree/main/apps/bit_world): Watch a pixel robot's world, play its sky game and drive its deck.\
-  Get it: from source. Runs on: MP, Desktop, Web.
+  Get it: `omip`, from the app's folder, from source. Runs on: MP, Desktop, Web.
 - [`Ostinato`](https://github.com/PyDevices/apps/blob/main/docs/guides/run-ostinato.md): Sequence patterns and edit songs in a groovebox.\
   Get it: from source. Runs on: Desktop, Web.
 - [`Vamp`](https://github.com/PyDevices/apps/blob/main/docs/guides/put-vamp-on-a-board.md): Run a groovebox on a board with no screen of its own.\
@@ -352,51 +352,51 @@ and Android.
 - [`Bluetooth speaker`](https://github.com/PyDevices/apps/tree/main/programs/bt-speaker): Make the board a speaker your phone or computer pairs with.\
   Get it: from source. Runs on: MP with Bluetooth Classic and audio out.
 - [`midiEngine`](https://github.com/PyDevices/apps/tree/main/apps/midiengine): Play General MIDI from a SoundFont and a USB MIDI keyboard.\
-  Get it: from source. Runs on: ESP32-P4 touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board.
 - [`Stompbox`](https://github.com/PyDevices/apps/tree/main/apps/stompbox): Play a guitar or WAV clip through an Airwindows effect, with its knobs on screen.\
-  Get it: from source. Runs on: ESP32-P4 touch board, with `audioairwindows`.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board, with `audioairwindows`.
 - [`MP3 player`](https://github.com/PyDevices/apps/tree/main/apps/mp3): Play the songs on an SD card, with a spectrum.\
-  Get it: from source. Runs on: ESP32-P4 touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board.
 - [`Sound card`](https://github.com/PyDevices/apps/tree/main/apps/card): Make the board a USB speaker for a computer, with a spectrum of what plays.\
-  Get it: from source. Runs on: ESP32-P4 touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board.
 - [`Spotify`](https://github.com/PyDevices/apps/tree/main/apps/spotify): Make the board a Spotify Connect speaker, with the screen as its remote.\
-  Get it: from source. Runs on: ESP32-P4 touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board.
 - [`Walkie-talkie`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/medialink.md): Talk to another device while you hold a button.\
-  Get it: from source. Runs on: Touch boards.
+  Get it: `omip`, from the app's folder, from source. Runs on: Touch boards.
 - [`Hands free`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/medialink.md): Talk to another device without a button.\
-  Get it: from source. Runs on: Touch boards.
+  Get it: `omip`, from the app's folder, from source. Runs on: Touch boards.
 - [`Baby monitor`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/medialink.md): Listen to a room from another one.\
-  Get it: from source. Runs on: Touch boards.
+  Get it: `omip`, from the app's folder, from source. Runs on: Touch boards.
 - [`Doorbell`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/medialink.md): Ring a house over the network, then talk to whoever answers.\
-  Get it: from source. Runs on: Touch boards.
+  Get it: `omip`, from the app's folder, from source. Runs on: Touch boards.
 - [`Video doorbell`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/medialink.md): See who is at the door, and talk to them.\
-  Get it: from source. Runs on: ESP32-P4 with a camera.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 with a camera.
 - [`Videophone`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/medialink.md): See each other, and talk while you hold a button.\
-  Get it: from source. Runs on: ESP32-P4 with a camera.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 with a camera.
 - [`Surveillance camera`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/medialink.md): Watch and listen to a camera in another room.\
-  Get it: from source. Runs on: ESP32-P4 with a camera.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 with a camera.
 - [`Camera`](https://github.com/PyDevices/apps/tree/main/apps/camera): Preview the CSI camera and take pictures.\
-  Get it: from source. Runs on: ESP32-P4 with a camera.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 with a camera.
 - [`Security camera`](https://github.com/PyDevices/apps/tree/main/apps/security): Stream the CSI camera as MJPEG, with a preview on the panel.\
-  Get it: from source. Runs on: ESP32-P4 with a camera.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 with a camera.
 - [`Object detection`](https://github.com/PyDevices/apps/tree/main/apps/detect): Run the camera through YOLO11n and draw boxes on the preview.\
-  Get it: from source. Runs on: ESP32-P4 with a camera.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 with a camera.
 - [`Cast`](https://github.com/PyDevices/apps/tree/main/apps/cast): Put a screen of its own on a Roku or Windows PC, with the panel as its remote.\
-  Get it: from source. Runs on: ESP32-P4 touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board.
 - [`Clock`](https://github.com/PyDevices/apps/blob/main/docs/guides/put-a-clock-on-your-desk.md): Show an analog clock that fills a round touch screen.\
-  Get it: from source. Runs on: MP on an LVGL touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: MP on an LVGL touch board.
 - [`Weather`](https://github.com/PyDevices/apps/blob/main/docs/guides/put-a-clock-on-your-desk.md): See the conditions and five days ahead, with no account or key.\
-  Get it: from source. Runs on: MP on an LVGL touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: MP on an LVGL touch board.
 - [`Roku remote`](https://github.com/PyDevices/apps/tree/main/apps/roku): Control a Roku TV from the touch screen, over your network.\
-  Get it: from source. Runs on: ESP32-P4 touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board.
 - [`REPL`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/vtterm.md): Use the board's Python prompt on its own screen, typed on a USB or Bluetooth keyboard.\
-  Get it: from source. Runs on: MP.
+  Get it: `omip`, from the app's folder, from source. Runs on: MP.
 - [`Wake word`](https://github.com/PyDevices/apps/tree/main/apps/wake): Listen on a USB microphone for "Hey Jarvis" and flash on each detection.\
-  Get it: from source. Runs on: ESP32-P4 touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board.
 - [`Home`](https://github.com/PyDevices/apps/tree/main/apps/home): Launch the apps from pages, one page per category.\
-  Get it: from source. Runs on: ESP32-P4 touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board.
 - [`System`](https://github.com/PyDevices/apps/tree/main/apps/system): See the free heap, the last switches and what the apps left running.\
-  Get it: from source. Runs on: ESP32-P4 touch board.
+  Get it: `omip`, from the app's folder, from source. Runs on: ESP32-P4 touch board.
 
 ## Libraries the apps use
 
