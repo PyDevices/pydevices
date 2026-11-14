@@ -8,6 +8,7 @@
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/packages/palettes/lib/palettes/_cube64.py" = "/lib/palettes/_cube64.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/packages/palettes/lib/palettes/_cube8.py" = "/lib/palettes/_cube8.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/packages/palettes/lib/palettes/_material_design.py" = "/lib/palettes/_material_design.py"
+"https://raw.githubusercontent.com/PyDevices/pydevices/main/packages/palettes/lib/palettes/ansi.py" = "/lib/palettes/ansi.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/packages/palettes/lib/palettes/cube.py" = "/lib/palettes/cube.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/packages/palettes/lib/palettes/material_design.py" = "/lib/palettes/material_design.py"
 "https://raw.githubusercontent.com/PyDevices/pydevices/main/packages/palettes/lib/palettes/wheel.py" = "/lib/palettes/wheel.py"
