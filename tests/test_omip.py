@@ -666,6 +666,9 @@ class MicroPythonRun(Indexes):
         out = self.frozen("frozen-core", before=MP_AT_ROOT)
         self.assertIn('install it again with target="/"', out)
         out = self.frozen("frozen-core")
+        self.assertIn('install it again with target="%s"' % self.home, out)
+        # With nothing ahead of .frozen, only a rebuild does.
+        out = self.frozen("frozen-core", before="sys.path[:] = ['.frozen']")
         self.assertIn("rebuild the firmware with it", out)
 
     def test_a_frozen_dep_is_skipped_and_the_rest_of_its_root_still_lands(self):

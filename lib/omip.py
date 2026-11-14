@@ -118,11 +118,11 @@ elif _CP:
         netloc, _, path = rest.partition("/")
         host, _, port = netloc.partition(":")
         port = int(port) if port else (443 if scheme == "https" else 80)
-        sock = _pool.socket(_pool.AF_INET, _pool.SOCK_STREAM)
+        raw = sock = _pool.socket(_pool.AF_INET, _pool.SOCK_STREAM)
         try:
             sock.settimeout(TIMEOUT)
             if scheme == "https":
-                sock = ssl.create_default_context().wrap_socket(sock, server_hostname=host)
+                sock = ssl.create_default_context().wrap_socket(raw, server_hostname=host)
             sock.connect((host, port))
             # HTTP/1.0, so the body can't come chunked.
             sock.send(("GET /%s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n" % (path, netloc)).encode())
@@ -160,6 +160,9 @@ elif _CP:
             return status
         finally:
             sock.close()
+            # A TLS socket whose handshake failed counts itself closed without
+            # closing the socket under it, which would hold a socket till the next gc.
+            raw.close()
 
 elif sys.platform == "emscripten":
 
@@ -311,13 +314,12 @@ def _ahead_of_frozen(folder):
     if ".frozen" not in sys.path:
         return True
     names = [folder]
-    if folder == "/":
-        # The board's root is on the path as "", the folder it starts in.
-        try:
-            if os.getcwd() == "/":
-                names.append("")
-        except (AttributeError, OSError):
-            pass
+    # The folder a board starts in, its root on most, is on the path as "".
+    try:
+        if os.getcwd() == folder:
+            names.append("")
+    except (AttributeError, OSError):
+        pass
     frozen = sys.path.index(".frozen")
     return any(name in sys.path and sys.path.index(name) < frozen for name in names)
 
@@ -329,8 +331,13 @@ def _frozen_wins(plan):
 
 def _how_to_replace():
     """What to do to run a newer copy of a frozen module, said as advice."""
-    if _ahead_of_frozen("/"):
-        return 'To run a newer copy, install it again with target="/": the root comes ahead of the frozen one'
+    try:
+        here = os.getcwd()
+    except (AttributeError, OSError):
+        here = "/"
+    for folder in (here, "/"):
+        if _ahead_of_frozen(folder):
+            return 'To run a newer copy, install it again with target="%s", which comes ahead of the frozen one' % folder
     return "To run a newer copy, rebuild the firmware with it"
 
 
