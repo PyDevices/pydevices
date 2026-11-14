@@ -113,12 +113,17 @@ variant (`C6_WIFI`).
   LVGL, so they go in the board's 4 MB ROMFS with the drivers this board
   needs: the two in this repository, micropython-lib's `bmi270` for the IMU
   and `aioble` for Bluetooth, the USB host packages, and the audio packages
-  `audioeffects` and `audioinstruments` that apps like midiEngine import. A ROMFS deploy replaces the whole partition, so
-  put them in one folder and deploy it once, from a clone of this repository:
+  `audioeffects` and `audioinstruments` that apps like midiEngine import. The
+  firmware keeps its own Python modules (asyncio, webrepl, mip and the rest)
+  in the ROMFS too, and a deploy replaces the whole partition, so start the
+  folder with those, from the firmware release's `romfs-files` zip or the
+  build's `romfs/` folder. Then add the rest and deploy it once, from a clone
+  of this repository:
 
   ```bash
   git clone --depth 1 https://github.com/PyDevices/pydevices.git
   mkdir romfs
+  unzip omnipython-mp-arduino_giga-display_shield-*.romfs-files.zip -d romfs
   cp -r pydevices/lib/* pydevices/drivers/touch/gt911.py \
       pydevices/drivers/display/giga_display_shield_init.py romfs/
   cp -r pydevices/packages/midiports/midiports romfs/
@@ -145,6 +150,22 @@ variant (`C6_WIFI`).
   With the `mpy-cross` Python package installed, mpremote compiles the folder
   to `.mpy` on the way; without it the board compiles the `.py` files as
   they're imported. `/rom` comes before `/flash` on `sys.path`.
+
+- **Installing apps:** the firmware has no `omip`, and `mip`'s default folder
+  can be the read-only ROMFS, so name `/flash/lib` yourself. Join Wi-Fi from
+  `secrets.py`, then put `omip` on the board's flash:
+
+  ```python
+  import mip
+  mip.install("github:PyDevices/pydevices/lib/omip.py", target="/flash/lib")
+  ```
+
+  `omip.install` then installs into `/flash/lib` and `/flash/apps` on its
+  own, so the app lines in
+  [install an app](https://github.com/PyDevices/apps/blob/main/docs/guides/install-an-app.md)
+  work as written. Where that guide says `target="/"`, for Home's `main.py`
+  and for a newer `omip`, say `target="/flash"` and `target="/flash/lib"`
+  here: the board's writable drive is `/flash`.
 
 ### Waveshare ESP32-P4-WIFI6-Touch-LCD-4B
 
