@@ -996,7 +996,8 @@ async def connect(ble, password=None, name="mpy-repl", *, device=None, timeout_m
         if marker == PROMPT:
             if password is None:
                 raise AuthError("the board wants a password")
-            del buffer[: buffer.find(PROMPT) + len(PROMPT)]
+            # Rebind rather than delete a slice: MicroPython's bytearray can't.
+            buffer = buffer[buffer.find(PROMPT) + len(PROMPT) :]
             secret = password.encode() if isinstance(password, str) else bytes(password)
             await link.write(secret + b"\r")
             marker, buffer = await _expect(link, (b">>> ", DENIED.strip(), BUSY.strip()), buffer, timeout_ms)

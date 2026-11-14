@@ -644,6 +644,24 @@ async def repl_login_wrong_password(air):
     expect(repl._check_password(b"hunter22", b"hunter22"), "equal")
 
 
+@check
+async def repl_connect_sends_the_password(air):
+    # The client side of a password login, against a board played by hand.
+    board = FakeBLE(air=air)
+    laptop = FakeBLE(air=air, peripheral=False)
+
+    async def board_side():
+        link = await nus.serve(board, name="mpy-repl", timeout_ms=2000)
+        equal(await link.readexactly(1), b"\r", "the client's first line")
+        await link.write(repl.PROMPT)
+        equal(await link.readexactly(9), b"hunter22\r", "the password, after the prompt")
+        await link.write(repl.BANNER)
+
+    served = asyncio.create_task(board_side())
+    link = await repl.connect(laptop, "hunter22", name="mpy-repl", timeout_ms=2000)
+    await served
+    await link.close()
+
 class _StubRadio:
     """The calls bledev.repl's server makes on bluetooth.BLE, recorded."""
 
