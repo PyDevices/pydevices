@@ -9,7 +9,7 @@ and everything the REPL prints back, appears on the display too.
 
 Needs: a board with a 16-bit display in board_config, firmware with
 os.dupterm, pygraphics and palettes' ANSI palette, and vtterm installed
-(``mip.install("vtterm", index="https://PyDevices.github.io/mip")``).
+(``mip.install("github:PyDevices/pydevices/packages/vtterm")``).
 Nothing else may be drawing on the display, so run it instead of Home or an
 LVGL app.
 
