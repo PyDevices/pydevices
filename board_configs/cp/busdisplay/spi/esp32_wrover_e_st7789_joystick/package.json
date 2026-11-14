@@ -1,0 +1,20 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/esp32_wrover_e_st7789_joystick/board_config.py"
+    ],
+    [
+      "gpiojoystick.py",
+      "github:PyDevices/pydevices/drivers/joystick/gpiojoystick.py"
+    ],
+    [
+      "st7789.py",
+      "github:PyDevices/pydevices/drivers/display/st7789.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "ESP32 WROVER-E ST7789 with GPIO joystick — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

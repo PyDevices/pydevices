@@ -1,0 +1,16 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/rp2040-touch-lcd-1.28/board_config.py"
+    ],
+    [
+      "gc9a01.py",
+      "github:PyDevices/pydevices/drivers/display/gc9a01.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "Waveshare RP2040-Touch-LCD-1.28 GC9A01 240x240 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

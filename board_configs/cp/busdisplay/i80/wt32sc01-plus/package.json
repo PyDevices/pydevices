@@ -1,0 +1,21 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/i80/wt32sc01-plus/board_config.py"
+    ],
+    [
+      "st7796.py",
+      "github:PyDevices/pydevices/drivers/display/st7796.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [
+    [
+      "adafruit_focaltouch",
+      "latest"
+    ]
+  ],
+  "description": "WT32-SC01 Plus 320x480 ST7796 I80 + FT6x36 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

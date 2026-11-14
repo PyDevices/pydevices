@@ -1,0 +1,17 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/pimoroni_pico_dv_base_640x480/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "Pimoroni Pico DV Demo Base + Raspberry Pi Pico (RP2040) — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

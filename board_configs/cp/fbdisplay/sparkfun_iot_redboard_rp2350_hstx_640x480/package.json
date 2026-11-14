@@ -1,0 +1,17 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/sparkfun_iot_redboard_rp2350_hstx_640x480/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "SparkFun IoT RedBoard RP2350 + HSTX-to-DVI breakout — CircuitPython.",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

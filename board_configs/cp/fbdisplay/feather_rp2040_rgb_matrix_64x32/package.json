@@ -1,0 +1,17 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/feather_rp2040_rgb_matrix_64x32/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "Adafruit Feather RP2040 + RGB Matrix FeatherWing 64x32 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

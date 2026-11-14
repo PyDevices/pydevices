@@ -1,0 +1,17 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/usb_video/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "usb_video - Allows streaming to a host computer via USB emulating a webcam",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

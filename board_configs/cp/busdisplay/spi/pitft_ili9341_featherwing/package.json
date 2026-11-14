@@ -1,0 +1,21 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/pitft_ili9341_featherwing/board_config.py"
+    ],
+    [
+      "ili9341.py",
+      "github:PyDevices/pydevices/drivers/display/ili9341.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [
+    [
+      "adafruit_stmpe610",
+      "latest"
+    ]
+  ],
+  "description": "Adafruit 2.4\" TFT FeatherWing ILI9341 + STMPE610 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

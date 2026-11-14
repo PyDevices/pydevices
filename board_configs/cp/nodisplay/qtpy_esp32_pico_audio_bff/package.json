@@ -1,0 +1,12 @@
+{
+  "urls": [
+    [
+      "board_peripherals.py",
+      "github:PyDevices/pydevices/board_configs/cp/nodisplay/qtpy_esp32_pico_audio_bff/board_peripherals.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "board_peripherals for a QT Py ESP32 Pico carrying an Adafruit Audio BFF, on CircuitPython.",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

@@ -1,0 +1,21 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/esp32-p4-wifi6-touch-lcd-4b/board_config.py"
+    ],
+    [
+      "gt911.py",
+      "github:PyDevices/pydevices/drivers/touch/gt911.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "Waveshare ESP32-P4-WIFI6-Touch-LCD-4B - 720x720 MIPI DSI + GT911 touch",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

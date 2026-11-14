@@ -1,0 +1,20 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/i2c/sh1107_oled_128x64/board_config.py"
+    ],
+    [
+      "i2cbus.py",
+      "github:PyDevices/pydevices/drivers/bus/i2cbus.py"
+    ],
+    [
+      "sh1107.py",
+      "github:PyDevices/pydevices/drivers/display/sh1107.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "SH1107 128x64 OLED (such as Adafruit's 128x64 OLED FeatherWing) — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

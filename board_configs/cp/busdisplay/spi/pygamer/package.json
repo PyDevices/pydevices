@@ -1,0 +1,24 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/pygamer/board_config.py"
+    ],
+    [
+      "gpiojoystick.py",
+      "github:PyDevices/pydevices/drivers/joystick/gpiojoystick.py"
+    ],
+    [
+      "keypad_shift.py",
+      "github:PyDevices/pydevices/drivers/input/keypad_shift.py"
+    ],
+    [
+      "st7789.py",
+      "github:PyDevices/pydevices/drivers/display/st7789.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "Adafruit PyGamer ST7789 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

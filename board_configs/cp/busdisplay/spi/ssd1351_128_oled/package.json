@@ -1,0 +1,16 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/ssd1351_128_oled/board_config.py"
+    ],
+    [
+      "ssd1351.py",
+      "github:PyDevices/pydevices/drivers/display/ssd1351.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "Adafruit 1.5\" SSD1351 color OLED — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

@@ -1,0 +1,17 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/esp32-s3-touch-lcd-7/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "Waveshare ESP32-S3-Touch-LCD-7 -- 800x480 RGB565 (ST7262) + GT911, CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

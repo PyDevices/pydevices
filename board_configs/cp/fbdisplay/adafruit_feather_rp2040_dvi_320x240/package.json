@@ -1,0 +1,12 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/adafruit_feather_rp2040_dvi_320x240/board_config.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "Adafruit Feather RP2040 DVI (320x240) — CircuitPython + LVGL POC.",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

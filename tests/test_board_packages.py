@@ -18,6 +18,7 @@ written from it and has to be current.
 """
 
 import importlib.util
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -36,14 +37,29 @@ class BoardPackageTests(unittest.TestCase):
 
     def test_every_board_folder_has_a_manifest(self):
         boards = libbuild.find_boards(ROOT)
+        # CircuitPython configs have no manifest.py: their installer comes from their imports.
         folders = {
             path.parent
-            for path in (ROOT / "board_configs").rglob("board_config*.py")
+            for pattern in ("board_config*.py", "board_peripherals.py")
+            for path in (ROOT / "board_configs").rglob(pattern)
             if "cp" not in path.relative_to(ROOT / "board_configs").parts[:1]
-        } | {path.parent for path in (ROOT / "board_configs").rglob("board_peripherals.py")}
+        }
         folders = {f for f in folders if (f / "manifest.py").is_file() or (f / "package.json").is_file()}
         self.assertEqual({f for f in folders if not (f / "manifest.py").is_file()}, set())
         self.assertGreater(len(boards), 60)
+
+    def test_a_circuitpython_config_installs_what_it_imports(self):
+        # The drivers its files import, by statement or by name, and Adafruit's libraries.
+        rendered = libbuild.render_installers(ROOT)
+        watch = json.loads(rendered[ROOT / "board_configs/cp/busdisplay/spi/t-watch-s3/package.json"])
+        names = {target for target, _ in watch["urls"]}
+        self.assertLessEqual(
+            {"board_config.py", "board_peripherals.py", "st7789.py", "ft6x36.py", "keypad_gpio.py", "axp2101.py", "bma423.py"},
+            names,
+        )
+        self.assertNotIn("digitalio.py", names)
+        qualia = json.loads(rendered[ROOT / "board_configs/cp/fbdisplay/qualia_tl040hds20/package.json"])
+        self.assertEqual(qualia["circuitpython"], [["adafruit_focaltouch", "latest"]])
 
     def test_github_installers_are_written_from_the_manifests(self):
         for path, text in libbuild.render_installers(ROOT).items():

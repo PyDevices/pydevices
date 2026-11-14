@@ -1,0 +1,16 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/busdisplay/spi/t-qt-pro/board_config.py"
+    ],
+    [
+      "gc9a01.py",
+      "github:PyDevices/pydevices/drivers/display/gc9a01.py"
+    ]
+  ],
+  "deps": [],
+  "circuitpython": [],
+  "description": "LILYGO T-QT Pro GC9107 128x128 — CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

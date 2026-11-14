@@ -1,0 +1,17 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/pico2w_dvi_sock_640x480/board_config.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "Raspberry Pi Pico 2 W + Adafruit DVI Sock or PiCowbell HSTX — CircuitPython.",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}

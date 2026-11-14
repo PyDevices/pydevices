@@ -1,0 +1,21 @@
+{
+  "urls": [
+    [
+      "board_config.py",
+      "github:PyDevices/pydevices/board_configs/cp/fbdisplay/esp32-p4-wifi6-dev-kit_kedei-5in-dsi/board_config.py"
+    ],
+    [
+      "ft6x36.py",
+      "github:PyDevices/pydevices/drivers/touch/ft6x36.py"
+    ]
+  ],
+  "deps": [
+    [
+      "pydevices",
+      "latest"
+    ]
+  ],
+  "circuitpython": [],
+  "description": "Waveshare ESP32-P4-WIFI6-DEV-KIT with a KeDei 5\" DSI display (800x480) - CircuitPython",
+  "generated": "from the folder's imports by tools/libbuild.py installers"
+}
