@@ -26,6 +26,7 @@ boards, a desktop, a browser and an Android phone.
 - [medialink: audio between devices](guides/medialink.md)
 - [Using LVGL with PyDevices](guides/lvgl.md)
 - [vtterm: a terminal on a display](guides/vtterm.md)
+- [castdisplay: cast an app to a TV](guides/cast-to-a-tv.md)
 - [pydevices-desktop](guides/run-on-the-desktop.md)
 - [Direct MicroPython WebAssembly](guides/run-in-the-browser.md)
 - [PyScript and Pyodide](guides/run-in-pyscript.md)
@@ -41,6 +42,7 @@ boards, a desktop, a browser and an Android phone.
 - [Bluetooth LE support](reference/bluetooth-le-support.md)
 - [vtterm escape codes](reference/vtterm-escape-codes.md)
 - [vtterm keys](reference/vtterm-keys.md)
+- [castdisplay](reference/castdisplay.md)
 - [Other modules](modules.md)
 - [Board peripherals contract](boards/board-contract.md)
 - [Board configs](boards/board-configs.md)
@@ -59,6 +61,7 @@ boards, a desktop, a browser and an Android phone.
 - [multimer internals: the dispatcher and the wake sources](how-it-works/multimer-internals.md)
 - [bledev internals: writing a backend](how-it-works/bledev-internals.md)
 - [vtterm internals](how-it-works/vtterm-internals.md)
+- [How casting works](how-it-works/casting.md)
 
 ## Changelog
 

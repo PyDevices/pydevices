@@ -1,0 +1,15 @@
+{
+  "urls": [
+    ["castdisplay/__init__.py", "github:PyDevices/pydevices/packages/castdisplay/castdisplay/__init__.py"],
+    ["castdisplay/cast_display.py", "github:PyDevices/pydevices/packages/castdisplay/castdisplay/cast_display.py"],
+    ["castdisplay/castfast.py", "github:PyDevices/pydevices/packages/castdisplay/castdisplay/castfast.py"],
+    ["castdisplay/hls_display.py", "github:PyDevices/pydevices/packages/castdisplay/castdisplay/hls_display.py"],
+    ["castdisplay/micecast.py", "github:PyDevices/pydevices/packages/castdisplay/castdisplay/micecast.py"],
+    ["castdisplay/pycast.py", "github:PyDevices/pydevices/packages/castdisplay/castdisplay/pycast.py"],
+    ["castdisplay/roku_cast.py", "github:PyDevices/pydevices/packages/castdisplay/castdisplay/roku_cast.py"],
+    ["castdisplay/roku_companion.py", "github:PyDevices/pydevices/packages/castdisplay/castdisplay/roku_companion.py"],
+    ["castdisplay/uibcinput.py", "github:PyDevices/pydevices/packages/castdisplay/castdisplay/uibcinput.py"]
+  ],
+  "deps": [],
+  "version": "0.1.0"
+}

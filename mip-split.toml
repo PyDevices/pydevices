@@ -143,6 +143,9 @@ top-level = true
 [vtterm]
 top-level = true
 
+[castdisplay]
+top-level = true
+
 [usb-core]
 top-level = true
 

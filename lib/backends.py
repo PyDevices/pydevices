@@ -8,11 +8,11 @@ A backend registers a name and a lazy ``"module:Class"`` string, so
 registering imports nothing::
 
     import backends
-    backends.register("display", "hls", "hls_display:HlsDisplay", probe=have_ffmpeg)
+    backends.register("display", "hls", "castdisplay.hls_display:HlsDisplay", probe=have_ffmpeg)
 
 A board config says which registered backends it wants, in order::
 
-    backends.require("display", "hls", module="hls_display")
+    backends.require("display", "hls", module="castdisplay.hls_display")
     display_drv = AutoDisplay(1280, 720, tv=TV)   # extra keywords go to the winner
 
 A display backend's constructor takes ``width`` and ``height``, optionally
