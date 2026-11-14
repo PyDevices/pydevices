@@ -94,6 +94,12 @@ The board installer pulls its own drivers and depends on `pydevices`, so the
 second call alone is usually enough. A program with no one at the REPL calls
 `omip.install(name, prompt=False)`, so it never waits for an answer.
 
+Apps for Home install the same way, each into its own folder under `/apps`
+while what it needs goes in `/lib`:
+[install an app](https://github.com/PyDevices/apps/blob/main/docs/guides/install-an-app.md).
+A package does that by naming its folder under `target` in its JSON, as in
+`"target": "apps/home"`; the folder sits beside the library folder.
+
 `omip.install` takes the arguments of `mip.install`. The difference is what
 happens with no `index`: it looks on the OmniPython index and then on
 micropython-lib, and it brings what a package needs from micropython-lib, such as
