@@ -67,7 +67,7 @@
         "songmodel": ["hmilink"],
         "soundmodule": ["audioinstruments", "audioeffects"],
         "spectrum": ["pygraphics", "touchkit"],
-        "touchkit": ["appkit"]
+        "touchkit": ["appkit", "deskkit"]
       }
     }
   }
