@@ -228,6 +228,85 @@ class TestSaidOnce(unittest.TestCase):
         self.assertEqual(self._said(age=0), "")
 
 
+class TestDroppedAtThePrompt(unittest.TestCase):
+    """A kept exit is dropped once a board's REPL is back at its prompt, so a
+    Ctrl-C meant for a command that has ended never stops a later program."""
+
+    def _forget(self, idle, age):
+        import contextlib
+        import io
+
+        from multimer import _dispatch, _hostloop
+        from multimer._ticks import ticks_add, ticks_ms
+
+        self.addCleanup(_hostloop._reset_for_test)
+        saved = _dispatch._repl_idle_ms
+        self.addCleanup(setattr, _dispatch, "_repl_idle_ms", saved)
+        _dispatch._repl_idle_ms = idle
+        _dispatch._stash(KeyboardInterrupt())
+        _dispatch._stashed_at[0] = ticks_add(ticks_ms(), -age)
+        out = io.StringIO()
+        with contextlib.redirect_stderr(out), contextlib.redirect_stdout(out):
+            _dispatch._forget_at_prompt(ticks_ms())
+        return _dispatch._stashed, out.getvalue()
+
+    def test_kept_while_a_command_runs(self):
+        kept, said = self._forget(lambda: -1, 1000)
+        self.assertIsInstance(kept, KeyboardInterrupt)
+        self.assertEqual(said, "")
+
+    def test_kept_without_the_firmware_hook(self):
+        kept, _ = self._forget(None, 1000)
+        self.assertIsInstance(kept, KeyboardInterrupt)
+
+    def test_dropped_quietly_when_kept_before_the_prompt(self):
+        kept, said = self._forget(lambda: 100, 1000)
+        self.assertIsNone(kept)
+        self.assertEqual(said, "")
+
+    def test_said_then_dropped_when_kept_at_the_prompt(self):
+        kept, said = self._forget(lambda: 1000, 100)
+        self.assertIsNone(kept)
+        self.assertEqual(said.count("KeyboardInterrupt"), 1)
+
+
+class TestOnePressRaisedOnce(unittest.TestCase):
+    """A Ctrl-C that a callback kept and that the firmware also raises in a
+    sleep_ms() is one press: the kept one is not raised again later."""
+
+    def test_sleep_drops_the_kept_interrupt(self):
+        from multimer import _dispatch, _hostloop
+
+        self.addCleanup(_hostloop._reset_for_test)
+
+        def interrupted(_ms):
+            _dispatch._stash(KeyboardInterrupt())
+            raise KeyboardInterrupt
+
+        saved = _dispatch._host_sleep_ms
+        _dispatch._host_sleep_ms = interrupted
+        self.addCleanup(setattr, _dispatch, "_host_sleep_ms", saved)
+        with self.assertRaises(KeyboardInterrupt):
+            _dispatch.sleep_ms(50)
+        self.assertIsNone(_dispatch._stashed)
+
+    def test_sleep_keeps_a_kept_exit(self):
+        from multimer import _dispatch, _hostloop
+
+        self.addCleanup(_hostloop._reset_for_test)
+
+        def interrupted(_ms):
+            _dispatch._stash(SystemExit())
+            raise KeyboardInterrupt
+
+        saved = _dispatch._host_sleep_ms
+        _dispatch._host_sleep_ms = interrupted
+        self.addCleanup(setattr, _dispatch, "_host_sleep_ms", saved)
+        with self.assertRaises(KeyboardInterrupt):
+            _dispatch.sleep_ms(50)
+        self.assertIsInstance(_dispatch._stashed, SystemExit)
+
+
 class TestTheTimerMovesOn(unittest.TestCase):
     """A callback that raises KeyboardInterrupt or SystemExit still gets its
     next slot; left due, it ran again the moment the source was re-armed, over

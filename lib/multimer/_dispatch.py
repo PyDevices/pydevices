@@ -42,7 +42,9 @@ Rules the dispatcher keeps for every timer:
   scheduler, a ctypes callback, the browser bridge), the KeyboardInterrupt or
   SystemExit is kept and raised at the main thread's next idle point
   (``sleep_ms``, ``pump``, ``run_until``, the exit-hook loop), so it ends the
-  program the same way however the callback was delivered.
+  program the same way however the callback was delivered; once a board's
+  REPL is back at its prompt it is dropped, because the command it was for
+  has ended.
 """
 
 import sys
@@ -176,6 +178,13 @@ def _stash(exc):
     _arm_next()
 
 
+def _forget_kbd():
+    """Drop a kept KeyboardInterrupt; a kept SystemExit stays."""
+    global _stashed
+    if isinstance(_stashed, KeyboardInterrupt):
+        _stashed = None
+
+
 def _say_if_forgotten(now):
     """Print the kept exception once if no idle point has raised it in
     ``_SAY_AFTER_MS``.
@@ -191,6 +200,27 @@ def _say_if_forgotten(now):
         return
     _said[0] = True
     _print_exception(_stashed)
+
+
+def _forget_at_prompt(now):
+    """Drop the kept exception once a board's REPL is back at its prompt.
+
+    The command it was kept for has ended, and raised at a later idle point
+    it would stop whatever program runs next. One kept before the prompt came
+    back goes without a word: firmware that raises a Ctrl-C again in the code
+    a callback interrupted has stopped the command with it already, and older
+    firmware said it after ``_SAY_AFTER_MS``. One kept at the prompt (a
+    callback's own ``sys.exit()``) is said first, since nothing else will."""
+    global _stashed
+    if _repl_idle_ms is None:
+        return
+    idle = _repl_idle_ms()
+    if idle < 0:
+        return
+    if not _said[0] and ticks_diff(now, _stashed_at[0]) <= idle:
+        _said[0] = True
+        _print_exception(_stashed)
+    _stashed = None
 
 
 def _raise_stashed():
@@ -258,6 +288,8 @@ def deliver():
     try:
         _run_scheduled()
         now = ticks_ms()
+        if _stashed is not None:
+            _forget_at_prompt(now)
         if _stashed is not None:
             _say_if_forgotten(now)
         last = _stats["last_ms"]
@@ -744,6 +776,12 @@ def sleep_ms(ms):
             chunk = rem if wait is None else min(rem, wait)
             if chunk > 0:
                 _host_sleep_ms(chunk)
+    except KeyboardInterrupt:
+        # A Ctrl-C that landed in a callback is kept, and firmware that raises
+        # it again in the code the callback interrupted raises it here too: it
+        # is one press, so don't raise the kept one later as well.
+        _forget_kbd()
+        raise
     finally:
         _sleeping[0] -= 1
         if own:

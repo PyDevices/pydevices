@@ -86,7 +86,12 @@ interpreter's scheduler (MicroPython) or a C callback, which can't pass an
 exception on, multimer raises it at the main thread's next idle point
 instead: `sleep_ms`, `pump`, `run_until`, or the loop that keeps a script
 running after its last line. So `sys.exit()` from a timer ends the program
-the same way on every host.
+the same way on every host. A board's REPL that is back at its prompt drops
+what multimer kept, because the command it was meant for has ended. On
+[OmniPython firmware](https://github.com/PyDevices/micropython-pydevices), a
+Ctrl-C that lands in a callback also stops the code the callback
+interrupted, so one press stops a command at the REPL however much of the
+time your timers take.
 
 A callback that takes longer than its period runs again as soon as it
 returns while your program waits in multimer: in `sleep_ms`, in `run_until`,
