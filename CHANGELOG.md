@@ -1,3 +1,18 @@
+## v0.8.0.dev15 (2026-11-14)
+
+- Library index: applibs 0.1.2.dev3 with deskkit and programkit; each requires what it imports (#572)
+- omip: a package can name its own folder, so an app installs to /apps/<name> (#569)
+- vtterm: a VT100 terminal with ANSI colors on a display, installed by mip (#563)
+- palettes: an ANSI palette, 16 or 256 colors, with nearest() (#552)
+- bledev.repl: connect logs in to a password board from MicroPython (#565)
+- multimer: a Ctrl-C kept from a callback is dropped once the REPL is back (#564)
+- Seeed Round Display on QT Py: text no longer draws mirrored (#566)
+- boarddev: replace_role swaps a board role for every caller (#559)
+- usb.host.audio: audio_out keeps 80 ms queued; latency="buffered" keeps 300 (#557, #558)
+- usb.host.audio: an endpoint too big for the host's FIFO names its size, and an unplugged speaker says so, keeping the errno (#560, #562)
+- docs: make a USB sound card the board's audio, and replacing a role at run time (#561)
+- Stack page: the REPL app, Bit World, and each app installed with omip from its folder (#567, #568, #570)
+
 ## v0.8.0.dev14 (2026-11-13)
 
 - multimer: a slow timer runs back to back at a board's idle REPL (#549)
