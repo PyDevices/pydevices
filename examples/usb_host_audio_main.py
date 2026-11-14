@@ -21,7 +21,8 @@ Run it:
     mpremote reset
 
 The notes play from the sound card's output, and the program prints the
-format the sound card took.
+format the sound card took. With no sound card on the port it prints why
+and starts your app anyway.
 
 Tested on: Waveshare ESP32-S3-Touch-LCD-7 on MicroPython
 v1.30.0-preview.160.gb70ae1aca6 (built 2026-11-13), with a USB-C headphone
@@ -47,24 +48,31 @@ boarddev.replace_role(board_peripherals, "pcm_out", audio.pcm_out)
 boarddev.replace_role(board_peripherals, "pcm_in", audio.pcm_in)
 
 # Open the output the way an app would. With no format it takes the sound
-# card's best offer, and its format says what that was.
-out = board_peripherals.audio_out()
-print("sound card:", out.format)
+# card's best offer, and its format says what that was. With no sound card
+# plugged in, say so and go on: an app opens the sound card when it plays.
+try:
+    out = board_peripherals.audio_out()
+except OSError as e:
+    out = None
+    print("no sound card yet:", e)
 
-# Play a few notes through it, keeping the output fed while each one sounds.
-synth = synthio.Synthesizer(sample_rate=out.format.rate, channel_count=out.format.channels)
-out.play(synth)
-for note in NOTES:
-    synth.press(note)
-    end = time.ticks_add(time.ticks_ms(), NOTE_MS)
-    while time.ticks_diff(end, time.ticks_ms()) > 0:
-        out.service()
-        time.sleep_ms(10)
-    synth.release(note)
+if out:
+    print("sound card:", out.format)
 
-# Let go of the sound card, so the app can open it again.
-out.stop()
-out.close()
+    # Play a few notes through it, keeping the output fed while each one sounds.
+    synth = synthio.Synthesizer(sample_rate=out.format.rate, channel_count=out.format.channels)
+    out.play(synth)
+    for note in NOTES:
+        synth.press(note)
+        end = time.ticks_add(time.ticks_ms(), NOTE_MS)
+        while time.ticks_diff(end, time.ticks_ms()) > 0:
+            out.service()
+            time.sleep_ms(10)
+        synth.release(note)
+
+    # Let go of the sound card, so the app can open it again.
+    out.stop()
+    out.close()
 
 # Start the app.
 if APP:
