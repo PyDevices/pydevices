@@ -64,6 +64,79 @@ def bind_lazy(ns, peripherals_mod):
     ns["__dir__"] = __dir__
 
 
+# The module constant each audio role publishes its capability as, beside
+# ``role.capability``.
+_CAPABILITY_NAMES = {"audio_out": "AUDIO_OUT", "pcm_out": "AUDIO_OUT", "pcm_in": "AUDIO_IN"}
+
+
+def replace_role(peripherals_mod, name, role):
+    """Put *role* in place of the board's *name* role, for every caller.
+
+    Assigning ``board_peripherals.audio_out = ...`` already reaches code
+    that calls ``board_peripherals.audio_out()``. This does that and keeps
+    the rest of the board's story true, so code that discovers roles or
+    reads a capability sees the replacement too:
+
+    - *name* joins ``PERIPHERALS`` and ``FACTORY_ROLES``, so
+      ``"audio_out" in board_config.PERIPHERALS`` is true and
+      ``board_config.audio_out`` is *role* itself, never a call of it.
+      Pass what callers should get: the factory for an audio role, the
+      object for a constructed one such as ``sdcard``.
+    - The board's ``AUDIO_OUT`` becomes ``role.capability``, or None when
+      *role* has none, once neither ``audio_out`` nor ``pcm_out`` is the
+      board's own; ``AUDIO_IN`` the same for ``pcm_in``. A capability with
+      a ``wire`` describes the board's codec, and an app that drives that
+      wire itself would otherwise keep playing there. Replace
+      ``audio_out`` and ``pcm_out`` together: the board's own roles read
+      ``AUDIO_OUT``, so it stays while either is left.
+    - ``board_config`` gets the same changes when it's already imported.
+
+    Call it in ``main.py`` before the app is imported, and before anything
+    has opened the old role.
+
+    Args:
+        peripherals_mod: The board's ``board_peripherals`` module.
+        name: The role's name, such as ``"audio_out"``.
+        role: What callers get in its place.
+
+    Example:
+        import board_peripherals
+        import boarddev
+        from usb.host import audio
+
+        boarddev.replace_role(board_peripherals, "audio_out", audio.audio_out)
+    """
+    import sys
+
+    replaced = getattr(peripherals_mod, "_replaced_roles", None)
+    if replaced is None:
+        replaced = set()
+        peripherals_mod._replaced_roles = replaced
+    original = getattr(peripherals_mod, "PERIPHERALS", ())
+    replaced.add(name)
+    cap_name = _CAPABILITY_NAMES.get(name)
+    if cap_name is not None:
+        for other, other_cap in _CAPABILITY_NAMES.items():
+            if other_cap == cap_name and other in original and other not in replaced:
+                cap_name = None     # a board role still reads the constant
+                break
+    cap = getattr(role, "capability", None)
+    targets = [peripherals_mod]
+    config = sys.modules.get("board_config")
+    if config is not None and config is not peripherals_mod:
+        targets.append(config)
+    for mod in targets:
+        setattr(mod, name, role)
+        for listing in ("PERIPHERALS", "FACTORY_ROLES"):
+            names = getattr(mod, listing, None)
+            if names is None and listing == "FACTORY_ROLES" and mod is peripherals_mod:
+                names = frozenset()
+            if names is not None and name not in names:
+                setattr(mod, listing, frozenset(names) | frozenset((name,)))
+        if cap_name is not None:
+            setattr(mod, cap_name, cap)
+
+
 # --- host-or-board audio resolution ---------------------------------------
 #
 # An app that runs on both a board and a desktop used to write this by hand::
