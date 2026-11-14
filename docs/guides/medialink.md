@@ -314,9 +314,9 @@ screen, and pictures alone don't keep the floor: a talker whose camera is
 still sending but who has gone quiet loses it as usual. One camera sends to
 one watcher at a time, the last that said hello.
 
-To watch a camera on a TV, run
-[`cast/medialink_tv.py`](https://github.com/PyDevices/gallery/blob/main/lib/examples/cast/medialink_tv.py)
-from PyDevices' gallery as the watcher. It casts the pictures and sound to
+To watch a camera on a TV, run castdisplay's
+[`castdisplay_medialink_tv.py`](../../packages/castdisplay/examples/castdisplay_medialink_tv.py)
+as the watcher. It casts the pictures and sound to
 a Roku TV or to Windows Wireless Display over Miracast, so the board
 running it needs no screen of its own. On the camera side set `RATE` to
 24000 and `FPS` to 5: an ESP32-P4 watcher keeps up with 5 pictures a second

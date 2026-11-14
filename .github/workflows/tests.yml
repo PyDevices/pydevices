@@ -25,6 +25,7 @@ on:
       - 'pydevices-desktop.toml'
       - 'tests/**'
       - 'packages/vtterm/**'
+      - 'packages/castdisplay/**'
       # The interpreters' pins and recipe, which tests/test_release_interpreters.py runs.
       - 'scripts/release_interpreters.sh'
       - 'scripts/release_interpreters/**'
@@ -52,6 +53,7 @@ on:
       - 'pydevices-desktop.toml'
       - 'tests/**'
       - 'packages/vtterm/**'
+      - 'packages/castdisplay/**'
       # The interpreters' pins and recipe, which tests/test_release_interpreters.py runs.
       - 'scripts/release_interpreters.sh'
       - 'scripts/release_interpreters/**'

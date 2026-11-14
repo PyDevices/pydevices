@@ -266,11 +266,11 @@ Known issues: Unix SDL rotation clears the screen; scrolling while rotated has e
 ```python
 # in your backend's package
 import backends
-backends.register("display", "hls", "hls_display:HlsDisplay", probe=have_ffmpeg)
+backends.register("display", "hls", "castdisplay.hls_display:HlsDisplay", probe=have_ffmpeg)
 
 # board_config.py
 import backends
-backends.require("display", "hls", module="hls_display")
+backends.require("display", "hls", module="castdisplay.hls_display")
 display_drv = AutoDisplay(1280, 720, tv=TV)      # extra keywords go to the winner
 ```
 
@@ -286,7 +286,7 @@ A backend that isn't built in is never picked unless a config required it or you
 
 On MicroPython there is no scanning for installed backends: `require` is the only way in. A frozen module imports like any other, so what you freeze decides what is present and `require` decides what is used.
 
-The Roku, HLS and Miracast displays in gallery register themselves as `roku`, `hls` and `cast`, and their `board_config.py` files `require` them, so under one of those configs `AutoDisplay` finds the display; `PYDEVICES_DISPLAY=hls` names one for a single run. Their options go through `AutoDisplay` as keywords (`tv=` for `roku` and `hls`, `sink=` and `kind=` for `cast`); see the [casting guide](https://github.com/PyDevices/gallery/blob/main/docs/how-it-works/casting.md#let-autodisplay-pick-a-cast-display).
+castdisplay's Roku, HLS and Miracast displays register themselves as `roku`, `hls` and `cast`, so a config that `require`s one gets it from `AutoDisplay`; `PYDEVICES_DISPLAY=hls` names one for a single run. Their options go through `AutoDisplay` as keywords (`tv=` for `roku` and `hls`, `sink=` and `kind=` for `cast`); see the [castdisplay guide](cast-to-a-tv.md#let-autodisplay-pick-a-cast-display).
 
 ## Next
 

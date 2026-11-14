@@ -29,6 +29,7 @@ guides/mdns
 guides/medialink
 guides/lvgl
 guides/vtterm
+guides/cast-to-a-tv
 guides/run-on-the-desktop
 guides/run-in-the-browser
 guides/run-in-pyscript
@@ -48,6 +49,7 @@ reference/usb-device-support
 reference/bluetooth-le-support
 reference/vtterm-escape-codes
 reference/vtterm-keys
+reference/castdisplay
 modules
 boards/board-contract
 boards/board-configs
@@ -69,6 +71,7 @@ how-it-works/displaydev-internals
 how-it-works/multimer-internals
 how-it-works/bledev-internals
 how-it-works/vtterm-internals
+how-it-works/casting
 ```
 
 ```{toctree}
