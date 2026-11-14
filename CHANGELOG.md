@@ -1,3 +1,7 @@
+## v0.8.0.dev15 (2026-11-14)
+
+- Library index: applibs 0.1.2.dev3 with deskkit and programkit; each requires what it imports (#572)
+
 ## v0.8.0.dev14 (2026-11-13)
 
 - multimer: a slow timer runs back to back at a board's idle REPL (#549)
