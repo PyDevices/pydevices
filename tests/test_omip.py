@@ -98,6 +98,11 @@ def build_indexes(scratch):
     write_package(ours, "async-user", {"async_user.py": "import asyncio\n"}, upstream=[["asyncio", "latest"]])
     write_package(ours, "frozen-core", {"asyncio/__init__.py": "COPY = True\n"})
     write_package(ours, "on-frozen", {"on_frozen.py": "F = True\n"}, deps=[["frozen-core", "latest"], ["gt911", "latest"]])
+    # An app that needs a frozen package twice over: once itself, once through another of its needs.
+    write_package(
+        ours, "frozen-app", {"__init__.py": "A = True\n"}, target="apps/frozen_app",
+        deps=[["frozen-core", "latest"], ["on-frozen", "latest"]],
+    )
     write_package(ours, "broken-dep", {"broken_dep.py": "B = True\n"}, deps=[["no-such-dep", "latest"]])
     write_package(ours, "broken-upstream", {"broken_up.py": "B = True\n"}, upstream=[["no-such-upstream", "latest"]])
     (ours / "repo" / "pkg").mkdir(parents=True)
@@ -584,6 +589,12 @@ class MicroPythonRun(Indexes):
         out = self.frozen("on-frozen")
         self.assertIn("Skipping frozen-core", out)
         self.assertIn("RESULT True", out)
+        self.assertEqual(self.landed(), ["gt911.py", "on_frozen.py"])
+
+    def test_a_frozen_package_another_need_brings_again_is_skipped_there_too(self):
+        out = self.frozen("frozen-app")
+        self.assertIn("RESULT True", out)
+        self.assertIn("ASYNCIO frozen", out)
         self.assertEqual(self.landed(), ["gt911.py", "on_frozen.py"])
 
     def test_a_package_wholly_frozen_installs_nothing_and_says_so(self):
