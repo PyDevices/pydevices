@@ -62,7 +62,7 @@ def _gone(e, what):
     # else goes up as it came.
     code = e.errno if getattr(e, "errno", None) is not None else (e.args[0] if e.args else None)
     if code in _GONE:
-        raise OSError(code, "the USB %s was disconnected" % what) from e
+        raise OSError(code, "the USB %s was disconnected" % what)
     raise e
 
 
