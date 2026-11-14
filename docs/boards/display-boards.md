@@ -151,6 +151,22 @@ variant (`C6_WIFI`).
   to `.mpy` on the way; without it the board compiles the `.py` files as
   they're imported. `/rom` comes before `/flash` on `sys.path`.
 
+- **Installing apps:** the firmware has no `omip`, and `mip`'s default folder
+  can be the read-only ROMFS, so name `/flash/lib` yourself. Join Wi-Fi from
+  `secrets.py`, then put `omip` on the board's flash:
+
+  ```python
+  import mip
+  mip.install("github:PyDevices/pydevices/lib/omip.py", target="/flash/lib")
+  ```
+
+  `omip.install` then installs into `/flash/lib` and `/flash/apps` on its
+  own, so the app lines in
+  [install an app](https://github.com/PyDevices/apps/blob/main/docs/guides/install-an-app.md)
+  work as written. Where that guide says `target="/"`, for Home's `main.py`
+  and for a newer `omip`, say `target="/flash"` and `target="/flash/lib"`
+  here: the board's writable drive is `/flash`.
+
 ### Waveshare ESP32-P4-WIFI6-Touch-LCD-4B
 
 - **board_config title:** `Waveshare ESP32-P4-WIFI6-Touch-LCD-4B - MicroPython`
