@@ -63,7 +63,7 @@ and Android.
 - [`pygraphics`](https://github.com/PyDevices/pygraphics/blob/main/docs/index.md): Draw shapes, text and images into a framebuffer.\
   Get it: `mip pygraphics`, `pip pydevices-pygraphics`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
 - [`vtterm`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/vtterm.md): Turn a display into a color terminal, for the board's own REPL or another device's.\
-  Get it: from source. Runs on: MP, CP, Desktop.
+  Get it: `mip vtterm`. Runs on: MP, CP, Desktop.
 - [`palettes`](https://github.com/PyDevices/pydevices/tree/main/packages/palettes): Turn a palette index into a color your display can show.\
   Get it: `mip palettes`, `pip pydevices-palettes`, firmware build. Runs on: MP, CP, Desktop.
 - [`iconkit`](https://github.com/PyDevices/pydevices/blob/main/packages/iconkit/docs/reference/icons.md): Draw Material icons in any colour, in LVGL or with pygraphics; frozen in, they cost no RAM.\
@@ -403,11 +403,11 @@ and Android.
 ## Libraries the apps use
 
 - [`deskkit`](https://github.com/PyDevices/apps/blob/main/docs/guides/put-a-clock-on-your-desk.md): Put a clock and the weather on a screen on your desk, with swipes between them and the screen dark at night.\
-  Get it: from source. Runs on: MP on an LVGL touch board.
+  Get it: `mip deskkit`, from source. Runs on: MP on an LVGL touch board.
 - [`touchkit`](https://github.com/PyDevices/apps/tree/main/lib/touchkit): Reuse what the apps on an ESP32-P4 touch board share: the shell, settings, clock, network and camera helpers.\
   Get it: `mip touchkit`, `pip omnipython-applibs`. Runs on: MP on an ESP32-P4 touch board.
 - [`programkit`](https://github.com/PyDevices/apps/tree/main/lib/programkit): Give a program the board it runs on: its roles, a press from any key, touch or Boot button, and rows of text on any display.\
-  Get it: from source. Runs on: MP.
+  Get it: `mip programkit`, from source. Runs on: MP.
 - [`sayso`](https://github.com/PyDevices/apps/tree/main/lib/sayso): Call the Spotify Web API from a small object layer, with sign-in helpers.\
   Get it: `mip sayso`, `pip omnipython-applibs`. Runs on: MP, CP, Desktop.
 
