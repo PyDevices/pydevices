@@ -92,6 +92,7 @@ class FakeHost:
         self.streams = {}
         self.probe = bytearray(34)
         self.report = None
+        self.gone = None                    # an errno once the device is unplugged
         self.host_poll = self._host_poll    # absent on a firmware that predates it
 
     # -- usb.core's calls
@@ -176,6 +177,8 @@ class FakeHost:
         return (10, 1000, 1, 2, 3, 4, 5, 6, 7) if ep in self.streams else None
 
     def host_stream_write(self, dev_id, ep, buf):
+        if self.gone:
+            raise OSError(self.gone, "unplugged")
         ring = self.streams[ep]
         n = min(len(buf), ring.size - ring.any())
         n -= n % 4
@@ -183,6 +186,8 @@ class FakeHost:
         return n
 
     def host_stream_space(self, dev_id, ep):
+        if self.gone:
+            raise OSError(self.gone, "unplugged")
         ring = self.streams[ep]
         return ring.size - ring.any()
 
@@ -248,6 +253,22 @@ class TestSpeaker(unittest.TestCase):
         self.assertEqual(spk.stats(), (10, 1000, 1, 2, 3, 4))   # the last, after stop
         self.assertEqual(spk.capacity(), 0)
         self.assertEqual(spk.queued(), 0)
+
+    def test_an_unplugged_speaker_says_so_and_keeps_the_errno(self):
+        host.reset(_uac2_blob())
+        spk = Speaker(device(), rate=48000)
+        spk.start()
+        for errno in (2, 19):                  # ENOENT, then ENODEV
+            host.gone = errno
+            for call in (spk.space, lambda: spk.write(bytes(4))):
+                with self.assertRaises(OSError) as cm:
+                    call()
+                self.assertEqual(cm.exception.errno, errno)
+                self.assertIn("USB speaker was disconnected", str(cm.exception))
+        host.gone = 5                          # any other error goes up as it came
+        with self.assertRaises(OSError) as cm:
+            spk.write(bytes(4))
+        self.assertEqual((cm.exception.errno, cm.exception.strerror), (5, "unplugged"))
 
     def test_stop_parks_the_device_on_alt_0_and_lets_go(self):
         host.reset(_uac2_blob())
@@ -482,6 +503,18 @@ class TestAudiodev(unittest.TestCase):
         mic.close()
         self.assertNotIn(0x83, host.streams)
         self.assertEqual(mic.available(), 0)
+
+    def test_an_unplugged_speaker_fails_the_write_loudly(self):
+        out = self.speaker()
+        out.write(bytes(400))
+        host.gone = 2
+        for call in (lambda: out.write(bytes(400)), lambda: out.try_write(bytes(400)), out.space):
+            with self.assertRaises(OSError) as cm:
+                call()
+            self.assertEqual(cm.exception.errno, 2)
+            self.assertIn("USB speaker was disconnected", str(cm.exception))
+        host.gone = None
+        out.close()
 
     def test_audio_out_wraps_the_speaker_in_a_player_off_the_pump(self):
         fake = types.ModuleType("audiocore")
