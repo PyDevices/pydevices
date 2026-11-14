@@ -342,6 +342,52 @@ hub, the host's limits, and why its events are drained rather than called back
 are on the host's own page, in micropython-pydevices'
 `modules/usbhost/docs/host.md`.
 
+### Make it the board's audio
+
+A store-bought USB sound card, such as a USB-C headphone dongle, USB speakers
+or a headset, can be the board's audio for every app at once. Replace the
+board's audio roles in `main.py`, before the app is imported:
+
+```python
+import board_peripherals
+import boarddev
+from usb.host import audio
+
+boarddev.replace_role(board_peripherals, "audio_out", audio.audio_out)
+boarddev.replace_role(board_peripherals, "pcm_out", audio.pcm_out)
+boarddev.replace_role(board_peripherals, "pcm_in", audio.pcm_in)
+
+import my_app
+```
+
+An app that calls `board_peripherals.audio_out()` when it plays now gets the
+sound card. [Replacing a role at run time](../boards/board-contract.md#replacing-a-role-at-run-time)
+says why that works, what an app must not do, and what happens to the board's
+`AUDIO_OUT` capability. [`usb_host_audio_main.py`](https://github.com/PyDevices/pydevices/blob/main/examples/usb_host_audio_main.py)
+is a `main.py` that does this and plays three notes before starting your app.
+
+Things to know before you buy or plug in:
+
+- The ESP32-S2 and S3 host at full speed only, so a USB Audio 2.0 device that
+  works only at high speed won't play there. Most dongles are USB Audio 1.0 at
+  full speed. The ESP32-P4's port takes either speed.
+- Leave `format` out. The output takes the sound card's own rate and doesn't
+  resample, so an app that asks for 44100 Hz fails on a card that offers only
+  48000. Read `out.format` to see what it took.
+- The host port has to supply 5 V to the sound card.
+- Volume is in software: the output scales the samples before they're sent.
+- A headset's buttons are a HID interface beside its audio. The host's
+  channels are few on the S3, so starting the host for `hid` as well costs one
+  of them; the host's page has the budget.
+- On a board whose only USB port carries the REPL, the host takes that port.
+  Reach the board over its UART or WebREPL instead.
+- On a board with its own codec, the sound card replaces it for every app that
+  goes through the roles.
+- `pcm_in` replaces the board's microphone the same way, from the sound
+  card's microphone.
+
+This covers MicroPython. CircuitPython's USB host isn't covered here.
+
 ## Examples
 
 One script per use, device and host, beside the C module in
