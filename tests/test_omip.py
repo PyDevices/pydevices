@@ -536,6 +536,16 @@ class MicroPythonRun(Indexes):
         self.assertEqual(landed, ["app/__init__.py", "app/app.json"])
         self.assertEqual(self.landed(), ["aioble/__init__.py", "aioble/core.py", "bledev/__init__.py", "gt911.py"])
 
+    def test_the_root_folder_stays_the_root_for_mip(self):
+        # mip reads an empty target as its default, /lib: "/" has to reach it as "/".
+        out = self.run_mp(
+            "import omip, mip\nomip._check_writable = lambda folder: None\n"
+            "mip.install = lambda *args, **kw: print('MIP', kw['target'])\n"
+            "try:\n    omip.install(%r, target='/', prompt=False)\nexcept OSError as exc:\n    print('NOT THERE', exc)\n"
+            % (self.ours_url + "/repo/single.py")
+        )
+        self.assertIn("MIP /\n", out)
+
     def test_search_reads_both_indexes(self):
         out = self.run_mp(MP_SEARCH.format(ours=self.ours_url, upstream=self.upstream_url, words=("BLUETOOTH",)))
         self.assertIn("bledev 1.0  Bluetooth for boards", out)

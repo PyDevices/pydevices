@@ -396,6 +396,10 @@ def _walk(plan, spec, version, indexes, owner=None):
     return entry[1]
 
 
+def _in(folder, path):
+    return folder.rstrip("/") + "/" + path
+
+
 def _ensure_parent(path):
     parts = path.split("/")
     prefix = parts[0]
@@ -428,7 +432,7 @@ def _matches(path, short):
 
 def _fetch(path, source, short, target):
     """Download one file into target, unless it is already there."""
-    dest = target + "/" + path
+    dest = _in(target, path)
     if short and _matches(dest, short):
         print("Exists:", dest)
         return
@@ -456,7 +460,7 @@ def _default_target():
 
 def _check_writable(target):
     """Say what to do about a read-only filesystem before anything is fetched."""
-    probe = target + "/.omip"
+    probe = _in(target, ".omip")
     try:
         _ensure_parent(probe)
         with open(probe, "w") as f:
@@ -698,7 +702,8 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
     """
     if version is None and "@" in package and not _is_url(package):
         package, _, version = package.partition("@")
-    target = (target or _default_target()).rstrip("/")
+    # "/" stays itself: mip would read an empty target as its default, /lib.
+    target = (target or _default_target()).rstrip("/") or "/"
     _check_writable(target)
     connect(prompt)
 
@@ -733,7 +738,7 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
     missing = []
     for path, _, _, owner in plan.files:
         try:
-            os.stat(plan.folder(owner) + "/" + path)
+            os.stat(_in(plan.folder(owner), path))
         except OSError:
             missing.append(path)
     if missing:
