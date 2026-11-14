@@ -28,6 +28,7 @@ guides/wifi
 guides/mdns
 guides/medialink
 guides/lvgl
+guides/vtterm
 guides/run-on-the-desktop
 guides/run-in-the-browser
 guides/run-in-pyscript
@@ -45,6 +46,8 @@ reference/index
 reference/usb-host-support
 reference/usb-device-support
 reference/bluetooth-le-support
+reference/vtterm-escape-codes
+reference/vtterm-keys
 modules
 boards/board-contract
 boards/board-configs
@@ -65,6 +68,7 @@ how-it-works/ecosystem
 how-it-works/displaydev-internals
 how-it-works/multimer-internals
 how-it-works/bledev-internals
+how-it-works/vtterm-internals
 ```
 
 ```{toctree}

@@ -25,6 +25,7 @@ boards, a desktop, a browser and an Android phone.
 - [mdns](guides/mdns.md)
 - [medialink: audio between devices](guides/medialink.md)
 - [Using LVGL with PyDevices](guides/lvgl.md)
+- [vtterm: a terminal on a display](guides/vtterm.md)
 - [pydevices-desktop](guides/run-on-the-desktop.md)
 - [Direct MicroPython WebAssembly](guides/run-in-the-browser.md)
 - [PyScript and Pyodide](guides/run-in-pyscript.md)
@@ -38,6 +39,8 @@ boards, a desktop, a browser and an Android phone.
 - [USB host support](reference/usb-host-support.md)
 - [USB device support](reference/usb-device-support.md)
 - [Bluetooth LE support](reference/bluetooth-le-support.md)
+- [vtterm escape codes](reference/vtterm-escape-codes.md)
+- [vtterm keys](reference/vtterm-keys.md)
 - [Other modules](modules.md)
 - [Board peripherals contract](boards/board-contract.md)
 - [Board configs](boards/board-configs.md)
@@ -55,6 +58,7 @@ boards, a desktop, a browser and an Android phone.
 - [Display backend internals](how-it-works/displaydev-internals.md)
 - [multimer internals: the dispatcher and the wake sources](how-it-works/multimer-internals.md)
 - [bledev internals: writing a backend](how-it-works/bledev-internals.md)
+- [vtterm internals](how-it-works/vtterm-internals.md)
 
 ## Changelog
 

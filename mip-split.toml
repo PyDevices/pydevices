@@ -140,6 +140,9 @@ top-level = true
 [mp4mux]
 top-level = true
 
+[vtterm]
+top-level = true
+
 [usb-core]
 top-level = true
 

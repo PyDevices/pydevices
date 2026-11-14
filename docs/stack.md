@@ -62,6 +62,8 @@ and Android.
   Get it: firmware build. Runs on: MP, by chip.
 - [`pygraphics`](https://github.com/PyDevices/pygraphics/blob/main/docs/index.md): Draw shapes, text and images into a framebuffer.\
   Get it: `mip pygraphics`, `pip pydevices-pygraphics`, firmware build. Runs on: MP, CP, Desktop, Web, Android.
+- [`vtterm`](https://github.com/PyDevices/pydevices/blob/main/docs/guides/vtterm.md): Turn a display into a color terminal, for the board's own REPL or another device's.\
+  Get it: `mip vtterm`. Runs on: MP, CP, Desktop.
 - [`palettes`](https://github.com/PyDevices/pydevices/tree/main/packages/palettes): Turn a palette index into a color your display can show.\
   Get it: `mip palettes`, `pip pydevices-palettes`, firmware build. Runs on: MP, CP, Desktop.
 - [`iconkit`](https://github.com/PyDevices/pydevices/blob/main/packages/iconkit/docs/reference/icons.md): Draw Material icons in any colour, in LVGL or with pygraphics; frozen in, they cost no RAM.\
@@ -433,7 +435,7 @@ and Android.
 - **S:** [`sayso`](#libraries-the-apps-use), [`Security camera`](#run-a-finished-app), [`songmodel`](#play-and-sequence-music), [`Sound card`](#run-a-finished-app), [`soundmodule`](#play-and-sequence-music), [`spectrum`](#draw-on-a-screen), [`Spotify`](#run-a-finished-app), [`Stompbox`](#run-a-finished-app), [`Storage`](#drive-a-chip), [`Surveillance camera`](#run-a-finished-app), [`svgio`](#draw-on-a-screen), [`svgio for CPython`](#draw-on-a-screen), [`Synth Station`](#run-a-finished-app), [`synthio`](#make-and-shape-sound), [`System`](#run-a-finished-app)
 - **T:** [`tflite`](#use-cameras-video-and-ai-on-a-board), [`Touch drivers`](#drive-a-chip), [`touchkit`](#libraries-the-apps-use), [`tsmux`](#use-cameras-video-and-ai-on-a-board)
 - **U:** [`ulab`](#use-cameras-video-and-ai-on-a-board), [`usb-core`](#use-usb), [`usb-device-audio`](#use-usb), [`usb-device-msc`](#use-usb), [`usb-device-net`](#use-usb), [`usb-device-video`](#use-usb), [`usb-hid`](#use-usb), [`usb-host-audio`](#use-usb), [`usb-host-cdc`](#use-usb), [`usb-host-dfu`](#use-usb), [`usb-host-hid`](#use-usb), [`usb-host-msc`](#use-usb), [`usb-host-mtp`](#use-usb), [`usb-host-net`](#use-usb), [`usb-host-video`](#use-usb), [`usbhost`](#use-usb), [`usdl2`](#run-somewhere-other-than-a-board), [`uwin32`](#run-somewhere-other-than-a-board)
-- **V:** [`Vamp`](#run-a-finished-app), [`Video doorbell`](#run-a-finished-app), [`Videophone`](#run-a-finished-app), [`vision`](#use-cameras-video-and-ai-on-a-board)
+- **V:** [`Vamp`](#run-a-finished-app), [`Video doorbell`](#run-a-finished-app), [`Videophone`](#run-a-finished-app), [`vision`](#use-cameras-video-and-ai-on-a-board), [`vtterm`](#draw-on-a-screen)
 - **W:** [`Wake word`](#run-a-finished-app), [`Walkie-talkie`](#run-a-finished-app), [`wasm.py`](#run-somewhere-other-than-a-board), [`Weather`](#run-a-finished-app), [`wifi`](#connect-devices), [`wifi_manager`](#connect-devices), [`Workbench`](#set-up-a-board)
 
 <!-- PYDEVICES-STACK: END -->
