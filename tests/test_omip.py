@@ -107,6 +107,20 @@ def build_indexes(scratch):
         json.dumps({"urls": [["pkg.py", "pkg.py"]], "deps": [["core", "latest"]], "upstream": [["sdcard", "latest"]]}),
         encoding="utf-8",
     )
+    # An app: its own files in a folder of its own, what it needs in the library folder.
+    (ours / "repo" / "app").mkdir(parents=True)
+    (ours / "repo" / "app" / "__init__.py").write_text("APP = True\n", encoding="utf-8")
+    (ours / "repo" / "app" / "app.json").write_text('{"name": "app"}\n', encoding="utf-8")
+    (ours / "repo" / "app" / "package.json").write_text(
+        json.dumps(
+            {
+                "target": "apps/app",
+                "urls": [["__init__.py", "__init__.py"], ["app.json", "app.json"]],
+                "deps": [["bledev", "latest"], ["gt911", "latest"]],
+            }
+        ),
+        encoding="utf-8",
+    )
     write_index(ours, ("bledev", "Bluetooth for boards"), ("gt911", 'Touch, with {braces} and a "quote"'))
     write_index(upstream, ("aioble", "Asyncio Bluetooth"), ("sdcard", "SD cards"))
     return ours, upstream
@@ -300,6 +314,22 @@ class CPythonInstall(Indexes):
         self.install("versioned@2.0")
         self.assertEqual((self.target / "versioned.py").read_text(), "V = 2\n")
 
+    def apps_landed(self):
+        apps = self.scratch / "apps"
+        return sorted(p.relative_to(apps).as_posix() for p in apps.rglob("*") if p.is_file())
+
+    def test_a_package_with_its_own_folder_lands_there_and_its_needs_in_lib(self):
+        self.install(self.ours_url + "/repo/app")
+        self.assertEqual(self.apps_landed(), ["app/__init__.py", "app/app.json"])
+        self.assertEqual(self.landed(), ["aioble/__init__.py", "aioble/core.py", "bledev/__init__.py", "gt911.py"])
+
+    def test_own_folder_beside_the_library_folder(self):
+        beside = self.omip._beside
+        self.assertEqual(beside("/lib", "apps/home"), "/apps/home")
+        self.assertEqual(beside("/flash/lib", "apps/home"), "/flash/apps/home")
+        self.assertEqual(beside("lib", "apps/home/"), "apps/home")
+        self.assertEqual(beside("/lib", "/sd/apps/home/"), "/sd/apps/home")
+
     def test_url_base_is_where_relative_urls_are_found(self):
         site = self.ours_dir / "site"
         (site / "src").mkdir(parents=True)
@@ -491,6 +521,30 @@ class MicroPythonRun(Indexes):
         )
         self.assertNotIn("Traceback", out, out)
         self.assertEqual(self.landed(), ["hello.py", "versioned.py"])
+
+    def test_a_package_with_its_own_folder_on_micropython(self):
+        out = self.run_mp(
+            # The target ahead of .frozen, as in MP_INSTALL.
+            "import sys\nimport omip\nomip.INDEX = %r\nomip.UPSTREAM = %r\nsys.path.insert(0, %r)\n"
+            "print('RESULT', omip.install(%r, target=%r, prompt=False))\n"
+            % (self.ours_url, self.upstream_url, str(self.target), self.ours_url + "/repo/app", str(self.target))
+        )
+        self.assertIn("RESULT True", out)
+        self.assertIn("Installed %s/repo/app in %s" % (self.ours_url, self.scratch / "apps" / "app"), out)
+        apps = self.scratch / "apps"
+        landed = sorted(p.relative_to(apps).as_posix() for p in apps.rglob("*") if p.is_file())
+        self.assertEqual(landed, ["app/__init__.py", "app/app.json"])
+        self.assertEqual(self.landed(), ["aioble/__init__.py", "aioble/core.py", "bledev/__init__.py", "gt911.py"])
+
+    def test_the_root_folder_stays_the_root_for_mip(self):
+        # mip reads an empty target as its default, /lib: "/" has to reach it as "/".
+        out = self.run_mp(
+            "import omip, mip\nomip._check_writable = lambda folder: None\n"
+            "mip.install = lambda *args, **kw: print('MIP', kw['target'])\n"
+            "try:\n    omip.install(%r, target='/', prompt=False)\nexcept OSError as exc:\n    print('NOT THERE', exc)\n"
+            % (self.ours_url + "/repo/single.py")
+        )
+        self.assertIn("MIP /\n", out)
 
     def test_search_reads_both_indexes(self):
         out = self.run_mp(MP_SEARCH.format(ours=self.ours_url, upstream=self.upstream_url, words=("BLUETOOTH",)))

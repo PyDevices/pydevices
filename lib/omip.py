@@ -23,6 +23,11 @@ beside `deps`. `mip` and `mpremote` ignore that key, so they behave as they
 always have: `mip` takes every file of a package from the one index it was given.
 What a package needs from Adafruit's bundle on CircuitPython goes under
 `circuitpython`, and only omip on CircuitPython reads it.
+
+A package that isn't a library names its own folder under `target`, as an app
+does with `"target": "apps/home"`. That folder sits beside the one libraries go
+in, so it's `/apps/home` on a board whose libraries are in `/lib`, and what the
+package needs still goes in `/lib`.
 """
 
 import gc
@@ -224,10 +229,24 @@ class _Plan:
         self.force = force
         self.url_base = url_base
         self.seen = []
-        # [spec, index, version, pruned]: one mip.install each on MicroPython,
-        # unless something under it was skipped as frozen (pruned)
+        # [spec, index, version, pruned, folder]: one mip.install each on
+        # MicroPython, unless something under it was skipped as frozen
+        # (pruned) or it names its own folder; folder is None for the target.
         self.roots = []
         self.files = []  # (target path, index or URL, short hash or None, root)
+
+    def folder(self, root):
+        """The folder root's files land in."""
+        return root[4] or self.target
+
+
+def _beside(target, folder):
+    """Where a package's own folder is: beside the library folder, unless it's absolute."""
+    if folder.startswith("/"):
+        return folder.rstrip("/")
+    head, slash, _ = target.rpartition("/")
+    # "/lib" gives "/apps/home", "/flash/lib" gives "/flash/apps/home", "lib" gives "apps/home".
+    return head + slash + folder.strip("/") if slash else folder.strip("/")
 
 
 def _module_names(paths):
@@ -304,7 +323,7 @@ def _walk(plan, spec, version, indexes, owner=None):
     if spec in plan.seen:
         return None
     plan.seen.append(spec)
-    entry = [spec, indexes[0], version, False]
+    entry = [spec, indexes[0], version, False, None]
     if owner is None:
         owner = entry
         plan.roots.append(entry)
@@ -336,7 +355,17 @@ def _walk(plan, spec, version, indexes, owner=None):
         indexes = [entry[1]]
     hashes = body.get("hashes", ())
     urls = body.get("urls", ())
-    if _skip_frozen(plan, spec, [path for path, _ in hashes] + [path for path, _ in urls]):
+    folder = body.get("target")
+    if folder:
+        # Its own folder: its files are fetched one by one into it, since
+        # mip.install would put what it needs there too, and each thing it
+        # needs is a root of its own, bound for the library folder.
+        if entry is not owner:
+            plan.roots.append(entry)
+            owner = entry
+        entry[3] = True
+        entry[4] = _beside(plan.target, folder)
+    elif _skip_frozen(plan, spec, [path for path, _ in hashes] + [path for path, _ in urls]):
         # mip.install would bring it anyway, so its root's files are fetched one by one.
         owner[3] = True
         hashes = urls = ()
@@ -348,7 +377,7 @@ def _walk(plan, spec, version, indexes, owner=None):
         plan.files.append((path, _rewrite_url(url, version), None, owner))
     first = True
     for dep, dep_version in body.get("deps", ()):
-        found = _walk(plan, dep, dep_version, indexes, owner)
+        found = _walk(plan, dep, dep_version, indexes, None if folder else owner)
         # mip looks up all of a package.json's named deps on the one index it is given.
         if base and first and found and not _is_url(dep):
             entry[1] = found
@@ -365,6 +394,10 @@ def _walk(plan, spec, version, indexes, owner=None):
         for dep, dep_version in body.get("circuitpython", ()):
             _walk(plan, dep, dep_version, [ADAFRUIT])
     return entry[1]
+
+
+def _in(folder, path):
+    return folder.rstrip("/") + "/" + path
 
 
 def _ensure_parent(path):
@@ -399,7 +432,7 @@ def _matches(path, short):
 
 def _fetch(path, source, short, target):
     """Download one file into target, unless it is already there."""
-    dest = target + "/" + path
+    dest = _in(target, path)
     if short and _matches(dest, short):
         print("Exists:", dest)
         return
@@ -427,7 +460,7 @@ def _default_target():
 
 def _check_writable(target):
     """Say what to do about a read-only filesystem before anything is fetched."""
-    probe = target + "/.omip"
+    probe = _in(target, ".omip")
     try:
         _ensure_parent(probe)
         with open(probe, "w") as f:
@@ -648,7 +681,8 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
             the OmniPython index, then Adafruit's bundle on CircuitPython
             (`omip.ADAFRUIT`), then micropython-lib.
         target (str): The folder to install into. By default the `lib` folder on
-            `sys.path`.
+            `sys.path`. A package that names its own folder, as an app does,
+            goes in that folder beside this one.
         version (str): A version on an index, or a branch or tag for a URL.
         mpy (bool): Take compiled `.mpy` files on MicroPython. Other platforms
             always take `.py`.
@@ -668,7 +702,8 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
     """
     if version is None and "@" in package and not _is_url(package):
         package, _, version = package.partition("@")
-    target = (target or _default_target()).rstrip("/")
+    # "/" stays itself: mip would read an empty target as its default, /lib.
+    target = (target or _default_target()).rstrip("/") or "/"
     _check_writable(target)
     connect(prompt)
 
@@ -677,6 +712,9 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
     indexes = [index.rstrip("/")] if index else _indexes()
     _walk(plan, package, version, indexes)
     gc.collect()
+    for root in plan.roots:
+        if root[4]:
+            _check_writable(root[4])
 
     if _MP:
         # Public mip, once per root: it fetches hashed files from the index it
@@ -690,23 +728,23 @@ def install(package, index=None, target=None, version=None, mpy=True, prompt=Tru
             if root[3] or plan.url_base:
                 for path, source, short, owner in plan.files:
                     if owner is root:
-                        _fetch(path, source, short, target)
+                        _fetch(path, source, short, plan.folder(root))
             else:
                 mip.install(root[0], index=root[1], target=target, version=root[2], mpy=mpy)
     else:
-        for path, source, short, _ in plan.files:
-            _fetch(path, source, short, target)
+        for path, source, short, owner in plan.files:
+            _fetch(path, source, short, plan.folder(owner))
 
     missing = []
-    for path, _, _, _ in plan.files:
+    for path, _, _, owner in plan.files:
         try:
-            os.stat(target + "/" + path)
+            os.stat(_in(plan.folder(owner), path))
         except OSError:
             missing.append(path)
     if missing:
         raise OSError("%s is partly installed. Missing: %s" % (package, ", ".join(missing)))
     if plan.files:
-        print("Installed %s in %s" % (package, target))
+        print("Installed %s in %s" % (package, plan.folder(plan.roots[0])))
     else:
         print("Nothing to install: the firmware has %s frozen in" % package)
     return True
